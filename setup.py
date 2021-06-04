@@ -13,14 +13,15 @@
 # limitations under the License.
 
 
-from setuptools import setup, Extension
+from setuptools import find_packages, setup, Extension
 from Cython.Build import cythonize
 
 import Cython.Compiler.Options
 Cython.Compiler.Options.annotate = True
 
 extensions = [
-      Extension('resiliparse.input_format.warc', sources=['resiliparse/input_format/*.pyx'])
+      Extension('resiliparse.input_format.warc', sources=['resiliparse/input_format/warc.pyx']),
+      Extension('resiliparse.input_format.compressed_stream', sources=['resiliparse/input_format/compressed_stream.pyx'])
 ]
 
 setup(
@@ -31,7 +32,7 @@ setup(
       author_email='janek.bevendorff@uni-weimar.de',
       url='https://webis.de',
       license='Apache License 2.0',
-      modules=['resiliparse'],
+      packages=find_packages(),
       setup_requires=[
             'cython',
             'setuptools>=18.0'
