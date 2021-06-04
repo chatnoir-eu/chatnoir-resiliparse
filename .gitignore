@@ -144,3 +144,7 @@ Thumbs.db
 
 # profiling data
 .prof
+
+# Cython C and HTML profiling files
+resiliparse/**/*.c
+resiliparse/**/*.html
