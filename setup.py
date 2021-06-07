@@ -37,5 +37,5 @@ setup(
             'cython',
             'setuptools>=18.0'
       ],
-      ext_modules=cythonize(extensions, annotate=True)
+      ext_modules=cythonize(extensions, annotate=True, language_level='3')
 )

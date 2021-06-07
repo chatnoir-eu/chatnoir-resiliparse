@@ -1,3 +1,5 @@
+# distutils: language = c++
+
 import io
 import zlib
 
