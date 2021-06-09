@@ -12,6 +12,7 @@ cdef extern from "zlib.h":
     char* gzerror(gzFile fp, int* errnum)
 
 cdef size_t BUFF_SIZE = 16384
+cdef size_t STR_NPOS = <size_t> -1
 
 cdef class CompressedStream:
     cdef void open(self, string file, string mode):
@@ -83,15 +84,12 @@ cdef class LineParser:
 
     cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
         cdef string line
-        cdef size_t pos
-        cdef size_t npos = <size_t>-1
-        cdef string tmp_buf
 
         if not self._fill_buf(buf_size):
             return line
 
-        pos = self.buf.find(b'\n')
-        while pos == npos and not self.buf.empty():
+        cdef pos = self.buf.find(b'\n')
+        while pos == STR_NPOS and not self.buf.empty():
             if line.size() < max_line_len:
                 line.append(self.buf.substr(0u, min(self.buf.size(), max_line_len - line.size())))
             # Consume rest of line
