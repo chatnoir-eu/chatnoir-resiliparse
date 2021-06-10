@@ -22,25 +22,19 @@ from libcpp.string cimport string
 
 cdef extern from "<stdio.h>" nogil:
     int fileno(FILE*)
-    FILE* fmemopen(void* buf, size_t size, const char* mode);
 
 cdef extern from "<zlib.h>" nogil:
-    ctypedef void* gzFile
-
     int gzclose(gzFile fp)
     gzFile gzopen(const char* path, const char* mode)
     gzFile gzdopen(int fd, const char* mode)
     int gzread(gzFile fp, void* buf, unsigned long n)
     char* gzerror(gzFile fp, int* errnum)
 
+
 cdef size_t BUFF_SIZE = 16384
 cdef size_t STR_NPOS = <size_t> -1
 
-
 cdef class IOStream:
-    def __dealloc__(self):
-        self.close()
-
     cdef void close(self):
         pass
 
@@ -64,10 +58,11 @@ cdef class IOStream:
 
 
 cdef class FileStream(IOStream):
-    cdef FILE* fp
-
     def __init__(self):
         self.fp = NULL
+
+    def __dealloc__(self):
+        self.close()
 
     cpdef void open(self, const char* path, const char* mode=b'rb'):
         if self.fp != NULL:
@@ -99,8 +94,6 @@ cdef class FileStream(IOStream):
 
 
 cdef class PythonIOStreamAdapter(IOStream):
-    cdef py_stream
-
     def __init__(self, py_stream):
         super().__init__()
         self.py_stream = py_stream  # type: RawIOBase
@@ -126,14 +119,13 @@ cdef class PythonIOStreamAdapter(IOStream):
 
 
 cdef class GZipStream(IOStream):
-    cdef gzFile fp
-    cdef py_stream
-    cdef decomp_obj
-
     def __init__(self):
         self.fp = NULL
         self.py_stream = None   # type: RawIOBase
         self.decomp_obj = None  # type: zlib.Decompress
+
+    def __dealloc__(self):
+        self.close()
 
     cpdef void open(self, const char* path, const char* mode=b'rb'):
         self.fp = gzopen(path, mode)
@@ -182,9 +174,6 @@ cdef class GZipStream(IOStream):
 
 
 cdef class LineParser:
-    cdef IOStream stream
-    cdef string buf
-
     def __init__(self, IOStream stream):
         self.stream = stream
         self.buf = string(b'')
