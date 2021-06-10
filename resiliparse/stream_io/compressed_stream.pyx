@@ -82,6 +82,9 @@ cdef class LineParser:
         self.buf.append(tmp_buf)
         return True
 
+    cdef string unused_data(self):
+        return self.buf
+
     cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
         cdef string line
 
