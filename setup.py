@@ -20,8 +20,8 @@ import Cython.Compiler.Options
 Cython.Compiler.Options.annotate = True
 
 extensions = [
-      Extension('resiliparse.stream_io.warc', sources=['resiliparse/stream_io/warc.pyx']),
-      Extension('resiliparse.stream_io.compressed_stream', sources=['resiliparse/stream_io/compressed_stream.pyx'])
+      Extension('resiliparse.warc', sources=['resiliparse/warc.pyx']),
+      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'])
 ]
 
 setup(
