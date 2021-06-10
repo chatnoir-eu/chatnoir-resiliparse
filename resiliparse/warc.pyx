@@ -19,13 +19,12 @@ from stream_io cimport IOStream, BufferedLineReader
 from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 
-cdef size_t STR_NPOS = -1
-
 cdef extern from "<cctype>" namespace "std":
     int isspace(int c)
     int tolower(int c)
 
 cdef extern from "<string>" namespace "std":
+    size_t npos = -1
     int stoi(const string& s)
 
 cdef string strip_str(const string& s):
@@ -105,7 +104,7 @@ cdef class ArchiveIterator:
                 break
 
             delim_pos = line.find(b':')
-            if delim_pos == STR_NPOS:
+            if delim_pos == npos:
                 delim_pos = line.size() - 1
 
             header_key = strip_str(line.substr(0, delim_pos))
