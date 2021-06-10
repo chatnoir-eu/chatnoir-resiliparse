@@ -5,6 +5,8 @@ from libcpp.string cimport string
 cdef extern from "<zlib.h>" nogil:
     ctypedef void* gzFile
 
+cdef extern from "<string>" namespace "std" nogil:
+    size_t npos = -1
 
 cdef class IOStream:
     cdef void close(self)
@@ -43,6 +45,7 @@ cdef class GZipStream(IOStream):
     cdef gzFile fp
     cdef py_stream
     cdef decomp_obj
+    cdef unused_data
 
     cpdef void open(self, const char* path, const char* mode=*)
     cpdef void open_from_fstream(self, FileStream fstream, const char* mode=*)
@@ -53,10 +56,11 @@ cdef class GZipStream(IOStream):
     cpdef string read(self, size_t size=*)
 
 
-cdef class LineParser:
+cdef class BufferedLineReader:
     cdef IOStream stream
     cdef string buf
 
-    cdef bint _fill_buf(self, size_t buf_size)
+    cdef bint fill_buf(self, size_t buf_size=*)
     cdef string unused_data(self)
     cpdef string readline(self, size_t max_line_len=*, size_t buf_size=*)
+    cpdef string read_block(self, size_t block_size, size_t buf_size=*)

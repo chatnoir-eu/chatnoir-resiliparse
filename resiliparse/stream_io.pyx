@@ -32,7 +32,7 @@ cdef extern from "<zlib.h>" nogil:
 
 
 cdef size_t BUFF_SIZE = 16384
-cdef size_t STR_NPOS = <size_t> -1
+cdef size_t STR_NPOS = -1
 
 cdef class IOStream:
     cdef void close(self):
@@ -112,7 +112,7 @@ cdef class PythonIOStreamAdapter(IOStream):
 
     cdef string read(self, size_t size=BUFF_SIZE):
         pbuf = self.py_stream.read(size)
-        return pbuf[:len(pbuf)]
+        return pbuf[:size]
 
     cdef size_t write(self, const char* data, size_t size):
         return self.py_stream.write(data[:size])
@@ -123,6 +123,7 @@ cdef class GZipStream(IOStream):
         self.fp = NULL
         self.py_stream = None   # type: RawIOBase
         self.decomp_obj = None  # type: zlib.Decompress
+        self.unused_data = string(b'')
 
     def __dealloc__(self):
         self.close()
@@ -137,7 +138,6 @@ cdef class GZipStream(IOStream):
         if self.fp != NULL:
             self.close()
 
-        self.decomp_obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
         self.py_stream = pystream
 
     cdef void close(self):
@@ -161,33 +161,38 @@ cdef class GZipStream(IOStream):
         if self.fp != NULL:
             buf.resize(size)
             l = gzread(self.fp, &buf[0], buf.size())
-        elif self.py_stream is not None:
-            data = b''
-            if self.decomp_obj.unused_data:
-                data = self.decomp_obj.unused_data
+
+            return buf.substr(0, l)
+
+        if self.py_stream is not None:
+            if not self.decomp_obj or self.decomp_obj.eof:
+                # New member, so we need a new decompressor
+                self.decomp_obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
+
+            data = self.unused_data
             if <unsigned long>len(data) < size:
                 data += self.py_stream.read(size)
-            self.decomp_obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
-            return self.decomp_obj.decompress(data)
 
-        return buf.substr(0, l)
+            if not data:
+                return b''
+
+            decomp_data = self.decomp_obj.decompress(data)
+            self.unused_data =  self.decomp_obj.unconsumed_tail + self.decomp_obj.unused_data
+            return decomp_data
 
 
-cdef class LineParser:
+
+cdef class BufferedLineReader:
     def __init__(self, IOStream stream):
         self.stream = stream
         self.buf = string(b'')
 
-    cdef bint _fill_buf(self, size_t buf_size):
+    cdef bint fill_buf(self, size_t buf_size=BUFF_SIZE):
         if self.buf.size() >= buf_size:
             return True
 
-        cdef string tmp_buf
-        tmp_buf = self.stream.read(buf_size)
-        if tmp_buf.empty():
-            return False
-        self.buf.append(tmp_buf)
-        return True
+        self.buf.append(self.stream.read(buf_size))
+        return self.buf.size() > 0
 
     cdef string unused_data(self):
         return self.buf
@@ -195,21 +200,34 @@ cdef class LineParser:
     cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
         cdef string line
 
-        if not self._fill_buf(buf_size):
-            return line
+        if not self.fill_buf(buf_size):
+            return b''
 
+        cdef size_t capacity_remaining = max_line_len
         cdef size_t pos = self.buf.find(b'\n')
+        while pos == STR_NPOS:
+            if capacity_remaining > 0:
+                line.append(self.buf.substr(0, min(self.buf.size(), capacity_remaining)))
+                capacity_remaining -= line.size()
 
-        while pos == STR_NPOS and not self.buf.empty():
-            if line.size() < max_line_len:
-                line.append(self.buf.substr(0u, min(self.buf.size(), max_line_len - line.size())))
             # Consume rest of line
             self.buf.clear()
-            if not self._fill_buf(buf_size):
+            if not self.fill_buf(buf_size):
                 break
             pos = self.buf.find(b'\n')
 
-        line.append(self.buf.substr(0, min(pos + 1, max_line_len - line.size())))
-        self.buf = self.buf.substr(min(pos + 1, self.buf.size() - 1))
+        if capacity_remaining > 0:
+            line.append(self.buf.substr(0, min(pos + 1, capacity_remaining)))
+
+        self.buf = self.buf.substr(pos + 1)
 
         return line
+
+    cpdef string read_block(self, size_t block_size, size_t buf_size=BUFF_SIZE):
+        cdef string block
+        cdef size_t missing = block_size
+        while block.size() < block_size and self.fill_buf(buf_size):
+            missing = block_size - block.size()
+            block.append(self.buf.substr(0, missing))
+            self.buf = self.buf.substr(min(self.buf.size(), missing))
+        return block
