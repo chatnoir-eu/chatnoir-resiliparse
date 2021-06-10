@@ -88,7 +88,7 @@ cdef class LineParser:
         if not self._fill_buf(buf_size):
             return line
 
-        cdef pos = self.buf.find(b'\n')
+        cdef size_t pos = self.buf.find(b'\n')
         while pos == STR_NPOS and not self.buf.empty():
             if line.size() < max_line_len:
                 line.append(self.buf.substr(0u, min(self.buf.size(), max_line_len - line.size())))
@@ -98,7 +98,7 @@ cdef class LineParser:
                 break
             pos = self.buf.find(b'\n')
 
-        line.append(self.buf.substr(0u, min(pos + 1, max_line_len - line.size())))
+        line.append(self.buf.substr(0, min(pos + 1, max_line_len - line.size())))
         self.buf = self.buf.substr(min(pos + 1, self.buf.size() - 1))
 
         return line
