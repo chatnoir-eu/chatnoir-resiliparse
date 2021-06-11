@@ -19,9 +19,13 @@ from Cython.Build import cythonize
 import Cython.Compiler.Options
 Cython.Compiler.Options.annotate = True
 
+cpp_args = dict(
+      extra_compile_args=["-std=c++14"],
+      extra_link_args=["-std=c++14"])
+
 extensions = [
-      Extension('resiliparse.warc', sources=['resiliparse/warc.pyx']),
-      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'])
+      Extension('resiliparse.warc', sources=['resiliparse/warc.pyx'], **cpp_args),
+      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'], **cpp_args)
 ]
 
 setup(
