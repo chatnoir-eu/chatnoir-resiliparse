@@ -54,11 +54,10 @@ cdef class GZipStream(IOStream):
     cpdef string read(self, size_t size=*)
 
 
-cdef class BufferedLineReader:
+cdef class BufferedReader:
     cdef IOStream stream
     cdef string buf
 
     cdef bint fill_buf(self, size_t buf_size=*)
-    cdef string unused_data(self)
+    cpdef string read(self, size_t size, size_t buf_size=*, bint skip=*)
     cpdef string readline(self, size_t max_line_len=*, size_t buf_size=*)
-    cpdef string read_block(self, size_t block_size, size_t buf_size=*)

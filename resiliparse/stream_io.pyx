@@ -181,8 +181,7 @@ cdef class GZipStream(IOStream):
             return decomp_data
 
 
-
-cdef class BufferedLineReader:
+cdef class BufferedReader:
     def __init__(self, IOStream stream):
         self.stream = stream
         self.buf = string(b'')
@@ -194,8 +193,15 @@ cdef class BufferedLineReader:
         self.buf.append(self.stream.read(buf_size))
         return self.buf.size() > 0
 
-    cdef string unused_data(self):
-        return self.buf
+    cpdef string read(self, size_t size, size_t buf_size=BUFF_SIZE, bint skip=False):
+        cdef string data_read
+        cdef size_t missing = size
+        while data_read.size() < size and self.fill_buf(buf_size):
+            missing = size - data_read.size()
+            if not skip:
+                data_read.append(self.buf.substr(0, missing))
+            self.buf = self.buf.substr(min(self.buf.size(), missing))
+        return data_read
 
     cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
         cdef string line
@@ -223,12 +229,3 @@ cdef class BufferedLineReader:
             self.buf = self.buf.substr(pos + 1)
 
         return line
-
-    cpdef string read_block(self, size_t block_size, size_t buf_size=BUFF_SIZE):
-        cdef string block
-        cdef size_t missing = block_size
-        while block.size() < block_size and self.fill_buf(buf_size):
-            missing = block_size - block.size()
-            block.append(self.buf.substr(0, missing))
-            self.buf = self.buf.substr(min(self.buf.size(), missing))
-        return block

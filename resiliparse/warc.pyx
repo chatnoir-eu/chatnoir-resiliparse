@@ -14,7 +14,7 @@
 
 # distutils: language = c++
 
-from stream_io cimport IOStream, BufferedLineReader
+from stream_io cimport IOStream, BufferedReader
 
 from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
@@ -55,12 +55,11 @@ cdef bint str_equal_ci(const string& a, const string& b):
 
 cdef class ArchiveIterator:
     cdef IOStream stream
-    cdef BufferedLineReader line_reader
-    cdef string unused_data
+    cdef BufferedReader reader
 
     def __init__(self, IOStream stream):
         self.stream = stream
-        self.line_reader = BufferedLineReader(self.stream)
+        self.reader = BufferedReader(self.stream)
 
     def __iter__(self):
         return self
@@ -75,7 +74,7 @@ cdef class ArchiveIterator:
         cdef string version_line
 
         while True:
-            version_line = self.line_reader.readline()
+            version_line = self.reader.readline()
             if version_line.empty():
                 # EOF
                 return False
@@ -100,7 +99,7 @@ cdef class ArchiveIterator:
         cdef size_t content_length = 0
 
         while True:
-            line = self.line_reader.readline()
+            line = self.reader.readline()
             if line == b'\r\n':
                 break
 
@@ -115,5 +114,5 @@ cdef class ArchiveIterator:
             if str_equal_ci(header_key, b'Content-Length'):
                 content_length = stoi(header_value)
 
-        cdef string content = self.line_reader.read_block(content_length + 2)
+        cdef string content = self.reader.read(content_length + 2)
         return True
