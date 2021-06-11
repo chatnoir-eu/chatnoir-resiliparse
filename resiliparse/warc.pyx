@@ -189,8 +189,10 @@ cdef class ArchiveIterator:
             elif hkey == b'warc-type':
                 record._set_record_type(h.second)
                 parse_count += 1
+            elif hkey == b'content-type' and h.second.find(b'application/http') == 0:
+                record._is_http = True
 
-            if parse_count >= 2:
+            if parse_count >= 3:
                 break
         record._headers = move(headers)
 
