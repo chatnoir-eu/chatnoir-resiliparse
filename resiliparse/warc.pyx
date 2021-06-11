@@ -51,11 +51,6 @@ cdef string str_to_lower(string s):
     return s
 
 
-cdef bint str_equal_ci(const string& a, const string& b):
-    return str_to_lower(a) == str_to_lower(b)
-
-
-
 cpdef enum WarcRecordType:
     warcinfo,
     response,
@@ -146,13 +141,20 @@ cdef class ArchiveIterator:
             if line == b'\r\n':
                 break
 
+            if isspace(line[0]) and not headers.empty():
+                # Continuation line
+                headers.back().second.append(b' ')
+                headers.back().second.append(strip_str(line))
+                continue
+
             delim_pos = line.find(b':')
             if delim_pos == strnpos:
                 delim_pos = line.size() - 1
 
             header_key = strip_str(line.substr(0, delim_pos))
             header_value = strip_str(line.substr(delim_pos + 1))
-            headers.push_back((header_key, header_value))
+            headers.push_back(pair[string, string](header_key, header_value))
+
         return headers
 
     cdef WarcRecord read_next_record(self):
