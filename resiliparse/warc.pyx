@@ -66,6 +66,7 @@ cdef class WarcRecord:
     cdef WarcRecordType _record_type
     cdef vector[pair[string, string]] _headers
     cdef bint _is_http
+    cdef string _http_status_line
     cdef vector[pair[string, string]] _http_headers
     cdef size_t _content_length
     cdef size_t _http_content_length
@@ -88,6 +89,10 @@ cdef class WarcRecord:
     @property
     def is_http(self):
         return self._is_http
+
+    @property
+    def http_status_line(self):
+        return self._http_status_line.decode('iso-8859-1', errors='ignore')
 
     @property
     def http_headers(self):
@@ -143,31 +148,40 @@ cdef class ArchiveIterator:
     def __next__(self):
         return self.read_next_record()
 
-    cdef vector[pair[string, string]] parse_header_block(self):
+    cdef vector[pair[string, string]] parse_header_block(self, bint has_status_line=False, size_t* track_bytes=NULL):
         cdef vector[pair[string, string]] headers
         cdef string line
         cdef string header_key, header_value
         cdef size_t delim_pos = 0
+        cdef size_t bytes_consumed = 0
 
         while True:
             line = self.reader.readline()
+            bytes_consumed += line.size()
             if line == b'\r\n':
                 break
 
             if isspace(line[0]) and not headers.empty():
                 # Continuation line
-                headers.back().second.append(b' ')
+                headers.back().second.append(b'\n')
                 headers.back().second.append(strip_str(line))
                 continue
 
-            delim_pos = line.find(b':')
-            if delim_pos == strnpos:
-                delim_pos = line.size() - 1
+            if has_status_line:
+                header_key = b''
+                header_value = strip_str(line)
+                has_status_line = False
+            else:
+                delim_pos = line.find(b':')
+                if delim_pos == strnpos:
+                    delim_pos = line.size() - 1
+                header_key = strip_str(line.substr(0, delim_pos))
+                header_value = strip_str(line.substr(delim_pos + 1))
 
-            header_key = strip_str(line.substr(0, delim_pos))
-            header_value = strip_str(line.substr(delim_pos + 1))
             headers.push_back(pair[string, string](header_key, header_value))
 
+        if track_bytes != NULL:
+            track_bytes[0] = bytes_consumed
         return headers
 
     cdef WarcRecord read_next_record(self):
@@ -210,5 +224,12 @@ cdef class ArchiveIterator:
                 break
         record._headers = move(headers)
 
-        cdef string content = self.reader.read(record._content_length)
+        cdef size_t http_header_bytes = 0
+        if record._is_http:
+            record._http_headers = self.parse_header_block(True, &http_header_bytes)
+            record._http_status_line = record._http_headers[0].second
+            record._http_headers.erase(record._http_headers.begin())
+            record._http_content_length = record._content_length - http_header_bytes
+
+        cdef string content = self.reader.read(record._content_length - http_header_bytes)
         return record
