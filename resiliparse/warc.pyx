@@ -63,34 +63,47 @@ cpdef enum WarcRecordType:
     unknown = -1
 
 cdef class WarcRecord:
-    cdef vector[pair[string, string]] _headers
     cdef WarcRecordType _record_type
+    cdef vector[pair[string, string]] _headers
     cdef bint _is_http
     cdef vector[pair[string, string]] _http_headers
+    cdef size_t _content_length
+    cdef size_t _http_content_length
     cdef BufferedReader _reader
 
     def __init__(self):
         self._record_type = unknown
+        self._is_http = False
+        self._content_length = 0
+        self._http_content_length = 0
 
-    property record_type:
-        def __get__(self):
-            return self._record_type
+    @property
+    def record_type(self):
+        return self._record_type
 
-    property headers:
-        def __get__(self):
-            return self._decode_header_map(self._headers, 'utf-8')
+    @property
+    def headers(self):
+        return self._decode_header_map(self._headers, 'utf-8')
 
-    property is_http:
-        def __get__(self):
-            return self._is_http
+    @property
+    def is_http(self):
+        return self._is_http
 
-    property http_headers:
-        def __get__(self):
-            return self._decode_header_map(self._http_headers, 'iso-8859-15')
+    @property
+    def http_headers(self):
+        return self._decode_header_map(self._http_headers, 'iso-8859-1')
 
-    property reader:
-        def __get__(self):
-            return self._reader
+    @property
+    def reader(self):
+        return self._reader
+
+    @property
+    def content_length(self):
+        return self.content_length
+
+    @property
+    def http_content_length(self):
+        return self.http_content_length
 
     cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
         return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
@@ -180,13 +193,12 @@ cdef class ArchiveIterator:
 
         cdef vector[pair[string, string]] headers = self.parse_header_block()
 
-        cdef size_t content_length = 0
         cdef string hkey
         cdef size_t parse_count = 0
         for h in headers:
             hkey = str_to_lower(h.first)
             if hkey == b'content-length':
-                content_length = stoi(h.second)
+                record._content_length = stoi(h.second)
                 parse_count += 1
             elif hkey == b'warc-type':
                 record._set_record_type(h.second)
@@ -198,5 +210,5 @@ cdef class ArchiveIterator:
                 break
         record._headers = move(headers)
 
-        cdef string content = self.reader.read(content_length)
+        cdef string content = self.reader.read(record._content_length)
         return record
