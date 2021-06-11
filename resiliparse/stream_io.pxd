@@ -5,8 +5,6 @@ from libcpp.string cimport string
 cdef extern from "<zlib.h>" nogil:
     ctypedef void* gzFile
 
-cdef extern from "<string>" namespace "std" nogil:
-    size_t npos = -1
 
 cdef class IOStream:
     cdef void close(self)

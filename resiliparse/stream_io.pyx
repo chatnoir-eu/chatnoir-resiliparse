@@ -32,6 +32,7 @@ cdef extern from "<zlib.h>" nogil:
 
 
 cdef size_t BUFF_SIZE = 16384
+cdef size_t strnpos = -1
 
 cdef class IOStream:
     cdef void close(self):
@@ -204,7 +205,7 @@ cdef class BufferedLineReader:
 
         cdef size_t capacity_remaining = max_line_len
         cdef size_t pos = self.buf.find(b'\n')
-        while pos == npos:
+        while pos == strnpos:
             if capacity_remaining > 0:
                 line.append(self.buf.substr(0, min(self.buf.size(), capacity_remaining)))
                 capacity_remaining -= line.size()
@@ -215,7 +216,7 @@ cdef class BufferedLineReader:
                 break
             pos = self.buf.find(b'\n')
 
-        if not self.buf.empty() and pos != npos:
+        if not self.buf.empty() and pos != strnpos:
             if capacity_remaining > 0:
                 line.append(self.buf.substr(0, min(pos + 1, capacity_remaining)))
 
