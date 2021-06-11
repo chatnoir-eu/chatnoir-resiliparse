@@ -16,8 +16,10 @@
 
 from stream_io cimport IOStream, BufferedReader
 
+from cymove cimport cymove as move
 from libcpp.string cimport string
-from libcpp.unordered_map cimport unordered_map
+from libcpp.utility cimport pair
+from libcpp.vector cimport vector
 
 cdef extern from "<cctype>" namespace "std" nogil:
     int isspace(int c)
@@ -53,6 +55,72 @@ cdef bint str_equal_ci(const string& a, const string& b):
     return str_to_lower(a) == str_to_lower(b)
 
 
+
+cpdef enum WarcRecordType:
+    warcinfo,
+    response,
+    resource,
+    request,
+    metadata,
+    revisit,
+    conversion,
+    continuation,
+    unknown = -1
+
+cdef class WarcRecord:
+    cdef vector[pair[string, string]] _headers
+    cdef WarcRecordType _record_type
+    cdef bint _is_http
+    cdef vector[pair[string, string]] _http_headers
+    cdef BufferedReader _reader
+
+    def __init__(self):
+        self._record_type = unknown
+
+    property record_type:
+        def __get__(self):
+            return self._record_type
+
+    property headers:
+        def __get__(self):
+            return self._decode_header_map(self._headers, 'utf-8')
+
+    property is_http:
+        def __get__(self):
+            return self._is_http
+
+    property http_headers:
+        def __get__(self):
+            return self._decode_header_map(self._http_headers, 'iso-8859-15')
+
+    property reader:
+        def __get__(self):
+            return self._reader
+
+    cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
+        return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
+                for h in header_map}
+
+    cdef void _set_record_type(self, string record_type):
+        record_type = str_to_lower(record_type)
+        if record_type == b'warcinfo':
+            self._record_type = warcinfo
+        elif record_type == b'response':
+            self._record_type = response
+        elif record_type == b'resource':
+            self._record_type = resource
+        elif record_type == b'request':
+            self._record_type = request
+        elif record_type == b'metadata':
+            self._record_type = metadata
+        elif record_type == b'revisit':
+            self._record_type = revisit
+        elif record_type == b'conversion':
+            self._record_type = conversion
+        elif record_type == b'continuation':
+            self._record_type = continuation
+
+
 cdef class ArchiveIterator:
     cdef IOStream stream
     cdef BufferedReader reader
@@ -65,38 +133,13 @@ cdef class ArchiveIterator:
         return self
 
     def __next__(self):
-        if not self.read_next_record():
-            raise StopIteration
+        return self.read_next_record()
 
-        return 0
-
-    cdef bint read_next_record(self):
-        cdef string version_line
-
-        while True:
-            version_line = self.reader.readline()
-            if version_line.empty():
-                # EOF
-                return False
-
-            version_line = strip_str(version_line)
-            if version_line.empty():
-                # Consume empty lines
-                pass
-            elif version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
-                # OK, continue with parsing headers
-                break
-            else:
-                # Not a WARC file or unsupported version
-                return False
-
+    cdef vector[pair[string, string]] parse_header_block(self):
+        cdef vector[pair[string, string]] headers
         cdef string line
-        cdef unordered_map[string, string] headers
-
         cdef string header_key, header_value
-
         cdef size_t delim_pos = 0
-        cdef size_t content_length = 0
 
         while True:
             line = self.reader.readline()
@@ -109,10 +152,47 @@ cdef class ArchiveIterator:
 
             header_key = strip_str(line.substr(0, delim_pos))
             header_value = strip_str(line.substr(delim_pos + 1))
-            headers[header_key] = header_value
+            headers.push_back((header_key, header_value))
+        return headers
 
-            if str_equal_ci(header_key, b'Content-Length'):
-                content_length = stoi(header_value)
+    cdef WarcRecord read_next_record(self):
+        cdef string version_line
+        while True:
+            version_line = self.reader.readline()
+            if version_line.empty():
+                # EOF
+                raise StopIteration
 
-        cdef string content = self.reader.read(content_length + 2)
-        return True
+            version_line = strip_str(version_line)
+            if version_line.empty():
+                # Consume empty lines
+                pass
+            elif version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
+                # OK, continue with parsing headers
+                break
+            else:
+                # Not a WARC file or unsupported version
+                raise StopIteration
+
+        cdef WarcRecord record = WarcRecord()
+
+        cdef vector[pair[string, string]] headers = self.parse_header_block()
+
+        cdef size_t content_length = 0
+        cdef string hkey
+        cdef size_t parse_count = 0
+        for h in headers:
+            hkey = str_to_lower(h.first)
+            if hkey == b'content-length':
+                content_length = stoi(h.second)
+                parse_count += 1
+            elif hkey == b'warc-type':
+                record._set_record_type(h.second)
+                parse_count += 1
+
+            if parse_count >= 2:
+                break
+        record._headers = move(headers)
+
+        cdef string content = self.reader.read(content_length)
+        return record

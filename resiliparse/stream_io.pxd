@@ -61,3 +61,8 @@ cdef class BufferedReader:
     cdef bint fill_buf(self, size_t buf_size=*)
     cpdef string read(self, size_t size, size_t buf_size=*, bint skip=*)
     cpdef string readline(self, size_t max_line_len=*, size_t buf_size=*)
+
+
+cdef class LimitedBufferedReader(BufferedReader):
+    cdef size_t max_len
+    cdef size_t len_consumed

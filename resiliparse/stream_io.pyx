@@ -229,3 +229,19 @@ cdef class BufferedReader:
             self.buf = self.buf.substr(pos + 1)
 
         return line
+
+cdef class LimitedBufferedReader(BufferedReader):
+    def __init__(self, IOStream stream, size_t max_len):
+        super().__init__(stream)
+        self.max_len = max_len
+        self.len_consumed = 0
+
+    cdef bint fill_buf(self, size_t buf_size=BUFF_SIZE):
+        if self.buf.size() >= buf_size:
+            return True
+
+        cdef size_t capacity = self.max_len - self.len_consumed
+        cdef size_t cur_buf_size = self.buf.size()
+        self.buf.append(self.stream.read(min(buf_size, capacity)))
+        self.len_consumed += (self.buf.size() - cur_buf_size)
+        return self.buf.size() > 0
