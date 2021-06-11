@@ -104,11 +104,11 @@ cdef class WarcRecord:
 
     @property
     def content_length(self):
-        return self.content_length
+        return self._content_length
 
     @property
     def http_content_length(self):
-        return self.http_content_length
+        return self._http_content_length
 
     cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
         return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
@@ -168,7 +168,7 @@ cdef class ArchiveIterator:
                 continue
 
             if has_status_line:
-                header_key = b''
+                header_key.clear()
                 header_value = strip_str(line)
                 has_status_line = False
             else:
