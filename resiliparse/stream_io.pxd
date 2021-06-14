@@ -5,6 +5,8 @@ from libcpp.string cimport string
 cdef extern from "<zlib.h>" nogil:
     ctypedef void* gzFile
 
+from libc.stdint cimport int64_t
+
 
 cdef class IOStream:
     cdef void close(self)
@@ -47,10 +49,12 @@ cdef class BufferedReader:
     cdef string buf
 
     cdef bint fill_buf(self, size_t buf_size=*)
-    cpdef string read(self, size_t size, size_t buf_size=*, bint skip=*)
+    cpdef string read(self, size_t size, size_t buf_size=*)
     cpdef string readline(self, size_t max_line_len=*, size_t buf_size=*)
+    cpdef void consume(self, int64_t size=*, size_t buf_size=*)
 
 
 cdef class LimitedBufferedReader(BufferedReader):
+    cdef BufferedReader parent
     cdef size_t max_len
     cdef size_t len_consumed

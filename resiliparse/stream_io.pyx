@@ -164,13 +164,12 @@ cdef class BufferedReader:
         self.buf.append(self.stream.read(buf_size))
         return self.buf.size() > 0
 
-    cpdef string read(self, size_t size, size_t buf_size=BUFF_SIZE, bint skip=False):
+    cpdef string read(self, size_t size, size_t buf_size=BUFF_SIZE):
         cdef string data_read
         cdef size_t missing = size
         while data_read.size() < size and self.fill_buf(buf_size):
             missing = size - data_read.size()
-            if not skip:
-                data_read.append(self.buf.substr(0, missing))
+            data_read.append(self.buf.substr(0, missing))
             self.buf = self.buf.substr(min(self.buf.size(), missing))
         return data_read
 
@@ -201,19 +200,34 @@ cdef class BufferedReader:
 
         return line
 
+    cpdef void consume(self, int64_t size=-1, size_t buf_size=BUFF_SIZE):
+        cdef size_t consumed = 0
+        cdef int64_t excess = 0
+        while self.fill_buf(buf_size):
+            if size > -1:
+                consumed += self.buf.size()
+                excess = consumed - size
+                if excess > 0:
+                    self.buf = self.buf.substr(self.buf.size() - excess)
+                    break
+            self.buf.clear()
+
 
 cdef class LimitedBufferedReader(BufferedReader):
-    def __init__(self, IOStream stream, size_t max_len):
-        super().__init__(stream)
+    def __init__(self, BufferedReader parent, size_t max_len):
+        super(LimitedBufferedReader, self).__init__(None)
+        self.parent = parent
         self.max_len = max_len
         self.len_consumed = 0
 
     cdef bint fill_buf(self, size_t buf_size=BUFF_SIZE):
+        if self.len_consumed >= self.max_len:
+            return self.buf.size() > 0
+
         if self.buf.size() >= buf_size:
             return True
 
-        cdef size_t capacity = self.max_len - self.len_consumed
-        cdef size_t cur_buf_size = self.buf.size()
-        self.buf.append(self.stream.read(min(buf_size, capacity)))
-        self.len_consumed += (self.buf.size() - cur_buf_size)
+        cdef size_t read_size = min(buf_size, self.max_len - self.len_consumed)
+        self.len_consumed += read_size
+        self.buf.append(self.parent.read(read_size, buf_size))
         return self.buf.size() > 0

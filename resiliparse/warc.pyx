@@ -14,12 +14,13 @@
 
 # distutils: language = c++
 
-from stream_io cimport IOStream, BufferedReader
+from stream_io cimport IOStream, BufferedReader, LimitedBufferedReader
 
-from cymove cimport cymove as move
+from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
+from cymove cimport cymove as move
 
 cdef extern from "<cctype>" namespace "std" nogil:
     int isspace(int c)
@@ -52,15 +53,17 @@ cdef string str_to_lower(string s):
 
 
 cpdef enum WarcRecordType:
-    warcinfo,
-    response,
-    resource,
-    request,
-    metadata,
-    revisit,
-    conversion,
-    continuation,
-    unknown = -1
+    warcinfo = 2,
+    response = 4,
+    resource = 8,
+    request = 16,
+    metadata = 32,
+    revisit = 64,
+    conversion = 128,
+    continuation = 256,
+    unknown = 512,
+    any_type = 65535,
+    no_type = 0
 
 cdef class WarcRecord:
     cdef WarcRecordType _record_type
@@ -134,57 +137,72 @@ cdef class WarcRecord:
             self._record_type = continuation
 
 
+cdef vector[pair[string, string]] parse_header_block(BufferedReader reader, bint has_status_line=False,
+                                                     size_t* bytes_consumed=NULL):
+    cdef vector[pair[string, string]] headers
+    cdef string line
+    cdef string header_key, header_value
+    cdef size_t delim_pos = 0
+    cdef size_t byte_counter = 0
+
+    while True:
+        line = reader.readline()
+        byte_counter += line.size()
+        if line == b'\r\n' or line == b'':
+            break
+
+        if isspace(line[0]) and not headers.empty():
+            # Continuation line
+            headers.back().second.append(b'\n')
+            headers.back().second.append(strip_str(line))
+            continue
+
+        if has_status_line:
+            header_key.clear()
+            header_value = strip_str(line)
+            has_status_line = False
+        else:
+            delim_pos = line.find(b':')
+            if delim_pos == strnpos:
+                delim_pos = line.size() - 1
+            header_key = strip_str(line.substr(0, delim_pos))
+            header_value = strip_str(line.substr(delim_pos + 1))
+
+        headers.push_back(pair[string, string](header_key, header_value))
+
+    if bytes_consumed != NULL:
+        bytes_consumed[0] = byte_counter
+
+    return headers
+
+
 cdef class ArchiveIterator:
     cdef IOStream stream
     cdef BufferedReader reader
+    cdef WarcRecord last_record
+    cdef bint parse_http
+    cdef uint16_t record_type_filter
 
-    def __init__(self, IOStream stream):
+    def __init__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
         self.stream = stream
         self.reader = BufferedReader(self.stream)
+        self.last_record = None
+        self.parse_http = parse_http
+        self.record_type_filter = record_types
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        return self.read_next_record()
-
-    cdef vector[pair[string, string]] parse_header_block(self, bint has_status_line=False, size_t* track_bytes=NULL):
-        cdef vector[pair[string, string]] headers
-        cdef string line
-        cdef string header_key, header_value
-        cdef size_t delim_pos = 0
-        cdef size_t bytes_consumed = 0
-
         while True:
-            line = self.reader.readline()
-            bytes_consumed += line.size()
-            if line == b'\r\n':
-                break
-
-            if isspace(line[0]) and not headers.empty():
-                # Continuation line
-                headers.back().second.append(b'\n')
-                headers.back().second.append(strip_str(line))
-                continue
-
-            if has_status_line:
-                header_key.clear()
-                header_value = strip_str(line)
-                has_status_line = False
-            else:
-                delim_pos = line.find(b':')
-                if delim_pos == strnpos:
-                    delim_pos = line.size() - 1
-                header_key = strip_str(line.substr(0, delim_pos))
-                header_value = strip_str(line.substr(delim_pos + 1))
-
-            headers.push_back(pair[string, string](header_key, header_value))
-
-        if track_bytes != NULL:
-            track_bytes[0] = bytes_consumed
-        return headers
+            rec = self.read_next_record()
+            if rec is not None:
+                return rec
 
     cdef WarcRecord read_next_record(self):
+        if self.last_record is not None:
+            self.last_record._reader.consume()
+
         cdef string version_line
         while True:
             version_line = self.reader.readline()
@@ -204,12 +222,11 @@ cdef class ArchiveIterator:
                 raise StopIteration
 
         cdef WarcRecord record = WarcRecord()
-
-        cdef vector[pair[string, string]] headers = self.parse_header_block()
-
         cdef string hkey
         cdef size_t parse_count = 0
-        for h in headers:
+
+        record._headers = parse_header_block(self.reader)
+        for h in record._headers:
             hkey = str_to_lower(h.first)
             if hkey == b'content-length':
                 record._content_length = stoi(h.second)
@@ -222,14 +239,19 @@ cdef class ArchiveIterator:
 
             if parse_count >= 3:
                 break
-        record._headers = move(headers)
+
+        if record._record_type & self.record_type_filter == 0:
+            self.reader.consume(record._content_length)
+            return None
 
         cdef size_t http_header_bytes = 0
-        if record._is_http:
-            record._http_headers = self.parse_header_block(True, &http_header_bytes)
+        record._reader = LimitedBufferedReader(self.reader, record._content_length)
+        if self.parse_http and record._is_http:
+            record._http_headers = parse_header_block(record._reader, True, &http_header_bytes)
             record._http_status_line = record._http_headers[0].second
             record._http_headers.erase(record._http_headers.begin())
-            record._http_content_length = record._content_length - http_header_bytes
+            record._http_content_length = http_header_bytes
+            record._content_length -= http_header_bytes
 
-        cdef string content = self.reader.read(record._content_length - http_header_bytes)
+        self.last_record = record
         return record
