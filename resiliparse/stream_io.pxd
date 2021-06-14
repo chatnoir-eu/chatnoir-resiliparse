@@ -28,17 +28,6 @@ cdef class FileStream(IOStream):
     cdef size_t write(self, const char* data, size_t size)
 
 
-cdef class PythonIOStreamAdapter(IOStream):
-    cdef py_stream
-
-    cdef void close(self)
-    cdef bint flush(self)
-    cdef size_t tell(self)
-    cdef void seek(self, size_t offset)
-    cdef string read(self, size_t size=*)
-    cdef size_t write(self, const char* data, size_t size)
-
-
 cdef class GZipStream(IOStream):
     cdef gzFile fp
     cdef py_stream
@@ -46,8 +35,7 @@ cdef class GZipStream(IOStream):
     cdef unused_data
 
     cpdef void open(self, const char* path, const char* mode=*)
-    cpdef void open_from_fstream(self, FileStream fstream, const char* mode=*)
-    cpdef open_from_pystream(self, pystream, mode=*)
+    cpdef void open_stream(self, stream, const char * mode=*)
     cdef void close(self)
     cdef int errnum(self)
     cdef string error(self)

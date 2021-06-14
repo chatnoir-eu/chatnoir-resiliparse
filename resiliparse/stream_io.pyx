@@ -93,31 +93,6 @@ cdef class FileStream(IOStream):
         return fwrite(data, sizeof(char*), size, self.fp)
 
 
-cdef class PythonIOStreamAdapter(IOStream):
-    def __init__(self, py_stream):
-        super().__init__()
-        self.py_stream = py_stream  # type: RawIOBase
-
-    cdef void close(self):
-        self.py_stream.close()
-
-    cdef bint flush(self):
-        self.py_stream.close()
-
-    cdef size_t tell(self):
-        return self.py_stream.tell()
-
-    cdef void seek(self, size_t offset):
-        self.py_stream.seek(offset)
-
-    cdef string read(self, size_t size=BUFF_SIZE):
-        pbuf = self.py_stream.read(size)
-        return pbuf[:size]
-
-    cdef size_t write(self, const char* data, size_t size):
-        return self.py_stream.write(data[:size])
-
-
 cdef class GZipStream(IOStream):
     def __init__(self):
         self.fp = NULL
@@ -131,14 +106,11 @@ cdef class GZipStream(IOStream):
     cpdef void open(self, const char* path, const char* mode=b'rb'):
         self.fp = gzopen(path, mode)
 
-    cpdef void open_from_fstream(self, FileStream fstream, const char* mode=b'rb'):
-        self.fp = gzdopen(fileno(fstream.fp), mode)
-
-    cpdef open_from_pystream(self, pystream, mode='rb'):
-        if self.fp != NULL:
-            self.close()
-
-        self.py_stream = pystream
+    cpdef void open_stream(self, stream, const char* mode=b'rb'):
+        if isinstance(stream, FileStream):
+            self.fp = gzdopen(fileno((<FileStream>stream).fp), mode)
+        else:
+            self.py_stream = stream
 
     cdef void close(self):
         if self.fp:
@@ -161,10 +133,9 @@ cdef class GZipStream(IOStream):
         if self.fp != NULL:
             buf.resize(size)
             l = gzread(self.fp, &buf[0], buf.size())
-
             return buf.substr(0, l)
 
-        if self.py_stream is not None:
+        elif self.py_stream is not None:
             if not self.decomp_obj or self.decomp_obj.eof:
                 # New member, so we need a new decompressor
                 self.decomp_obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
@@ -229,6 +200,7 @@ cdef class BufferedReader:
             self.buf = self.buf.substr(pos + 1)
 
         return line
+
 
 cdef class LimitedBufferedReader(BufferedReader):
     def __init__(self, IOStream stream, size_t max_len):

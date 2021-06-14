@@ -99,16 +99,16 @@ cdef class WarcRecord:
         return self._decode_header_map(self._http_headers, 'iso-8859-1')
 
     @property
-    def reader(self):
-        return self._reader
-
-    @property
     def content_length(self):
         return self._content_length
 
     @property
     def http_content_length(self):
         return self._http_content_length
+
+    @property
+    def reader(self):
+        return self._reader
 
     cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
         return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
