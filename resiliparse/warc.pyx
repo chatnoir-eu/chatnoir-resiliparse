@@ -20,7 +20,6 @@ from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
-from cymove cimport cymove as move
 
 cdef extern from "<cctype>" namespace "std" nogil:
     int isspace(int c)
@@ -176,39 +175,45 @@ cdef vector[pair[string, string]] parse_header_block(BufferedReader reader, bint
     return headers
 
 
+cdef enum _NextRecStatus:
+    has_next,
+    skip_next,
+    eof
+
+# noinspection PyProtectedMember
 cdef class ArchiveIterator:
     cdef IOStream stream
     cdef BufferedReader reader
-    cdef WarcRecord last_record
+    cdef WarcRecord record
     cdef bint parse_http
     cdef uint16_t record_type_filter
 
     def __init__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
         self.stream = stream
         self.reader = BufferedReader(self.stream)
-        self.last_record = None
+        self.record = None
         self.parse_http = parse_http
         self.record_type_filter = record_types
 
     def __iter__(self):
-        return self
-
-    def __next__(self):
+        cdef _NextRecStatus status
         while True:
-            rec = self.read_next_record()
-            if rec is not None:
-                return rec
+            status = self._read_next_record()
+            if status == has_next:
+                yield self.record
+            elif status == eof:
+                return
 
-    cdef WarcRecord read_next_record(self):
-        if self.last_record is not None:
-            self.last_record._reader.consume()
+    cdef _NextRecStatus _read_next_record(self):
+        if self.record is not None:
+            self.record._reader.consume()
 
         cdef string version_line
         while True:
             version_line = self.reader.readline()
             if version_line.empty():
                 # EOF
-                raise StopIteration
+                return eof
 
             version_line = strip_str(version_line)
             if version_line.empty():
@@ -219,39 +224,39 @@ cdef class ArchiveIterator:
                 break
             else:
                 # Not a WARC file or unsupported version
-                raise StopIteration
+                return eof
 
-        cdef WarcRecord record = WarcRecord()
         cdef string hkey
         cdef size_t parse_count = 0
 
-        record._headers = parse_header_block(self.reader)
-        for h in record._headers:
+        self.record = WarcRecord()
+        self.record._headers = parse_header_block(self.reader)
+        for h in self.record._headers:
             hkey = str_to_lower(h.first)
             if hkey == b'content-length':
-                record._content_length = stoi(h.second)
+                self.record._content_length = stoi(h.second)
                 parse_count += 1
             elif hkey == b'warc-type':
-                record._set_record_type(h.second)
+                self.record._set_record_type(h.second)
                 parse_count += 1
             elif hkey == b'content-type' and h.second.find(b'application/http') == 0:
-                record._is_http = True
+                self.record._is_http = True
 
             if parse_count >= 3:
                 break
 
-        if record._record_type & self.record_type_filter == 0:
-            self.reader.consume(record._content_length)
-            return None
+        if self.record._record_type & self.record_type_filter == 0:
+            self.reader.consume(self.record._content_length)
+            self.record = None
+            return skip_next
 
         cdef size_t http_header_bytes = 0
-        record._reader = LimitedBufferedReader(self.reader, record._content_length)
-        if self.parse_http and record._is_http:
-            record._http_headers = parse_header_block(record._reader, True, &http_header_bytes)
-            record._http_status_line = record._http_headers[0].second
-            record._http_headers.erase(record._http_headers.begin())
-            record._http_content_length = http_header_bytes
-            record._content_length -= http_header_bytes
+        self.record._reader = LimitedBufferedReader(self.reader, self.record._content_length)
+        if self.parse_http and self.record._is_http:
+            self.record._http_headers = parse_header_block(self.record._reader, True, &http_header_bytes)
+            self.record._http_status_line = self.record._http_headers[0].second
+            self.record._http_headers.erase(self.record._http_headers.begin())
+            self.record._http_content_length = http_header_bytes
+            self.record._content_length = self.record._content_length - http_header_bytes
 
-        self.last_record = record
-        return record
+        return has_next

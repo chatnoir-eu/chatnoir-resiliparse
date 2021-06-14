@@ -39,7 +39,6 @@ setup(
       packages=find_packages(),
       setup_requires=[
             'cython',
-            'cymove',
             'setuptools>=18.0'
       ],
       ext_modules=cythonize(extensions, annotate=True, language_level='3')
