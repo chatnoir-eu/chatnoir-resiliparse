@@ -20,6 +20,7 @@ import zlib
 from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from libcpp.string cimport string
 
+
 cdef extern from "<stdio.h>" nogil:
     int fileno(FILE*)
 
@@ -98,7 +99,7 @@ cdef class GZipStream(IOStream):
         self.fp = NULL
         self.py_stream = None   # type: RawIOBase
         self.decomp_obj = None  # type: zlib.Decompress
-        self.unused_data = string(b'')
+        self.unused_data = string()
 
     def __dealloc__(self):
         self.close()
@@ -145,7 +146,7 @@ cdef class GZipStream(IOStream):
                 data += self.py_stream.read(size)
 
             if not data:
-                return b''
+                return string()
 
             decomp_data = self.decomp_obj.decompress(data)
             self.unused_data =  self.decomp_obj.unconsumed_tail + self.decomp_obj.unused_data
@@ -155,79 +156,95 @@ cdef class GZipStream(IOStream):
 cdef class BufferedReader:
     def __init__(self, IOStream stream):
         self.stream = stream
-        self.buf = string(b'')
+        self.buf = string()
+        self.limit = strnpos
+        self.limit_consumed = 0
 
-    cdef bint fill_buf(self, size_t buf_size=BUFF_SIZE):
+    cdef bint _fill_buf(self, size_t buf_size=BUFF_SIZE):
         if self.buf.size() >= buf_size:
-            return True
+            return True if self.limit == strnpos else self.limit > self.limit_consumed
 
         self.buf.append(self.stream.read(buf_size))
-        return self.buf.size() > 0
+        return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
+
+    cdef inline string_view _get_buf(self):
+        cdef string_view v = string_view(self.buf.c_str(), self.buf.size())
+        cdef size_t remaining
+        if self.limit != strnpos:
+            remaining = self.limit - self.limit_consumed
+            if v.size() > remaining:
+                v.remove_suffix(v.size() - remaining)
+        return v
+
+    cdef inline void _consume_buf(self, size_t size):
+        if self.limit == strnpos and size >= self.buf.size():
+            self.buf.clear()
+            return
+
+        if size > self.limit - self.limit_consumed:
+            size = self.limit - self.limit_consumed
+        self.limit_consumed += size
+        strerase(self.buf, 0, size)
+
+    cdef inline void set_limit(self, size_t offset):
+        self.limit = offset
+        self.limit_consumed = 0
+
+    cdef inline void reset_limit(self):
+        self.limit = strnpos
 
     cpdef string read(self, size_t size, size_t buf_size=BUFF_SIZE):
         cdef string data_read
         cdef size_t missing = size
-        while data_read.size() < size and self.fill_buf(buf_size):
+        while data_read.size() < size and self._fill_buf(buf_size):
             missing = size - data_read.size()
-            data_read.append(self.buf.substr(0, missing))
-            self.buf = self.buf.substr(min(self.buf.size(), missing))
+            data_read.append(<string>self._get_buf().substr(0, missing))
+            self._consume_buf(missing)
         return data_read
 
     cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
         cdef string line
 
-        if not self.fill_buf(buf_size):
-            return b''
+        if not self._fill_buf(buf_size):
+            return string()
 
         cdef size_t capacity_remaining = max_line_len
-        cdef size_t pos = self.buf.find(b'\n')
+        cdef string_view buf = self._get_buf()
+        cdef size_t pos = buf.find(b'\n')
         while pos == strnpos:
             if capacity_remaining > 0:
-                line.append(self.buf.substr(0, min(self.buf.size(), capacity_remaining)))
+                line.append(<string>buf.substr(0, min(buf.size(), capacity_remaining)))
                 capacity_remaining -= line.size()
 
             # Consume rest of line
-            self.buf.clear()
-            if not self.fill_buf(buf_size):
+            self._consume_buf(buf.size())
+            if not self._fill_buf(buf_size):
                 break
-            pos = self.buf.find(b'\n')
 
-        if not self.buf.empty() and pos != strnpos:
+            buf = self._get_buf()
+            pos = buf.find(b'\n')
+
+        if not buf.empty() and pos != strnpos:
             if capacity_remaining > 0:
-                line.append(self.buf.substr(0, min(pos + 1, capacity_remaining)))
+                line.append(<string>buf.substr(0, min(pos + 1, capacity_remaining)))
 
-            self.buf = self.buf.substr(pos + 1)
+            self._consume_buf(pos + 1)
 
         return line
 
-    cpdef void consume(self, int64_t size=-1, size_t buf_size=BUFF_SIZE):
-        cdef size_t consumed = 0
-        cdef int64_t excess = 0
-        while self.fill_buf(buf_size):
-            if size > -1:
-                consumed += self.buf.size()
-                excess = consumed - size
-                if excess > 0:
-                    self.buf = self.buf.substr(self.buf.size() - excess)
+    cpdef void consume(self, size_t size=strnpos, size_t buf_size=BUFF_SIZE):
+        cdef size_t consume
+
+        while self._fill_buf(buf_size):
+            buf = self._get_buf()
+            if buf.empty():
+                break
+
+            if size != strnpos:
+                consume = min(buf.size(), size)
+                if consume == 0:
                     break
-            self.buf.clear()
-
-
-cdef class LimitedBufferedReader(BufferedReader):
-    def __init__(self, BufferedReader parent, size_t max_len):
-        super(LimitedBufferedReader, self).__init__(None)
-        self.parent = parent
-        self.max_len = max_len
-        self.len_consumed = 0
-
-    cdef bint fill_buf(self, size_t buf_size=BUFF_SIZE):
-        if self.len_consumed >= self.max_len:
-            return self.buf.size() > 0
-
-        if self.buf.size() >= buf_size:
-            return True
-
-        cdef size_t read_size = min(buf_size, self.max_len - self.len_consumed)
-        self.len_consumed += read_size
-        self.buf.append(self.parent.read(read_size, buf_size))
-        return self.buf.size() > 0
+                self._consume_buf(consume)
+                size -= consume
+            else:
+                self._consume_buf(buf.size())

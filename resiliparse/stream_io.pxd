@@ -5,7 +5,31 @@ from libcpp.string cimport string
 cdef extern from "<zlib.h>" nogil:
     ctypedef void* gzFile
 
-from libc.stdint cimport int64_t
+
+cdef extern from "<string_view>" namespace "std" nogil:
+    cdef cppclass string_view:
+        string_view()
+        string_view(const string_view& other)
+        string_view(const char* s, size_t count)
+        bint empty() const
+        size_t size() const
+        string_view substr(size_t pos, size_t count) const
+        string_view substr(size_t pos) const
+        string_view substr() const
+        size_t find(const char* s, size_t pos)
+        size_t find(const char* s)
+        string_view remove_prefix(size_t n)
+        string_view remove_suffix(size_t n)
+
+
+cdef extern from * nogil:
+    '''
+    #include <string>
+    inline std::string& strerase(std::string& s, size_t index, size_t count) {
+        return s.erase(index, count);
+    }
+    '''
+    string& strerase(string& s, size_t index, size_t count)
 
 
 cdef class IOStream:
@@ -47,14 +71,15 @@ cdef class GZipStream(IOStream):
 cdef class BufferedReader:
     cdef IOStream stream
     cdef string buf
+    cdef size_t limit
+    cdef size_t limit_consumed
 
-    cdef bint fill_buf(self, size_t buf_size=*)
+    cdef inline void set_limit(self, size_t offset)
+    cdef inline void reset_limit(self)
     cpdef string read(self, size_t size, size_t buf_size=*)
     cpdef string readline(self, size_t max_line_len=*, size_t buf_size=*)
-    cpdef void consume(self, int64_t size=*, size_t buf_size=*)
+    cpdef void consume(self, size_t size=*, size_t buf_size=*)
 
-
-cdef class LimitedBufferedReader(BufferedReader):
-    cdef BufferedReader parent
-    cdef size_t max_len
-    cdef size_t len_consumed
+    cdef bint _fill_buf(self, size_t buf_size=*)
+    cdef inline string_view _get_buf(self)
+    cdef inline void _consume_buf(self, size_t size)

@@ -14,7 +14,7 @@
 
 # distutils: language = c++
 
-from stream_io cimport IOStream, BufferedReader, LimitedBufferedReader
+from stream_io cimport IOStream, BufferedReader
 
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
@@ -206,7 +206,8 @@ cdef class ArchiveIterator:
 
     cdef _NextRecStatus _read_next_record(self):
         if self.record is not None:
-            self.record._reader.consume()
+            self.reader.consume()
+            self.reader.reset_limit()
 
         cdef string version_line
         while True:
@@ -250,10 +251,12 @@ cdef class ArchiveIterator:
             self.record = None
             return skip_next
 
+        self.reader.set_limit(self.record._content_length)
+        self.record._reader = self.reader
+
         cdef size_t http_header_bytes = 0
-        self.record._reader = LimitedBufferedReader(self.reader, self.record._content_length)
         if self.parse_http and self.record._is_http:
-            self.record._http_headers = parse_header_block(self.record._reader, True, &http_header_bytes)
+            self.record._http_headers = parse_header_block(self.reader, True, &http_header_bytes)
             self.record._http_status_line = self.record._http_headers[0].second
             self.record._http_headers.erase(self.record._http_headers.begin())
             self.record._http_content_length = http_header_bytes
