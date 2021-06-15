@@ -232,7 +232,8 @@ cdef class BufferedReader:
         return line
 
     cpdef void consume(self, size_t size=strnpos):
-        cdef size_t consume
+        cdef string_view buf
+        cdef size_t bytes_to_consume
 
         while self._fill_buf():
             buf = self._get_buf()
@@ -240,10 +241,10 @@ cdef class BufferedReader:
                 break
 
             if size != strnpos:
-                consume = min(buf.size(), size)
-                if consume == 0:
+                bytes_to_consume = min(buf.size(), size)
+                if bytes_to_consume == 0:
                     break
-                self._consume_buf(consume)
-                size -= consume
+                self._consume_buf(bytes_to_consume)
+                size -= bytes_to_consume
             else:
                 self._consume_buf(buf.size())
