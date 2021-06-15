@@ -243,4 +243,6 @@ cdef class BufferedReader:
                 self._consume_buf(buf.size())
 
     cpdef size_t tell(self):
+        if self.limit != strnpos:
+            return self.limit_consumed
         return self.stream_pos
