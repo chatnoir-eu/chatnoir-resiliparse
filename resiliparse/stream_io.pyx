@@ -43,12 +43,6 @@ cdef class IOStream:
     cdef size_t tell(self):
         pass
 
-    cdef int errnum(self):
-        return 0
-
-    cdef string error(self):
-        pass
-
     cdef string read(self, size_t size):
         pass
 
@@ -115,15 +109,6 @@ cdef class GZipStream(IOStream):
         if self.fp:
             gzclose(self.fp)
             self.fp = NULL
-
-    cdef int errnum(self):
-        cdef int errnum
-        gzerror(self.fp, &errnum)
-        return errnum
-
-    cdef string error(self):
-        cdef int errnum
-        return gzerror(self.fp, &errnum)
 
     cpdef string read(self, size_t size):
         cdef string buf

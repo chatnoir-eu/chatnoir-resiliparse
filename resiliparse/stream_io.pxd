@@ -36,8 +36,6 @@ cdef class IOStream:
     cdef void close(self)
     cdef bint flush(self)
     cdef size_t tell(self)
-    cdef int errnum(self)
-    cdef string error(self)
     cdef string read(self, size_t size)
     cdef size_t write(self, char* data, size_t size)
 
@@ -63,8 +61,6 @@ cdef class GZipStream(IOStream):
     cpdef void open(self, const char* path, const char* mode=*)
     cpdef void open_stream(self, stream, const char * mode=*)
     cdef void close(self)
-    cdef int errnum(self)
-    cdef string error(self)
     cpdef string read(self, size_t size)
 
 
@@ -77,6 +73,7 @@ cdef class BufferedReader:
 
     cdef inline void set_limit(self, size_t offset)
     cdef inline void reset_limit(self)
+
     cpdef string read(self, size_t size)
     cpdef string readline(self, size_t max_line_len=*)
     cpdef void consume(self, size_t size=*)
