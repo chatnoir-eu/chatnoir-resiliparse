@@ -237,11 +237,11 @@ cdef class ArchiveIterator:
                 # Not a WARC file or unsupported version
                 return eof
 
-        cdef string hkey
-        cdef size_t parse_count = 0
-
         self.record = WarcRecord()
         self.record._headers = parse_header_block(self.reader)
+
+        cdef string hkey
+        cdef size_t parse_count = 0
         for h in self.record._headers:
             hkey = str_to_lower(h.first)
             if hkey == b'content-length':
