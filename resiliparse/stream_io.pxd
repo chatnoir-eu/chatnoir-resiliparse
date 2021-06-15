@@ -35,9 +35,9 @@ cdef extern from * nogil:
 cdef class IOStream:
     cdef void close(self)
     cdef bint flush(self)
-    cdef size_t tell(self)
     cdef string read(self, size_t size)
     cdef size_t write(self, char* data, size_t size)
+    cdef size_t tell(self)
 
 
 cdef class FileStream(IOStream):
@@ -46,28 +46,30 @@ cdef class FileStream(IOStream):
     cpdef void open(self, const char* path, const char* mode=*)
     cdef void close(self)
     cdef bint flush(self)
-    cdef size_t tell(self)
     cdef void seek(self, size_t offset)
     cdef string read(self, size_t size)
     cdef size_t write(self, const char* data, size_t size)
+    cdef size_t tell(self)
 
 
 cdef class GZipStream(IOStream):
     cdef gzFile fp
-    cdef py_stream
-    cdef decomp_obj
-    cdef unused_data
+    cdef object py_stream
+    cdef object decomp_obj
+    cdef bytes unused_data
 
     cpdef void open(self, const char* path, const char* mode=*)
     cpdef void open_stream(self, stream, const char * mode=*)
     cdef void close(self)
     cpdef string read(self, size_t size)
+    cpdef size_t tell(self)
 
 
 cdef class BufferedReader:
     cdef IOStream stream
     cdef string buf
     cdef size_t buf_size
+    cdef size_t stream_pos
     cdef size_t limit
     cdef size_t limit_consumed
 
@@ -77,6 +79,7 @@ cdef class BufferedReader:
     cpdef string read(self, size_t size)
     cpdef string readline(self, size_t max_line_len=*)
     cpdef void consume(self, size_t size=*)
+    cpdef size_t tell(self)
 
     cdef bint _fill_buf(self)
     cdef inline string_view _get_buf(self)

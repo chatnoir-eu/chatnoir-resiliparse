@@ -28,7 +28,7 @@ cdef extern from "<zlib.h>" nogil:
     gzFile gzopen(const char* path, const char* mode)
     gzFile gzdopen(int fd, const char* mode)
     int gzread(gzFile fp, void* buf, unsigned long n)
-    char* gzerror(gzFile fp, int* errnum)
+    size_t gztell(gzFile fp)
 
 
 cdef size_t strnpos = -1
@@ -91,7 +91,7 @@ cdef class GZipStream(IOStream):
         self.fp = NULL
         self.py_stream = None   # type: RawIOBase
         self.decomp_obj = None  # type: zlib.Decompress
-        self.unused_data = string()
+        self.unused_data = b''
 
     def __dealloc__(self):
         self.close()
@@ -135,12 +135,21 @@ cdef class GZipStream(IOStream):
             self.unused_data =  self.decomp_obj.unconsumed_tail + self.decomp_obj.unused_data
             return decomp_data
 
+    cpdef size_t tell(self):
+        if self.fp != NULL:
+            return gztell(self.fp)
+
+        if self.py_stream is not None:
+            return self.py_stream.tell() - len(self.unused_data)
+
+        return 0
 
 cdef class BufferedReader:
     def __init__(self, IOStream stream, size_t buf_size=16384):
         self.stream = stream
         self.buf_size = max(1024u, buf_size)
         self.buf = string()
+        self.stream_pos = 0
         self.limit = strnpos
         self.limit_consumed = 0
 
@@ -148,6 +157,7 @@ cdef class BufferedReader:
         if self.buf.size() >= self.buf_size / 8:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
+        self.stream_pos = self.stream.tell()
         self.buf.append(self.stream.read(self.buf_size))
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
@@ -231,3 +241,6 @@ cdef class BufferedReader:
                 size -= bytes_to_consume
             else:
                 self._consume_buf(buf.size())
+
+    cpdef size_t tell(self):
+        return self.stream_pos
