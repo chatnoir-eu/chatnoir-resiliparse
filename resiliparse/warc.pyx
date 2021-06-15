@@ -112,6 +112,14 @@ cdef class WarcRecord:
     def reader(self):
         return self._reader
 
+    cpdef parse_http(self):
+        cdef size_t http_header_bytes = 0
+        self._http_headers = parse_header_block(self.reader, True, &http_header_bytes)
+        self._http_status_line = self._http_headers[0].second
+        self._http_headers.erase(self._http_headers.begin())
+        self._http_content_length = http_header_bytes
+        self._content_length = self._content_length - http_header_bytes
+
     cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
         return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
                 for h in header_map}
@@ -247,6 +255,7 @@ cdef class ArchiveIterator:
                 break
 
         if self.record._record_type & self.record_type_filter == 0:
+            self.reader.reset_limit()
             self.reader.consume(self.record._content_length)
             self.record = None
             return skip_next
@@ -254,12 +263,7 @@ cdef class ArchiveIterator:
         self.reader.set_limit(self.record._content_length)
         self.record._reader = self.reader
 
-        cdef size_t http_header_bytes = 0
         if self.parse_http and self.record._is_http:
-            self.record._http_headers = parse_header_block(self.reader, True, &http_header_bytes)
-            self.record._http_status_line = self.record._http_headers[0].second
-            self.record._http_headers.erase(self.record._http_headers.begin())
-            self.record._http_content_length = http_header_bytes
-            self.record._content_length = self.record._content_length - http_header_bytes
+            self.record.parse_http()
 
         return has_next
