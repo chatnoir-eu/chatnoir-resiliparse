@@ -235,15 +235,13 @@ cdef class BufferedReader:
         cdef string_view buf
         cdef size_t bytes_to_consume
 
-        while self._fill_buf():
+        while size > 0 and self._fill_buf():
             buf = self._get_buf()
             if buf.empty():
                 break
 
             if size != strnpos:
                 bytes_to_consume = min(buf.size(), size)
-                if bytes_to_consume == 0:
-                    break
                 self._consume_buf(bytes_to_consume)
                 size -= bytes_to_consume
             else:
