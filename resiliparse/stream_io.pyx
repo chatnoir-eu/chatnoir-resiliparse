@@ -14,7 +14,6 @@
 
 # distutils: language = c++
 
-from io import RawIOBase
 import zlib
 
 from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
