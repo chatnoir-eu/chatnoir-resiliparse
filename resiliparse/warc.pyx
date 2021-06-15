@@ -252,6 +252,7 @@ cdef class ArchiveIterator:
                 parse_count += 1
             elif hkey == b'content-type' and h.second.find(b'application/http') == 0:
                 self.record._is_http = True
+                parse_count += 1
 
             if parse_count >= 3:
                 break
