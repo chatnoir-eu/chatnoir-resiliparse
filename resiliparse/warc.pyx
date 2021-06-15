@@ -142,6 +142,8 @@ cdef class WarcRecord:
             self._record_type = conversion
         elif record_type == b'continuation':
             self._record_type = continuation
+        else:
+            self._record_type = unknown
 
 
 cdef vector[pair[string, string]] parse_header_block(BufferedReader reader, bint has_status_line=False,
