@@ -155,13 +155,13 @@ cdef class GZipStream(IOStream):
 cdef class BufferedReader:
     def __init__(self, IOStream stream, size_t buf_size=16384):
         self.stream = stream
-        self.buf_size = buf_size
+        self.buf_size = max(1024, buf_size)
         self.buf = string()
         self.limit = strnpos
         self.limit_consumed = 0
 
     cdef bint _fill_buf(self):
-        if self.buf.size() >= self.buf_size:
+        if self.buf.size() >= self.buf_size / 8:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
         self.buf.append(self.stream.read(self.buf_size))
