@@ -32,7 +32,6 @@ cdef extern from "<zlib.h>" nogil:
     char* gzerror(gzFile fp, int* errnum)
 
 
-cdef size_t BUFF_SIZE = 16384
 cdef size_t strnpos = -1
 
 cdef class IOStream:
@@ -51,7 +50,7 @@ cdef class IOStream:
     cdef string error(self):
         pass
 
-    cdef string read(self, size_t size=BUFF_SIZE):
+    cdef string read(self, size_t size):
         pass
 
     cdef size_t write(self, char* data, size_t size):
@@ -83,7 +82,7 @@ cdef class FileStream(IOStream):
     cdef void seek(self, size_t offset):
         fseek(self.fp, offset, SEEK_SET)
 
-    cdef string read(self, size_t size=BUFF_SIZE):
+    cdef string read(self, size_t size):
         cdef string buf
         buf.resize(size)
         cdef size_t c = fread(&buf[0], sizeof(char*), size, self.fp)
@@ -127,7 +126,7 @@ cdef class GZipStream(IOStream):
         cdef int errnum
         return gzerror(self.fp, &errnum)
 
-    cpdef string read(self, size_t size=BUFF_SIZE):
+    cpdef string read(self, size_t size):
         cdef string buf
         cdef unsigned long l = 0
 
@@ -154,17 +153,18 @@ cdef class GZipStream(IOStream):
 
 
 cdef class BufferedReader:
-    def __init__(self, IOStream stream):
+    def __init__(self, IOStream stream, size_t buf_size=16384):
         self.stream = stream
+        self.buf_size = buf_size
         self.buf = string()
         self.limit = strnpos
         self.limit_consumed = 0
 
-    cdef bint _fill_buf(self, size_t buf_size=BUFF_SIZE):
-        if self.buf.size() >= buf_size:
+    cdef bint _fill_buf(self):
+        if self.buf.size() >= self.buf_size:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
-        self.buf.append(self.stream.read(buf_size))
+        self.buf.append(self.stream.read(self.buf_size))
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
     cdef inline string_view _get_buf(self):
@@ -193,19 +193,19 @@ cdef class BufferedReader:
     cdef inline void reset_limit(self):
         self.limit = strnpos
 
-    cpdef string read(self, size_t size, size_t buf_size=BUFF_SIZE):
+    cpdef string read(self, size_t size):
         cdef string data_read
         cdef size_t missing = size
-        while data_read.size() < size and self._fill_buf(buf_size):
+        while data_read.size() < size and self._fill_buf():
             missing = size - data_read.size()
             data_read.append(<string>self._get_buf().substr(0, missing))
             self._consume_buf(missing)
         return data_read
 
-    cpdef string readline(self, size_t max_line_len=4096, size_t buf_size=BUFF_SIZE):
+    cpdef string readline(self, size_t max_line_len=4096):
         cdef string line
 
-        if not self._fill_buf(buf_size):
+        if not self._fill_buf():
             return string()
 
         cdef size_t capacity_remaining = max_line_len
@@ -218,7 +218,7 @@ cdef class BufferedReader:
 
             # Consume rest of line
             self._consume_buf(buf.size())
-            if not self._fill_buf(buf_size):
+            if not self._fill_buf():
                 break
 
             buf = self._get_buf()
@@ -232,10 +232,10 @@ cdef class BufferedReader:
 
         return line
 
-    cpdef void consume(self, size_t size=strnpos, size_t buf_size=BUFF_SIZE):
+    cpdef void consume(self, size_t size=strnpos):
         cdef size_t consume
 
-        while self._fill_buf(buf_size):
+        while self._fill_buf():
             buf = self._get_buf()
             if buf.empty():
                 break
