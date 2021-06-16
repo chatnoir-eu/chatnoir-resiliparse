@@ -20,7 +20,7 @@ import Cython.Compiler.Options
 Cython.Compiler.Options.annotate = True
 
 cpp_args = dict(
-      extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations', '-Wunreachable-code'],
+      extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations', '-Wno-unreachable-code'],
       extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
 extensions = [
