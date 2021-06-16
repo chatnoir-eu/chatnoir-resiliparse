@@ -277,11 +277,13 @@ cdef class BufferedReader:
     cpdef string read(self, size_t size):
         cdef string data_read
         cdef size_t missing = size
+        cdef string_view buf_sub
 
         while data_read.size() < size and self._fill_buf():
             missing = size - data_read.size()
-            data_read.append(<string>self._get_buf().substr(0, missing))
-            self._consume_buf(missing)
+            buf_sub = self._get_buf().substr(0, missing)
+            data_read.append(<string>buf_sub)
+            self._consume_buf(buf_sub.size())
         return data_read
 
     cpdef string readline(self, size_t max_line_len=4096):
