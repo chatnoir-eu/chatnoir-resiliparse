@@ -25,7 +25,7 @@ cdef extern from "<zlib.h>" nogil:
     const int MAX_WBITS
 
     ctypedef void* gzFile
-    int inflateInit2(z_stream* strm, int window_bits)
+    int inflateInit2(z_stream* strm, int windowBits)
     int inflateEnd(z_stream* strm)
     int inflate(z_stream* strm, int flush)
 
@@ -34,6 +34,24 @@ cdef extern from "<zlib.h>" nogil:
     gzFile gzdopen(int fd, const char* mode)
     int gzread(gzFile fp, void* buf, unsigned long n)
     size_t gztell(gzFile fp)
+
+
+cdef extern from "<lz4frame.h>" nogil:
+    const int LZ4F_VERSION
+    ctypedef struct LZ4F_dctx
+    ctypedef struct LZ4F_decompressOptions_t
+
+    bint LZ4F_isError(size_t code)
+    const char* LZ4F_getErrorName(size_t code)
+
+    size_t LZ4F_createDecompressionContext(LZ4F_dctx** dctxPtr, unsigned version)
+    size_t LZ4F_freeDecompressionContext(LZ4F_dctx* dctx)
+    void LZ4F_resetDecompressionContext(LZ4F_dctx* dctx)
+
+    size_t LZ4F_decompress(LZ4F_dctx* dctx,
+                           void* dstBuffer, size_t* dstSizePtr,
+                           const void* srcBuffer, size_t* srcSizePtr,
+                           const LZ4F_decompressOptions_t* dOptPtr)
 
 
 cdef extern from "<string_view>" namespace "std" nogil:
@@ -87,6 +105,17 @@ cdef class GZipStream(IOStream):
     cdef string in_buf
     cdef z_stream zst
     cdef int stream_status
+
+    cdef void close(self)
+    cdef string read(self, size_t size)
+    cdef size_t tell(self)
+
+
+cdef class LZ4Stream(IOStream):
+    cdef IOStream raw_stream
+    cdef LZ4F_dctx* dctx
+    cdef string in_buf
+    cdef bint is_eof
 
     cdef void close(self)
     cdef string read(self, size_t size)

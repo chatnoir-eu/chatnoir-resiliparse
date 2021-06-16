@@ -21,7 +21,7 @@ Cython.Compiler.Options.annotate = True
 
 cpp_args = dict(
       extra_compile_args=['-std=c++17', '-O3'],
-      extra_link_args=['-std=c++17', '-lz'])
+      extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
 extensions = [
       Extension('resiliparse.warc', sources=['resiliparse/warc.pyx'], **cpp_args),

@@ -111,15 +111,19 @@ cdef class PythonIOStreamAdapter(IOStream):
         return self.py_stream.write(data[:size])
 
 
+cdef inline IOStream wrap_stream(raw_stream):
+    if isinstance(raw_stream, IOStream):
+        return raw_stream
+    elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
+        return PythonIOStreamAdapter(raw_stream)
+    else:
+        warnings.warn(f'Object of type "{type(raw_stream).__name__}" is not a valid stream.', RuntimeWarning)
+        return None
+
+
 cdef class GZipStream(IOStream):
     def __init__(self, raw_stream):
-        if isinstance(raw_stream, IOStream):
-            self.raw_stream = raw_stream
-        elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
-            self.raw_stream = PythonIOStreamAdapter(raw_stream)
-        else:
-            warnings.warn(f'Object of type "{type(raw_stream).__name__}" is not a valid stream.', RuntimeWarning)
-
+        self.raw_stream = wrap_stream(raw_stream)
         self.zst.opaque = Z_NULL
         self.zst.zalloc = Z_NULL
         self.zst.zfree = Z_NULL
@@ -158,11 +162,67 @@ cdef class GZipStream(IOStream):
             if self.stream_status == Z_STREAM_END:
                 inflateEnd(&self.zst)
 
-            out_buf.resize(<char*>self.zst.next_out - <char*>&out_buf[0])
+            out_buf_size = <char*>self.zst.next_out - <char*>&out_buf[0]
+            if out_buf.size() < out_buf_size:
+                out_buf.resize(out_buf_size)
             return out_buf
 
     cdef size_t tell(self):
         return self.raw_stream.tell()
+
+
+cdef class LZ4Stream(IOStream):
+    def __init__(self, raw_stream):
+        self.raw_stream = wrap_stream(raw_stream)
+        self.dctx = NULL
+        self.in_buf = string()
+        self.is_eof = False
+
+    def __dealloc__(self):
+        self.close()
+
+    cdef void close(self):
+        self.raw_stream.close()
+        if self.dctx != NULL:
+            LZ4F_freeDecompressionContext(self.dctx)
+            self.dctx = NULL
+
+    cdef string read(self, size_t size):
+        if self.is_eof:
+            return string()
+
+        if self.dctx == NULL:
+            LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
+
+        if self.in_buf.empty():
+            self.in_buf = self.raw_stream.read(size)
+
+        cdef size_t in_buf_size = self.in_buf.size()
+        cdef string out_buf = string(size, <char>0)
+        cdef size_t out_buf_size = out_buf.size()
+
+        cdef size_t ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
+        while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
+            self.in_buf = self.raw_stream.read(ret)
+            if self.in_buf.empty():
+                self.is_eof = True
+                break
+            in_buf_size = self.in_buf.size()
+            out_buf_size = out_buf.size()
+            ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
+
+        if self.in_buf.size() == in_buf_size:
+            self.in_buf.clear()
+        else:
+            self.in_buf = self.in_buf.substr(in_buf_size)
+
+        if out_buf.size() < out_buf_size:
+            out_buf.resize(out_buf_size)
+        return out_buf
+
+    cdef size_t tell(self):
+        return self.raw_stream.tell()
+
 
 cdef class BufferedReader:
     def __init__(self, IOStream stream, size_t buf_size=16384):
