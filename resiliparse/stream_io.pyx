@@ -159,7 +159,7 @@ cdef class GZipStream(IOStream):
                 inflateEnd(&self.zst)
 
             out_buf_size = <char*>self.zst.next_out - <char*>&out_buf[0]
-            if out_buf.size() < out_buf_size:
+            if out_buf.size() != out_buf_size:
                 out_buf.resize(out_buf_size)
             return out_buf
 
@@ -217,7 +217,7 @@ cdef class LZ4Stream(IOStream):
             else:
                 self.in_buf = self.in_buf.substr(in_buf_size)
 
-            if out_buf.size() < out_buf_size:
+            if out_buf.size() != out_buf_size:
                 out_buf.resize(out_buf_size)
             return out_buf
 
