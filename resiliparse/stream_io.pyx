@@ -196,32 +196,39 @@ cdef class LZ4Stream(IOStream):
                 # EOF
                 return string()
 
-        if self.dctx == NULL:
-            LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
+        cdef size_t in_buf_size
+        cdef string out_buf
+        cdef size_t out_buf_size
+        cdef size_t ret
 
-        cdef size_t in_buf_size = self.in_buf.size()
-        cdef string out_buf = string(size, <char>0)
-        cdef size_t out_buf_size = out_buf.size()
-
-        cdef size_t ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
-        while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
-            self.in_buf = self.raw_stream.read(size)
-            if self.in_buf.empty():
-                # EOF
-                self._free_ctx()
-                break
+        with nogil:
             in_buf_size = self.in_buf.size()
+            out_buf = string(size, <char> 0)
             out_buf_size = out_buf.size()
+
+            if self.dctx == NULL:
+                LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
+
             ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
+            while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
+                with gil:
+                    self.in_buf = self.raw_stream.read(size)
+                if self.in_buf.empty():
+                    # EOF
+                    self._free_ctx()
+                    break
+                in_buf_size = self.in_buf.size()
+                out_buf_size = out_buf.size()
+                ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
 
-        if self.in_buf.size() == in_buf_size:
-            self.in_buf.clear()
-        else:
-            self.in_buf = self.in_buf.substr(in_buf_size)
+            if self.in_buf.size() == in_buf_size:
+                self.in_buf.clear()
+            else:
+                self.in_buf = self.in_buf.substr(in_buf_size)
 
-        if out_buf.size() < out_buf_size:
-            out_buf.resize(out_buf_size)
-        return out_buf
+            if out_buf.size() < out_buf_size:
+                out_buf.resize(out_buf_size)
+            return out_buf
 
     cdef size_t tell(self):
         return self.raw_stream.tell()
