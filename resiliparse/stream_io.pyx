@@ -194,6 +194,7 @@ cdef class LZ4Stream(IOStream):
             self.in_buf = self.raw_stream.read(size)
             if self.in_buf.empty():
                 # EOF
+                self._free_ctx()
                 return string()
 
         cdef size_t in_buf_size
