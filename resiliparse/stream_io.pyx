@@ -274,12 +274,12 @@ cdef class BufferedReader:
     cdef inline void reset_limit(self) nogil:
         self.limit = strnpos
 
-    cpdef string read(self, size_t size):
+    cpdef string read(self, size_t size=strnpos):
         cdef string data_read
         cdef size_t missing = size
         cdef string_view buf_sub
 
-        while data_read.size() < size and self._fill_buf():
+        while (size == strnpos or data_read.size() < size) and self._fill_buf():
             missing = size - data_read.size()
             buf_sub = self._get_buf().substr(0, missing)
             data_read.append(<string>buf_sub)
