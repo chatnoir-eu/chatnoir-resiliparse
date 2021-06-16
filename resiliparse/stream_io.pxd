@@ -29,12 +29,6 @@ cdef extern from "<zlib.h>" nogil:
     int inflateEnd(z_stream* strm)
     int inflate(z_stream* strm, int flush)
 
-    int gzclose(gzFile fp)
-    gzFile gzopen(const char* path, const char* mode)
-    gzFile gzdopen(int fd, const char* mode)
-    int gzread(gzFile fp, void* buf, unsigned long n)
-    size_t gztell(gzFile fp)
-
 
 cdef extern from "<lz4frame.h>" nogil:
     const int LZ4F_VERSION
@@ -42,11 +36,9 @@ cdef extern from "<lz4frame.h>" nogil:
     ctypedef struct LZ4F_decompressOptions_t
 
     bint LZ4F_isError(size_t code)
-    const char* LZ4F_getErrorName(size_t code)
 
     size_t LZ4F_createDecompressionContext(LZ4F_dctx** dctxPtr, unsigned version)
     size_t LZ4F_freeDecompressionContext(LZ4F_dctx* dctx)
-    void LZ4F_resetDecompressionContext(LZ4F_dctx* dctx)
 
     size_t LZ4F_decompress(LZ4F_dctx* dctx,
                            void* dstBuffer, size_t* dstSizePtr,
@@ -81,11 +73,11 @@ cdef extern from * nogil:
 
 
 cdef class IOStream:
-    cdef void close(self)
-    cdef bint flush(self)
     cdef string read(self, size_t size)
     cdef size_t write(self, char* data, size_t size)
     cdef size_t tell(self)
+    cdef bint flush(self)
+    cdef void close(self)
 
 
 cdef class FileStream(IOStream):
@@ -106,9 +98,9 @@ cdef class GZipStream(IOStream):
     cdef z_stream zst
     cdef int stream_status
 
-    cdef void close(self)
     cdef string read(self, size_t size)
     cdef size_t tell(self)
+    cdef void close(self)
 
 
 cdef class LZ4Stream(IOStream):
@@ -116,10 +108,11 @@ cdef class LZ4Stream(IOStream):
     cdef LZ4F_dctx* dctx
     cdef string in_buf
 
-    cdef void close(self)
-    cdef void _free_ctx(self) nogil
     cdef string read(self, size_t size)
     cdef size_t tell(self)
+    cdef void close(self)
+
+    cdef void _free_ctx(self) nogil
 
 
 cdef class BufferedReader:
@@ -135,9 +128,9 @@ cdef class BufferedReader:
 
     cpdef string read(self, size_t size)
     cpdef string readline(self, size_t max_line_len=*)
+    cpdef size_t tell(self)
     cpdef void consume(self, size_t size=*)
     cpdef void close(self)
-    cpdef size_t tell(self)
 
     cdef bint _fill_buf(self)
     cdef inline string_view _get_buf(self) nogil

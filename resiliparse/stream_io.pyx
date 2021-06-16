@@ -18,30 +18,26 @@
 from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from libcpp.string cimport string
 
-
 import warnings
-
-
-cdef extern from "<stdio.h>" nogil:
-    int fileno(FILE*)
 
 
 cdef size_t strnpos = -1
 
+
 cdef class IOStream:
-    cdef void close(self):
+    cdef string read(self, size_t size):
         pass
 
-    cdef bint flush(self):
+    cdef size_t write(self, char* data, size_t size):
         pass
 
     cdef size_t tell(self):
         pass
 
-    cdef string read(self, size_t size):
+    cdef bint flush(self):
         pass
 
-    cdef size_t write(self, char* data, size_t size):
+    cdef void close(self):
         pass
 
 
@@ -59,19 +55,11 @@ cdef class FileStream(IOStream):
             self.close()
         self.fp = fopen(path, mode)
 
-    cpdef void close(self):
-        if self.fp != NULL:
-            fclose(self.fp)
-            self.fp = NULL
-
-    cdef bint flush(self):
-        fflush(self.fp)
+    cdef void seek(self, size_t offset):
+        fseek(self.fp, offset, SEEK_SET)
 
     cdef size_t tell(self):
         return ftell(self.fp)
-
-    cdef void seek(self, size_t offset):
-        fseek(self.fp, offset, SEEK_SET)
 
     cdef string read(self, size_t size):
         cdef string buf
@@ -85,18 +73,20 @@ cdef class FileStream(IOStream):
     cdef size_t write(self, const char* data, size_t size):
         return fwrite(data, sizeof(char*), size, self.fp)
 
+    cdef bint flush(self):
+        fflush(self.fp)
+
+    cpdef void close(self):
+        if self.fp != NULL:
+            fclose(self.fp)
+            self.fp = NULL
+
 
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
     def __init__(self, py_stream):
-        self.py_stream = py_stream  # type: RawIOBase
-
-    cdef void close(self):
-        self.py_stream.close()
-
-    cdef bint flush(self):
-        self.py_stream.close()
+        self.py_stream = py_stream
 
     cdef size_t tell(self):
         return self.py_stream.tell()
@@ -109,6 +99,12 @@ cdef class PythonIOStreamAdapter(IOStream):
 
     cdef size_t write(self, const char* data, size_t size):
         return self.py_stream.write(data[:size])
+
+    cdef bint flush(self):
+        self.py_stream.flush()
+
+    cdef void close(self):
+        self.py_stream.close()
 
 
 cdef inline IOStream wrap_stream(raw_stream):
@@ -136,8 +132,8 @@ cdef class GZipStream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cdef void close(self):
-        self.raw_stream.close()
+    cdef size_t tell(self):
+        return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
         if self.zst.avail_in == 0:
@@ -167,8 +163,8 @@ cdef class GZipStream(IOStream):
                 out_buf.resize(out_buf_size)
             return out_buf
 
-    cdef size_t tell(self):
-        return self.raw_stream.tell()
+    cdef void close(self):
+        self.raw_stream.close()
 
 
 cdef class LZ4Stream(IOStream):
@@ -180,14 +176,8 @@ cdef class LZ4Stream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cdef void close(self):
-        self._free_ctx()
-        self.raw_stream.close()
-
-    cdef void _free_ctx(self) nogil:
-        if self.dctx != NULL:
-            LZ4F_freeDecompressionContext(self.dctx)
-            self.dctx = NULL
+    cdef size_t tell(self):
+        return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
         if self.in_buf.empty():
@@ -231,8 +221,14 @@ cdef class LZ4Stream(IOStream):
                 out_buf.resize(out_buf_size)
             return out_buf
 
-    cdef size_t tell(self):
-        return self.raw_stream.tell()
+    cdef void close(self):
+        self._free_ctx()
+        self.raw_stream.close()
+
+    cdef void _free_ctx(self) nogil:
+        if self.dctx != NULL:
+            LZ4F_freeDecompressionContext(self.dctx)
+            self.dctx = NULL
 
 
 cdef class BufferedReader:
@@ -321,6 +317,11 @@ cdef class BufferedReader:
 
             return line
 
+    cpdef size_t tell(self):
+        if self.limit != strnpos:
+            return self.limit_consumed
+        return self.stream_pos
+
     cpdef void consume(self, size_t size=strnpos):
         cdef string_view buf
         cdef size_t bytes_to_consume
@@ -339,8 +340,3 @@ cdef class BufferedReader:
 
     cpdef void close(self):
         self.stream.close()
-
-    cpdef size_t tell(self):
-        if self.limit != strnpos:
-            return self.limit_consumed
-        return self.stream_pos
