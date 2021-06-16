@@ -78,7 +78,6 @@ cdef class WarcRecord:
         self._record_type = unknown
         self._is_http = False
         self._content_length = 0
-        self._http_content_length = 0
 
     @property
     def record_type(self):
@@ -105,10 +104,6 @@ cdef class WarcRecord:
         return self._content_length
 
     @property
-    def http_content_length(self):
-        return self._http_content_length
-
-    @property
     def reader(self):
         return self._reader
 
@@ -117,7 +112,6 @@ cdef class WarcRecord:
         self._http_headers = parse_header_block(self.reader, True, &http_header_bytes)
         self._http_status_line = self._http_headers[0].second
         self._http_headers.erase(self._http_headers.begin())
-        self._http_content_length = http_header_bytes
         self._content_length = self._content_length - http_header_bytes
 
     cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
