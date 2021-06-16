@@ -46,8 +46,10 @@ cdef class IOStream:
 
 
 cdef class FileStream(IOStream):
-    def __init__(self):
+    def __init__(self, str filename=None, str mode='rb'):
         self.fp = NULL
+        if filename:
+            self.open(filename.encode(), mode.encode())
 
     def __dealloc__(self):
         self.close()
@@ -57,7 +59,7 @@ cdef class FileStream(IOStream):
             self.close()
         self.fp = fopen(path, mode)
 
-    cdef void close(self):
+    cpdef void close(self):
         if self.fp != NULL:
             fclose(self.fp)
             self.fp = NULL
@@ -71,12 +73,14 @@ cdef class FileStream(IOStream):
     cdef void seek(self, size_t offset):
         fseek(self.fp, offset, SEEK_SET)
 
-    cpdef string read(self, size_t size):
+    cdef string read(self, size_t size):
         cdef string buf
-        buf.resize(size)
-        cdef size_t c = fread(&buf[0], sizeof(char), size, self.fp)
-        buf.resize(c)
-        return buf
+        cdef size_t c
+        with nogil:
+            buf.resize(size)
+            c = fread(&buf[0], sizeof(char), size, self.fp)
+            buf.resize(c)
+            return buf
 
     cdef size_t write(self, const char* data, size_t size):
         return fwrite(data, sizeof(char*), size, self.fp)
@@ -131,32 +135,33 @@ cdef class GZipStream(IOStream):
     cdef void close(self):
         self.raw_stream.close()
 
-    cpdef string read(self, size_t size):
+    cdef string read(self, size_t size):
         if self.zst.avail_in == 0:
             self.in_buf = self.raw_stream.read(size)
             self.zst.next_in = <Bytef*>&self.in_buf[0]
             self.zst.avail_in = self.in_buf.size()
 
-        if self.stream_status == Z_STREAM_END:
-            inflateInit2(&self.zst, 16 + MAX_WBITS)
-
         cdef string out_buf = string(size, <char>0)
         cdef size_t out_buf_size = out_buf.size()
-        self.zst.next_out = <Bytef*>&out_buf[0]
-        self.zst.avail_out = out_buf.size()
+        with nogil:
+            if self.stream_status == Z_STREAM_END:
+                inflateInit2(&self.zst, 16 + MAX_WBITS)
 
-        self.stream_status = inflate(&self.zst, Z_SYNC_FLUSH)
-        if self.stream_status == Z_DATA_ERROR or self.stream_status == Z_STREAM_ERROR:
-            inflateEnd(&self.zst)
-            return string()
+            self.zst.next_out = <Bytef*>&out_buf[0]
+            self.zst.avail_out = out_buf.size()
 
-        if self.stream_status == Z_STREAM_END:
-            inflateEnd(&self.zst)
+            self.stream_status = inflate(&self.zst, Z_SYNC_FLUSH)
+            if self.stream_status == Z_DATA_ERROR or self.stream_status == Z_STREAM_ERROR:
+                inflateEnd(&self.zst)
+                return string()
 
-        out_buf.resize(<char*>self.zst.next_out - <char*>&out_buf[0])
-        return out_buf
+            if self.stream_status == Z_STREAM_END:
+                inflateEnd(&self.zst)
 
-    cpdef size_t tell(self):
+            out_buf.resize(<char*>self.zst.next_out - <char*>&out_buf[0])
+            return out_buf
+
+    cdef size_t tell(self):
         return self.raw_stream.tell()
 
 cdef class BufferedReader:
@@ -176,7 +181,7 @@ cdef class BufferedReader:
         self.buf.append(self.stream.read(self.buf_size))
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
-    cdef inline string_view _get_buf(self):
+    cdef inline string_view _get_buf(self) nogil:
         cdef string_view v = string_view(self.buf.c_str(), self.buf.size())
         cdef size_t remaining
         if self.limit != strnpos:
@@ -185,7 +190,7 @@ cdef class BufferedReader:
                 v.remove_suffix(v.size() - remaining)
         return v
 
-    cdef inline void _consume_buf(self, size_t size):
+    cdef inline void _consume_buf(self, size_t size) nogil:
         if self.limit == strnpos and size >= self.buf.size():
             self.buf.clear()
             return
@@ -195,16 +200,17 @@ cdef class BufferedReader:
         self.limit_consumed += size
         strerase(self.buf, 0, size)
 
-    cdef inline void set_limit(self, size_t offset):
+    cdef inline void set_limit(self, size_t offset) nogil:
         self.limit = offset
         self.limit_consumed = 0
 
-    cdef inline void reset_limit(self):
+    cdef inline void reset_limit(self) nogil:
         self.limit = strnpos
 
     cpdef string read(self, size_t size):
         cdef string data_read
         cdef size_t missing = size
+
         while data_read.size() < size and self._fill_buf():
             missing = size - data_read.size()
             data_read.append(<string>self._get_buf().substr(0, missing))
@@ -220,26 +226,29 @@ cdef class BufferedReader:
         cdef size_t capacity_remaining = max_line_len
         cdef string_view buf = self._get_buf()
         cdef size_t pos = buf.find(b'\n')
-        while pos == strnpos:
-            if capacity_remaining > 0:
-                line.append(<string>buf.substr(0, min(buf.size(), capacity_remaining)))
-                capacity_remaining -= line.size()
 
-            # Consume rest of line
-            self._consume_buf(buf.size())
-            if not self._fill_buf():
-                break
+        with nogil:
+            while pos == strnpos:
+                if capacity_remaining > 0:
+                    line.append(<string>buf.substr(0, min(buf.size(), capacity_remaining)))
+                    capacity_remaining -= line.size()
 
-            buf = self._get_buf()
-            pos = buf.find(b'\n')
+                # Consume rest of line
+                self._consume_buf(buf.size())
+                with gil:
+                    if not self._fill_buf():
+                        break
 
-        if not buf.empty() and pos != strnpos:
-            if capacity_remaining > 0:
-                line.append(<string>buf.substr(0, min(pos + 1, capacity_remaining)))
+                    buf = self._get_buf()
+                pos = buf.find(b'\n')
 
-            self._consume_buf(pos + 1)
+            if not buf.empty() and pos != strnpos:
+                if capacity_remaining > 0:
+                    line.append(<string>buf.substr(0, min(pos + 1, capacity_remaining)))
 
-        return line
+                self._consume_buf(pos + 1)
+
+            return line
 
     cpdef void consume(self, size_t size=strnpos):
         cdef string_view buf

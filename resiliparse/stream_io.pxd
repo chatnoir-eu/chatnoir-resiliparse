@@ -74,10 +74,10 @@ cdef class FileStream(IOStream):
     cdef FILE* fp
 
     cpdef void open(self, const char* path, const char* mode=*)
-    cdef void close(self)
+    cpdef void close(self)
     cdef bint flush(self)
     cdef void seek(self, size_t offset)
-    cpdef string read(self, size_t size)
+    cdef string read(self, size_t size)
     cdef size_t write(self, const char* data, size_t size)
     cdef size_t tell(self)
 
@@ -89,8 +89,8 @@ cdef class GZipStream(IOStream):
     cdef int stream_status
 
     cdef void close(self)
-    cpdef string read(self, size_t size)
-    cpdef size_t tell(self)
+    cdef string read(self, size_t size)
+    cdef size_t tell(self)
 
 
 cdef class BufferedReader:
@@ -101,8 +101,8 @@ cdef class BufferedReader:
     cdef size_t limit
     cdef size_t limit_consumed
 
-    cdef inline void set_limit(self, size_t offset)
-    cdef inline void reset_limit(self)
+    cdef inline void set_limit(self, size_t offset) nogil
+    cdef inline void reset_limit(self) nogil
 
     cpdef string read(self, size_t size)
     cpdef string readline(self, size_t max_line_len=*)
@@ -110,5 +110,5 @@ cdef class BufferedReader:
     cpdef size_t tell(self)
 
     cdef bint _fill_buf(self)
-    cdef inline string_view _get_buf(self)
-    cdef inline void _consume_buf(self, size_t size)
+    cdef inline string_view _get_buf(self) nogil
+    cdef inline void _consume_buf(self, size_t size) nogil
