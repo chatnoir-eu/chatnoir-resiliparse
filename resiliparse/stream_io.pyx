@@ -203,7 +203,7 @@ cdef class LZ4Stream(IOStream):
 
         with nogil:
             in_buf_size = self.in_buf.size()
-            out_buf = string(size, <char> 0)
+            out_buf.resize(size)
             out_buf_size = out_buf.size()
 
             if self.dctx == NULL:
