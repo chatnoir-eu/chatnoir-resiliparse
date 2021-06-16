@@ -19,6 +19,9 @@ from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite
 from libcpp.string cimport string
 
 
+import warnings
+
+
 cdef extern from "<stdio.h>" nogil:
     int fileno(FILE*)
 
@@ -108,10 +111,10 @@ cdef class GZipStream(IOStream):
     def __init__(self, raw_stream):
         if isinstance(raw_stream, IOStream):
             self.raw_stream = raw_stream
-        elif isinstance(raw_stream, object):
+        elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
             self.raw_stream = PythonIOStreamAdapter(raw_stream)
         else:
-            raise TypeError('Invalid stream object.')
+            warnings.warn(f'Object of type "{type(raw_stream).__name__}" is not a valid stream.', RuntimeWarning)
 
         self.zst.opaque = Z_NULL
         self.zst.zalloc = Z_NULL
