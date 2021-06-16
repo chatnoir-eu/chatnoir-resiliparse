@@ -115,9 +115,9 @@ cdef class LZ4Stream(IOStream):
     cdef IOStream raw_stream
     cdef LZ4F_dctx* dctx
     cdef string in_buf
-    cdef bint is_eof
 
     cdef void close(self)
+    cdef void _free_ctx(self) nogil
     cdef string read(self, size_t size)
     cdef size_t tell(self)
 

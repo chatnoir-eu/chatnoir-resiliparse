@@ -176,26 +176,28 @@ cdef class LZ4Stream(IOStream):
         self.raw_stream = wrap_stream(raw_stream)
         self.dctx = NULL
         self.in_buf = string()
-        self.is_eof = False
 
     def __dealloc__(self):
         self.close()
 
     cdef void close(self):
+        self._free_ctx()
         self.raw_stream.close()
+
+    cdef void _free_ctx(self) nogil:
         if self.dctx != NULL:
             LZ4F_freeDecompressionContext(self.dctx)
             self.dctx = NULL
 
     cdef string read(self, size_t size):
-        if self.is_eof:
-            return string()
+        if self.in_buf.empty():
+            self.in_buf = self.raw_stream.read(size)
+            if self.in_buf.empty():
+                # EOF
+                return string()
 
         if self.dctx == NULL:
             LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
-
-        if self.in_buf.empty():
-            self.in_buf = self.raw_stream.read(size)
 
         cdef size_t in_buf_size = self.in_buf.size()
         cdef string out_buf = string(size, <char>0)
@@ -203,9 +205,10 @@ cdef class LZ4Stream(IOStream):
 
         cdef size_t ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
         while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
-            self.in_buf = self.raw_stream.read(ret)
+            self.in_buf = self.raw_stream.read(size)
             if self.in_buf.empty():
-                self.is_eof = True
+                # EOF
+                self._free_ctx()
                 break
             in_buf_size = self.in_buf.size()
             out_buf_size = out_buf.size()
