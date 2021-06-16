@@ -136,6 +136,7 @@ cdef class BufferedReader:
     cpdef string read(self, size_t size)
     cpdef string readline(self, size_t max_line_len=*)
     cpdef void consume(self, size_t size=*)
+    cpdef void close(self)
     cpdef size_t tell(self)
 
     cdef bint _fill_buf(self)

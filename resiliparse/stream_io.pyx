@@ -337,6 +337,9 @@ cdef class BufferedReader:
             else:
                 self._consume_buf(buf.size())
 
+    cpdef void close(self):
+        self.stream.close()
+
     cpdef size_t tell(self):
         if self.limit != strnpos:
             return self.limit_consumed

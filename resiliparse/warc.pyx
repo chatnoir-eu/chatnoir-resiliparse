@@ -212,6 +212,7 @@ cdef class ArchiveIterator:
             if status == has_next:
                 yield self.record
             elif status == eof:
+                self.reader.close()
                 return
 
     cdef _NextRecStatus _read_next_record(self):
