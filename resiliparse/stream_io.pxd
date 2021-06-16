@@ -3,7 +3,37 @@ from libcpp.string cimport string
 
 
 cdef extern from "<zlib.h>" nogil:
+    ctypedef unsigned char Bytef
+    ctypedef struct z_stream:
+        Bytef* next_in
+        size_t avail_in
+        size_t total_in
+        Bytef* next_out
+        size_t avail_out
+        size_t total_out
+        const char* msg
+        void* zalloc
+        void* zfree
+        void* opaque
+
+    const void* Z_NULL
+    const int Z_OK
+    const int Z_STREAM_END
+    const int Z_STREAM_ERROR
+    const int Z_DATA_ERROR
+    const int Z_SYNC_FLUSH
+    const int MAX_WBITS
+
     ctypedef void* gzFile
+    int inflateInit2(z_stream* strm, int window_bits)
+    int inflateEnd(z_stream* strm)
+    int inflate(z_stream* strm, int flush)
+
+    int gzclose(gzFile fp)
+    gzFile gzopen(const char* path, const char* mode)
+    gzFile gzdopen(int fd, const char* mode)
+    int gzread(gzFile fp, void* buf, unsigned long n)
+    size_t gztell(gzFile fp)
 
 
 cdef extern from "<string_view>" namespace "std" nogil:
@@ -47,19 +77,17 @@ cdef class FileStream(IOStream):
     cdef void close(self)
     cdef bint flush(self)
     cdef void seek(self, size_t offset)
-    cdef string read(self, size_t size)
+    cpdef string read(self, size_t size)
     cdef size_t write(self, const char* data, size_t size)
     cdef size_t tell(self)
 
 
 cdef class GZipStream(IOStream):
-    cdef gzFile fp
-    cdef object py_stream
-    cdef object decomp_obj
-    cdef bytes unused_data
+    cdef IOStream raw_stream
+    cdef string in_buf
+    cdef z_stream zst
+    cdef int stream_status
 
-    cpdef void open(self, const char* path, const char* mode=*)
-    cpdef void open_stream(self, stream, const char * mode=*)
     cdef void close(self)
     cpdef string read(self, size_t size)
     cpdef size_t tell(self)

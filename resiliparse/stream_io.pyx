@@ -14,7 +14,6 @@
 
 # distutils: language = c++
 
-import zlib
 
 from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from libcpp.string cimport string
@@ -22,13 +21,6 @@ from libcpp.string cimport string
 
 cdef extern from "<stdio.h>" nogil:
     int fileno(FILE*)
-
-cdef extern from "<zlib.h>" nogil:
-    int gzclose(gzFile fp)
-    gzFile gzopen(const char* path, const char* mode)
-    gzFile gzdopen(int fd, const char* mode)
-    int gzread(gzFile fp, void* buf, unsigned long n)
-    size_t gztell(gzFile fp)
 
 
 cdef size_t strnpos = -1
@@ -65,6 +57,7 @@ cdef class FileStream(IOStream):
     cdef void close(self):
         if self.fp != NULL:
             fclose(self.fp)
+            self.fp = NULL
 
     cdef bint flush(self):
         fflush(self.fp)
@@ -75,10 +68,10 @@ cdef class FileStream(IOStream):
     cdef void seek(self, size_t offset):
         fseek(self.fp, offset, SEEK_SET)
 
-    cdef string read(self, size_t size):
+    cpdef string read(self, size_t size):
         cdef string buf
         buf.resize(size)
-        cdef size_t c = fread(&buf[0], sizeof(char*), size, self.fp)
+        cdef size_t c = fread(&buf[0], sizeof(char), size, self.fp)
         buf.resize(c)
         return buf
 
@@ -86,63 +79,82 @@ cdef class FileStream(IOStream):
         return fwrite(data, sizeof(char*), size, self.fp)
 
 
+cdef class PythonIOStreamAdapter(IOStream):
+    cdef object py_stream
+
+    def __init__(self, py_stream):
+        self.py_stream = py_stream  # type: RawIOBase
+
+    cdef void close(self):
+        self.py_stream.close()
+
+    cdef bint flush(self):
+        self.py_stream.close()
+
+    cdef size_t tell(self):
+        return self.py_stream.tell()
+
+    cdef void seek(self, size_t offset):
+        self.py_stream.seek(offset)
+
+    cdef string read(self, size_t size):
+        return self.py_stream.read(size)[:size]
+
+    cdef size_t write(self, const char* data, size_t size):
+        return self.py_stream.write(data[:size])
+
+
 cdef class GZipStream(IOStream):
-    def __init__(self):
-        self.fp = NULL
-        self.py_stream = None   # type: RawIOBase
-        self.decomp_obj = None  # type: zlib.Decompress
-        self.unused_data = b''
+    def __init__(self, raw_stream):
+        if isinstance(raw_stream, IOStream):
+            self.raw_stream = raw_stream
+        elif isinstance(raw_stream, object):
+            self.raw_stream = PythonIOStreamAdapter(raw_stream)
+        else:
+            raise TypeError('Invalid stream object.')
+
+        self.zst.opaque = Z_NULL
+        self.zst.zalloc = Z_NULL
+        self.zst.zfree = Z_NULL
+        self.zst.next_in = NULL
+        self.zst.avail_in = 0
+        self.stream_status = Z_STREAM_END
+
+        self.in_buf = string()
 
     def __dealloc__(self):
         self.close()
 
-    cpdef void open(self, const char* path, const char* mode=b'rb'):
-        self.fp = gzopen(path, mode)
-
-    cpdef void open_stream(self, stream, const char* mode=b'rb'):
-        if isinstance(stream, FileStream):
-            self.fp = gzdopen(fileno((<FileStream>stream).fp), mode)
-        else:
-            self.py_stream = stream
-
     cdef void close(self):
-        if self.fp:
-            gzclose(self.fp)
-            self.fp = NULL
+        self.raw_stream.close()
 
     cpdef string read(self, size_t size):
-        cdef string buf
-        cdef unsigned long l = 0
+        if self.zst.avail_in == 0:
+            self.in_buf = self.raw_stream.read(size)
+            self.zst.next_in = <Bytef*>&self.in_buf[0]
+            self.zst.avail_in = self.in_buf.size()
 
-        if self.fp != NULL:
-            buf.resize(size)
-            l = gzread(self.fp, &buf[0], buf.size())
-            return buf.substr(0, l)
+        if self.stream_status == Z_STREAM_END:
+            inflateInit2(&self.zst, 16 + MAX_WBITS)
 
-        elif self.py_stream is not None:
-            if not self.decomp_obj or self.decomp_obj.eof:
-                # New member, so we need a new decompressor
-                self.decomp_obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        cdef string out_buf = string(size, <char>0)
+        cdef size_t out_buf_size = out_buf.size()
+        self.zst.next_out = <Bytef*>&out_buf[0]
+        self.zst.avail_out = out_buf.size()
 
-            data = self.unused_data
-            if <unsigned long>len(data) < size:
-                data += self.py_stream.read(size)
+        self.stream_status = inflate(&self.zst, Z_SYNC_FLUSH)
+        if self.stream_status == Z_DATA_ERROR or self.stream_status == Z_STREAM_ERROR:
+            inflateEnd(&self.zst)
+            return string()
 
-            if not data:
-                return string()
+        if self.stream_status == Z_STREAM_END:
+            inflateEnd(&self.zst)
 
-            decomp_data = self.decomp_obj.decompress(data)
-            self.unused_data =  self.decomp_obj.unconsumed_tail + self.decomp_obj.unused_data
-            return decomp_data
+        out_buf.resize(<char*>self.zst.next_out - <char*>&out_buf[0])
+        return out_buf
 
     cpdef size_t tell(self):
-        if self.fp != NULL:
-            return gztell(self.fp)
-
-        if self.py_stream is not None:
-            return self.py_stream.tell() - len(self.unused_data)
-
-        return 0
+        return self.raw_stream.tell()
 
 cdef class BufferedReader:
     def __init__(self, IOStream stream, size_t buf_size=16384):
