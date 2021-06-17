@@ -14,9 +14,9 @@
 
 # distutils: language = c++
 
-from base64 import b32encode
+import base64
 from datetime import datetime
-from hashlib import sha1
+import hashlib
 import io
 import uuid
 import warnings
@@ -285,52 +285,67 @@ cdef class WarcRecord:
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
 
-    cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=8192):
-        if isinstance(stream, IOStream):
-            self._write_impl(stream, checksum_data, chunk_size)
-        elif isinstance(stream, object) and hasattr(stream, 'write'):
-            self._write_impl(PythonIOStreamAdapter(stream), checksum_data, chunk_size)
-        else:
-            warnings.warn(f'Object of type "{type(stream).__name__}" is not a valid stream.', RuntimeWarning)
+    cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
+        if not checksum_data:
+            self._write_impl(self.reader, stream, True, chunk_size)
+            return
 
-    cdef void _write_impl(self, IOStream stream, checksum_data, chunk_size):
-        # cdef string data
-        # cdef string data_tmp
-        #
-        # if checksum_data:
-        #     block_digest = sha1()
-        #     payload_digest = None
-        #     http_header_buf = None
-        #
-        #     if self._is_http and not self._http_headers.empty():
-        #         payload_digest = sha1()
-        #         http_header_buf = io.BytesIO()
-        #         self._http_headers.write(PythonIOStreamAdapter(http_header_buf))
-        #         block_digest.update(http_header_buf.getvalue())
-        #         block_digest.update(b'\r\n')
-        #
-        #     while True:
-        #         data_tmp = self.reader.read(chunk_size)
-        #         if data_tmp.empty():
-        #             break
-        #         if payload_digest is not None:
-        #             payload_digest.update(data_tmp.data()[:data_tmp.size()])
-        #         block_digest.update(data_tmp.data()[:data_tmp.size()])
-        #         data.append(data_tmp)
-        #
-        self._headers.write(stream)
-        stream.write(b'\r\n', 2)
+        # Otherwise read everything into memory for checksumming and content-length correction
+        block_digest = hashlib.sha1()
+        payload_digest = None
+        block_buf = io.BytesIO()
 
         if self._is_http and not self._http_headers.empty():
-            self._http_headers.write(stream)
-            stream.write(b'\r\n', 2)
+            payload_digest = hashlib.sha1()
+            self._http_headers.write(PythonIOStreamAdapter(block_buf))
+            block_buf.write(b'\r\n')
+            block_digest.update(block_buf.getvalue())
 
+        cdef string payload_data
         while True:
-            data = stream.read(chunk_size)
+            payload_data = self.reader.read(chunk_size)
+            if payload_data.empty():
+                break
+
+            block_digest.update(payload_data.data()[:payload_data.size()])
+            if payload_digest is not None:
+                payload_digest.update(payload_data.data()[:payload_data.size()])
+            block_buf.write(payload_data.data()[:payload_data.size()])
+
+        self._headers['Content-Length'] = to_string(block_buf.tell())
+
+        if payload_digest is not None:
+            self._headers['WARC-Payload-Digest'] = b':'.join((b'sha1', base64.b32encode(payload_digest.digest())))
+        self._headers['WARC-Block-Digest'] = b':'.join((b'sha1', base64.b32encode(block_digest.digest())))
+
+        block_buf.seek(0)
+        self._write_impl(block_buf, stream, False, chunk_size)
+
+    cdef void _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size):
+        cdef IOStream out_stream_wrapped
+
+        if isinstance(out_stream, IOStream):
+            out_stream_wrapped = <IOStream>out_stream
+        elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
+            out_stream_wrapped = PythonIOStreamAdapter(out_stream)
+        else:
+            warnings.warn(f'Object of type "{type(out_stream).__name__}" is not a valid stream.', RuntimeWarning)
+            return
+
+        self._headers.write(out_stream_wrapped)
+        out_stream_wrapped.write(b'\r\n', 2)
+
+        if write_payload_headers and self._is_http and not self._http_headers.empty():
+            self._http_headers.write(out_stream_wrapped)
+            out_stream_wrapped.write(b'\r\n', 2)
+
+        cdef string data
+        while True:
+            data = in_reader.read(chunk_size)
             if data.empty():
                 break
-            stream.write(data.data(), data.size())
-        stream.write(b'\r\n', 2)
+            out_stream_wrapped.write(data.data(), data.size())
+        out_stream_wrapped.write(b'\r\n', 2)
 
 
 # noinspection PyProtectedMember
