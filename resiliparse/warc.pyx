@@ -184,6 +184,12 @@ cdef class WarcHeaderMap:
                 for h in self._headers}
         return self._dict_cache
 
+    def astuples(self):
+        cdef str_pair h
+        return [(h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
+                for h in self._headers]
+
+
     cdef void write(self, IOStream stream):
         if not self._status_line.empty():
             stream.write(self._status_line.data(), self._status_line.size())
@@ -419,7 +425,9 @@ cdef class WarcRecord:
                 break
             h.update(block)
             tee_stream.write(block)
-        # self._reader = BufferedReader(tee_stream)
+
+        tee_stream.seek(0)
+        self._reader = BufferedReader(PythonIOStreamAdapter(tee_stream))
 
         return h.digest() == digest
 
