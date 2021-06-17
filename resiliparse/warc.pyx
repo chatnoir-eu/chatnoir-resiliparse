@@ -395,7 +395,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     while True:
         line = reader.readline()
         bytes_consumed += line.size()
-        if line == b'\r\n' or line == b'':
+        if line == b'\r\n' or line == b'\n' or line == b'':
             break
 
         if isspace(line[0]):
