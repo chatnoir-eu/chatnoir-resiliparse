@@ -15,7 +15,7 @@
 # distutils: language = c++
 
 
-from libc.stdio cimport fclose, FILE, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
+from libc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from libcpp.string cimport string
 
 import warnings
@@ -50,7 +50,7 @@ cdef class FileStream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cpdef void open(self, const char* path, const char* mode=b'rb'):
+    cpdef void open(self, char* path, char* mode=b'rb'):
         if self.fp != NULL:
             self.close()
         self.fp = fopen(path, mode)
@@ -70,8 +70,8 @@ cdef class FileStream(IOStream):
             buf.resize(c)
             return buf
 
-    cdef size_t write(self, const char* data, size_t size):
-        return fwrite(data, sizeof(char*), size, self.fp)
+    cdef size_t write(self, char* data, size_t size):
+        return fwrite(data, sizeof(char), size, self.fp)
 
     cdef bint flush(self):
         fflush(self.fp)
@@ -88,22 +88,22 @@ cdef class PythonIOStreamAdapter(IOStream):
     def __init__(self, py_stream):
         self.py_stream = py_stream
 
-    cdef size_t tell(self):
+    cdef inline size_t tell(self):
         return self.py_stream.tell()
 
-    cdef void seek(self, size_t offset):
+    cdef inline void seek(self, size_t offset):
         self.py_stream.seek(offset)
 
-    cdef string read(self, size_t size):
+    cdef inline string read(self, size_t size):
         return self.py_stream.read(size)[:size]
 
-    cdef size_t write(self, const char* data, size_t size):
+    cdef inline size_t write(self, char* data, size_t size):
         return self.py_stream.write(data[:size])
 
-    cdef bint flush(self):
+    cdef inline bint flush(self):
         self.py_stream.flush()
 
-    cdef void close(self):
+    cdef inline void close(self):
         self.py_stream.close()
 
 

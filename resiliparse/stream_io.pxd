@@ -83,12 +83,12 @@ cdef class IOStream:
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
-    cpdef void open(self, const char* path, const char* mode=*)
+    cpdef void open(self, char* path, char* mode=*)
     cpdef void close(self)
     cdef bint flush(self)
     cdef void seek(self, size_t offset)
     cdef string read(self, size_t size)
-    cdef size_t write(self, const char* data, size_t size)
+    cdef size_t write(self, char* data, size_t size)
     cdef size_t tell(self)
 
 

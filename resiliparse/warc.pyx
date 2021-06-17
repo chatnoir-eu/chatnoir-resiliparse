@@ -132,10 +132,22 @@ cdef class WarcHeaderMap:
         return {h.first.decode(self._encoding, errors='ignore'): h.second.decode(self._encoding, errors='ignore')
                 for h in self._headers}
 
+    cdef void write(self, IOStream stream):
+        if not self._status_line.empty():
+            stream.write(self._status_line.data(), self._status_line.size())
+            stream.write(b'\r\n', 2)
+
+        for h in self._headers:
+            if not h.first.empty():
+                stream.write(h.first.data(), h.first.size())
+                stream.write(b': ', 2)
+            stream.write(h.second.data(), h.second.size())
+            stream.write(b'\r\n', 2)
+
     cdef void set_status_line(self, const string& status_line):
         self._status_line = status_line
 
-    cdef void append_header(self, const string& header_key, const string& header_value):
+    cdef void append_header(self, const string header_key, const string& header_value):
         self._headers.push_back(pair[string, string](header_key, header_value))
 
     cdef void add_continuation(self, const string& header_continuation_value):
@@ -247,7 +259,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
         delim_pos = line.find(b':')
         if delim_pos == strnpos:
             # Invalid header, try to preserve it as best we can
-            header_key = b''
+            header_key = string()
             header_value = strip_str(line)
         else:
             header_key = strip_str(line.substr(0, delim_pos))
