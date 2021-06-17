@@ -30,7 +30,7 @@ cdef extern from "<string>" namespace "std" nogil:
 
 cdef size_t strnpos = -1
 
-cdef string strip_str(const string& s):
+cdef string strip_str(const string& s) nogil:
     cdef size_t start = 0
     cdef size_t end = s.size()
 
@@ -45,7 +45,7 @@ cdef string strip_str(const string& s):
     return s.substr(start, end - start + 1)
 
 
-cdef string str_to_lower(string s):
+cdef string str_to_lower(string s) nogil:
     for i in range(s.size()):
         s[i] = tolower(s[i])
     return s
