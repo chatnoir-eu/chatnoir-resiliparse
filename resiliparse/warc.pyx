@@ -74,7 +74,7 @@ cpdef enum WarcRecordType:
     no_type = 0
 
 
-cdef string _enum_record_type_to_str(WarcRecordType record_type):
+cdef const char* _enum_record_type_to_str(WarcRecordType record_type):
     if record_type == warcinfo:
         return b'warcinfo'
     elif record_type == response:
