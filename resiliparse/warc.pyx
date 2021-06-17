@@ -14,14 +14,19 @@
 
 # distutils: language = c++
 
+from base64 import b32encode
+from datetime import datetime
+from hashlib import sha1
 import io
+import uuid
+import warnings
 
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
 
-from stream_io cimport IOStream, BufferedReader
+from stream_io cimport IOStream, BufferedReader, PythonIOStreamAdapter
 
 
 cdef extern from "<cctype>" namespace "std" nogil:
@@ -30,6 +35,7 @@ cdef extern from "<cctype>" namespace "std" nogil:
 
 cdef extern from "<string>" namespace "std" nogil:
     int stoi(const string& s)
+    string to_string(int i)
 
 cdef size_t strnpos = -1
 
@@ -68,6 +74,49 @@ cpdef enum WarcRecordType:
     no_type = 0
 
 
+cdef string _enum_record_type_to_str(WarcRecordType record_type):
+    if record_type == warcinfo:
+        return b'warcinfo'
+    elif record_type == response:
+        return b'response'
+    elif record_type == resource:
+        return b'resource'
+    elif record_type == request:
+        return b'request'
+    elif record_type == metadata:
+        return b'metadata'
+    elif record_type == revisit:
+        return b'revisit'
+    elif record_type == conversion:
+        return b'conversion'
+    elif record_type == continuation:
+        return b'continuation'
+    else:
+        return b'unknown'
+
+
+cdef WarcRecordType _str_record_type_to_enum(string record_type):
+    record_type = str_to_lower(record_type)
+    if record_type == b'warcinfo':
+        return warcinfo
+    elif record_type == b'response':
+        return response
+    elif record_type == b'resource':
+        return resource
+    elif record_type == b'request':
+        return request
+    elif record_type == b'metadata':
+        return metadata
+    elif record_type == b'revisit':
+        return revisit
+    elif record_type == b'conversion':
+        return conversion
+    elif record_type == b'continuation':
+        return continuation
+    else:
+        return unknown
+
+
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
     cdef string _status_line
@@ -98,6 +147,12 @@ cdef class WarcHeaderMap:
 
     def __repr__(self):
         return str(self.asdict())
+
+    def __contains__(self, item):
+        for k in self.keys():
+            if k == item:
+                return True
+        return False
 
     @property
     def status_line(self):
@@ -144,6 +199,12 @@ cdef class WarcHeaderMap:
             stream.write(h.second.data(), h.second.size())
             stream.write(b'\r\n', 2)
 
+    cdef void clear(self):
+        self._headers.clear()
+
+    cdef bint empty(self):
+        return self._headers.empty()
+
     cdef void set_status_line(self, const string& status_line):
         self._status_line = status_line
 
@@ -183,6 +244,11 @@ cdef class WarcRecord:
     def record_type(self):
         return self._record_type
 
+    @record_type.setter
+    def record_type(self, WarcRecordType record_type):
+        self._record_type = record_type
+        self._headers['WARC-Type'] = _enum_record_type_to_str(record_type)
+
     @property
     def headers(self):
         return self._headers
@@ -203,6 +269,14 @@ cdef class WarcRecord:
     def reader(self):
         return self._reader
 
+    cpdef void init_headers(self, WarcRecordType record_type, size_t content_length):
+        self._headers.clear()
+        self._headers.set_status_line(b'WARC/1.1')
+        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(record_type))
+        self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
+        self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', uuid.uuid4().urn.encode(), b'>')))
+        self._headers.append_header(b'Content-Length', to_string(content_length))
+
     cpdef void set_bytes_content(self, bytes b):
         self._reader = BufferedReader(io.BytesIO(b))
         self._content_length = len(b)
@@ -211,26 +285,52 @@ cdef class WarcRecord:
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
 
-    cdef void _set_record_type(self, string record_type):
-        record_type = str_to_lower(record_type)
-        if record_type == b'warcinfo':
-            self._record_type = warcinfo
-        elif record_type == b'response':
-            self._record_type = response
-        elif record_type == b'resource':
-            self._record_type = resource
-        elif record_type == b'request':
-            self._record_type = request
-        elif record_type == b'metadata':
-            self._record_type = metadata
-        elif record_type == b'revisit':
-            self._record_type = revisit
-        elif record_type == b'conversion':
-            self._record_type = conversion
-        elif record_type == b'continuation':
-            self._record_type = continuation
+    cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=8192):
+        if isinstance(stream, IOStream):
+            self._write_impl(stream, checksum_data, chunk_size)
+        elif isinstance(stream, object) and hasattr(stream, 'write'):
+            self._write_impl(PythonIOStreamAdapter(stream), checksum_data, chunk_size)
         else:
-            self._record_type = unknown
+            warnings.warn(f'Object of type "{type(stream).__name__}" is not a valid stream.', RuntimeWarning)
+
+    cdef void _write_impl(self, IOStream stream, checksum_data, chunk_size):
+        # cdef string data
+        # cdef string data_tmp
+        #
+        # if checksum_data:
+        #     block_digest = sha1()
+        #     payload_digest = None
+        #     http_header_buf = None
+        #
+        #     if self._is_http and not self._http_headers.empty():
+        #         payload_digest = sha1()
+        #         http_header_buf = io.BytesIO()
+        #         self._http_headers.write(PythonIOStreamAdapter(http_header_buf))
+        #         block_digest.update(http_header_buf.getvalue())
+        #         block_digest.update(b'\r\n')
+        #
+        #     while True:
+        #         data_tmp = self.reader.read(chunk_size)
+        #         if data_tmp.empty():
+        #             break
+        #         if payload_digest is not None:
+        #             payload_digest.update(data_tmp.data()[:data_tmp.size()])
+        #         block_digest.update(data_tmp.data()[:data_tmp.size()])
+        #         data.append(data_tmp)
+        #
+        self._headers.write(stream)
+        stream.write(b'\r\n', 2)
+
+        if self._is_http and not self._http_headers.empty():
+            self._http_headers.write(stream)
+            stream.write(b'\r\n', 2)
+
+        while True:
+            data = stream.read(chunk_size)
+            if data.empty():
+                break
+            stream.write(data.data(), data.size())
+        stream.write(b'\r\n', 2)
 
 
 # noinspection PyProtectedMember
@@ -304,6 +404,8 @@ cdef class ArchiveIterator:
             self.reader.consume()
             self.reader.reset_limit()
 
+        self.record = WarcRecord()
+
         cdef string version_line
         while True:
             version_line = self.reader.readline()
@@ -317,12 +419,12 @@ cdef class ArchiveIterator:
                 pass
             elif version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
                 # OK, continue with parsing headers
+                self.record._headers.set_status_line(version_line)
                 break
             else:
                 # Not a WARC file or unsupported version
                 return eof
 
-        self.record = WarcRecord()
         parse_header_block(self.reader, self.record._headers)
 
         cdef string hkey
@@ -333,7 +435,7 @@ cdef class ArchiveIterator:
                 self.record._content_length = stoi(h.second)
                 parse_count += 1
             elif hkey == b'warc-type':
-                self.record._set_record_type(h.second)
+                self.record._record_type = _str_record_type_to_enum(h.second)
                 parse_count += 1
             elif hkey == b'content-type' and h.second.find(b'application/http') == 0:
                 self.record._is_http = True

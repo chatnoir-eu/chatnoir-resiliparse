@@ -83,8 +83,6 @@ cdef class FileStream(IOStream):
 
 
 cdef class PythonIOStreamAdapter(IOStream):
-    cdef object py_stream
-
     def __init__(self, py_stream):
         self.py_stream = py_stream
 
@@ -107,7 +105,7 @@ cdef class PythonIOStreamAdapter(IOStream):
         self.py_stream.close()
 
 
-cdef inline IOStream wrap_stream(raw_stream):
+cdef IOStream wrap_stream(raw_stream):
     if isinstance(raw_stream, IOStream):
         return raw_stream
     elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):

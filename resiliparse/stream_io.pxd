@@ -80,6 +80,17 @@ cdef class IOStream:
     cdef void close(self)
 
 
+cdef class PythonIOStreamAdapter(IOStream):
+    cdef object py_stream
+
+    cdef size_t tell(self)
+    cdef void seek(self, size_t offset)
+    cdef string read(self, size_t size)
+    cdef size_t write(self, char* data, size_t size)
+    cdef bint flush(self)
+    cdef void close(self)
+
+
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
