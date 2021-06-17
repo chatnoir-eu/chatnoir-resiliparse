@@ -23,7 +23,6 @@ import warnings
 
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
-from libcpp.utility cimport pair
 from libcpp.vector cimport vector
 
 from stream_io cimport IOStream, BufferedReader, PythonIOStreamAdapter
@@ -116,11 +115,12 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
     else:
         return unknown
 
+ctypedef (string, string) str_pair
 
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
     cdef string _status_line
-    cdef vector[pair[string, string]] _headers
+    cdef vector[str_pair] _headers
     cdef str _encoding
 
     def __init__(self, encoding='utf-8'):
@@ -129,16 +129,16 @@ cdef class WarcHeaderMap:
     def __getitem__(self, header_key):
         cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
         for h in self._headers:
-            if str_to_lower(h.first) == header_key_lower:
-                return h.second.decode(self._encoding, errors='ignore')
+            if str_to_lower(h[0]) == header_key_lower:
+                return h[1].decode(self._encoding, errors='ignore')
 
     def __setitem__(self, header_key, header_value):
         cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
         for h in self._headers:
-            if str_to_lower(h.first) == header_key_lower:
-                h.second = header_value.encode(self._encoding, errors='ignore')
+            if str_to_lower(h[0]) == header_key_lower:
+                h[1] = header_value.encode(self._encoding, errors='ignore')
                 return
-        self._headers.push_back(pair[string, string](
+        self._headers.push_back((
             <string>header_key.encode(self._encoding, errors='ignore'),
             <string>header_value.encode(self._encoding, errors='ignore')))
 
@@ -173,18 +173,18 @@ cdef class WarcHeaderMap:
 
     def items(self):
         for h in self._headers:
-            yield h.first.decode(self._encoding, errors='ignore'), h.second.decode(self._encoding, errors='ignore')
+            yield h[0].decode(self._encoding, errors='ignore'), h[1].decode(self._encoding, errors='ignore')
 
     def keys(self):
         for h in self._headers:
-            yield h.first.decode(self._encoding, errors='ignore')
+            yield h[0].decode(self._encoding, errors='ignore')
 
     def values(self):
         for h in self._headers:
-            yield h.second.decode(self._encoding, errors='ignore')
+            yield h[1].decode(self._encoding, errors='ignore')
 
     def asdict(self):
-        return {h.first.decode(self._encoding, errors='ignore'): h.second.decode(self._encoding, errors='ignore')
+        return {h[0].decode(self._encoding, errors='ignore'): h[1].decode(self._encoding, errors='ignore')
                 for h in self._headers}
 
     cdef void write(self, IOStream stream):
@@ -193,10 +193,10 @@ cdef class WarcHeaderMap:
             stream.write(b'\r\n', 2)
 
         for h in self._headers:
-            if not h.first.empty():
-                stream.write(h.first.data(), h.first.size())
+            if not h[0].empty():
+                stream.write(h[0].data(), h[0].size())
                 stream.write(b': ', 2)
-            stream.write(h.second.data(), h.second.size())
+            stream.write(h[1].data(), h[1].size())
             stream.write(b'\r\n', 2)
 
     cdef void clear(self):
@@ -209,12 +209,12 @@ cdef class WarcHeaderMap:
         self._status_line = status_line
 
     cdef void append_header(self, const string header_key, const string& header_value):
-        self._headers.push_back(pair[string, string](header_key, header_value))
+        self._headers.push_back((header_key, header_value))
 
     cdef void add_continuation(self, const string& header_continuation_value):
         if not self._headers.empty():
-            self._headers.back().second.append(b'\n')
-            self._headers.back().second.append(header_continuation_value)
+            self._headers.back()[1].append(b'\n')
+            self._headers.back()[1].append(header_continuation_value)
         else:
             # This should no happen, but what can we do?!
             self.append_header(b'', header_continuation_value)
@@ -444,15 +444,16 @@ cdef class ArchiveIterator:
 
         cdef string hkey
         cdef size_t parse_count = 0
+        cdef str_pair h
         for h in self.record._headers._headers:
-            hkey = str_to_lower(h.first)
+            hkey = str_to_lower(h[0])
             if hkey == b'content-length':
-                self.record._content_length = stoi(h.second)
+                self.record._content_length = stoi(h[1])
                 parse_count += 1
             elif hkey == b'warc-type':
-                self.record._record_type = _str_record_type_to_enum(h.second)
+                self.record._record_type = _str_record_type_to_enum(h[1])
                 parse_count += 1
-            elif hkey == b'content-type' and h.second.find(b'application/http') == 0:
+            elif hkey == b'content-type' and h[1].find(b'application/http') == 0:
                 self.record._is_http = True
                 parse_count += 1
 
