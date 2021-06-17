@@ -196,9 +196,6 @@ cdef class WarcHeaderMap:
     cdef inline void clear(self):
         self._headers.clear()
 
-    cdef inline bint empty(self):
-        return self._headers.empty()
-
     cdef inline void set_status_line(self, const string& status_line):
         self._status_line = status_line
 
@@ -240,6 +237,7 @@ cdef class WarcRecord:
     cdef WarcRecordType _record_type
     cdef WarcHeaderMap _headers
     cdef bint _is_http
+    cdef bint _http_parsed
     cdef WarcHeaderMap _http_headers
     cdef size_t _content_length
     cdef BufferedReader _reader
@@ -247,9 +245,10 @@ cdef class WarcRecord:
     def __init__(self):
         self._record_type = unknown
         self._is_http = False
+        self._http_parsed = False
         self._content_length = 0
         self._headers = WarcHeaderMap('utf-8')
-        self._http_headers = WarcHeaderMap('iso-8859-15')
+        self._http_headers = None
 
     @property
     def record_id(self):
@@ -271,6 +270,10 @@ cdef class WarcRecord:
     @property
     def is_http(self):
         return self._is_http
+
+    @property
+    def http_parsed(self):
+        return self._http_parsed
 
     @property
     def http_headers(self):
@@ -297,9 +300,13 @@ cdef class WarcRecord:
         self._reader = BufferedReader(io.BytesIO(b))
         self._content_length = len(b)
 
-    cpdef parse_http(self):
+    cpdef void parse_http(self):
+        if self._http_parsed:
+            return
+        self._http_headers = WarcHeaderMap('iso-8859-15')
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
+        self._http_parsed = True
 
     # noinspection PyTypeChecker
     cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
@@ -312,7 +319,7 @@ cdef class WarcRecord:
         payload_digest = None
         block_buf = io.BytesIO()
 
-        if self._is_http and not self._http_headers.empty():
+        if self._http_parsed:
             payload_digest = hashlib.sha1()
             self._http_headers.write(PythonIOStreamAdapter(block_buf))
             block_buf.write(b'\r\n')
@@ -353,7 +360,7 @@ cdef class WarcRecord:
         self._headers.write(out_stream_wrapped)
         out_stream_wrapped.write(b'\r\n', 2)
 
-        if write_payload_headers and self._is_http and not self._http_headers.empty():
+        if write_payload_headers and self._http_parsed:
             self._http_headers.write(out_stream_wrapped)
             out_stream_wrapped.write(b'\r\n', 2)
 
