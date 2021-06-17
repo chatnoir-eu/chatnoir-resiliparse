@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from setuptools import find_packages, setup, Extension
+import os
 from Cython.Build import cythonize
-
 import Cython.Compiler.Options
-Cython.Compiler.Options.annotate = True
+from setuptools import find_packages, setup, Extension
+
+Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
 
 cpp_args = dict(
       extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations', '-Wno-unreachable-code'],
@@ -41,5 +41,5 @@ setup(
             'cython',
             'setuptools>=18.0'
       ],
-      ext_modules=cythonize(extensions, annotate=True, language_level='3')
+      ext_modules=cythonize(extensions, annotate=Cython.Compiler.Options.annotate, language_level='3')
 )
