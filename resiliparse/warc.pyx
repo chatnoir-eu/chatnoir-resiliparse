@@ -67,13 +67,92 @@ cpdef enum WarcRecordType:
     any_type = 65535,
     no_type = 0
 
+
 # noinspection PyAttributeOutsideInit
+cdef class WarcHeaderMap:
+    cdef string _status_line
+    cdef vector[pair[string, string]] _headers
+    cdef str _encoding
+
+    def __init__(self, encoding='utf-8'):
+        self._encoding = encoding
+
+    def __getitem__(self, header_key):
+        cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
+        for h in self._headers:
+            if str_to_lower(h.first) == header_key_lower:
+                return h.second.decode(self._encoding, errors='ignore')
+
+    def __setitem__(self, header_key, header_value):
+        cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
+        for h in self._headers:
+            if str_to_lower(h.first) == header_key_lower:
+                h.second = header_value.encode(self._encoding, errors='ignore')
+                return
+        self._headers.push_back(pair[string, string](
+            <string>header_key.encode(self._encoding, errors='ignore'),
+            <string>header_value.encode(self._encoding, errors='ignore')))
+
+    def __iter__(self):
+        return self.items()
+
+    def __repr__(self):
+        return str(self.asdict())
+
+    @property
+    def status_line(self):
+        return self._status_line.decode(self._status_code, errors='ignore')
+
+    @status_line.setter
+    def status_line(self, status_line):
+        self._status_line = status_line.encode(self._encoding, errors='ignore')
+
+    @property
+    def status_code(self):
+        if self._status_line.find(b'HTTP/') != 0:
+            return None
+        s = self._status_line.split(b' ')
+        if len(s) != 3 or not s[1].isdigit():
+            return None
+        return int(s)
+
+    def items(self):
+        for h in self._headers:
+            yield h.first.decode(self._encoding, errors='ignore'), h.second.decode(self._encoding, errors='ignore')
+
+    def keys(self):
+        for h in self._headers:
+            yield h.first.decode(self._encoding, errors='ignore')
+
+    def values(self):
+        for h in self._headers:
+            yield h.second.decode(self._encoding, errors='ignore')
+
+    def asdict(self):
+        return {h.first.decode(self._encoding, errors='ignore'): h.second.decode(self._encoding, errors='ignore')
+                for h in self._headers}
+
+    cdef void set_status_line(self, const string& status_line):
+        self._status_line = status_line
+
+    cdef void append_header(self, const string& header_key, const string& header_value):
+        self._headers.push_back(pair[string, string](header_key, header_value))
+
+    cdef void add_continuation(self, const string& header_continuation_value):
+        if not self._headers.empty():
+            self._headers.back().second.append(b'\n')
+            self._headers.back().second.append(header_continuation_value)
+        else:
+            # This should no happen, but what can we do?!
+            self.append_header(b'', header_continuation_value)
+
+
+# noinspection PyAttributeOutsideInit,PyProtectedMember
 cdef class WarcRecord:
     cdef WarcRecordType _record_type
-    cdef vector[pair[string, string]] _headers
+    cdef WarcHeaderMap _headers
     cdef bint _is_http
-    cdef string _http_status_line
-    cdef vector[pair[string, string]] _http_headers
+    cdef WarcHeaderMap _http_headers
     cdef size_t _content_length
     cdef BufferedReader _reader
 
@@ -81,6 +160,12 @@ cdef class WarcRecord:
         self._record_type = unknown
         self._is_http = False
         self._content_length = 0
+        self._headers = WarcHeaderMap('utf-8')
+        self._http_headers = WarcHeaderMap('iso-8859-15')
+
+    @property
+    def record_id(self):
+        return self._headers['WARC-Record-ID']
 
     @property
     def record_type(self):
@@ -88,19 +173,15 @@ cdef class WarcRecord:
 
     @property
     def headers(self):
-        return self._decode_header_map(self._headers, 'utf-8')
+        return self._headers
 
     @property
     def is_http(self):
         return self._is_http
 
     @property
-    def http_status_line(self):
-        return self._http_status_line.decode('iso-8859-1', errors='ignore')
-
-    @property
     def http_headers(self):
-        return self._decode_header_map(self._http_headers, 'iso-8859-1')
+        return self._http_headers
 
     @property
     def content_length(self):
@@ -114,24 +195,9 @@ cdef class WarcRecord:
         self._reader = BufferedReader(io.BytesIO(b))
         self._content_length = len(b)
 
-    cpdef void set_header(self, const string& header_name, const string& header_value):
-        cdef string header_name_lower = str_to_lower(header_name)
-        for h in self._headers:
-            if str_to_lower(h.first) == header_name_lower:
-                h.second = header_value
-                return
-        self._headers.push_back(pair[string, string](header_name, header_value))
-
     cpdef parse_http(self):
-        cdef size_t http_header_bytes = 0
-        self._http_headers = parse_header_block(self.reader, True, &http_header_bytes)
-        self._http_status_line = self._http_headers[0].second
-        self._http_headers.erase(self._http_headers.begin())
-        self._content_length = self._content_length - http_header_bytes
-
-    cdef _decode_header_map(self, vector[pair[string, string]]& header_map, str encoding):
-        return {h.first.decode(encoding, errors='ignore'): h.second.decode(encoding, errors='ignore')
-                for h in header_map}
+        cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
+        self._content_length = self._content_length - num_bytes
 
     cdef void _set_record_type(self, string record_type):
         record_type = str_to_lower(record_type)
@@ -155,43 +221,40 @@ cdef class WarcRecord:
             self._record_type = unknown
 
 
-cdef vector[pair[string, string]] parse_header_block(BufferedReader reader, bint has_status_line=False,
-                                                     size_t* bytes_consumed=NULL):
-    cdef vector[pair[string, string]] headers
+# noinspection PyProtectedMember
+cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False):
     cdef string line
     cdef string header_key, header_value
     cdef size_t delim_pos = 0
-    cdef size_t byte_counter = 0
+    cdef size_t bytes_consumed = 0
 
     while True:
         line = reader.readline()
-        byte_counter += line.size()
+        bytes_consumed += line.size()
         if line == b'\r\n' or line == b'':
             break
 
-        if isspace(line[0]) and not headers.empty():
+        if isspace(line[0]):
             # Continuation line
-            headers.back().second.append(b'\n')
-            headers.back().second.append(strip_str(line))
+            target.add_continuation(strip_str(line))
             continue
 
         if has_status_line:
-            header_key.clear()
-            header_value = strip_str(line)
+            target.set_status_line(strip_str(line))
             has_status_line = False
+            continue
+
+        delim_pos = line.find(b':')
+        if delim_pos == strnpos:
+            # Invalid header, try to preserve it as best we can
+            header_key = b''
+            header_value = strip_str(line)
         else:
-            delim_pos = line.find(b':')
-            if delim_pos == strnpos:
-                delim_pos = line.size() - 1
             header_key = strip_str(line.substr(0, delim_pos))
             header_value = strip_str(line.substr(delim_pos + 1))
+        target.append_header(header_key, header_value)
 
-        headers.push_back(pair[string, string](header_key, header_value))
-
-    if bytes_consumed != NULL:
-        bytes_consumed[0] = byte_counter
-
-    return headers
+    return bytes_consumed
 
 
 cdef enum _NextRecStatus:
@@ -248,11 +311,11 @@ cdef class ArchiveIterator:
                 return eof
 
         self.record = WarcRecord()
-        self.record._headers = parse_header_block(self.reader)
+        parse_header_block(self.reader, self.record._headers)
 
         cdef string hkey
         cdef size_t parse_count = 0
-        for h in self.record._headers:
+        for h in self.record._headers._headers:
             hkey = str_to_lower(h.first)
             if hkey == b'content-length':
                 self.record._content_length = stoi(h.second)
