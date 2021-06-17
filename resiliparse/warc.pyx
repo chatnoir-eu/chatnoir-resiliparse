@@ -359,10 +359,6 @@ cdef class WarcRecord:
             block_buf.write(payload_data.data()[:payload_data.size()])
 
         self._headers.set_header(b'Content-Length', to_string(block_buf.tell()))
-        # if int(self._headers['Content-Length']) != block_buf.tell():
-        if int(self._headers.get_header(b'Content-Length')) != block_buf.tell():
-            print(self._headers['Content-Length'], block_buf.tell(), len(block_buf.getvalue()), self.content_length)
-
         if checksum_data:
             if payload_digest is not None:
                 self._headers.set_header(b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
@@ -397,6 +393,44 @@ cdef class WarcRecord:
             out_stream_wrapped.write(data.data(), data.size())
         out_stream_wrapped.write(b'\r\n', 2)
 
+    cdef bint _verify_digest(self, const string& base32_digest):
+        cdef size_t sep_pos = base32_digest.find(b':')
+        if sep_pos == strnpos:
+            return False
+
+        cdef string alg = base32_digest.substr(0, sep_pos)
+        cdef bytes digest = base64.b32decode(base32_digest.substr(sep_pos + 1))
+
+        if alg == b'sha1':
+            h = hashlib.sha1()
+        elif alg == b'md5':
+            h = hashlib.md5()
+        elif alg == b'sha256':
+            h = hashlib.sha256()
+        else:
+            warnings.warn(f'Unsupported hash algorithm "{alg.decode()}".')
+            return False
+
+        tee_stream = io.BytesIO()
+        cdef string block
+        while True:
+            block = self._reader.read(1024)
+            if block.empty():
+                break
+            h.update(block)
+            tee_stream.write(block)
+        # self._reader = BufferedReader(tee_stream)
+
+        return h.digest() == digest
+
+    cpdef bint verify_block_digest(self):
+        return self._verify_digest(self._headers.get_header(b'WARC-Block-Digest'))
+
+    cpdef bint verify_payload_digest(self):
+        if not self._http_parsed:
+            return False
+        return self._verify_digest(self._headers.get_header(b'WARC-Payload-Digest'))
+
 
 # noinspection PyProtectedMember
 cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False):
@@ -404,10 +438,20 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     cdef string header_key, header_value
     cdef size_t delim_pos = 0
     cdef size_t bytes_consumed = 0
+    cdef bint first_line = True
+    cdef bint use_crlf = False
 
     while True:
-        line = reader.readline()
+        line = reader.readline(use_crlf)
         bytes_consumed += line.size()
+
+        if first_line:
+            # Determine to determine if stream uses CRLF or LF as newline separators.
+            # This hopefully fixes some buggy HTTP headers.
+            if line.size() >= 2 and line[line.size() - 2] == b'\r':
+                use_crlf = True
+            first_line = False
+
         if line == b'\r\n' or line == b'\n' or line == b'':
             break
 
@@ -428,7 +472,10 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
             header_value = strip_str(line)
         else:
             header_key = strip_str(line.substr(0, delim_pos))
-            header_value = strip_str(line.substr(delim_pos + 1))
+            if delim_pos >= line.size():
+                header_value = string()
+            else:
+                header_value = strip_str(line.substr(delim_pos + 1))
         target.append_header(header_key, header_value)
 
     return bytes_consumed

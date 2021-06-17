@@ -345,7 +345,7 @@ cdef class BufferedReader:
             self._consume_buf(buf_sub.size())
         return data_read
 
-    cpdef string readline(self, size_t max_line_len=4096):
+    cpdef string readline(self, bint crlf=True, size_t max_line_len=4096):
         cdef string line
 
         if not self._fill_buf():
@@ -353,7 +353,9 @@ cdef class BufferedReader:
 
         cdef size_t capacity_remaining = max_line_len
         cdef string_view buf = self._get_buf()
-        cdef size_t pos = buf.find(b'\n')
+        cdef char* newline_sep = b'\r\n' if crlf else '\n'
+        cdef short newline_offset = 1 if crlf else 0
+        cdef size_t pos = buf.find(newline_sep) + newline_offset
 
         with nogil:
             while pos == strnpos:
@@ -368,7 +370,7 @@ cdef class BufferedReader:
                         break
 
                     buf = self._get_buf()
-                pos = buf.find(b'\n')
+                pos = buf.find(newline_sep) + newline_offset
 
             if not buf.empty() and pos != strnpos:
                 if capacity_remaining > 0:

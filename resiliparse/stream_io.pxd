@@ -153,7 +153,7 @@ cdef class BufferedReader:
     cdef inline void reset_limit(self) nogil
 
     cpdef string read(self, size_t size=*)
-    cpdef string readline(self, size_t max_line_len=*)
+    cpdef string readline(self, bint crlf=*, size_t max_line_len=*)
     cpdef size_t tell(self)
     cpdef void consume(self, size_t size=*)
     cpdef void close(self)
