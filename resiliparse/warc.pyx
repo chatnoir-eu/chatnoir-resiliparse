@@ -287,10 +287,10 @@ cdef class WarcRecord:
     def reader(self):
         return self._reader
 
-    cpdef void init_headers(self, WarcRecordType record_type, size_t content_length):
+    cpdef void init_headers(self, size_t content_length):
         self._headers.clear()
         self._headers.set_status_line(b'WARC/1.1')
-        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(record_type))
+        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(self.record_type))
         self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
         self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', uuid.uuid4().urn.encode(), b'>')))
         self._headers.append_header(b'Content-Length', to_string(content_length))
