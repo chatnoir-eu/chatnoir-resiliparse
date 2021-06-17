@@ -123,10 +123,12 @@ cdef class WarcHeaderMap:
     cdef vector[str_pair] _headers
     cdef str _enc
     cdef dict _dict_cache
+    cdef bint _dict_cache_stale
 
     def __init__(self, encoding='utf-8'):
         self._enc = encoding
         self._dict_cache = None
+        self._dict_cache_stale = True
 
     def __getitem__(self, header_key):
         return self.asdict()[header_key]
@@ -134,7 +136,6 @@ cdef class WarcHeaderMap:
     def __setitem__(self, header_key, header_value):
         self.set_header(header_key.encode(self._enc, errors='ignore'),
                         header_value.encode(self._enc, errors='ignore'))
-        self.invalidate_dict_cache()
 
     def __iter__(self):
         yield from self.items()
@@ -176,7 +177,7 @@ cdef class WarcHeaderMap:
 
     def asdict(self):
         cdef str_pair h
-        if self._dict_cache is None:
+        if self._dict_cache_stale:
             self._dict_cache = {
                 h[0].decode(self._enc, errors='ignore'): h[1].decode(self._enc, errors='ignore')
                 for h in self._headers}
@@ -197,6 +198,7 @@ cdef class WarcHeaderMap:
 
     cdef inline void clear(self):
         self._headers.clear()
+        self._dict_cache_stale = True
 
     cdef inline void set_status_line(self, const string& status_line):
         self._status_line = status_line
@@ -210,6 +212,7 @@ cdef class WarcHeaderMap:
         return string()
 
     cdef void set_header(self, const string& header_key, const string& header_value):
+        self._dict_cache_stale = True
         cdef string header_key_lower = str_to_lower(header_key)
         cdef str_pair h
         for h in self._headers:
@@ -221,6 +224,7 @@ cdef class WarcHeaderMap:
 
     cdef inline void append_header(self, const string& header_key, const string& header_value):
         self._headers.push_back((header_key, header_value))
+        self._dict_cache_stale = True
 
     cdef void add_continuation(self, const string& header_continuation_value):
         if not self._headers.empty():
@@ -229,9 +233,7 @@ cdef class WarcHeaderMap:
         else:
             # This should no happen, but what can we do?!
             self._headers.push_back((b'', header_continuation_value))
-
-    cdef inline void invalidate_dict_cache(self):
-        self._dict_cache = None
+        self._dict_cache_stale = True
 
 
 # noinspection PyAttributeOutsideInit,PyProtectedMember
@@ -296,7 +298,6 @@ cdef class WarcRecord:
         self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
         self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', uuid.uuid4().urn.encode(), b'>')))
         self._headers.append_header(b'Content-Length', to_string(content_length))
-        self._headers.invalidate_dict_cache()
 
     cpdef void set_bytes_content(self, bytes b):
         self._reader = BufferedReader(io.BytesIO(b))
