@@ -121,38 +121,30 @@ ctypedef (string, string) str_pair
 cdef class WarcHeaderMap:
     cdef string _status_line
     cdef vector[str_pair] _headers
-    cdef str _encoding
+    cdef str _enc
+    cdef dict _dict_cache
 
     def __init__(self, encoding='utf-8'):
-        self._encoding = encoding
+        self._enc = encoding
+        self._dict_cache = None
 
     def __getitem__(self, header_key):
-        cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
-        for h in self._headers:
-            if str_to_lower(h[0]) == header_key_lower:
-                return h[1].decode(self._encoding, errors='ignore')
+        return self.get_header(
+            header_key.encode(self._enc, errors='ignore')).decode(self._enc, errors='ignore')
 
     def __setitem__(self, header_key, header_value):
-        cdef string header_key_lower = header_key.lower().encode(self._encoding, errors='ignore')
-        for h in self._headers:
-            if str_to_lower(h[0]) == header_key_lower:
-                h[1] = header_value.encode(self._encoding, errors='ignore')
-                return
-        self._headers.push_back((
-            <string>header_key.encode(self._encoding, errors='ignore'),
-            <string>header_value.encode(self._encoding, errors='ignore')))
+        self.set_header(header_key.encode(self._enc, errors='ignore'),
+                        header_value.encode(self._enc, errors='ignore'))
+        self.invalidate_dict_cache()
 
     def __iter__(self):
-        return self.items()
+        yield from self.items()
 
     def __repr__(self):
         return str(self.asdict())
 
     def __contains__(self, item):
-        for k in self.keys():
-            if k == item:
-                return True
-        return False
+        return item in self.asdict()
 
     @property
     def status_line(self):
@@ -160,7 +152,7 @@ cdef class WarcHeaderMap:
 
     @status_line.setter
     def status_line(self, status_line):
-        self._status_line = status_line.encode(self._encoding, errors='ignore')
+        self._status_line = status_line.encode(self._enc, errors='ignore')
 
     @property
     def status_code(self):
@@ -172,26 +164,28 @@ cdef class WarcHeaderMap:
         return int(s)
 
     def items(self):
-        for h in self._headers:
-            yield h[0].decode(self._encoding, errors='ignore'), h[1].decode(self._encoding, errors='ignore')
+        return self.asdict().items()
 
     def keys(self):
-        for h in self._headers:
-            yield h[0].decode(self._encoding, errors='ignore')
+        return self.asdict().keys()
 
     def values(self):
-        for h in self._headers:
-            yield h[1].decode(self._encoding, errors='ignore')
+        return self.asdict().values()
 
     def asdict(self):
-        return {h[0].decode(self._encoding, errors='ignore'): h[1].decode(self._encoding, errors='ignore')
+        cdef str_pair h
+        if self._dict_cache is None:
+            self._dict_cache = {
+                h[0].decode(self._enc, errors='ignore'): h[1].decode(self._enc, errors='ignore')
                 for h in self._headers}
+        return self._dict_cache
 
     cdef void write(self, IOStream stream):
         if not self._status_line.empty():
             stream.write(self._status_line.data(), self._status_line.size())
             stream.write(b'\r\n', 2)
 
+        cdef str_pair h
         for h in self._headers:
             if not h[0].empty():
                 stream.write(h[0].data(), h[0].size())
@@ -199,16 +193,34 @@ cdef class WarcHeaderMap:
             stream.write(h[1].data(), h[1].size())
             stream.write(b'\r\n', 2)
 
-    cdef void clear(self):
+    cdef inline void clear(self):
         self._headers.clear()
 
-    cdef bint empty(self):
+    cdef inline bint empty(self):
         return self._headers.empty()
 
-    cdef void set_status_line(self, const string& status_line):
+    cdef inline void set_status_line(self, const string& status_line):
         self._status_line = status_line
 
-    cdef void append_header(self, const string header_key, const string& header_value):
+    cdef string get_header(self, string header_key):
+        header_key = str_to_lower(header_key)
+        cdef str_pair h
+        for h in self._headers:
+            if str_to_lower(h[0]) == header_key:
+                return h[1]
+        return string()
+
+    cdef void set_header(self, const string& header_key, const string& header_value):
+        cdef string header_key_lower = str_to_lower(header_key)
+        cdef str_pair h
+        for h in self._headers:
+            if str_to_lower(h[0]) == header_key_lower:
+                h[1] = header_value
+                return
+
+        self._headers.push_back((header_key, header_value))
+
+    cdef inline void append_header(self, const string& header_key, const string& header_value):
         self._headers.push_back((header_key, header_value))
 
     cdef void add_continuation(self, const string& header_continuation_value):
@@ -217,7 +229,10 @@ cdef class WarcHeaderMap:
             self._headers.back()[1].append(header_continuation_value)
         else:
             # This should no happen, but what can we do?!
-            self.append_header(b'', header_continuation_value)
+            self._headers.push_back((b'', header_continuation_value))
+
+    cdef inline void invalidate_dict_cache(self):
+        self._dict_cache = None
 
 
 # noinspection PyAttributeOutsideInit,PyProtectedMember
@@ -276,6 +291,7 @@ cdef class WarcRecord:
         self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
         self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', uuid.uuid4().urn.encode(), b'>')))
         self._headers.append_header(b'Content-Length', to_string(content_length))
+        self._headers.invalidate_dict_cache()
 
     cpdef void set_bytes_content(self, bytes b):
         self._reader = BufferedReader(io.BytesIO(b))
@@ -285,6 +301,7 @@ cdef class WarcRecord:
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
 
+    # noinspection PyTypeChecker
     cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
         if not checksum_data:
             self._write_impl(self.reader, stream, True, chunk_size)
@@ -312,11 +329,12 @@ cdef class WarcRecord:
                 payload_digest.update(payload_data.data()[:payload_data.size()])
             block_buf.write(payload_data.data()[:payload_data.size()])
 
-        self._headers['Content-Length'] = to_string(block_buf.tell())
+        self._headers.set_header(b'Content-Length', to_string(block_buf.tell()))
 
+        cdef char* prefix = b'sha1:'
         if payload_digest is not None:
-            self._headers['WARC-Payload-Digest'] = b':'.join((b'sha1', base64.b32encode(payload_digest.digest())))
-        self._headers['WARC-Block-Digest'] = b':'.join((b'sha1', base64.b32encode(block_digest.digest())))
+            self._headers.set_header(b'WARC-Payload-Digest', prefix + base64.b32encode(payload_digest.digest()))
+        self._headers.set_header(b'WARC-Block-Digest', prefix + base64.b32encode(block_digest.digest()))
 
         block_buf.seek(0)
         self._write_impl(block_buf, stream, False, chunk_size)
