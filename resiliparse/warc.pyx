@@ -291,12 +291,21 @@ cdef class WarcRecord:
     def reader(self):
         return self._reader
 
-    cpdef void init_headers(self, size_t content_length):
+    cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=no_type, bytes record_urn=None):
+        if record_urn is None:
+            record_urn = uuid.uuid4().urn.encode()
+
+        if record_type == no_type:
+            record_type = self.record_type
+        if record_type == any_type or record_type == no_type:
+            record_type = unknown
+        self.record_type = record_type
+
         self._headers.clear()
         self._headers.set_status_line(b'WARC/1.1')
-        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(self.record_type))
+        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(record_type))
         self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
-        self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', uuid.uuid4().urn.encode(), b'>')))
+        self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', record_urn, b'>')))
         self._headers.append_header(b'Content-Length', to_string(content_length))
 
     cpdef void set_bytes_content(self, bytes b):
