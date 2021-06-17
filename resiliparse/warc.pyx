@@ -14,12 +14,15 @@
 
 # distutils: language = c++
 
-from stream_io cimport IOStream, BufferedReader
+import io
 
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
+
+from stream_io cimport IOStream, BufferedReader
+
 
 cdef extern from "<cctype>" namespace "std" nogil:
     int isspace(int c)
@@ -64,6 +67,7 @@ cpdef enum WarcRecordType:
     any_type = 65535,
     no_type = 0
 
+# noinspection PyAttributeOutsideInit
 cdef class WarcRecord:
     cdef WarcRecordType _record_type
     cdef vector[pair[string, string]] _headers
@@ -71,7 +75,6 @@ cdef class WarcRecord:
     cdef string _http_status_line
     cdef vector[pair[string, string]] _http_headers
     cdef size_t _content_length
-    cdef size_t _http_content_length
     cdef BufferedReader _reader
 
     def __init__(self):
@@ -106,6 +109,18 @@ cdef class WarcRecord:
     @property
     def reader(self):
         return self._reader
+
+    cpdef void set_bytes_content(self, bytes b):
+        self._reader = BufferedReader(io.BytesIO(b))
+        self._content_length = len(b)
+
+    cpdef void set_header(self, const string& header_name, const string& header_value):
+        cdef string header_name_lower = str_to_lower(header_name)
+        for h in self._headers:
+            if str_to_lower(h.first) == header_name_lower:
+                h.second = header_value
+                return
+        self._headers.push_back(pair[string, string](header_name, header_value))
 
     cpdef parse_http(self):
         cdef size_t http_header_bytes = 0
