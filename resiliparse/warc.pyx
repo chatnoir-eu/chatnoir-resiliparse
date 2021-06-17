@@ -21,6 +21,7 @@ import io
 import uuid
 import warnings
 
+from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.vector cimport vector
@@ -188,13 +189,14 @@ cdef class WarcHeaderMap:
             stream.write(self._status_line.data(), self._status_line.size())
             stream.write(b'\r\n', 2)
 
-        cdef str_pair h
-        for h in self._headers:
-            if not h[0].empty():
-                stream.write(h[0].data(), h[0].size())
+        cdef vector[str_pair].iterator it = self._headers.begin()
+        while it != self._headers.end():
+            if not deref(it)[0].empty():
+                stream.write(deref(it)[0].data(), deref(it)[0].size())
                 stream.write(b': ', 2)
-            stream.write(h[1].data(), h[1].size())
+            stream.write(deref(it)[1].data(), deref(it)[1].size())
             stream.write(b'\r\n', 2)
+            inc(it)
 
     cdef inline void clear(self):
         self._headers.clear()
@@ -205,20 +207,24 @@ cdef class WarcHeaderMap:
 
     cdef string get_header(self, string header_key):
         header_key = str_to_lower(header_key)
-        cdef str_pair h
-        for h in self._headers:
-            if str_to_lower(h[0]) == header_key:
-                return h[1]
+
+        cdef vector[str_pair].iterator it = self._headers.begin()
+        while it != self._headers.end():
+            if str_to_lower(deref(it)[0]) == header_key:
+                return deref(it)[1]
+            inc(it)
+
         return string()
 
     cdef void set_header(self, const string& header_key, const string& header_value):
         self._dict_cache_stale = True
         cdef string header_key_lower = str_to_lower(header_key)
-        cdef str_pair h
-        for h in self._headers:
-            if str_to_lower(h[0]) == header_key_lower:
-                h[1] = header_value
+        cdef vector[str_pair].iterator it = self._headers.begin()
+        while it != self._headers.end():
+            if str_to_lower(deref(it)[0]) == header_key_lower:
+                deref(it)[1] = header_value
                 return
+            inc(it)
 
         self._headers.push_back((header_key, header_value))
 
@@ -322,20 +328,23 @@ cdef class WarcRecord:
 
     # noinspection PyTypeChecker
     cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
-        if not checksum_data:
+        # If the raw byte content hasn't been parsed, we can simply pass it through
+        if not checksum_data and not self.http_parsed:
             self._write_impl(self.reader, stream, True, chunk_size)
             return
 
-        # Otherwise read everything into memory for checksumming and content-length correction
-        block_digest = hashlib.sha1()
-        payload_digest = None
+        # Otherwise read everything into memory for content-length correction and checksumming
         block_buf = io.BytesIO()
 
+        block_digest = hashlib.sha1() if checksum_data else None
+        payload_digest = hashlib.sha1() if checksum_data and self._http_parsed else None
+
         if self._http_parsed:
-            payload_digest = hashlib.sha1()
             self._http_headers.write(PythonIOStreamAdapter(block_buf))
             block_buf.write(b'\r\n')
-            block_digest.update(block_buf.getvalue())
+
+            if checksum_data:
+                block_digest.update(block_buf.getvalue())
 
         cdef string payload_data
         while True:
@@ -343,17 +352,21 @@ cdef class WarcRecord:
             if payload_data.empty():
                 break
 
-            block_digest.update(payload_data.data()[:payload_data.size()])
-            if payload_digest is not None:
-                payload_digest.update(payload_data.data()[:payload_data.size()])
+            if checksum_data:
+                block_digest.update(payload_data.data()[:payload_data.size()])
+                if payload_digest is not None:
+                    payload_digest.update(payload_data.data()[:payload_data.size()])
             block_buf.write(payload_data.data()[:payload_data.size()])
 
         self._headers.set_header(b'Content-Length', to_string(block_buf.tell()))
+        # if int(self._headers['Content-Length']) != block_buf.tell():
+        if int(self._headers.get_header(b'Content-Length')) != block_buf.tell():
+            print(self._headers['Content-Length'], block_buf.tell(), len(block_buf.getvalue()), self.content_length)
 
-        cdef char* prefix = b'sha1:'
-        if payload_digest is not None:
-            self._headers.set_header(b'WARC-Payload-Digest', prefix + base64.b32encode(payload_digest.digest()))
-        self._headers.set_header(b'WARC-Block-Digest', prefix + base64.b32encode(block_digest.digest()))
+        if checksum_data:
+            if payload_digest is not None:
+                self._headers.set_header(b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
+            self._headers.set_header(b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_digest.digest()))
 
         block_buf.seek(0)
         self._write_impl(block_buf, stream, False, chunk_size)
