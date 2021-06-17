@@ -32,14 +32,36 @@ cdef extern from "<zlib.h>" nogil:
 
 cdef extern from "<lz4frame.h>" nogil:
     const int LZ4F_VERSION
+    const int LZ4F_HEADER_SIZE_MAX
+
+    ctypedef struct LZ4F_cctx
     ctypedef struct LZ4F_dctx
+    ctypedef struct LZ4F_compressOptions_t
+    ctypedef struct LZ4F_preferences_t
     ctypedef struct LZ4F_decompressOptions_t
 
     bint LZ4F_isError(size_t code)
 
+    size_t LZ4F_createCompressionContext(LZ4F_cctx** cctxPtr, unsigned version)
+    size_t LZ4F_freeCompressionContext(LZ4F_cctx* dctx)
+    size_t LZ4F_compressBound(size_t srcSize, const LZ4F_preferences_t* prefsPtr)
+    size_t LZ4F_compressBegin(LZ4F_cctx* cctx,
+                              void* dstBuffer, size_t dstCapacity,
+                              const LZ4F_preferences_t* prefsPtr);
+    size_t LZ4F_compressUpdate(LZ4F_cctx * cctx,
+                               void* dstBuffer, size_t dstCapacity,
+                               const void* srcBuffer, size_t srcSize,
+                               const LZ4F_compressOptions_t* cOptPtr)
+    size_t LZ4F_flush(LZ4F_cctx* cctx,
+                      void * dstBuffer, size_t dstCapacity,
+                      const LZ4F_compressOptions_t* cOptPtr)
+    size_t LZ4F_compressEnd(LZ4F_cctx* cctx,
+                            void* dstBuffer, size_t dstCapacity,
+                            const LZ4F_compressOptions_t* cOptPtr)
+
+
     size_t LZ4F_createDecompressionContext(LZ4F_dctx** dctxPtr, unsigned version)
     size_t LZ4F_freeDecompressionContext(LZ4F_dctx* dctx)
-
     size_t LZ4F_decompress(LZ4F_dctx* dctx,
                            void* dstBuffer, size_t* dstSizePtr,
                            const void* srcBuffer, size_t* srcSizePtr,
@@ -76,19 +98,14 @@ cdef class IOStream:
     cdef string read(self, size_t size)
     cdef size_t write(self, char* data, size_t size)
     cdef size_t tell(self)
-    cdef bint flush(self)
+    cdef void flush(self)
     cdef void close(self)
 
 
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
-    cdef size_t tell(self)
     cdef void seek(self, size_t offset)
-    cdef string read(self, size_t size)
-    cdef size_t write(self, char* data, size_t size)
-    cdef bint flush(self)
-    cdef void close(self)
 
 
 cdef class FileStream(IOStream):
@@ -96,34 +113,32 @@ cdef class FileStream(IOStream):
 
     cpdef void open(self, char* path, char* mode=*)
     cpdef void close(self)
-    cdef bint flush(self)
     cdef void seek(self, size_t offset)
-    cdef string read(self, size_t size)
-    cdef size_t write(self, char* data, size_t size)
-    cdef size_t tell(self)
 
 
-cdef class GZipStream(IOStream):
+cdef class CompressingStream(IOStream):
+    cdef size_t begin_member(self)
+    cdef size_t end_member(self)
+
+
+cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
     cdef string in_buf
     cdef z_stream zst
     cdef int stream_status
 
-    cdef string read(self, size_t size)
-    cdef size_t tell(self)
-    cdef void close(self)
 
-
-cdef class LZ4Stream(IOStream):
+cdef class LZ4Stream(CompressingStream):
     cdef IOStream raw_stream
+    cdef LZ4F_cctx* cctx
     cdef LZ4F_dctx* dctx
-    cdef string in_buf
-
-    cdef string read(self, size_t size)
-    cdef size_t tell(self)
-    cdef void close(self)
+    cdef string working_buf
+    cdef bint frame_started
 
     cdef void _free_ctx(self) nogil
+    cpdef size_t begin_member(self)
+    cpdef size_t end_member(self)
+    cpdef void close(self)
 
 
 cdef class BufferedReader:

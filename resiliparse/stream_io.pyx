@@ -34,7 +34,7 @@ cdef class IOStream:
     cdef size_t tell(self):
         pass
 
-    cdef bint flush(self):
+    cdef void flush(self):
         pass
 
     cdef void close(self):
@@ -73,7 +73,7 @@ cdef class FileStream(IOStream):
     cdef size_t write(self, char* data, size_t size):
         return fwrite(data, sizeof(char), size, self.fp)
 
-    cdef bint flush(self):
+    cdef void flush(self):
         fflush(self.fp)
 
     cpdef void close(self):
@@ -98,7 +98,7 @@ cdef class PythonIOStreamAdapter(IOStream):
     cdef inline size_t write(self, char* data, size_t size):
         return self.py_stream.write(data[:size])
 
-    cdef inline bint flush(self):
+    cdef inline void flush(self):
         self.py_stream.flush()
 
     cdef inline void close(self):
@@ -115,7 +115,16 @@ cdef IOStream wrap_stream(raw_stream):
         return None
 
 
-cdef class GZipStream(IOStream):
+
+cdef class CompressingStream(IOStream):
+    cdef size_t begin_member(self):
+        return 0
+
+    cdef size_t end_member(self):
+        return 0
+
+
+cdef class GZipStream(CompressingStream):
     def __init__(self, raw_stream):
         self.raw_stream = wrap_stream(raw_stream)
         self.zst.opaque = Z_NULL
@@ -165,11 +174,12 @@ cdef class GZipStream(IOStream):
         self.raw_stream.close()
 
 
-cdef class LZ4Stream(IOStream):
+cdef class LZ4Stream(CompressingStream):
     def __init__(self, raw_stream):
         self.raw_stream = wrap_stream(raw_stream)
         self.dctx = NULL
-        self.in_buf = string()
+        self.working_buf = string()
+        self.frame_started = False
 
     def __dealloc__(self):
         self.close()
@@ -178,9 +188,11 @@ cdef class LZ4Stream(IOStream):
         return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
-        if self.in_buf.empty():
-            self.in_buf = self.raw_stream.read(size)
-            if self.in_buf.empty():
+        assert(self.cctx == NULL)
+
+        if self.working_buf.empty():
+            self.working_buf = self.raw_stream.read(size)
+            if self.working_buf.empty():
                 # EOF
                 self._free_ctx()
                 return string()
@@ -191,39 +203,88 @@ cdef class LZ4Stream(IOStream):
         cdef size_t ret
 
         with nogil:
-            in_buf_size = self.in_buf.size()
+            in_buf_size = self.working_buf.size()
             out_buf.resize(size)
             out_buf_size = out_buf.size()
 
             if self.dctx == NULL:
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
-            ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
+            ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.working_buf[0], &in_buf_size, NULL)
             while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
                 with gil:
-                    self.in_buf = self.raw_stream.read(size)
-                if self.in_buf.empty():
+                    self.working_buf = self.raw_stream.read(size)
+                if self.working_buf.empty():
                     # EOF
                     self._free_ctx()
                     break
-                in_buf_size = self.in_buf.size()
+                in_buf_size = self.working_buf.size()
                 out_buf_size = out_buf.size()
-                ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.in_buf[0], &in_buf_size, NULL)
+                ret = LZ4F_decompress(self.dctx, &out_buf[0], &out_buf_size, &self.working_buf[0], &in_buf_size, NULL)
 
-            if self.in_buf.size() == in_buf_size:
-                self.in_buf.clear()
+            if self.working_buf.size() == in_buf_size:
+                self.working_buf.clear()
             else:
-                self.in_buf = self.in_buf.substr(in_buf_size)
+                self.working_buf = self.working_buf.substr(in_buf_size)
 
             if out_buf.size() != out_buf_size:
                 out_buf.resize(out_buf_size)
             return out_buf
 
-    cdef void close(self):
+    cpdef size_t begin_member(self):
+        if self.cctx == NULL:
+            LZ4F_isError(LZ4F_createCompressionContext(&self.cctx, LZ4F_VERSION))
+
+        if self.frame_started:
+            return 0
+
+        if self.working_buf.size() < LZ4F_HEADER_SIZE_MAX:
+            self.working_buf.resize(LZ4F_HEADER_SIZE_MAX)
+        cdef size_t written = LZ4F_compressBegin(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+        self.frame_started = True
+        return self.raw_stream.write(self.working_buf.data(), written)
+
+    cpdef size_t end_member(self):
+        if self.cctx == NULL or not self.frame_started:
+            return 0
+        cdef size_t written = LZ4F_compressEnd(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+        self.frame_started = False
+        return self.raw_stream.write(self.working_buf.data(), written)
+
+    cdef size_t write(self, char* data, size_t size):
+        assert(self.dctx == NULL)
+
+        cdef size_t header_bytes_written = self.begin_member()
+
+        cdef size_t buf_needed = LZ4F_compressBound(size, NULL)
+        if buf_needed != self.working_buf.size():
+            self.working_buf.resize(buf_needed)
+
+        cdef written = LZ4F_compressUpdate(self.cctx,
+                                           self.working_buf.data(), self.working_buf.size(),
+                                           data, size, NULL)
+        return self.raw_stream.write(self.working_buf.data(), written) + header_bytes_written
+
+    cdef void flush(self):
+        cdef size_t written
+        if self.cctx != NULL:
+            written = LZ4F_flush(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+            self.raw_stream.write(self.working_buf.data(), written)
+        self.raw_stream.flush()
+
+    cpdef void close(self):
+        if self.cctx != NULL:
+            self.end_member()
+
         self._free_ctx()
+        self.working_buf.clear()
         self.raw_stream.close()
 
     cdef void _free_ctx(self) nogil:
+        if self.cctx != NULL:
+            LZ4F_freeCompressionContext(self.cctx)
+            self.cctx = NULL
+
         if self.dctx != NULL:
             LZ4F_freeDecompressionContext(self.dctx)
             self.dctx = NULL
