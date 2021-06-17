@@ -129,8 +129,7 @@ cdef class WarcHeaderMap:
         self._dict_cache = None
 
     def __getitem__(self, header_key):
-        return self.get_header(
-            header_key.encode(self._enc, errors='ignore')).decode(self._enc, errors='ignore')
+        return self.asdict()[header_key]
 
     def __setitem__(self, header_key, header_value):
         self.set_header(header_key.encode(self._enc, errors='ignore'),
@@ -162,6 +161,9 @@ cdef class WarcHeaderMap:
         if len(s) != 3 or not s[1].isdigit():
             return None
         return int(s)
+
+    def get(self, item, default=None):
+        return self.asdict().get(item, default)
 
     def items(self):
         return self.asdict().items()
