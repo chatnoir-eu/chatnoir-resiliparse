@@ -117,6 +117,7 @@ cdef class GZipStream(CompressingStream):
         self.working_buf = string()
         self.initialized = False
         self.stream_read_status = Z_STREAM_END
+        self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
 
     def __dealloc__(self):
@@ -124,7 +125,7 @@ cdef class GZipStream(CompressingStream):
 
     cdef size_t tell(self):
         if self.stream_read_status != Z_STREAM_END:
-            return self.raw_stream.tell() - self.zst.avail_in
+            return self.stream_pos
         return self.raw_stream.tell()
 
     cdef void _init_z_stream(self, bint deflate) nogil:
@@ -166,6 +167,7 @@ cdef class GZipStream(CompressingStream):
             if self.working_buf.empty():
                 # EOF
                 self._free_z_stream()
+                self.stream_pos = self.raw_stream.tell()
                 return string()
 
             self.zst.next_in = <Bytef*>self.working_buf.data()
@@ -187,6 +189,8 @@ cdef class GZipStream(CompressingStream):
             out_buf_size = <char*>self.zst.next_out - <char*>out_buf.data()
 
             if self.stream_read_status == Z_STREAM_END:
+                with gil:
+                    self.stream_pos = self.raw_stream.tell() - self.zst.avail_in
                 inflateReset(&self.zst)
 
             if out_buf_size == 0:
@@ -283,13 +287,14 @@ cdef class LZ4Stream(CompressingStream):
         self.frame_started = False
         self.prefs.compressionLevel = compression_level
         self.prefs.favorDecSpeed = favor_dec_speed
+        self.stream_pos = self.raw_stream.tell()
 
     def __dealloc__(self):
         self.close()
 
     cdef size_t tell(self):
         if self.dctx != NULL:
-            return self.raw_stream.tell() - self.working_buf.size()
+            return self.stream_pos
         return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
@@ -328,7 +333,9 @@ cdef class LZ4Stream(CompressingStream):
                 out_buf_size = out_buf.size()
                 ret = LZ4F_decompress(self.dctx, out_buf.data(), &out_buf_size,
                                       self.working_buf.data(), &working_buf_size, NULL)
-
+            if ret == 0:
+                with gil:
+                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + working_buf_size
             if self.working_buf.size() == working_buf_size:
                 # Buffer fully consumed
                 self.working_buf.clear()
