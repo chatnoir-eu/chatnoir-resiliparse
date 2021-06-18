@@ -123,6 +123,8 @@ cdef class GZipStream(CompressingStream):
         self.close()
 
     cdef size_t tell(self):
+        if self.stream_read_status != Z_STREAM_END:
+            return self.raw_stream.tell() - self.zst.avail_in
         return self.raw_stream.tell()
 
     cdef void _init_z_stream(self, bint deflate) nogil:
@@ -286,6 +288,8 @@ cdef class LZ4Stream(CompressingStream):
         self.close()
 
     cdef size_t tell(self):
+        if self.dctx != NULL:
+            return self.raw_stream.tell() - self.working_buf.size()
         return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
@@ -415,7 +419,6 @@ cdef class BufferedReader:
         self.stream = stream
         self.buf_size = max(1024u, buf_size)
         self.buf = string()
-        self.stream_pos = 0
         self.limit = strnpos
         self.limit_consumed = 0
 
@@ -423,7 +426,6 @@ cdef class BufferedReader:
         if self.buf.size() >= self.buf_size / 8:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
-        self.stream_pos = self.stream.tell()
         self.buf.append(self.stream.read(self.buf_size))
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
@@ -503,7 +505,7 @@ cdef class BufferedReader:
     cpdef size_t tell(self):
         if self.limit != strnpos:
             return self.limit_consumed
-        return self.stream_pos
+        return self.stream.tell() - self.buf.size()
 
     cpdef void consume(self, size_t size=strnpos):
         cdef string_view buf
