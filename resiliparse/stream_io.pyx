@@ -50,10 +50,14 @@ cdef class FileStream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cpdef void open(self, char* path, char* mode=b'rb'):
+    cpdef bint open(self, char* path, char* mode=b'rb') except 0:
         if self.fp != NULL:
             self.close()
+
         self.fp = fopen(path, mode)
+        if self.fp == NULL:
+            raise FileNotFoundError(f"No such file or directory: '{path.decode()}'")
+        return True
 
     cdef void seek(self, size_t offset):
         fseek(self.fp, offset, SEEK_SET)

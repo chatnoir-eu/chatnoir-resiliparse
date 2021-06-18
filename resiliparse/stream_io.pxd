@@ -152,7 +152,7 @@ cdef class PythonIOStreamAdapter(IOStream):
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
-    cpdef void open(self, char* path, char* mode=*)
+    cpdef bint open(self, char* path, char* mode=*) except 0
     cdef void seek(self, size_t offset)
     cpdef void close(self)
 
