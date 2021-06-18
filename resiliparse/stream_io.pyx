@@ -234,37 +234,41 @@ cdef class LZ4Stream(CompressingStream):
             return out_buf
 
     cpdef size_t begin_member(self):
-        if self.cctx == NULL:
-            LZ4F_isError(LZ4F_createCompressionContext(&self.cctx, LZ4F_VERSION))
+        cdef size_t written
+        with nogil:
+            if self.cctx == NULL:
+                LZ4F_isError(LZ4F_createCompressionContext(&self.cctx, LZ4F_VERSION))
 
-        if self.frame_started:
-            return 0
+            if self.frame_started:
+                return 0
 
-        if self.working_buf.size() < LZ4F_HEADER_SIZE_MAX:
-            self.working_buf.resize(LZ4F_HEADER_SIZE_MAX)
-        cdef size_t written = LZ4F_compressBegin(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
-        self.frame_started = True
+            if self.working_buf.size() < LZ4F_HEADER_SIZE_MAX:
+                self.working_buf.resize(LZ4F_HEADER_SIZE_MAX)
+            written = LZ4F_compressBegin(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+            self.frame_started = True
+
         return self.raw_stream.write(self.working_buf.data(), written)
 
     cpdef size_t end_member(self):
-        if self.cctx == NULL or not self.frame_started:
-            return 0
-        cdef size_t written = LZ4F_compressEnd(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
-        self.frame_started = False
+        cdef size_t written
+        with nogil:
+            if self.cctx == NULL or not self.frame_started:
+                return 0
+            written = LZ4F_compressEnd(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+            self.frame_started = False
         return self.raw_stream.write(self.working_buf.data(), written)
 
     cdef size_t write(self, char* data, size_t size):
         assert(self.dctx == NULL)
-
+        cdef size_t buf_needed, written
         cdef size_t header_bytes_written = self.begin_member()
+        with nogil:
+            buf_needed = LZ4F_compressBound(size, NULL)
+            if buf_needed != self.working_buf.size():
+                self.working_buf.resize(buf_needed)
 
-        cdef size_t buf_needed = LZ4F_compressBound(size, NULL)
-        if buf_needed != self.working_buf.size():
-            self.working_buf.resize(buf_needed)
-
-        cdef written = LZ4F_compressUpdate(self.cctx,
-                                           self.working_buf.data(), self.working_buf.size(),
-                                           data, size, NULL)
+            written = LZ4F_compressUpdate(self.cctx, self.working_buf.data(), self.working_buf.size(),
+                                          data, size, NULL)
         return self.raw_stream.write(self.working_buf.data(), written) + header_bytes_written
 
     cdef void flush(self):
