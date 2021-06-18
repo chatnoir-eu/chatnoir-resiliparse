@@ -143,6 +143,9 @@ cdef class WarcHeaderMap:
             return None
         return int(s)
 
+    def append(self, key, value):
+        self.append_header(key.encode(self._enc), value.encode(self._enc))
+
     def get(self, item, default=None):
         return self.asdict().get(item, default)
 
