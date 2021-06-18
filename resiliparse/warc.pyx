@@ -240,7 +240,7 @@ cdef class WarcHeaderMap:
 
     cdef void add_continuation(self, const string& header_continuation_value):
         if not self._headers.empty():
-            self._headers.back()[1].append(b'\n')
+            self._headers.back()[1].append(b' ')
             self._headers.back()[1].append(header_continuation_value)
         else:
             # This should no happen, but what can we do?!
@@ -446,21 +446,12 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     cdef string header_key, header_value
     cdef size_t delim_pos = 0
     cdef size_t bytes_consumed = 0
-    cdef bint first_line = True
-    cdef bint use_crlf = False
 
     while True:
-        line = reader.readline(use_crlf)
+        line = reader.readline()
         bytes_consumed += line.size()
 
-        if first_line:
-            # Determine to determine if stream uses CRLF or LF as newline separators.
-            # This hopefully fixes some buggy HTTP headers.
-            if line.size() >= 2 and line[line.size() - 2] == b'\r':
-                use_crlf = True
-            first_line = False
-
-        if line == b'\r\n' or line == b'\n' or line == b'':
+        if line == b'\r\n' or line == b'':
             break
 
         if isspace(line[0]):
@@ -476,15 +467,14 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
         delim_pos = line.find(b':')
         if delim_pos == strnpos:
             # Invalid header, try to preserve it as best we can
-            header_key = string()
-            header_value = strip_str(line)
+            target.add_continuation(strip_str(line))
         else:
             header_key = strip_str(line.substr(0, delim_pos))
             if delim_pos >= line.size():
                 header_value = string()
             else:
                 header_value = strip_str(line.substr(delim_pos + 1))
-        target.append_header(header_key, header_value)
+            target.append_header(header_key, header_value)
 
     return bytes_consumed
 
