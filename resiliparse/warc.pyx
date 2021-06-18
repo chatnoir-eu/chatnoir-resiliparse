@@ -60,20 +60,6 @@ cdef string str_to_lower(string s) nogil:
     return s
 
 
-cpdef enum WarcRecordType:
-    warcinfo = 2,
-    response = 4,
-    resource = 8,
-    request = 16,
-    metadata = 32,
-    revisit = 64,
-    conversion = 128,
-    continuation = 256,
-    unknown = 512,
-    any_type = 65535,
-    no_type = 0
-
-
 cdef const char* _enum_record_type_to_str(WarcRecordType record_type):
     if record_type == warcinfo:
         return b'warcinfo'
@@ -116,16 +102,9 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
     else:
         return unknown
 
-ctypedef (string, string) str_pair
 
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
-    cdef string _status_line
-    cdef vector[str_pair] _headers
-    cdef str _enc
-    cdef dict _dict_cache
-    cdef bint _dict_cache_stale
-
     def __init__(self, encoding='utf-8'):
         self._enc = encoding
         self._dict_cache = None
@@ -250,14 +229,6 @@ cdef class WarcHeaderMap:
 
 # noinspection PyAttributeOutsideInit,PyProtectedMember
 cdef class WarcRecord:
-    cdef WarcRecordType _record_type
-    cdef WarcHeaderMap _headers
-    cdef bint _is_http
-    cdef bint _http_parsed
-    cdef WarcHeaderMap _http_headers
-    cdef size_t _content_length
-    cdef BufferedReader _reader
-
     def __init__(self):
         self._record_type = unknown
         self._is_http = False
@@ -479,19 +450,8 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     return bytes_consumed
 
 
-cdef enum _NextRecStatus:
-    has_next,
-    skip_next,
-    eof
-
 # noinspection PyProtectedMember
 cdef class ArchiveIterator:
-    cdef IOStream stream
-    cdef BufferedReader reader
-    cdef WarcRecord record
-    cdef bint parse_http
-    cdef uint16_t record_type_filter
-
     def __init__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
         self.stream = stream
         self.reader = BufferedReader(self.stream)
