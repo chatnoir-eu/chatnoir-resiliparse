@@ -177,6 +177,7 @@ cdef class GZipStream(CompressingStream):
 cdef class LZ4Stream(CompressingStream):
     def __init__(self, raw_stream):
         self.raw_stream = wrap_stream(raw_stream)
+        self.cctx = NULL
         self.dctx = NULL
         self.working_buf = string()
         self.frame_started = False
@@ -188,7 +189,9 @@ cdef class LZ4Stream(CompressingStream):
         return self.raw_stream.tell()
 
     cdef string read(self, size_t size):
-        assert(self.cctx == NULL)
+        if self.cctx != NULL:
+            # Decompression in progress
+            return string()
 
         if self.working_buf.empty():
             self.working_buf = self.raw_stream.read(size)
@@ -225,6 +228,7 @@ cdef class LZ4Stream(CompressingStream):
                                       self.working_buf.data(), &working_buf_size, NULL)
 
             if self.working_buf.size() == working_buf_size:
+                # Buffer fully consumed
                 self.working_buf.clear()
             else:
                 self.working_buf = self.working_buf.substr(working_buf_size)
@@ -259,7 +263,10 @@ cdef class LZ4Stream(CompressingStream):
         return self.raw_stream.write(self.working_buf.data(), written)
 
     cdef size_t write(self, char* data, size_t size):
-        assert(self.dctx == NULL)
+        if self.dctx != NULL:
+            # Compression in progress
+            return 0
+
         cdef size_t buf_needed, written
         cdef size_t header_bytes_written = self.begin_member()
         with nogil:
@@ -283,7 +290,6 @@ cdef class LZ4Stream(CompressingStream):
             self.end_member()
 
         self._free_ctx()
-        self.working_buf.clear()
         self.raw_stream.close()
 
     cdef void _free_ctx(self) nogil:
@@ -294,6 +300,9 @@ cdef class LZ4Stream(CompressingStream):
         if self.dctx != NULL:
             LZ4F_freeDecompressionContext(self.dctx)
             self.dctx = NULL
+
+        if not self.working_buf.empty():
+            self.working_buf.clear()
 
 
 cdef class BufferedReader:
