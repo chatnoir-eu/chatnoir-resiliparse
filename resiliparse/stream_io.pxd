@@ -18,16 +18,30 @@ cdef extern from "<zlib.h>" nogil:
 
     const void* Z_NULL
     const int Z_OK
+    const int Z_NO_FLUSH
+    const int Z_FINISH
+    const int Z_SYNC_FLUSH
     const int Z_STREAM_END
+    const int Z_BUF_ERROR
     const int Z_STREAM_ERROR
     const int Z_DATA_ERROR
-    const int Z_SYNC_FLUSH
+    const int Z_DEFLATED
+    const int Z_BEST_COMPRESSION
+    const int Z_DEFAULT_STRATEGY
     const int MAX_WBITS
 
     ctypedef void* gzFile
+
+    int deflateInit2(z_stream* strm, int level, int method, int windowBits, int memLevel, int strategy)
+    int deflate(z_stream* strm, int flush)
+    int deflateReset(z_stream* strm)
+    int deflateEnd(z_stream* strm)
+    unsigned long deflateBound(z_stream* strm, unsigned long sourceLen)
+
     int inflateInit2(z_stream* strm, int windowBits)
-    int inflateEnd(z_stream* strm)
     int inflate(z_stream* strm, int flush)
+    int inflateReset(z_stream* strm)
+    int inflateEnd(z_stream* strm)
 
 
 cdef extern from "<lz4frame.h>" nogil:
@@ -123,9 +137,17 @@ cdef class CompressingStream(IOStream):
 
 cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
-    cdef string in_buf
+    cdef string working_buf
     cdef z_stream zst
-    cdef int stream_status
+    cdef bint initialized
+    cdef int stream_read_status
+    cdef bint member_started
+
+    cpdef size_t begin_member(self)
+    cpdef size_t end_member(self)
+
+    cdef void _init_z_stream(self, bint deflate) nogil
+    cdef void _free_z_stream(self) nogil
 
 
 cdef class LZ4Stream(CompressingStream):
@@ -135,10 +157,10 @@ cdef class LZ4Stream(CompressingStream):
     cdef string working_buf
     cdef bint frame_started
 
-    cdef void _free_ctx(self) nogil
     cpdef size_t begin_member(self)
     cpdef size_t end_member(self)
-    cpdef void close(self)
+
+    cdef void _free_ctx(self) nogil
 
 
 cdef class BufferedReader:
