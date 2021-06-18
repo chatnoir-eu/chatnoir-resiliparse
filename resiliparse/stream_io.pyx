@@ -210,7 +210,7 @@ cdef class GZipStream(CompressingStream):
 
         cdef size_t written = self.begin_member()
         cdef size_t bound = deflateBound(&self.zst, size)
-        if self.working_buf.size() < bound or self.working_buf.size() / 8 > bound:
+        if self.working_buf.size() < bound:
             self.working_buf.resize(bound * 2)
         self.zst.next_out = <Bytef*>self.working_buf.data() + written
         self.zst.avail_out = self.working_buf.size() - written
