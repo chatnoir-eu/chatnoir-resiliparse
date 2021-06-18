@@ -208,24 +208,28 @@ cdef class GZipStream(CompressingStream):
         self.zst.next_in = <Bytef*>data
         self.zst.avail_in = size
 
-        cdef size_t written = self.begin_member()
-        cdef size_t bound = deflateBound(&self.zst, size)
-        if self.working_buf.size() < bound:
-            self.working_buf.resize(bound * 2)
-        self.zst.next_out = <Bytef*>self.working_buf.data() + written
-        self.zst.avail_out = self.working_buf.size() - written
+        self.begin_member()
+        cdef size_t written = 0
+        cdef size_t bound = max(4096u, deflateBound(&self.zst, size))
+        if self.working_buf.size() < bound or self.working_buf.size() / 8 > bound:
+            self.working_buf.resize(bound)
+        self.zst.next_out = <Bytef*>self.working_buf.data()
+        self.zst.avail_out = self.working_buf.size()
 
         cdef int status = Z_OK
+        cdef size_t written_so_far = self.zst.total_out
         with nogil:
             while self.zst.avail_in > 0 and status == Z_OK:
                 status = deflate(&self.zst, Z_NO_FLUSH)
                 if self.zst.avail_in > 0 and self.zst.avail_out == 0:
                     # Out buffer fully consumed, but in buffer still holding data
-                    self.working_buf.resize(self.working_buf.size() + 1024)
+                    self.working_buf.append(b'\0', 1024)
                     self.zst.next_out = <Bytef*>&self.working_buf.back() - 1024
                     self.zst.avail_out = 1024
 
-        written += self.zst.next_out - <Bytef*>self.working_buf.data()
+        written += self.zst.total_out - written_so_far
+        if written == 0:
+            return 0
         return self.raw_stream.write(self.working_buf.data(), written)
 
     cdef size_t begin_member(self):
@@ -236,21 +240,26 @@ cdef class GZipStream(CompressingStream):
         if not self.member_started:
             return 0
 
-        cdef size_t written_so_far = self.zst.total_out
-
+        self.zst.avail_in = 0
+        self.zst.next_in = NULL
         self.zst.next_out = <Bytef*>self.working_buf.data()
         self.zst.avail_out = self.working_buf.size()
+
+        cdef size_t written_so_far = self.zst.total_out
         cdef int status = deflate(&self.zst, Z_FINISH)
-        while status == Z_BUF_ERROR:
+        while status == Z_OK or status == Z_BUF_ERROR:
             # Need larger output buffer (unlikely to ever happen at this point)
             self.working_buf.resize(self.working_buf.size() + 1024)
-            self.zst.next_out = <Bytef *>&self.working_buf.back() - 1024
+            self.zst.next_out = <Bytef*>&self.working_buf.back() - 1024
             self.zst.avail_out = 1024
             status = deflate(&self.zst, Z_FINISH)
 
         cdef size_t written = self.zst.total_out - written_so_far
         deflateReset(&self.zst)
         self.member_started = False
+
+        if written == 0:
+            return 0
         return self.raw_stream.write(self.working_buf.data(), written)
 
     cdef void flush(self):
