@@ -20,12 +20,14 @@ from setuptools import find_packages, setup, Extension
 Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
 
 cpp_args = dict(
-      extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations', '-Wno-unreachable-code'],
+      extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
+                          '-Wno-unreachable-code', '-Wno-unused-function'],
       extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
 extensions = [
       Extension('resiliparse.warc', sources=['resiliparse/warc.pyx'], **cpp_args),
-      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'], **cpp_args)
+      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'], **cpp_args),
+      Extension('resiliparse.tools', sources=['resiliparse/tools.pyx'], **cpp_args)
 ]
 
 setup(
