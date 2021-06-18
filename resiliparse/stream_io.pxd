@@ -17,17 +17,21 @@ cdef extern from "<zlib.h>" nogil:
         void* opaque
 
     const void* Z_NULL
+
     const int Z_OK
+    const int Z_SYNC_FLUSH
     const int Z_NO_FLUSH
     const int Z_FINISH
-    const int Z_SYNC_FLUSH
+
     const int Z_STREAM_END
     const int Z_BUF_ERROR
     const int Z_STREAM_ERROR
     const int Z_DATA_ERROR
-    const int Z_DEFLATED
+
+    const int Z_BEST_SPEED
     const int Z_BEST_COMPRESSION
     const int Z_DEFAULT_STRATEGY
+    const int Z_DEFLATED
     const int MAX_WBITS
 
     ctypedef void* gzFile
@@ -44,6 +48,13 @@ cdef extern from "<zlib.h>" nogil:
     int inflateEnd(z_stream* strm)
 
 
+cdef extern from "<lz4hc.h>" nogil:
+    const int LZ4HC_CLEVEL_MIN
+    const int LZ4HC_CLEVEL_DEFAULT
+    const int LZ4HC_CLEVEL_OPT_MIN
+    const int LZ4HC_CLEVEL_MAX
+
+
 cdef extern from "<lz4frame.h>" nogil:
     const int LZ4F_VERSION
     const int LZ4F_HEADER_SIZE_MAX
@@ -51,8 +62,11 @@ cdef extern from "<lz4frame.h>" nogil:
     ctypedef struct LZ4F_cctx
     ctypedef struct LZ4F_dctx
     ctypedef struct LZ4F_compressOptions_t
-    ctypedef struct LZ4F_preferences_t
     ctypedef struct LZ4F_decompressOptions_t
+    ctypedef struct LZ4F_preferences_t:
+        int compressionLevel
+        unsigned autoFlush
+        unsigned favorDecSpeed
 
     bint LZ4F_isError(size_t code)
 
@@ -142,6 +156,7 @@ cdef class GZipStream(CompressingStream):
     cdef bint initialized
     cdef int stream_read_status
     cdef bint member_started
+    cdef int compression_level
 
     cdef void _init_z_stream(self, bint deflate) nogil
     cdef void _free_z_stream(self) nogil
@@ -151,6 +166,7 @@ cdef class LZ4Stream(CompressingStream):
     cdef IOStream raw_stream
     cdef LZ4F_cctx* cctx
     cdef LZ4F_dctx* dctx
+    cdef LZ4F_preferences_t prefs
     cdef string working_buf
     cdef bint frame_started
 

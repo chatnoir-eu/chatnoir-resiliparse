@@ -125,12 +125,13 @@ cdef class CompressingStream(IOStream):
 
 
 cdef class GZipStream(CompressingStream):
-    def __init__(self, raw_stream):
+    def __init__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf = string()
         self.initialized = False
         self.stream_read_status = Z_STREAM_END
+        self.compression_level = compression_level
 
     def __dealloc__(self):
         self.close()
@@ -152,7 +153,7 @@ cdef class GZipStream(CompressingStream):
         self.stream_read_status = Z_STREAM_END
 
         if deflate:
-            deflateInit2(&self.zst, Z_BEST_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
+            deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
         else:
             inflateInit2(&self.zst, 16 + MAX_WBITS)
         self.initialized = True
@@ -277,12 +278,14 @@ cdef class GZipStream(CompressingStream):
 
 
 cdef class LZ4Stream(CompressingStream):
-    def __init__(self, raw_stream):
+    def __init__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
         self.raw_stream = wrap_stream(raw_stream)
         self.cctx = NULL
         self.dctx = NULL
         self.working_buf = string()
         self.frame_started = False
+        self.prefs.compressionLevel = compression_level
+        self.prefs.favorDecSpeed = favor_dec_speed
 
     def __dealloc__(self):
         self.close()
@@ -350,7 +353,7 @@ cdef class LZ4Stream(CompressingStream):
 
             if self.working_buf.size() < LZ4F_HEADER_SIZE_MAX:
                 self.working_buf.resize(LZ4F_HEADER_SIZE_MAX)
-            written = LZ4F_compressBegin(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
+            written = LZ4F_compressBegin(self.cctx, self.working_buf.data(), self.working_buf.size(), &self.prefs)
             self.frame_started = True
 
         return self.raw_stream.write(self.working_buf.data(), written)
@@ -372,7 +375,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t buf_needed, written
         cdef size_t header_bytes_written = self.begin_member()
         with nogil:
-            buf_needed = LZ4F_compressBound(size, NULL)
+            buf_needed = LZ4F_compressBound(size, &self.prefs)
             if self.working_buf.size() < buf_needed or self.working_buf.size() / 8 > buf_needed:
                 self.working_buf.resize(buf_needed)
 
@@ -384,7 +387,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t written
         cdef size_t buf_needed
         if self.cctx != NULL:
-            buf_needed = LZ4F_compressBound(0, NULL)
+            buf_needed = LZ4F_compressBound(0, &self.prefs)
             if self.working_buf.size() < buf_needed:
                 self.working_buf.resize(buf_needed)
 
