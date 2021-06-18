@@ -370,7 +370,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t buf_needed, written
         cdef size_t header_bytes_written = self.begin_member()
         with nogil:
-            buf_needed = LZ4F_compressBound(size, &self.prefs)
+            buf_needed = max(4096u, LZ4F_compressBound(size, &self.prefs))
             if self.working_buf.size() < buf_needed or self.working_buf.size() / 8 > buf_needed:
                 self.working_buf.resize(buf_needed)
 
