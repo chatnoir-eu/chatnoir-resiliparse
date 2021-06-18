@@ -304,11 +304,8 @@ cdef class LZ4Stream(CompressingStream):
                 self._free_ctx()
                 return string()
 
-        cdef size_t in_buf_size
         cdef string out_buf
-        cdef size_t out_buf_size
-        cdef size_t ret
-
+        cdef size_t ret, in_buf_size, out_buf_size, working_buf_size
         with nogil:
             working_buf_size = self.working_buf.size()
             out_buf.resize(size)
@@ -319,6 +316,7 @@ cdef class LZ4Stream(CompressingStream):
 
             ret = LZ4F_decompress(self.dctx, out_buf.data(), &out_buf_size,
                                   self.working_buf.data(), &working_buf_size, NULL)
+
             while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
                 with gil:
                     self.working_buf = self.raw_stream.read(size)
@@ -339,7 +337,8 @@ cdef class LZ4Stream(CompressingStream):
 
             if out_buf.size() != out_buf_size:
                 out_buf.resize(out_buf_size)
-            return out_buf
+
+        return out_buf
 
     cdef size_t begin_member(self):
         cdef size_t written

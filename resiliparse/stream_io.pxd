@@ -182,6 +182,7 @@ cdef class LZ4Stream(CompressingStream):
     cdef LZ4F_preferences_t prefs
     cdef string working_buf
     cdef bint frame_started
+    cdef size_t stream_pos
 
     cdef void _free_ctx(self) nogil
 
