@@ -86,24 +86,6 @@ cdef class PythonIOStreamAdapter(IOStream):
     def __init__(self, py_stream):
         self.py_stream = py_stream
 
-    cdef inline size_t tell(self):
-        return self.py_stream.tell()
-
-    cdef inline void seek(self, size_t offset):
-        self.py_stream.seek(offset)
-
-    cdef inline string read(self, size_t size):
-        return self.py_stream.read(size)[:size]
-
-    cdef inline size_t write(self, char* data, size_t size):
-        return self.py_stream.write(data[:size])
-
-    cdef inline void flush(self):
-        self.py_stream.flush()
-
-    cdef inline void close(self):
-        self.py_stream.close()
-
 
 cdef IOStream wrap_stream(raw_stream):
     if isinstance(raw_stream, IOStream):

@@ -133,7 +133,20 @@ cdef class IOStream:
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
-    cdef void seek(self, size_t offset)
+    cdef inline size_t tell(self):
+        return self.py_stream.tell()
+
+    cdef inline string read(self, size_t size):
+        return self.py_stream.read(size)[:size]
+
+    cdef inline size_t write(self, char * data, size_t size):
+        return self.py_stream.write(data[:size])
+
+    cdef inline void flush(self):
+        self.py_stream.flush()
+
+    cdef inline void close(self):
+        self.py_stream.close()
 
 
 cdef class FileStream(IOStream):
