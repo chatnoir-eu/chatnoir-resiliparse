@@ -241,11 +241,11 @@ cdef class GZipStream(CompressingStream):
         written += self.zst.next_out - <Bytef*>self.working_buf.data()
         return self.raw_stream.write(self.working_buf.data(), written)
 
-    cpdef size_t begin_member(self):
+    cdef size_t begin_member(self):
         self.member_started = True
         return 0
 
-    cpdef size_t end_member(self):
+    cdef size_t end_member(self):
         if not self.member_started:
             return 0
 
@@ -339,7 +339,7 @@ cdef class LZ4Stream(CompressingStream):
                 out_buf.resize(out_buf_size)
             return out_buf
 
-    cpdef size_t begin_member(self):
+    cdef size_t begin_member(self):
         cdef size_t written
         with nogil:
             if self.cctx == NULL:
@@ -355,7 +355,7 @@ cdef class LZ4Stream(CompressingStream):
 
         return self.raw_stream.write(self.working_buf.data(), written)
 
-    cpdef size_t end_member(self):
+    cdef size_t end_member(self):
         cdef size_t written
         with nogil:
             if self.cctx == NULL or not self.frame_started:

@@ -126,8 +126,8 @@ cdef class FileStream(IOStream):
     cdef FILE* fp
 
     cpdef void open(self, char* path, char* mode=*)
-    cpdef void close(self)
     cdef void seek(self, size_t offset)
+    cpdef void close(self)
 
 
 cdef class CompressingStream(IOStream):
@@ -143,9 +143,6 @@ cdef class GZipStream(CompressingStream):
     cdef int stream_read_status
     cdef bint member_started
 
-    cpdef size_t begin_member(self)
-    cpdef size_t end_member(self)
-
     cdef void _init_z_stream(self, bint deflate) nogil
     cdef void _free_z_stream(self) nogil
 
@@ -156,9 +153,6 @@ cdef class LZ4Stream(CompressingStream):
     cdef LZ4F_dctx* dctx
     cdef string working_buf
     cdef bint frame_started
-
-    cpdef size_t begin_member(self)
-    cpdef size_t end_member(self)
 
     cdef void _free_ctx(self) nogil
 
