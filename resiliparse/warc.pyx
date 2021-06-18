@@ -26,7 +26,7 @@ from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from stream_io cimport IOStream, BufferedReader, PythonIOStreamAdapter
+from stream_io cimport CompressingStream, IOStream, BufferedReader, PythonIOStreamAdapter
 
 
 cdef extern from "<cctype>" namespace "std" nogil:
@@ -172,19 +172,21 @@ cdef class WarcHeaderMap:
                 for h in self._headers]
 
 
-    cdef void write(self, IOStream stream):
+    cdef size_t write(self, IOStream stream):
+        cdef size_t bytes_written = 0
         if not self._status_line.empty():
-            stream.write(self._status_line.data(), self._status_line.size())
-            stream.write(b'\r\n', 2)
+            bytes_written += stream.write(self._status_line.data(), self._status_line.size())
+            bytes_written += stream.write(b'\r\n', 2)
 
         cdef vector[str_pair].iterator it = self._headers.begin()
         while it != self._headers.end():
             if not deref(it)[0].empty():
-                stream.write(deref(it)[0].data(), deref(it)[0].size())
-                stream.write(b': ', 2)
-            stream.write(deref(it)[1].data(), deref(it)[1].size())
-            stream.write(b'\r\n', 2)
+                bytes_written += stream.write(deref(it)[0].data(), deref(it)[0].size())
+                bytes_written += stream.write(b': ', 2)
+            bytes_written += stream.write(deref(it)[1].data(), deref(it)[1].size())
+            bytes_written += stream.write(b'\r\n', 2)
             inc(it)
+        return bytes_written
 
     cdef inline void clear(self):
         self._headers.clear()
@@ -307,11 +309,10 @@ cdef class WarcRecord:
         self._http_parsed = True
 
     # noinspection PyTypeChecker
-    cpdef void write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
+    cpdef size_t write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
         # If the raw byte content hasn't been parsed, we can simply pass it through
         if not checksum_data and not self.http_parsed:
-            self._write_impl(self.reader, stream, True, chunk_size)
-            return
+            return self._write_impl(self.reader, stream, True, chunk_size)
 
         # Otherwise read everything into memory for content-length correction and checksumming
         block_buf = io.BytesIO()
@@ -345,33 +346,45 @@ cdef class WarcRecord:
             self._headers.set_header(b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_digest.digest()))
 
         block_buf.seek(0)
-        self._write_impl(block_buf, stream, False, chunk_size)
+        return self._write_impl(block_buf, stream, False, chunk_size)
 
-    cdef void _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size):
+    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size):
         cdef IOStream out_stream_wrapped
+        cdef size_t bytes_written = 0
+        cdef bint compress_member_started = False
 
         if isinstance(out_stream, IOStream):
             out_stream_wrapped = <IOStream>out_stream
+
+            if isinstance(out_stream, CompressingStream):
+                bytes_written = (<CompressingStream>out_stream_wrapped).begin_member()
+                compress_member_started = True
+
         elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
             out_stream_wrapped = PythonIOStreamAdapter(out_stream)
         else:
             warnings.warn(f'Object of type "{type(out_stream).__name__}" is not a valid stream.', RuntimeWarning)
-            return
+            return 0
 
-        self._headers.write(out_stream_wrapped)
-        out_stream_wrapped.write(b'\r\n', 2)
+        bytes_written += self._headers.write(out_stream_wrapped)
+        bytes_written += out_stream_wrapped.write(b'\r\n', 2)
 
         if write_payload_headers and self._http_parsed:
-            self._http_headers.write(out_stream_wrapped)
-            out_stream_wrapped.write(b'\r\n', 2)
+            bytes_written += self._http_headers.write(out_stream_wrapped)
+            bytes_written += out_stream_wrapped.write(b'\r\n', 2)
 
         cdef string data
         while True:
             data = in_reader.read(chunk_size)
             if data.empty():
                 break
-            out_stream_wrapped.write(data.data(), data.size())
-        out_stream_wrapped.write(b'\r\n', 2)
+            bytes_written += out_stream_wrapped.write(data.data(), data.size())
+        bytes_written += out_stream_wrapped.write(b'\r\n', 2)
+
+        if compress_member_started:
+            bytes_written += (<CompressingStream> out_stream_wrapped).end_member()
+
+        return bytes_written
 
     cdef bint _verify_digest(self, const string& base32_digest):
         cdef size_t sep_pos = base32_digest.find(b':')
