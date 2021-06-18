@@ -373,7 +373,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t header_bytes_written = self.begin_member()
         with nogil:
             buf_needed = LZ4F_compressBound(size, NULL)
-            if buf_needed != self.working_buf.size():
+            if self.working_buf.size() < buf_needed or self.working_buf.size() / 8 > buf_needed:
                 self.working_buf.resize(buf_needed)
 
             written = LZ4F_compressUpdate(self.cctx, self.working_buf.data(), self.working_buf.size(),
@@ -382,7 +382,12 @@ cdef class LZ4Stream(CompressingStream):
 
     cdef void flush(self):
         cdef size_t written
+        cdef size_t buf_needed
         if self.cctx != NULL:
+            buf_needed = LZ4F_compressBound(0, NULL)
+            if self.working_buf.size() < buf_needed:
+                self.working_buf.resize(buf_needed)
+
             written = LZ4F_flush(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
             self.raw_stream.write(self.working_buf.data(), written)
         self.raw_stream.flush()
