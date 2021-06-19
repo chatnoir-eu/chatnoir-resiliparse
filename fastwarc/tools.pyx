@@ -42,6 +42,24 @@ def _detect_comp_alg(in_obj):
         raise ValueError('Cannot auto-detect compression algorithm.')
 
 
+def _wrap_warc_stream(warc_in, mode='r', CompressionAlg comp_alg=auto, **comp_args):
+    if type(warc_in) is str:
+        stream = FileStream(warc_in, mode)
+    elif isinstance(warc_in, IOStream):
+        stream = <IOStream>warc_in
+    elif hasattr(warc_in, 'write' if 'w' in mode else 'read'):
+        stream = PythonIOStreamAdapter(warc_in)
+    else:
+        raise TypeError(f'Object of type {type(warc_in).__name__} is not a valid input stream object')
+
+    if comp_alg == gzip:
+        stream = GZipStream(stream, **comp_args)
+    elif comp_alg == lz4:
+        stream = LZ4Stream(stream, **comp_args)
+
+    return stream
+
+
 def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=auto,
                                 CompressionAlg comp_alg_out=auto, **comp_args):
     """
@@ -68,35 +86,8 @@ def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=au
         else:
             raise ValueError('Illegal output compression algorithm: auto')
 
-    # Prepare input stream
-    if type(warc_in) is str:
-        in_stream = FileStream(warc_in, 'rb')
-    elif isinstance(warc_in, IOStream):
-        in_stream = <IOStream>warc_in
-    elif hasattr(warc_in, 'read'):
-        in_stream = PythonIOStreamAdapter(warc_in)
-    else:
-        raise TypeError(f'Object of type {type(warc_in).__name__} is not a valid input stream object')
-
-    if comp_alg_in == gzip:
-        in_stream = GZipStream(in_stream)
-    elif comp_alg_in == lz4:
-        in_stream = LZ4Stream(in_stream)
-
-    # Prepare output stream
-    if type(warc_out) is str:
-        out_stream = FileStream(warc_out, 'wb')
-    elif isinstance(warc_out, IOStream):
-        out_stream = <IOStream>warc_out
-    elif hasattr(warc_out, 'write'):
-        out_stream = PythonIOStreamAdapter(warc_out)
-    else:
-        raise TypeError(f'Object of type {type(warc_out).__name__} is not a valid output stream object')
-
-    if comp_alg_out == gzip:
-        out_stream = GZipStream(out_stream, **comp_args)
-    elif comp_alg_out == lz4:
-        out_stream = LZ4Stream(out_stream, **comp_args)
+    in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg_in)
+    out_stream = _wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)
 
     num = 0
     for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
@@ -124,8 +115,47 @@ def recompress_warc(warc_in, warc_out, CompressionAlg comp_alg_in=auto, Compress
 
     bytes_written_total = 0
     num = 0
-    for record, bytes_written in recompress_warc_interactive(warc_in, warc_out,comp_alg_in, comp_alg_out, **comp_args):
+    for record, bytes_written in recompress_warc_interactive(warc_in, warc_out, comp_alg_in, comp_alg_out, **comp_args):
         bytes_written_total += bytes_written
         num += 1
 
     return num, bytes_written
+
+
+def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=auto):
+    """
+    Verify block or (optionally) payload digests of all records in a WARC.
+
+    Returns a generator of dicts containing the following structure:
+    ```
+    {
+        "record_id": <ID>,
+        "block_digest_ok">: <OK_VAL>
+        [ "payload_digest_ok">: <OK_VAL> ]
+    }
+    ```
+
+    `<OK_VAL>` is either `True` or `False` or `None` if the record has no digest.
+
+    :param warc_in: input WARC file
+    :param verify_payloads: verify payload digests
+    :param comp_alg: WARC compression algorithm
+    :return: generator of dicts containing verification result data
+    """
+
+    in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg)
+
+    for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
+        res = {
+            'record_id': record.record_id,
+            'block_digest_ok': record.verify_block_digest() if 'WARC-Block-Digest' in record.headers else None
+        }
+
+        if verify_payloads:
+            if 'WARC-Payload-Digest' in record.headers:
+                record.parse_http()
+                res['payload_digest_ok'] = record.verify_payload_digest()
+            else:
+                res['payload_digest_ok'] = None
+
+        yield res

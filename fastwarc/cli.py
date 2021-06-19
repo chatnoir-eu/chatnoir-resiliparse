@@ -18,7 +18,8 @@ import time
 import click
 from tqdm import tqdm
 
-from fastwarc.tools import CompressionAlg, recompress_warc_interactive
+from fastwarc.tools import CompressionAlg
+import fastwarc.tools as tools
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
@@ -40,14 +41,14 @@ def _human_readable_bytes(byte_num):
 @click.argument('outfile', type=click.Path(dir_okay=False, exists=False))
 @click.option('-c', '--compress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Compression algorithm to use for output file')
-@click.option('--in-compress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+@click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True,
-              help='Compression algorithm for decoding input file (auto tries to detect based on file extension)')
+              help='Decompression algorithm for decoding input file (auto tries to detect based on file extension)')
 @click.option('-l', '--compress-level', type=int, default=None, help='Compression level (defaults to max)')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
-def recompress(infile, outfile, compress_alg, in_compress_alg, compress_level, quiet):
+def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, quiet):
     compress_alg = getattr(CompressionAlg, compress_alg)
-    compress_alg_in = getattr(CompressionAlg, in_compress_alg)
+    decompress_alg = getattr(CompressionAlg, decompress_alg)
 
     comp_args = {}
     if compress_level is None:
@@ -60,8 +61,9 @@ def recompress(infile, outfile, compress_alg, in_compress_alg, compress_level, q
     num = 0
     start = time.time()
     try:
-        for _, b in tqdm(recompress_warc_interactive(infile, outfile, compress_alg_in, compress_alg, **comp_args),
-                         desc='Recompressing WARC file', unit=' record(s)', leave=False, disable=quiet, mininterval=0.2):
+        for _, b in tqdm(tools.recompress_warc_interactive(infile, outfile, decompress_alg, compress_alg, **comp_args),
+                         desc='Recompressing WARC file', unit=' record(s)', leave=False,
+                         disable=quiet, mininterval=0.2):
             num += 1
             bytes_written += b
 
@@ -70,8 +72,69 @@ def recompress(infile, outfile, compress_alg, in_compress_alg, compress_level, q
     except KeyboardInterrupt:
         if not quiet:
             click.echo('Recompression aborted.')
+            sys.exit(1)
     finally:
         if not quiet:
             click.echo(f'  - Records recompressed: {num}')
             click.echo(f'  - Bytes written: {_human_readable_bytes(bytes_written)}')
             click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
+
+
+@main.command()
+@click.argument('infile', type=click.Path(dir_okay=False, exists=True))
+@click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+              default='auto', show_default=True, help='Decompression algorithm')
+@click.option('-p', '--verify-payloads', is_flag=True, help='Also verify payload digests')
+@click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
+@click.option('-o', '--output', type=click.File('w'), help='Output file with verification details')
+def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
+    decompress_alg = getattr(CompressionAlg, decompress_alg)
+
+    failed_digests = []
+    num = 0
+    try:
+        desc_tpl = 'Verifying digests ({} failed)'
+        pbar = tqdm(tools.verify_digests(infile, verify_payloads, decompress_alg),
+                    desc=desc_tpl.format(0), unit=' record(s)', leave=False, disable=quiet, mininterval=0.2)
+
+        for v in pbar:
+            num += 1
+
+            status = 'OK'
+            if v['block_digest_ok'] is False:
+                status = 'FAIL'
+            elif v['block_digest_ok'] is None:
+                status = 'NO_DIGEST'
+
+            if 'payload_digest_ok' in v:
+                if v['payload_digest_ok'] is True:
+                    status += ', PAYLOAD_OK'
+                elif v['payload_digest_ok'] is False:
+                    status += ', PAYLOAD_FAIL'
+                elif v['payload_digest_ok'] is None:
+                    status += ', PAYLOAD_NO_DIGEST'
+
+            if 'FAIL' in status:
+                failed_digests.append(v['record_id'])
+                pbar.set_description(desc_tpl.format(len(failed_digests)))
+
+            if output:
+                output.write(f'{v["record_id"]}: {status}\n')
+
+        if output:
+            output.close()
+
+    except KeyboardInterrupt:
+        if not quiet:
+            click.echo('Verification aborted.')
+            sys.exit(1)
+    finally:
+        if not quiet:
+            if not failed_digests:
+                click.echo(f'{num} records verified successfully.')
+            else:
+                click.echo('Failed records:')
+                click.echo('===============')
+                for rec in failed_digests:
+                    click.echo(rec)
+                sys.exit(1)
