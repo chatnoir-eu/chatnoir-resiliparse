@@ -25,6 +25,17 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# IDEs
+.idea/
+*.swp
+
+# Archive / WARC files
+*.gz
+*.bz2
+*.xz
+*.lz4
+*.warc
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -141,6 +152,7 @@ dmypy.json
 *.DS_Store
 # thumbnail cache on Windows
 Thumbs.db
+.directory
 
 # profiling data
 .prof
