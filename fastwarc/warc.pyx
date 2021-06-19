@@ -106,7 +106,7 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
 
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
-    def __init__(self, encoding='utf-8'):
+    def __cinit__(self, encoding='utf-8'):
         self._enc = encoding
         self._dict_cache = None
         self._dict_cache_stale = True
@@ -235,12 +235,12 @@ cdef class WarcHeaderMap:
 
 # noinspection PyAttributeOutsideInit,PyProtectedMember
 cdef class WarcRecord:
-    def __init__(self):
+    def __cinit__(self):
         self._record_type = unknown
         self._is_http = False
         self._http_parsed = False
         self._content_length = 0
-        self._headers = WarcHeaderMap('utf-8')
+        self._headers = WarcHeaderMap.__new__(WarcHeaderMap, 'utf-8')
         self._http_headers = None
         self._stream_pos = 0
 
@@ -303,13 +303,13 @@ cdef class WarcRecord:
         self._headers.append_header(b'Content-Length', to_string(content_length))
 
     cpdef void set_bytes_content(self, bytes b):
-        self._reader = BufferedReader(BytesIOStream(b))
+        self._reader = BufferedReader.__new__(BufferedReader, BytesIOStream(b))
         self._content_length = len(b)
 
     cpdef void parse_http(self):
         if self._http_parsed:
             return
-        self._http_headers = WarcHeaderMap('iso-8859-15')
+        self._http_headers = WarcHeaderMap.__new__(WarcHeaderMap, 'iso-8859-15')
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
         self._http_parsed = True
@@ -367,7 +367,7 @@ cdef class WarcRecord:
                 compress_member_started = True
 
         elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
-            out_stream_wrapped = PythonIOStreamAdapter(out_stream)
+            out_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, out_stream)
         else:
             warnings.warn(f'Object of type "{type(out_stream).__name__}" is not a valid stream.', RuntimeWarning)
             return 0
@@ -420,7 +420,7 @@ cdef class WarcRecord:
             tee_stream.write(block.data(), block.size())
 
         tee_stream.seek(0)
-        self._reader = BufferedReader(tee_stream)
+        self._reader = BufferedReader.__new__(BufferedReader, tee_stream)
 
         return h.digest() == digest
 
@@ -474,9 +474,9 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 
 # noinspection PyProtectedMember
 cdef class ArchiveIterator:
-    def __init__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
+    def __cinit__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
         self.stream = stream
-        self.reader = BufferedReader(self.stream)
+        self.reader = BufferedReader.__new__(BufferedReader, self.stream)
         self.record = None
         self.parse_http = parse_http
         self.record_type_filter = record_types
@@ -497,7 +497,7 @@ cdef class ArchiveIterator:
             self.reader.consume()
             self.reader.reset_limit()
 
-        self.record = WarcRecord()
+        self.record = WarcRecord.__new__(WarcRecord)
 
         if self.stream_is_compressed:
             # Compressed streams advance their position only on block boundaries

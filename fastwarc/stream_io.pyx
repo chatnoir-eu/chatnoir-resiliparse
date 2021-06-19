@@ -75,7 +75,7 @@ cdef class BytesIOStream(IOStream):
         return self.buffer
 
 cdef class FileStream(IOStream):
-    def __init__(self, str filename=None, str mode='rb'):
+    def __cinit__(self, str filename=None, str mode='rb'):
         self.fp = NULL
         if filename:
             self.open(filename.encode(), mode.encode())
@@ -120,7 +120,7 @@ cdef class FileStream(IOStream):
 
 
 cdef class PythonIOStreamAdapter(IOStream):
-    def __init__(self, py_stream):
+    def __cinit__(self, py_stream):
         self.py_stream = py_stream
 
 
@@ -128,7 +128,7 @@ cdef IOStream wrap_stream(raw_stream):
     if isinstance(raw_stream, IOStream):
         return raw_stream
     elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
-        return PythonIOStreamAdapter(raw_stream)
+        return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, raw_stream)
     else:
         warnings.warn(f'Object of type "{type(raw_stream).__name__}" is not a valid stream.', RuntimeWarning)
         return None
@@ -144,7 +144,7 @@ cdef class CompressingStream(IOStream):
 
 
 cdef class GZipStream(CompressingStream):
-    def __init__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
+    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf = string()
@@ -341,7 +341,7 @@ cdef class GZipStream(CompressingStream):
 
 
 cdef class LZ4Stream(CompressingStream):
-    def __init__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
+    def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
         self.raw_stream = wrap_stream(raw_stream)
         self.cctx = NULL
         self.dctx = NULL
@@ -490,7 +490,7 @@ cdef class LZ4Stream(CompressingStream):
 
 
 cdef class BufferedReader:
-    def __init__(self, IOStream stream, size_t buf_size=16384):
+    def __cinit__(self, IOStream stream, size_t buf_size=16384):
         self.stream = stream
         self.buf_size = max(1024u, buf_size)
         self.buf = string()

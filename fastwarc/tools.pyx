@@ -48,18 +48,18 @@ def _detect_comp_alg(in_obj):
 
 def _wrap_warc_stream(warc_in, mode='r', CompressionAlg comp_alg=auto, **comp_args):
     if type(warc_in) is str:
-        stream = FileStream(warc_in, mode)
+        stream = FileStream.__new__(FileStream, warc_in, mode)
     elif isinstance(warc_in, IOStream):
         stream = <IOStream>warc_in
     elif hasattr(warc_in, 'write' if 'w' in mode else 'read'):
-        stream = PythonIOStreamAdapter(warc_in)
+        stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, warc_in)
     else:
         raise TypeError(f'Object of type {type(warc_in).__name__} is not a valid input stream object')
 
     if comp_alg == gzip:
-        stream = GZipStream(stream, **comp_args)
+        stream = GZipStream.__new__(GZipStream, stream, **comp_args)
     elif comp_alg == lz4:
-        stream = LZ4Stream(stream, **comp_args)
+        stream = LZ4Stream.__new__(LZ4Stream, stream, **comp_args)
 
     return stream
 
@@ -94,7 +94,8 @@ def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=au
     out_stream = _wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)
 
     num = 0
-    for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
+    for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
+                                          parse_http=False, record_types=WarcRecordType.any_type):
         bytes_written = record.write(out_stream)
         yield record, bytes_written
 
@@ -152,7 +153,8 @@ def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=
 
     in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg)
 
-    for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
+    for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
+                                          parse_http=False, record_types=WarcRecordType.any_type):
         res = {
             'record_id': record.record_id,
             'block_digest_ok': record.verify_block_digest() if 'WARC-Block-Digest' in record.headers else None
