@@ -25,6 +25,10 @@ cpdef enum CompressionAlg:
     auto
 
 
+class IllegalCompressionAlgorithmError(Exception):
+    pass
+
+
 def _detect_comp_alg(in_obj):
     filename = None
     if type(in_obj) is str:
@@ -39,7 +43,7 @@ def _detect_comp_alg(in_obj):
     elif type(filename) is str and filename.endswith('.warc'):
         return CompressionAlg.uncompressed
     else:
-        raise ValueError('Cannot auto-detect compression algorithm.')
+        raise IllegalCompressionAlgorithmError('Cannot auto-detect compression algorithm.')
 
 
 def _wrap_warc_stream(warc_in, mode='r', CompressionAlg comp_alg=auto, **comp_args):

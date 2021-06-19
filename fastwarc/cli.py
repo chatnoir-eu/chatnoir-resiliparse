@@ -22,6 +22,17 @@ from fastwarc.tools import CompressionAlg
 import fastwarc.tools as tools
 
 
+def exception_handler(exctype, value, tb):
+    if exctype == tools.IllegalCompressionAlgorithmError:
+        click.echo('Failed to detect compression algorithm.', err=True)
+        sys.exit(1)
+
+    raise
+
+
+sys.excepthook = exception_handler
+
+
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
     pass
@@ -74,7 +85,7 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
             click.echo('Recompression aborted.')
             sys.exit(1)
     finally:
-        if not quiet:
+        if not quiet and num > 0:
             click.echo(f'  - Records recompressed: {num}')
             click.echo(f'  - Bytes written: {_human_readable_bytes(bytes_written)}')
             click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
@@ -132,7 +143,7 @@ def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
             click.echo('Verification aborted.')
             sys.exit(1)
     finally:
-        if not quiet:
+        if not quiet and num_total > 0:
             if not failed_digests:
                 click.echo(f'{num_total - num_no_digest} records were verified successfully.')
                 if num_no_digest:
