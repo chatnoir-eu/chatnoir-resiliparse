@@ -42,19 +42,21 @@ def _detect_comp_alg(in_obj):
         raise ValueError('Cannot auto-detect compression algorithm.')
 
 
-def recompress_warc(warc_in, warc_out, CompressionAlg comp_alg_in=auto, CompressionAlg comp_alg_out=auto, **comp_args):
+def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=auto,
+                                CompressionAlg comp_alg_out=auto, **comp_args):
     """
     Recompress WARC file.
 
-    Currently supported compression algorithms: GZip and LZ4
+    Currently supported compression algorithms: GZip and LZ4.
 
     :param warc_in: input file name or stream object
     :param warc_out: output file name or stream object
     :param comp_alg_in: compression algorithm of input file
     :param comp_alg_out: compression algorithm to use for output file
     :param comp_args: keyword arguments pass on to the compressor
-    :return: number of records recompressed and number of bytes written
+    :return: generator of records and bytes written in each iteration
     """
+
     cdef IOStream in_stream
     cdef IOStream out_stream
 
@@ -97,14 +99,33 @@ def recompress_warc(warc_in, warc_out, CompressionAlg comp_alg_in=auto, Compress
         out_stream = LZ4Stream(out_stream, **comp_args)
 
     num = 0
-    bytes_written = 0
     for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
-        bytes_written += record.write(out_stream)
-        # print(record.record_id, record.stream_pos)
-        # print(record.record_id)
-        num += 1
+        bytes_written = record.write(out_stream)
+        yield record, bytes_written
 
     in_stream.close()
     out_stream.close()
+
+
+def recompress_warc(warc_in, warc_out, CompressionAlg comp_alg_in=auto, CompressionAlg comp_alg_out=auto, **comp_args):
+    """
+    Recompress WARC file.
+
+    Currently supported compression algorithms: GZip and LZ4.
+    This is a Non-interactive version of :func:`recompress_warc_interactive`.
+
+    :param warc_in: input file name or stream object
+    :param warc_out: output file name or stream object
+    :param comp_alg_in: compression algorithm of input file
+    :param comp_alg_out: compression algorithm to use for output file
+    :param comp_args: keyword arguments pass on to the compressor
+    :return: number of records recompressed and number of bytes written
+    """
+
+    bytes_written_total = 0
+    num = 0
+    for record, bytes_written in recompress_warc_interactive(warc_in, warc_out,comp_alg_in, comp_alg_out, **comp_args):
+        bytes_written_total += bytes_written
+        num += 1
 
     return num, bytes_written
