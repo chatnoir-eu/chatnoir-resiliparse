@@ -24,24 +24,35 @@ cpp_args = dict(
                           '-Wno-unreachable-code', '-Wno-unused-function'],
       extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
-extensions = [
+setup(
+      name='ResiliParse',
+      version='1.0',
+      description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
+      author='Janek Bevendorff',
+      author_email='janek.bevendorff@uni-weimar.de',
+      url='https://webis.de',
+      license='Apache License 2.0',
+      packages=[],
+)
+
+fastwarc_extensions = [
       Extension('fastwarc.warc', sources=['fastwarc/warc.pyx'], **cpp_args),
       Extension('fastwarc.stream_io', sources=['fastwarc/stream_io.pyx'], **cpp_args),
       Extension('fastwarc.tools', sources=['fastwarc/tools.pyx'], **cpp_args)
 ]
 
 setup(
-      name='ResiliParse',
+      name='FastWARC',
       version='1.0',
-      description='Resilient web archive parsing library with fixed memory footprint and execution time.',
+      description='Optimized WARC parsing library written in Cython',
       author='Janek Bevendorff',
       author_email='janek.bevendorff@uni-weimar.de',
       url='https://webis.de',
       license='Apache License 2.0',
-      packages=find_packages(),
+      packages=['fastwarc'],
       setup_requires=[
             'cython',
             'setuptools>=18.0'
       ],
-      ext_modules=cythonize(extensions, annotate=Cython.Compiler.Options.annotate, language_level='3')
+      ext_modules=cythonize(fastwarc_extensions, annotate=Cython.Compiler.Options.annotate, language_level='3')
 )
