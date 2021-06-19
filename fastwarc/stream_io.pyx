@@ -50,7 +50,7 @@ cdef class BytesIOStream(IOStream):
         return self.pos
 
     cdef inline void seek(self, size_t offset):
-        self.pos = min(self.buffer.size(), self.pos + offset)
+        self.pos = min(self.buffer.size(), offset)
 
     cdef inline string read(self, size_t size):
         if self.pos >= self.buffer.size():
@@ -60,8 +60,12 @@ cdef class BytesIOStream(IOStream):
         return substr
 
     cdef inline size_t write(self, const char* data, size_t size):
+        if self.pos + size > self.buffer.size():
+            self.buffer.resize(self.pos + size)
+        cdef size_t i
+        for i in range(size):
+            self.buffer[self.pos + i] = data[i]
         self.pos += size
-        self.buffer.append(data, size)
         return size
 
     cdef inline void close(self):
