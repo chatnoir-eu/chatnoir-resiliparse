@@ -25,9 +25,9 @@ cpp_args = dict(
       extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
 extensions = [
-      Extension('resiliparse.warc', sources=['resiliparse/warc.pyx'], **cpp_args),
-      Extension('resiliparse.stream_io', sources=['resiliparse/stream_io.pyx'], **cpp_args),
-      Extension('resiliparse.tools', sources=['resiliparse/tools.pyx'], **cpp_args)
+      Extension('fastwarc.warc', sources=['fastwarc/warc.pyx'], **cpp_args),
+      Extension('fastwarc.stream_io', sources=['fastwarc/stream_io.pyx'], **cpp_args),
+      Extension('fastwarc.tools', sources=['fastwarc/tools.pyx'], **cpp_args)
 ]
 
 setup(

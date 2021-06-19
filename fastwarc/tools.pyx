@@ -100,6 +100,8 @@ def recompress_warc(warc_in, warc_out, CompressionAlg comp_alg_in=auto, Compress
     bytes_written = 0
     for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
         bytes_written += record.write(out_stream)
+        # print(record.record_id, record.stream_pos)
+        # print(record.record_id)
         num += 1
 
     in_stream.close()

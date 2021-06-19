@@ -68,6 +68,7 @@ cdef class WarcRecord:
     cdef WarcHeaderMap _http_headers
     cdef size_t _content_length
     cdef BufferedReader _reader
+    cdef size_t _stream_pos
 
     cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
@@ -86,5 +87,6 @@ cdef class ArchiveIterator:
     cdef WarcRecord record
     cdef bint parse_http
     cdef uint16_t record_type_filter
+    cdef bint stream_is_compressed
 
     cdef _NextRecStatus _read_next_record(self)

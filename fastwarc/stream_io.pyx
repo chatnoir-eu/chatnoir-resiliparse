@@ -173,64 +173,59 @@ cdef class GZipStream(CompressingStream):
             # Compression in progress
             return string()
 
-        if not self.initialized:
-            self._init_z_stream(False)
-
         cdef string out_buf
         cdef size_t written_so_far
 
-        with nogil:
-            if self.zst.avail_in == 0 or self.working_buf.empty():
-                if not self._reset_working_buf(size):
-                    return string()
+        if not self.initialized:
+            self._init_z_stream(False)
 
-                self.zst.next_in = <Bytef*>self.working_buf.data()
-                self.zst.avail_in = self.working_buf.size()
-
-            out_buf = string(size * 8, <char>0)
-            self.zst.next_out = <Bytef*>out_buf.data()
-            self.zst.avail_out = out_buf.size()
-
-            written_so_far = self.zst.total_out
-
-            self.stream_read_status = inflate(&self.zst, Z_SYNC_FLUSH)
-            # There is more
-            while self.stream_read_status == Z_OK or self.stream_read_status == Z_BUF_ERROR:
-
-                if self.stream_read_status == Z_BUF_ERROR:
-                    if self.zst.avail_out == 0:
-                        # Grow output buffer if no space left
-                        out_buf.resize(out_buf.size() + 4096u)
-                        self.zst.next_out = <Bytef*>out_buf.data() + self.zst.total_out - written_so_far
-                        self.zst.avail_out += 4096u
-
-                    elif self.zst.avail_in == 0:
-                        # Sufficient output data produced, so no worries
-                        if <unsigned>(self.zst.next_out - <Bytef*>out_buf.data()) >= size:
-                            break
-
-                        # Input buffer starved and no output produced yet, so we need to read more from stream
-                        if not self._reset_working_buf(size):
-                            return string()
-
-                # No data produced yet, call again
-                self.stream_read_status = inflate(&self.zst, Z_SYNC_FLUSH)
-
-            # Error
-            if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
-                self._free_z_stream()
+        # with nogil:
+        if self.zst.avail_in == 0 or self.working_buf.empty():
+            if not self._reset_working_buf(size):
                 return string()
 
+            self.zst.next_in = <Bytef*>self.working_buf.data()
+            self.zst.avail_in = self.working_buf.size()
+
+        out_buf = string(size * 8, <char>0)
+        self.zst.next_out = <Bytef*>out_buf.data()
+        self.zst.avail_out = out_buf.size()
+
+        written_so_far = self.zst.total_out
+        self.stream_read_status = inflate(&self.zst, Z_SYNC_FLUSH)
+
+        while self.stream_read_status == Z_OK or self.stream_read_status == Z_BUF_ERROR:
+            if self.stream_read_status == Z_BUF_ERROR:
+                if self.zst.total_out - written_so_far > 0:
+                    # Some output has been produced, that's good enough
+                    break
+
+                if self.zst.avail_out == 0:
+                    # Grow output buffer if no space left
+                    out_buf.resize(out_buf.size() + 4096u)
+                    self.zst.next_out = <Bytef*>out_buf.data() + self.zst.total_out - written_so_far
+                    self.zst.avail_out += 4096u
+
+                # Input buffer starved and no output produced yet, so we need to read more from stream
+                elif self.zst.avail_in == 0 and not self._reset_working_buf(size):
+                    return string()
+
+            # There is more, call again
+            self.stream_read_status = inflate(&self.zst, Z_SYNC_FLUSH)
+
+        # Error
+        if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
+            self._free_z_stream()
+            return string()
+
         written_so_far = self.zst.total_out - written_so_far
-
-        # Member end
-        if self.stream_read_status == Z_STREAM_END:
-            # with gil:
-            self.stream_pos = self.raw_stream.tell() - (self.zst.next_in - <Bytef*>self.working_buf.data())
-            inflateReset(&self.zst)
-
         if out_buf.size() != written_so_far:
             out_buf.resize(written_so_far)
+
+        if self.stream_read_status == Z_STREAM_END:
+            # Member end
+            self.stream_pos = self.raw_stream.tell() - (self.zst.next_in - <Bytef*>self.working_buf.data())
+            inflateReset(&self.zst)
 
         if out_buf.empty():
             return self.read(size)
@@ -470,7 +465,7 @@ cdef class BufferedReader:
         self.limit_consumed = 0
 
     cdef bint _fill_buf(self):
-        if not self.buf.empty():
+        if self.buf.size() > 1024u:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
         self.buf.append(self.stream.read(self.buf_size))

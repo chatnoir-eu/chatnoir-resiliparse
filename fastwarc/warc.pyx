@@ -241,6 +241,7 @@ cdef class WarcRecord:
         self._content_length = 0
         self._headers = WarcHeaderMap('utf-8')
         self._http_headers = None
+        self._stream_pos = 0
 
     @property
     def record_id(self):
@@ -278,6 +279,10 @@ cdef class WarcRecord:
     @property
     def reader(self):
         return self._reader
+
+    @property
+    def stream_pos(self):
+        return self._stream_pos
 
     cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=no_type, bytes record_urn=None):
         if record_urn is None:
@@ -474,6 +479,7 @@ cdef class ArchiveIterator:
         self.record = None
         self.parse_http = parse_http
         self.record_type_filter = record_types
+        self.stream_is_compressed = isinstance(stream, CompressingStream)
 
     def __iter__(self):
         cdef _NextRecStatus status
@@ -492,6 +498,13 @@ cdef class ArchiveIterator:
 
         self.record = WarcRecord()
 
+        if self.stream_is_compressed:
+            # Compressed streams advance their position only on block boundaries
+            # and the reader position inside the stream is meaningless.
+            self.record._stream_pos = self.stream.tell()
+        else:
+            self.record._stream_pos = self.reader.tell()
+
         cdef string version_line
         while True:
             version_line = self.reader.readline()
@@ -499,11 +512,14 @@ cdef class ArchiveIterator:
                 # EOF
                 return eof
 
-            version_line = strip_str(version_line)
-            if version_line.empty():
+            if version_line == b'\r\n' or version_line == b'\n':
                 # Consume empty lines
-                pass
-            elif version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
+                if not self.stream_is_compressed:
+                    self.record._stream_pos += version_line.size() + 1
+                continue
+
+            version_line = strip_str(version_line)
+            if version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)
                 break
