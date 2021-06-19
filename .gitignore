@@ -146,6 +146,9 @@ Thumbs.db
 .prof
 
 # Cython C/C++ and HTML profiling files
+fastwarc/**/*.c
+fastwarc/**/*.cpp
+fastwarc/**/*.html
 resiliparse/**/*.c
 resiliparse/**/*.cpp
 resiliparse/**/*.html
