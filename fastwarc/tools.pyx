@@ -143,6 +143,9 @@ def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=
     :return: generator of dicts containing verification result data
     """
 
+    if comp_alg == auto:
+        comp_alg = _detect_comp_alg(warc_in)
+
     in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg)
 
     for record in ArchiveIterator(in_stream, parse_http=False, record_types=WarcRecordType.any_type):
