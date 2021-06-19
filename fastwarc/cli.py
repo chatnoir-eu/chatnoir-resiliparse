@@ -26,6 +26,15 @@ def main():
     pass
 
 
+def _human_readable_bytes(byte_num):
+    for unit in ['bytes', 'KiB', 'MiB', 'GiB', 'TiB']:
+        if byte_num <= 1024 or unit == 'TiB':
+            if int(byte_num) == byte_num:
+                return f'{byte_num:d} {unit}'
+            return f'{byte_num:.2f} {unit}'
+        byte_num /= 1024
+
+
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.argument('outfile', type=click.Path(dir_okay=False, exists=False))
@@ -50,24 +59,19 @@ def recompress(infile, outfile, compress_alg, in_compress_alg, compress_level, q
     bytes_written = 0
     num = 0
     start = time.time()
-    for _, b in tqdm(recompress_warc_interactive(infile, outfile, compress_alg_in, compress_alg, **comp_args),
-                     desc='Recompressing WARC file', unit=' record(s)', leave=False, disable=quiet):
-        num += 1
-        bytes_written += b
+    try:
+        for _, b in tqdm(recompress_warc_interactive(infile, outfile, compress_alg_in, compress_alg, **comp_args),
+                         desc='Recompressing WARC file', unit=' record(s)', leave=False, disable=quiet, mininterval=0.2):
+            num += 1
+            bytes_written += b
 
-    def human_readable(byte_num):
-        for unit in ['bytes', 'KiB', 'MiB', 'GiB', 'TiB']:
-            if byte_num <= 1024 or unit == 'TiB':
-                if int(byte_num) == byte_num:
-                    return f'{byte_num:d} {unit}'
-                return f'{byte_num:.2f} {unit}'
-
-    if not quiet:
-        click.echo('Compression completed.')
-        click.echo(f'  - Records recompressed: {num}')
-        click.echo(f'  - Bytes written: {human_readable(bytes_written)}')
-        click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
-
-
-# if __name__ == '__main__':
-#     sys.exit(main())
+        if not quiet:
+            click.echo('Recompression completed.')
+    except KeyboardInterrupt:
+        if not quiet:
+            click.echo('Recompression aborted.')
+    finally:
+        if not quiet:
+            click.echo(f'  - Records recompressed: {num}')
+            click.echo(f'  - Bytes written: {_human_readable_bytes(bytes_written)}')
+            click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
