@@ -25,7 +25,7 @@ from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from stream_io cimport BytesIOStream, CompressingStream, IOStream, \
+from .stream_io cimport BytesIOStream, CompressingStream, IOStream, \
     BufferedReader, PythonIOStreamAdapter
 
 

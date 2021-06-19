@@ -14,8 +14,8 @@
 
 # distutils: language = c++
 
-from stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, PythonIOStreamAdapter
-from warc cimport ArchiveIterator, WarcRecordType
+from .stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, PythonIOStreamAdapter
+from .warc cimport ArchiveIterator, WarcRecordType
 
 
 cpdef enum CompressionAlg:
