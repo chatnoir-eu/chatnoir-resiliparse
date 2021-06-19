@@ -91,14 +91,15 @@ def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
     decompress_alg = getattr(CompressionAlg, decompress_alg)
 
     failed_digests = []
-    num = 0
+    num_total = 0
+    num_no_digest = 0
     try:
         desc_tpl = 'Verifying digests ({} failed)'
         pbar = tqdm(tools.verify_digests(infile, verify_payloads, decompress_alg),
                     desc=desc_tpl.format(0), unit=' record(s)', leave=False, disable=quiet, mininterval=0.2)
 
         for v in pbar:
-            num += 1
+            num_total += 1
 
             status = 'OK'
             if v['block_digest_ok'] is False:
@@ -117,6 +118,8 @@ def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
             if 'FAIL' in status:
                 failed_digests.append(v['record_id'])
                 pbar.set_description(desc_tpl.format(len(failed_digests)))
+            elif 'NO_DIGEST' in status and 'OK' not in status:
+                num_no_digest += 1
 
             if output:
                 output.write(f'{v["record_id"]}: {status}\n')
@@ -131,7 +134,9 @@ def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
     finally:
         if not quiet:
             if not failed_digests:
-                click.echo(f'{num} records verified successfully.')
+                click.echo(f'{num_total - num_no_digest} records were verified successfully.')
+                if num_no_digest:
+                    click.echo(f'{num_no_digest} records were skipped without digest.')
             else:
                 click.echo('Failed records:')
                 click.echo('===============')
