@@ -28,7 +28,7 @@ cdef class IOStream:
     cdef string read(self, size_t size):
         pass
 
-    cdef size_t write(self, char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size):
         pass
 
     cdef size_t tell(self):
@@ -40,6 +40,35 @@ cdef class IOStream:
     cdef void close(self):
         pass
 
+
+cdef class BytesIOStream(IOStream):
+    def __init__(self, bytes initial_data=b''):
+        self.pos = 0
+        self.buffer = initial_data
+
+    cdef inline size_t tell(self):
+        return self.pos
+
+    cdef inline void seek(self, size_t offset):
+        self.pos = min(self.buffer.size(), self.pos + offset)
+
+    cdef inline string read(self, size_t size):
+        if self.pos >= self.buffer.size():
+            return string()
+        cdef string substr = self.buffer.substr(self.pos, size)
+        self.seek(self.pos + size)
+        return substr
+
+    cdef inline size_t write(self, const char* data, size_t size):
+        self.pos += size
+        self.buffer.append(data, size)
+        return size
+
+    cdef inline void close(self):
+        self.buffer.clear()
+
+    cdef inline string getvalue(self):
+        return self.buffer
 
 cdef class FileStream(IOStream):
     def __init__(self, str filename=None, str mode='rb'):
@@ -74,7 +103,7 @@ cdef class FileStream(IOStream):
             buf.resize(c)
             return buf
 
-    cdef size_t write(self, char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size):
         return fwrite(data, sizeof(char), size, self.fp)
 
     cdef void flush(self):
@@ -232,7 +261,7 @@ cdef class GZipStream(CompressingStream):
 
         return out_buf
 
-    cdef size_t write(self, char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size):
         if self.stream_read_status != Z_STREAM_END:
             # Decompression in progress
             return 0
@@ -408,7 +437,7 @@ cdef class LZ4Stream(CompressingStream):
             self.frame_started = False
         return self.raw_stream.write(self.working_buf.data(), written)
 
-    cdef size_t write(self, char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size):
         if self.dctx != NULL:
             # Compression in progress
             return 0

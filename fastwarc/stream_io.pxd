@@ -124,7 +124,7 @@ cdef extern from * nogil:
 
 cdef class IOStream:
     cdef string read(self, size_t size)
-    cdef size_t write(self, char* data, size_t size)
+    cdef size_t write(self, const char* data, size_t size)
     cdef size_t tell(self)
     cdef void flush(self)
     cdef void close(self)
@@ -139,7 +139,7 @@ cdef class PythonIOStreamAdapter(IOStream):
     cdef inline string read(self, size_t size):
         return self.py_stream.read(size)[:size]
 
-    cdef inline size_t write(self, char * data, size_t size):
+    cdef inline size_t write(self, const char* data, size_t size):
         return self.py_stream.write(data[:size])
 
     cdef inline void flush(self):
@@ -149,10 +149,18 @@ cdef class PythonIOStreamAdapter(IOStream):
         self.py_stream.close()
 
 
+cdef class BytesIOStream(IOStream):
+    cdef string buffer
+    cdef size_t pos
+
+    cdef void seek(self, size_t offset)
+    cdef string getvalue(self)
+
+
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
-    cpdef bint open(self, char* path, char* mode=*) except 0
+    cpdef bint open(self, const char* path, char* mode=*) except 0
     cdef void seek(self, size_t offset)
     cpdef void close(self)
 

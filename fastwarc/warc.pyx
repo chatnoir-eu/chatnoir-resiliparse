@@ -17,7 +17,6 @@
 import base64
 from datetime import datetime
 import hashlib
-import io
 import uuid
 import warnings
 
@@ -26,7 +25,8 @@ from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from stream_io cimport CompressingStream, IOStream, BufferedReader, PythonIOStreamAdapter
+from stream_io cimport BytesIOStream, CompressingStream, IOStream, \
+    BufferedReader, PythonIOStreamAdapter
 
 
 cdef extern from "<cctype>" namespace "std" nogil:
@@ -36,6 +36,7 @@ cdef extern from "<cctype>" namespace "std" nogil:
 cdef extern from "<string>" namespace "std" nogil:
     int stoi(const string& s)
     string to_string(int i)
+    string to_string(size_t i)
 
 cdef size_t strnpos = -1
 
@@ -302,7 +303,7 @@ cdef class WarcRecord:
         self._headers.append_header(b'Content-Length', to_string(content_length))
 
     cpdef void set_bytes_content(self, bytes b):
-        self._reader = BufferedReader(io.BytesIO(b))
+        self._reader = BufferedReader(BytesIOStream(b))
         self._content_length = len(b)
 
     cpdef void parse_http(self):
@@ -320,14 +321,14 @@ cdef class WarcRecord:
             return self._write_impl(self.reader, stream, True, chunk_size)
 
         # Otherwise read everything into memory for content-length correction and checksumming
-        block_buf = io.BytesIO()
+        cdef BytesIOStream block_buf = BytesIOStream()
 
         block_digest = hashlib.sha1() if checksum_data else None
         payload_digest = hashlib.sha1() if checksum_data and self._http_parsed else None
 
         if self._http_parsed:
-            self._http_headers.write(PythonIOStreamAdapter(block_buf))
-            block_buf.write(b'\r\n')
+            self._http_headers.write(block_buf)
+            block_buf.write(b'\r\n', 2)
 
             if checksum_data:
                 block_digest.update(block_buf.getvalue())
@@ -342,7 +343,7 @@ cdef class WarcRecord:
                 block_digest.update(payload_data.data()[:payload_data.size()])
                 if payload_digest is not None:
                     payload_digest.update(payload_data.data()[:payload_data.size()])
-            block_buf.write(payload_data.data()[:payload_data.size()])
+            block_buf.write(payload_data.data(), payload_data.size())
 
         self._headers.set_header(b'Content-Length', to_string(block_buf.tell()))
         if checksum_data:
@@ -409,17 +410,17 @@ cdef class WarcRecord:
             warnings.warn(f'Unsupported hash algorithm "{alg.decode()}".')
             return False
 
-        tee_stream = io.BytesIO()
+        tee_stream = BytesIOStream()
         cdef string block
         while True:
             block = self._reader.read(1024)
             if block.empty():
                 break
             h.update(block)
-            tee_stream.write(block)
+            tee_stream.write(block.data(), block.size())
 
         tee_stream.seek(0)
-        self._reader = BufferedReader(PythonIOStreamAdapter(tee_stream))
+        self._reader = BufferedReader(tee_stream)
 
         return h.digest() == digest
 
