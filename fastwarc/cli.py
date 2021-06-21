@@ -35,7 +35,7 @@ sys.excepthook = exception_handler
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
-    pass
+    return 0
 
 
 def _human_readable_bytes(byte_num):
@@ -142,15 +142,15 @@ def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
         if not quiet:
             click.echo('Verification aborted.')
             sys.exit(1)
-    # finally:
-    #     if not quiet and num_total > 0:
-    #         if not failed_digests:
-    #             click.echo(f'{num_total - num_no_digest} records were verified successfully.')
-    #             if num_no_digest:
-    #                 click.echo(f'{num_no_digest} records were skipped without digest.')
-    #         else:
-    #             click.echo('Failed records:')
-    #             click.echo('===============')
-    #             for rec in failed_digests:
-    #                 click.echo(rec)
-    #             sys.exit(1)
+    finally:
+        if not quiet and num_total > 0:
+            if not failed_digests:
+                click.echo(f'{num_total - num_no_digest} records were verified successfully.')
+                if num_no_digest:
+                    click.echo(f'{num_no_digest} records were skipped without digest.')
+            else:
+                click.echo('Failed records:')
+                click.echo('===============')
+                for rec in failed_digests:
+                    click.echo(rec)
+                sys.exit(1)
