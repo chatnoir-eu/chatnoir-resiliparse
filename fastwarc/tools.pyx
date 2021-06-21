@@ -29,12 +29,19 @@ class IllegalCompressionAlgorithmError(Exception):
     pass
 
 
-def _detect_comp_alg(in_obj):
+def detect_compression_algorithm(infile_name):
+    """
+    Try to detect the used compression algorithm from the given filename.
+    Raises :class:`IllegalCompressionAlgorithmError` if algorithm could not be determined.
+
+    :param infile_name: input filename
+    :return: compression algorithm
+    """
     filename = None
-    if type(in_obj) is str:
-        filename = in_obj
-    elif hasattr(in_obj, 'name'):
-        filename = in_obj.name
+    if type(infile_name) is str:
+        filename = infile_name
+    elif hasattr(infile_name, 'name'):
+        filename = infile_name.name
 
     if type(filename) is str and filename.endswith('.gz'):
         return CompressionAlg.gzip
@@ -46,7 +53,17 @@ def _detect_comp_alg(in_obj):
         raise IllegalCompressionAlgorithmError('Cannot auto-detect compression algorithm.')
 
 
-def _wrap_warc_stream(warc_in, mode='r', CompressionAlg comp_alg=auto, **comp_args):
+def wrap_warc_stream(warc_in, mode='rb', CompressionAlg comp_alg=auto, **comp_args):
+    """
+    Wrap WARC stream based on type and desired compression algorithm for use with
+    :class:`fastwarc.warc.ArchiveIterator`.
+
+    :param warc_in: input stream or filename
+    :param mode: stream open mode
+    :param comp_alg: compression algorithm to use
+    :param comp_args: optional arguments to pass on to the compressing stream
+    :return: wrapped WARC stream
+    """
     if type(warc_in) is str:
         stream = FileStream.__new__(FileStream, warc_in, mode)
     elif isinstance(warc_in, IOStream):
@@ -83,15 +100,15 @@ def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=au
     cdef IOStream out_stream
 
     if comp_alg_in == auto:
-        comp_alg_in = _detect_comp_alg(warc_in)
+        comp_alg_in = detect_compression_algorithm(warc_in)
     if comp_alg_out == auto:
         if type(warc_in) is str:
-            comp_alg_out = _detect_comp_alg(warc_out)
+            comp_alg_out = detect_compression_algorithm(warc_out)
         else:
             raise ValueError('Illegal output compression algorithm: auto')
 
-    in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg_in)
-    out_stream = _wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)
+    in_stream = wrap_warc_stream(warc_in, 'rb', comp_alg_in)
+    out_stream = wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)
 
     num = 0
     for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
@@ -149,9 +166,9 @@ def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=
     """
 
     if comp_alg == auto:
-        comp_alg = _detect_comp_alg(warc_in)
+        comp_alg = detect_compression_algorithm(warc_in)
 
-    in_stream = _wrap_warc_stream(warc_in, 'rb', comp_alg)
+    in_stream = wrap_warc_stream(warc_in, 'rb', comp_alg)
 
     for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
                                           parse_http=False, record_types=WarcRecordType.any_type):
