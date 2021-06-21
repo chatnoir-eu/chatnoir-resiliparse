@@ -28,7 +28,7 @@ from fastwarc.tools import CompressionAlg, IllegalCompressionAlgorithmError, \
     detect_compression_algorithm, wrap_warc_stream
 
 
-@click.group()
+@click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
     return 0
 
