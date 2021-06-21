@@ -86,6 +86,7 @@ cdef class ArchiveIterator:
     cdef BufferedReader reader
     cdef WarcRecord record
     cdef bint parse_http
+    cdef bint verify_digests
     cdef uint16_t record_type_filter
     cdef bint stream_is_compressed
 

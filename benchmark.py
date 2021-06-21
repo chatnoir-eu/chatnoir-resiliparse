@@ -114,12 +114,13 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
 @click.option('-p', '--use-python-stream', is_flag=True,
               help='Use slower Python I/O instead of native FileStream for local files')
 @click.option('-H', '--parse-http', is_flag=True, help='Parse HTTP headers')
+@click.option('-v', '--verify-digests', is_flag=True, help='Verify record block digests')
 @click.option('-f', '--filter-type', type=click.Choice(['warcinfo', 'response', 'resource', 'request', 'metadata',
                                                         'revisit', 'conversation', 'continuation', 'any_type']),
               default=['any_type'], multiple=True, show_default=True, help='Filter for specific WARC record types')
 @click.option('-w', '--bench-warcio', is_flag=True, help='Compare FastWARC performance with WARCIO')
 def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, is_prefix, use_python_stream,
-         parse_http, filter_type, bench_warcio):
+         verify_digests, parse_http, filter_type, bench_warcio):
     """
     Benchmark WARC read performance.
 
@@ -173,7 +174,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
     def _fastwarc_iterator(f):
         s = _get_raw_stream_from_url(f, use_python_stream)
         s = wrap_warc_stream(s, 'rb', decompress_alg)
-        return ArchiveIterator(s, parse_http, rec_type_filter)
+        return ArchiveIterator(s, rec_type_filter, parse_http=parse_http, verify_digests=verify_digests)
 
     n, t_fastwarc = _bench(input_url, _fastwarc_iterator, 'FastWARC')
     click.echo(f'FastWARC: {n} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:.02f} records/s).')
@@ -182,7 +183,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         def _warcio_iterator(f):
             s = _get_raw_stream_from_url(f, True)
             if rec_type_filter == WarcRecordType.any_type:
-                yield from warcio.ArchiveIterator(s, not parse_http)
+                yield from warcio.ArchiveIterator(s, no_record_parse=not parse_http, check_digests=verify_digests)
             else:
                 # WARCIO does not support record filtering out of the box
                 for rec in warcio.ArchiveIterator(s, not parse_http):

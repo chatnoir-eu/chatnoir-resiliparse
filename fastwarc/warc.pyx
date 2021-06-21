@@ -475,7 +475,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 # noinspection PyProtectedMember
 @cython.auto_pickle(False)
 cdef class ArchiveIterator:
-    def __cinit__(self, stream, bint parse_http=True, uint16_t record_types=any_type):
+    def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True, bint verify_digests=False):
         if not isinstance(stream, IOStream):
             for attr in ('read', 'tell', 'close'):
                 if not hasattr(stream, attr):
@@ -486,6 +486,7 @@ cdef class ArchiveIterator:
         self.reader = BufferedReader.__new__(BufferedReader, self.stream)
         self.record = None
         self.parse_http = parse_http
+        self.verify_digests = verify_digests
         self.record_type_filter = record_types
         self.stream_is_compressed = isinstance(stream, CompressingStream)
 
@@ -566,5 +567,8 @@ cdef class ArchiveIterator:
 
         if self.parse_http and self.record._is_http:
             self.record.parse_http()
+
+        if self.verify_digests:
+            self.record.verify_block_digest()
 
         return has_next
