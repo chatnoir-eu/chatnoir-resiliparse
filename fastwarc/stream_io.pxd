@@ -146,7 +146,8 @@ cdef class PythonIOStreamAdapter(IOStream):
         self.py_stream.flush()
 
     cdef inline void close(self):
-        self.py_stream.close()
+        if self.py_stream:
+            self.py_stream.close()
 
 
 cdef class BytesIOStream(IOStream):

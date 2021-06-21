@@ -337,7 +337,8 @@ cdef class GZipStream(CompressingStream):
     cdef void close(self):
         self.end_member()
         self._free_z_stream()
-        self.raw_stream.close()
+        if self.raw_stream:
+            self.raw_stream.close()
 
 
 cdef class LZ4Stream(CompressingStream):
@@ -474,7 +475,8 @@ cdef class LZ4Stream(CompressingStream):
             self.end_member()
 
         self._free_ctx()
-        self.raw_stream.close()
+        if self.raw_stream:
+            self.raw_stream.close()
 
     cdef void _free_ctx(self) nogil:
         if self.cctx != NULL:
@@ -496,6 +498,9 @@ cdef class BufferedReader:
         self.buf = string()
         self.limit = strnpos
         self.limit_consumed = 0
+
+    def __dealloc__(self):
+        self.close()
 
     cdef bint _fill_buf(self):
         if self.buf.size() > 1024u:
@@ -601,4 +606,5 @@ cdef class BufferedReader:
                 self._consume_buf(buf.size())
 
     cpdef void close(self):
-        self.stream.close()
+        if self.stream:
+            self.stream.close()
