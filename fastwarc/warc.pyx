@@ -20,6 +20,7 @@ import hashlib
 import uuid
 import warnings
 
+cimport cython
 from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdint cimport uint16_t
 from libcpp.string cimport string
@@ -472,6 +473,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 
 
 # noinspection PyProtectedMember
+@cython.auto_pickle(False)
 cdef class ArchiveIterator:
     def __cinit__(self, stream, bint parse_http=True, uint16_t record_types=any_type):
         if not isinstance(stream, IOStream):

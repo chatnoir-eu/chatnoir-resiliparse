@@ -15,6 +15,7 @@
 # distutils: language = c++
 
 
+cimport cython
 from libc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from libcpp.string cimport string
 
@@ -24,6 +25,7 @@ import warnings
 cdef size_t strnpos = -1
 
 
+@cython.auto_pickle(False)
 cdef class IOStream:
     cdef string read(self, size_t size):
         pass
@@ -41,6 +43,7 @@ cdef class IOStream:
         pass
 
 
+@cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     def __init__(self, bytes initial_data=b''):
         self.pos = 0
@@ -74,6 +77,8 @@ cdef class BytesIOStream(IOStream):
     cdef inline string getvalue(self):
         return self.buffer
 
+
+@cython.auto_pickle(False)
 cdef class FileStream(IOStream):
     def __cinit__(self, str filename=None, str mode='rb'):
         self.fp = NULL
@@ -119,6 +124,7 @@ cdef class FileStream(IOStream):
             self.fp = NULL
 
 
+@cython.auto_pickle(False)
 cdef class PythonIOStreamAdapter(IOStream):
     def __cinit__(self, py_stream):
         self.py_stream = py_stream
@@ -134,7 +140,7 @@ cdef IOStream wrap_stream(raw_stream):
         return None
 
 
-
+@cython.auto_pickle(False)
 cdef class CompressingStream(IOStream):
     cdef size_t begin_member(self):
         return 0
@@ -143,6 +149,7 @@ cdef class CompressingStream(IOStream):
         return 0
 
 
+@cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         self.raw_stream = wrap_stream(raw_stream)
@@ -341,6 +348,7 @@ cdef class GZipStream(CompressingStream):
             self.raw_stream.close()
 
 
+@cython.auto_pickle(False)
 cdef class LZ4Stream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
         self.raw_stream = wrap_stream(raw_stream)
@@ -491,6 +499,7 @@ cdef class LZ4Stream(CompressingStream):
             self.working_buf.clear()
 
 
+@cython.auto_pickle(False)
 cdef class BufferedReader:
     def __cinit__(self, IOStream stream, size_t buf_size=16384):
         self.stream = stream
