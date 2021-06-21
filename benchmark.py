@@ -181,7 +181,13 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
     if bench_warcio:
         def _warcio_iterator(f):
             s = _get_raw_stream_from_url(f, True)
-            return warcio.ArchiveIterator(s, not parse_http)
+            if rec_type_filter == WarcRecordType.any_type:
+                yield from warcio.ArchiveIterator(s, not parse_http)
+            else:
+                # WARCIO does not support record filtering out of the box
+                for rec in warcio.ArchiveIterator(s, not parse_http):
+                    if rec_type_filter & getattr(WarcRecordType, rec.rec_type) != 0:
+                        yield rec
 
         n, t_warcio = _bench(input_url, _warcio_iterator, 'WARCIO')
         click.echo(f'WARCIO:   {n} records read in {t_warcio:.02f} seconds ({n / t_warcio:.02f} records/s).')
