@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import chain
 import getpass
+import importlib
 import os
 import sys
 import time
@@ -35,26 +37,38 @@ def main():
     return 0
 
 
-def _get_raw_stream_from_url(input_url, endpoint_url=None, aws_access_key=None,  aws_secret_key=None,
-                             use_python_stream=False):
+boto3 = None
+botocore = None
+s3 = None
 
-    # noinspection HttpUrlsUsage
+
+def __init_s3(endpoint_url, aws_access_key,  aws_secret_key=None):
+    global boto3, botocore, s3
+
+    if s3 is not None:
+        return
+
+    try:
+        boto3 = importlib.import_module('boto3')
+        botocore = importlib.import_module('botocore')
+    except ModuleNotFoundError:
+        raise click.UsageError('Boto3 needs to be installed for S3 benchmarking.')
+
+    if not aws_access_key:
+        raise click.UsageError("s3:// URLs require '--aws-access-key' to be set.")
+    if not aws_secret_key:
+        aws_secret_key = getpass.getpass()
+
+    s3 = boto3.resource('s3', endpoint_url=endpoint_url, aws_access_key_id=aws_access_key,
+                        aws_secret_access_key=aws_secret_key)
+
+
+# noinspection PyProtectedMember, HttpUrlsUsage
+def _get_raw_stream_from_url(input_url, use_python_stream=False):
     if input_url.startswith('s3://'):
+        assert s3 is not None
         try:
-            import boto3
-            import botocore
-        except ModuleNotFoundError:
-            raise click.UsageError('Boto3 needs to be installed for S3 benchmarking.')
-
-        if not aws_access_key:
-            raise click.UsageError("s3:// URLs require '--aws-access-key' to be set.")
-        if not aws_secret_key:
-            aws_secret_key = getpass.getpass()
-
-        try:
-            s3 = boto3.resource('s3', endpoint_url=endpoint_url, aws_access_key_id=aws_access_key,
-                                aws_secret_access_key=aws_secret_key)
-            s3_bucket, s3_object = input_url[5:].split('/', 2)
+            s3_bucket, s3_object = input_url[5:].split('/', 1)
             stream = s3.Object(s3_bucket, s3_object).get()['Body']._raw_stream
         except botocore.exceptions.ClientError as e:
             click.echo(f'Error connecting to S3. Message: {e}.', err=True)
@@ -62,6 +76,7 @@ def _get_raw_stream_from_url(input_url, endpoint_url=None, aws_access_key=None, 
 
     elif input_url.startswith('http://') or input_url.startswith('https://'):
         stream = urllib.request.urlopen(input_url)
+
     else:
         if input_url.startswith('file://'):
             input_url = input_url[7:]
@@ -74,14 +89,28 @@ def _get_raw_stream_from_url(input_url, endpoint_url=None, aws_access_key=None, 
     return stream
 
 
+def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key):
+    urls_expanded = []
+    for url in input_urls:
+        if url.startswith('s3://'):
+            __init_s3(endpoint_url, aws_access_key, aws_secret_key)
+            s3_bucket, s3_object_prefix = url[5:].split('/', 1)
+            urls_expanded.extend('/'.join(('s3:/', s3_bucket, o.key))
+                                 for o in s3.Bucket(s3_bucket).objects.filter(Prefix=s3_object_prefix))
+        else:
+            urls_expanded.append(url)
+    return urls_expanded,
+
+
 # noinspection PyPackageRequirements
 @main.command()
-@click.argument('input_url')
+@click.argument('input_url', nargs=-1)
 @click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Decompression algorithm')
 @click.option('-e', '--endpoint-url', help='S3 endpoint URL', default='https://s3.amazonaws.com', show_default=True)
 @click.option('-a', '--aws-access-key', help='AWS access key for s3:// URLs')
 @click.option('-s', '--aws-secret-key', help='AWS secret key for s3:// URLs (leave empty to read from STDIN)')
+@click.option('--is-prefix', is_flag=True, help='Treat input URL as prefix (only for S3)')
 @click.option('-p', '--use-python-stream', is_flag=True,
               help='Use slower Python I/O instead of native FileStream for local files')
 @click.option('-H', '--parse-http', is_flag=True, help='Parse HTTP headers')
@@ -89,7 +118,7 @@ def _get_raw_stream_from_url(input_url, endpoint_url=None, aws_access_key=None, 
                                                         'revisit', 'conversation', 'continuation', 'any_type']),
               default=['any_type'], multiple=True, show_default=True, help='Filter for specific WARC record types')
 @click.option('-w', '--bench-warcio', is_flag=True, help='Compare FastWARC performance with WARCIO')
-def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, use_python_stream,
+def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, is_prefix, use_python_stream,
          parse_http, filter_type, bench_warcio):
     """
     Benchmark WARC read performance.
@@ -100,7 +129,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
 
     try:
         if decompress_alg == 'auto':
-            decompress_alg = detect_compression_algorithm(input_url)
+            decompress_alg = detect_compression_algorithm(input_url[0])
         else:
             decompress_alg = getattr(CompressionAlg, decompress_alg)
     except IllegalCompressionAlgorithmError:
@@ -115,11 +144,13 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         try:
             import warcio
         except ModuleNotFoundError:
-            click.echo("--use-warcio requires 'warcio' to be installed.", err=True)
+            click.echo("--bench-warcio requires 'warcio' to be installed.", err=True)
             sys.exit(1)
 
-    stream = _get_raw_stream_from_url(input_url, endpoint_url, aws_access_key, aws_secret_key, use_python_stream)
-    stream = wrap_warc_stream(stream, 'rb', decompress_alg)
+    if is_prefix:
+        input_url = _expand_s3_prefixes(input_url, endpoint_url, aws_access_key, aws_secret_key)
+
+    click.echo(f'Benchmarking read performance from {len(input_url)} input path(s)...')
 
     rec_type_filter = WarcRecordType.any_type
     if 'any_type' not in filter_type:
@@ -127,21 +158,32 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         for t in filter_type:
             rec_type_filter |= getattr(WarcRecordType, t)
 
-    def _bench(it, lib):
+    def _bench(urls, stream_loader, lib):
         start = time.monotonic()
         num = 0
-        for _ in tqdm(it, desc=f'Benchmarking {lib}', unit=' records', leave=False):
+
+        def _load_lazy(u, l):
+            yield from l(u)
+
+        for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
+                      desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
             num += 1
         return num, time.monotonic() - start
 
-    archive_it_fastwarc = ArchiveIterator(stream, parse_http, rec_type_filter)
-    n, t_fastwarc = _bench(archive_it_fastwarc, 'FastWARC')
+    def _fastwarc_iterator(f):
+        s = _get_raw_stream_from_url(f, use_python_stream)
+        s = wrap_warc_stream(s, 'rb', decompress_alg)
+        return ArchiveIterator(s, parse_http, rec_type_filter)
+
+    n, t_fastwarc = _bench(input_url, _fastwarc_iterator, 'FastWARC')
     click.echo(f'FastWARC: {n} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:.02f} records/s).')
 
     if bench_warcio:
-        stream = _get_raw_stream_from_url(input_url, endpoint_url, aws_access_key, aws_secret_key, True)
-        archive_it_warcio = warcio.ArchiveIterator(stream, not parse_http)
-        n, t_warcio = _bench(archive_it_warcio, 'WARCIO')
+        def _warcio_iterator(f):
+            s = _get_raw_stream_from_url(f, True)
+            return warcio.ArchiveIterator(s, not parse_http)
+
+        n, t_warcio = _bench(input_url, _warcio_iterator, 'WARCIO')
         click.echo(f'WARCIO:   {n} records read in {t_warcio:.02f} seconds ({n / t_warcio:.02f} records/s).')
         click.echo(f'Time difference: {t_fastwarc - t_warcio:.02f} seconds, speedup: {t_warcio / t_fastwarc:.02f}')
 
