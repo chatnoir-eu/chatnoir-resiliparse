@@ -130,7 +130,7 @@ cdef IOStream wrap_stream(raw_stream):
     elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
         return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, raw_stream)
     else:
-        warnings.warn(f'Object of type "{type(raw_stream).__name__}" is not a valid stream.', RuntimeWarning)
+        warnings.warn(f"Object of type '{type(raw_stream).__name__}' is not a valid stream.", RuntimeWarning)
         return None
 
 

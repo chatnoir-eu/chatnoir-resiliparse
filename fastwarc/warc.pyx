@@ -368,7 +368,7 @@ cdef class WarcRecord:
         elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
             out_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, out_stream)
         else:
-            warnings.warn(f'Object of type "{type(out_stream).__name__}" is not a valid stream.', RuntimeWarning)
+            warnings.warn(f"Object of type '{type(out_stream).__name__}' is not a valid stream.", RuntimeWarning)
             return 0
 
         bytes_written += self._headers.write(out_stream_wrapped)

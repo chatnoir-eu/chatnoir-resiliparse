@@ -54,7 +54,7 @@ def _wrap_warc_stream(warc_in, mode='r', CompressionAlg comp_alg=auto, **comp_ar
     elif hasattr(warc_in, 'write' if 'w' in mode else 'read'):
         stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, warc_in)
     else:
-        raise TypeError(f'Object of type {type(warc_in).__name__} is not a valid input stream object')
+        raise TypeError(f"Object of type '{type(warc_in).__name__}' is not a valid input stream object.")
 
     if comp_alg == gzip:
         stream = GZipStream.__new__(GZipStream, stream, **comp_args)
