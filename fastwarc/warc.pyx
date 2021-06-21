@@ -475,8 +475,9 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 cdef class ArchiveIterator:
     def __cinit__(self, stream, bint parse_http=True, uint16_t record_types=any_type):
         if not isinstance(stream, IOStream):
-            if not hasattr(stream, 'read'):
-                raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute 'read'.")
+            for attr in ('read', 'tell', 'close'):
+                if not hasattr(stream, attr):
+                    raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute '{attr}'.")
             stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, stream)
 
         self.stream = <IOStream>stream
