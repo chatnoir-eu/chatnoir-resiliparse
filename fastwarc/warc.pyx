@@ -25,8 +25,7 @@ from libc.stdint cimport uint16_t
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from .stream_io cimport BytesIOStream, CompressingStream, IOStream, \
-    BufferedReader, PythonIOStreamAdapter
+from .stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
 
 
 cdef extern from "<cctype>" namespace "std" nogil:
@@ -474,8 +473,13 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 
 # noinspection PyProtectedMember
 cdef class ArchiveIterator:
-    def __cinit__(self, IOStream stream, bint parse_http=True, uint16_t record_types=any_type):
-        self.stream = stream
+    def __cinit__(self, stream, bint parse_http=True, uint16_t record_types=any_type):
+        if not isinstance(stream, IOStream):
+            if not hasattr(stream, 'read'):
+                raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute 'read'.")
+            stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, stream)
+
+        self.stream = <IOStream>stream
         self.reader = BufferedReader.__new__(BufferedReader, self.stream)
         self.record = None
         self.parse_http = parse_http
