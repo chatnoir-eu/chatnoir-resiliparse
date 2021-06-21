@@ -40,9 +40,9 @@ def main():
 @click.option('-e', '--endpoint-url', help='S3 endpoint URL', default='https://s3.amazonaws.com', show_default=True)
 @click.option('-a', '--aws-access-key', help='AWS access key for s3:// URLs')
 @click.option('-s', '--aws-secret-key', help='AWS secret key for s3:// URLs')
-@click.option('-n', '--use-python-stream', is_flag=True,
+@click.option('-p', '--use-python-stream', is_flag=True,
               help='Use slower Python I/O instead of native FileStream for local files')
-@click.option('-p', '--parse-http', is_flag=True, help='Parse HTTP headers')
+@click.option('-H', '--parse-http', is_flag=True, help='Parse HTTP headers')
 @click.option('-f', '--filter-type', type=click.Choice(['warcinfo', 'response', 'resource', 'request', 'metadata',
                                                         'revisit', 'conversation', 'continuation', 'any_type']),
               default=['any_type'], multiple=True, show_default=True, help='Filter for specific WARC record types')
