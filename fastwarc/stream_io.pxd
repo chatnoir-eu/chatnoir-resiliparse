@@ -108,6 +108,8 @@ cdef extern from "<string_view>" namespace "std" nogil:
         string_view substr() const
         size_t find(const char* s, size_t pos)
         size_t find(const char* s)
+        const char& front()
+        const char& back()
         string_view remove_prefix(size_t n)
         string_view remove_suffix(size_t n)
 

@@ -568,7 +568,8 @@ cdef class BufferedReader:
         cdef string_view buf = self._get_buf()
         cdef char* newline_sep = b'\r\n' if crlf else '\n'
         cdef short newline_offset = 1 if crlf else 0
-        cdef size_t pos = buf.find(newline_sep) + newline_offset
+        cdef size_t pos = buf.find(newline_sep)
+        cdef bint last_was_cr = False
 
         with nogil:
             while pos == strnpos:
@@ -576,20 +577,29 @@ cdef class BufferedReader:
                     line.append(<string>buf.substr(0, min(buf.size(), capacity_remaining)))
                     capacity_remaining -= line.size()
 
+                # CRLF may be split
+                last_was_cr = crlf and buf.back() == <char>b'\r'
+
                 # Consume rest of line
                 self._consume_buf(buf.size())
+
                 with gil:
                     if not self._fill_buf():
                         break
+                buf = self._get_buf()
+                if last_was_cr and buf.front() == <char>b'\n':
+                    if capacity_remaining:
+                        line.append(b'\n')
+                    self._consume_buf(1)
+                    pos = strnpos
+                    break
 
-                    buf = self._get_buf()
-                pos = buf.find(newline_sep) + newline_offset
+                pos = buf.find(newline_sep)
 
             if not buf.empty() and pos != strnpos:
                 if capacity_remaining > 0:
-                    line.append(<string>buf.substr(0, min(pos + 1, capacity_remaining)))
-
-                self._consume_buf(pos + 1)
+                    line.append(<string>buf.substr(0, min(pos + 1 + newline_offset, capacity_remaining)))
+                self._consume_buf(pos + 1 + newline_offset)
 
         return line
 
