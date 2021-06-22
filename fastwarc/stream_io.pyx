@@ -380,47 +380,42 @@ cdef class LZ4Stream(CompressingStream):
                 self._free_ctx()
                 return string()
 
-        cdef string out_buf
-        cdef size_t ret, in_buf_size, out_buf_size, working_buf_size
+        cdef string out_buf = string(size, <char>0)
+        cdef size_t ret, bytes_read, bytes_written
         with nogil:
-            working_buf_size = self.working_buf.size()
-            out_buf.resize(size)
-            out_buf_size = out_buf.size()
+            bytes_read = self.working_buf.size()
+            bytes_written = out_buf.size()
 
             if self.dctx == NULL:
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
-            ret = LZ4F_decompress(self.dctx, out_buf.data(), &out_buf_size,
-                                  self.working_buf.data(), &working_buf_size, NULL)
-
-            while ret != 0 and out_buf_size == 0 and not LZ4F_isError(ret):
+            ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
+                                  self.working_buf.data(), &bytes_read, NULL)
+            while ret != 0 and bytes_written == 0 and not LZ4F_isError(ret):
                 with gil:
-                    self.working_buf = self.raw_stream.read(size)
+                    strerase(self.working_buf, 0, bytes_read)
+                    self.working_buf.append(self.raw_stream.read(size))
                 if self.working_buf.empty():
                     # EOF
                     self._free_ctx()
-                    break
-                working_buf_size = self.working_buf.size()
-                out_buf_size = out_buf.size()
-                ret = LZ4F_decompress(self.dctx, out_buf.data(), &out_buf_size,
-                                      self.working_buf.data(), &working_buf_size, NULL)
+                    return string()
+                bytes_read = self.working_buf.size()
+                bytes_written = out_buf.size()
+                ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
+                                      self.working_buf.data(), &bytes_read, NULL)
 
             if ret == 0:
+                # Frame end
                 with gil:
-                    # Update stream position for tell() on frame boundaries
-                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + working_buf_size + 1
+                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read + 1
 
-            if self.working_buf.size() == working_buf_size:
-                # Buffer fully consumed
-                self.working_buf.clear()
-            else:
-                self.working_buf = self.working_buf.substr(working_buf_size)
+            strerase(self.working_buf, 0, bytes_read)
 
-            if out_buf.size() != out_buf_size:
-                out_buf.resize(out_buf_size)
+            if out_buf.size() != bytes_written:
+                out_buf.resize(bytes_written)
 
         if out_buf.empty() and not LZ4F_isError(ret):
-            # Everything OK, but no output produced yet
+            # Everything OK, we may have hit a frame boundary
             return self.read(size)
 
         return out_buf
@@ -512,7 +507,7 @@ cdef class BufferedReader:
         self.close()
 
     cdef bint _fill_buf(self):
-        if self.buf.size() > 1024u:
+        if self.buf.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
         self.buf.append(self.stream.read(self.buf_size))
