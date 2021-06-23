@@ -500,7 +500,7 @@ cdef class ArchiveIterator:
                 self.reader.close()
                 return
 
-    cdef _NextRecStatus _read_next_record(self):
+    cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error:
         if self.record is not None:
             self.reader.consume()
             self.reader.reset_limit()
@@ -517,6 +517,9 @@ cdef class ArchiveIterator:
         cdef string version_line
         while True:
             version_line = self.reader.readline()
+            if not self.reader.error().empty():
+                raise OSError(self.reader.error().decode())
+
             if version_line.empty():
                 # EOF
                 return eof

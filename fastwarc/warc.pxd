@@ -57,7 +57,8 @@ cdef class WarcHeaderMap:
 cdef enum _NextRecStatus:
     has_next,
     skip_next,
-    eof
+    eof,
+    error
 
 
 cdef class WarcRecord:
@@ -90,4 +91,4 @@ cdef class ArchiveIterator:
     cdef uint16_t record_type_filter
     cdef bint stream_is_compressed
 
-    cdef _NextRecStatus _read_next_record(self)
+    cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error

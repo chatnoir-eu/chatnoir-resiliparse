@@ -21,6 +21,11 @@ from libcpp.string cimport string
 
 import warnings
 
+cdef extern from "<errno.h>" nogil:
+    int errno
+
+cdef extern from "<string.h>" nogil:
+    char* strerror(int errnum)
 
 cdef size_t strnpos = -1
 
@@ -41,6 +46,9 @@ cdef class IOStream:
 
     cdef void close(self):
         pass
+
+    cdef string error(self):
+        return self.errstr
 
 
 # noinspection PyAttributeOutsideInit
@@ -90,14 +98,15 @@ cdef class FileStream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cpdef bint open(self, char* path, char* mode=b'rb') except 0:
+    cpdef void open(self, char* path, char* mode=b'rb') except *:
         if self.fp != NULL:
             self.close()
 
         self.fp = fopen(path, mode)
         if self.fp == NULL:
-            raise FileNotFoundError(f"No such file or directory: '{path.decode()}'")
-        return True
+            self.errstr = strerror(errno)
+            raise OSError(self.errstr.decode())
+        self.errstr.clear()
 
     cdef void seek(self, size_t offset):
         fseek(self.fp, offset, SEEK_SET)
@@ -111,11 +120,18 @@ cdef class FileStream(IOStream):
         with nogil:
             buf.resize(size)
             c = fread(buf.data(), sizeof(char), size, self.fp)
+            if errno:
+                self.errstr = strerror(errno)
+                return string()
             buf.resize(c)
             return buf
 
     cdef size_t write(self, const char* data, size_t size):
-        return fwrite(data, sizeof(char), size, self.fp)
+        cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
+        if errno:
+            self.errstr = strerror(errno)
+            return 0
+        return w
 
     cdef void flush(self):
         fflush(self.fp)
@@ -188,6 +204,7 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_out = 0
         self.stream_read_status = Z_STREAM_END
         self.working_buf.clear()
+        self.errstr.clear()
 
         if deflate:
             deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
@@ -246,10 +263,11 @@ cdef class GZipStream(CompressingStream):
 
                 self.stream_read_status = inflate(&self.zst, Z_NO_FLUSH)
 
-            # Error
-            if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
-                self._free_z_stream()
-                return string()
+        # Error
+        if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
+            self._free_z_stream()
+            self.errstr = string(b'Not a valid GZip stream.')
+            return string()
 
         if self.stream_read_status == Z_STREAM_END:
             # Member end
@@ -343,6 +361,13 @@ cdef class GZipStream(CompressingStream):
         if self.raw_stream:
             self.raw_stream.close()
 
+    cdef string error(self):
+        if not self.errstr.empty():
+            return self.errstr
+        elif self.raw_stream:
+            return self.raw_stream.error()
+        return string()
+
 
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
@@ -384,6 +409,7 @@ cdef class LZ4Stream(CompressingStream):
             bytes_written = out_buf.size()
 
             if self.dctx == NULL:
+                self.errstr.clear()
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
             ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
@@ -405,13 +431,16 @@ cdef class LZ4Stream(CompressingStream):
                 # Frame end
                 with gil:
                     self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read + 1
-
+            elif LZ4F_isError(ret):
+                self._free_ctx()
+                self.errstr = string(b'Not a valid LZ4 stream.')
+                return string()
             strerase(self.working_buf, 0, bytes_read)
 
             if out_buf.size() != bytes_written:
                 out_buf.resize(bytes_written)
 
-        if out_buf.empty() and not LZ4F_isError(ret):
+        if out_buf.empty():
             # Everything OK, we may have hit a frame boundary
             return self.read(size)
 
@@ -421,6 +450,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t written
         with nogil:
             if self.cctx == NULL:
+                self.errstr.clear()
                 LZ4F_isError(LZ4F_createCompressionContext(&self.cctx, LZ4F_VERSION))
 
             if self.frame_started:
@@ -490,6 +520,13 @@ cdef class LZ4Stream(CompressingStream):
         if not self.working_buf.empty():
             self.working_buf.clear()
 
+    cdef string error(self):
+        if not self.errstr.empty():
+            return self.errstr
+        elif self.raw_stream:
+            return self.raw_stream.error()
+        return string()
+
 
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
@@ -504,7 +541,7 @@ cdef class BufferedReader:
     def __dealloc__(self):
         self.close()
 
-    cdef bint _fill_buf(self):
+    cdef bint _fill_buf(self) except -1:
         if self.buf.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
@@ -620,3 +657,8 @@ cdef class BufferedReader:
     cpdef void close(self):
         if self.stream:
             self.stream.close()
+
+    cpdef string error(self):
+        if self.stream:
+            return self.stream.error()
+        return string()

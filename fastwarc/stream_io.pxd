@@ -125,13 +125,17 @@ cdef extern from * nogil:
 
 
 cdef class IOStream:
+    cdef string errstr
+
     cdef string read(self, size_t size)
     cdef size_t write(self, const char* data, size_t size)
     cdef size_t tell(self)
     cdef void flush(self)
     cdef void close(self)
+    cdef string error(self)
 
 
+# noinspection PyAttributeOutsideInit
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
@@ -139,10 +143,18 @@ cdef class PythonIOStreamAdapter(IOStream):
         return self.py_stream.tell()
 
     cdef inline string read(self, size_t size):
-        return self.py_stream.read(size)[:size]
+        try:
+            return self.py_stream.read(size)[:size]
+        except Exception as e:
+            self.errstr = str(e).encode()
+            return string()
 
     cdef inline size_t write(self, const char* data, size_t size):
-        return self.py_stream.write(data[:size])
+        try:
+            return self.py_stream.write(data[:size])
+        except Exception as e:
+            self.errstr = str(e).encode()
+            return 0
 
     cdef inline void flush(self):
         self.py_stream.flush()
@@ -163,7 +175,7 @@ cdef class BytesIOStream(IOStream):
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
-    cpdef bint open(self, const char* path, char* mode=*) except 0
+    cpdef void open(self, const char* path, char* mode=*) except *
     cdef void seek(self, size_t offset)
     cpdef void close(self)
 
@@ -216,7 +228,8 @@ cdef class BufferedReader:
     cpdef size_t tell(self)
     cpdef void consume(self, size_t size=*)
     cpdef void close(self)
+    cpdef string error(self)
 
-    cdef bint _fill_buf(self)
+    cdef bint _fill_buf(self) except -1
     cdef inline string_view _get_buf(self) nogil
     cdef inline void _consume_buf(self, size_t size) nogil
