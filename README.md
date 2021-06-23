@@ -99,11 +99,14 @@ for record in ArchiveIterator(stream):
     record.http_headers     # Dict-like object containing the parsed HTTP headers
     record.reader           # A BufferedReader for the record content
 
-    # Consume up to 1024 bytes from the record stream
-    record.reader.read(1024)
+    # Read and return up to 1024 bytes from the record stream
+    body = record.reader.read(1024)
     
     # Consume and return the remaining record bytes
-    record.reader.read()
+    body += record.reader.read()
+
+    # Or: Consume rest of stream without allocating a buffer for it (i.e., skip over)
+    record.reader.consume()
 ```
 As you can see, HTTP request and response records are parsed automatically for convenience. If not needed, you can disable this behaviour by passing `parse_http=False` to the `ArchiveIterator` constructor to avoid unnecessary processing. `record.reader` will then start at the beginning of the HTTP header block instead of the HTTP body. You can parse HTTP headers later on a per-record basis by calling `record.parse_http()` as long as the `BufferedReader` hasn't been consumed at that point.
 
