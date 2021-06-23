@@ -43,6 +43,7 @@ cdef class IOStream:
         pass
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     def __init__(self, bytes initial_data=b''):
@@ -78,6 +79,7 @@ cdef class BytesIOStream(IOStream):
         return self.buffer
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class FileStream(IOStream):
     def __cinit__(self, str filename=None, str mode='rb'):
@@ -153,6 +155,7 @@ cdef char _GZIP_DEFLATE = 1
 cdef char _GZIP_INFLATE = 2
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
@@ -341,6 +344,7 @@ cdef class GZipStream(CompressingStream):
             self.raw_stream.close()
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class LZ4Stream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
@@ -487,6 +491,7 @@ cdef class LZ4Stream(CompressingStream):
             self.working_buf.clear()
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BufferedReader:
     def __cinit__(self, IOStream stream, size_t buf_size=16384):

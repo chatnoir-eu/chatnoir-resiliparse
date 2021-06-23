@@ -233,7 +233,7 @@ cdef class WarcHeaderMap:
         self._dict_cache_stale = True
 
 
-# noinspection PyAttributeOutsideInit,PyProtectedMember
+# noinspection PyProtectedMember, PyAttributeOutsideInit
 cdef class WarcRecord:
     def __cinit__(self):
         self._record_type = unknown
@@ -472,7 +472,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     return bytes_consumed
 
 
-# noinspection PyProtectedMember
+# noinspection PyProtectedMember, PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class ArchiveIterator:
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True, bint verify_digests=False):
