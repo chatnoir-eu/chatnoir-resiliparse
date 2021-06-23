@@ -123,7 +123,7 @@ Note that the `verify_*` methods will simply return `False` if the headers do no
 Another small warning: Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place). If your records are very large, you need to ensure that they fit entirely into memory (e.g. by checking `record.content_length`).
 
 ## Command Line Interface (CLI)
-Besides the Python API, FastWARC also provides a command line interface via the `fastwarc` command:
+Besides the Python API, FastWARC also provides a command line interface with the `fastwarc` command:
 ```bash
 $ fastwarc --help
 Usage: fastwarc [OPTIONS] COMMAND [ARGS]...
@@ -154,7 +154,7 @@ $ fastwarc recompress INFILE OUTFILE
 Run `fastwarc recompress --help` for a full help listing.
 
 ## Benchmarking FastWARC vs. WARCIO
-FastWARC comes with a benchmarking tool that allows you to test record decompression and parsing speeds and compare them with WARCIO. Depending on your CPU, your storage speed, and the used compression algorithm, you can expect speedups between 1.5x and 6x compared to WARCIO.
+FastWARC comes with a benchmarking tool that allows you to test record decompression and parsing speeds and compare them with WARCIO. Depending on your CPU, your storage speed, and the used compression algorithm, you can expect speedups between 1.5x and 6x over WARCIO.
 
 Here are a few example runs:
 ```bash
@@ -172,7 +172,7 @@ FastWARC: 126049 records read in 13.73 seconds (9179.65 records/s).
 WARCIO:   126049 records read in 22.79 seconds (5529.95 records/s).
 Time difference: -9.06 seconds, speedup: 1.66
 
-# LZ4 WARC (direct comparison not supported, since WARCIO does not support LZ4)
+# LZ4 WARC (direct comparison not possible, since WARCIO does not support LZ4)
 $ ./benchmark.py read foo.warc.lz4
 Benchmarking read performance from 1 input path(s)...
 FastWARC: 126049 records read in 2.70 seconds (46668.25 records/s).
