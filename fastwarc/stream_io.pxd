@@ -175,9 +175,8 @@ cdef class BytesIOStream(IOStream):
 cdef class FileStream(IOStream):
     cdef FILE* fp
 
-    cpdef void open(self, const char* path, char* mode=*) except *
+    cdef void open(self, const char* path, char* mode=*) except *
     cdef void seek(self, size_t offset)
-    cpdef void close(self)
 
 
 cdef class CompressingStream(IOStream):

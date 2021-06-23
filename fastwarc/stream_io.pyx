@@ -98,7 +98,7 @@ cdef class FileStream(IOStream):
     def __dealloc__(self):
         self.close()
 
-    cpdef void open(self, char* path, char* mode=b'rb') except *:
+    cdef void open(self, char* path, char* mode=b'rb') except *:
         if self.fp != NULL:
             self.close()
 
@@ -136,7 +136,7 @@ cdef class FileStream(IOStream):
     cdef void flush(self):
         fflush(self.fp)
 
-    cpdef void close(self):
+    cdef void close(self):
         if self.fp != NULL:
             fclose(self.fp)
             self.fp = NULL
