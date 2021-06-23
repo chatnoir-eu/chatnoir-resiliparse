@@ -32,7 +32,7 @@ Since FastWARC is written in C++, it needs to be compiled for each target platfo
 
 Before you can build the binaries, you need to install all build-time dependencies. For Debian / Ubuntu, this is done with:
 ```
-apt install build-essential python3-dev libz-dev liblz4-dev
+apt install build-essential python3-dev zlib1g-dev liblz4-dev
 ```
 
 You can then build and install the binaries like so:
