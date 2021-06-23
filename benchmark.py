@@ -28,8 +28,7 @@ from tqdm import tqdm
 
 from fastwarc.stream_io import FileStream
 from fastwarc.warc import ArchiveIterator, WarcRecordType
-from fastwarc.tools import CompressionAlg, IllegalCompressionAlgorithmError, \
-    detect_compression_algorithm, wrap_warc_stream
+from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
@@ -128,14 +127,10 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
     Supported compression algorithms are GZip, LZ4, or uncompressed.
     """
 
-    try:
-        if decompress_alg == 'auto':
-            decompress_alg = detect_compression_algorithm(input_url[0])
-        else:
-            decompress_alg = getattr(CompressionAlg, decompress_alg)
-    except IllegalCompressionAlgorithmError:
-        click.echo('Could not auto-detect compression algorithm.', err=True)
-        sys.exit(1)
+    if decompress_alg == 'auto':
+        decompress_alg = detect_compression_algorithm(input_url[0])
+    else:
+        decompress_alg = getattr(CompressionAlg, decompress_alg)
 
     if bench_warcio:
         if decompress_alg == CompressionAlg.lz4:
@@ -166,9 +161,13 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         def _load_lazy(u, l):
             yield from l(u)
 
-        for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
-                      desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
-            num += 1
+        try:
+            for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
+                          desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
+                num += 1
+        except OSError as e:
+            click.echo(f'Error reading input: {e}', err=True)
+            sys.exit(1)
         return num, time.monotonic() - start
 
     def _fastwarc_iterator(f):

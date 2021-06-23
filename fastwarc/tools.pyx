@@ -25,14 +25,9 @@ cpdef enum CompressionAlg:
     auto
 
 
-class IllegalCompressionAlgorithmError(Exception):
-    pass
-
-
 def detect_compression_algorithm(infile_name):
     """
     Try to detect the used compression algorithm from the given filename.
-    Raises :class:`IllegalCompressionAlgorithmError` if algorithm could not be determined.
 
     :param infile_name: input filename
     :return: compression algorithm
@@ -50,7 +45,8 @@ def detect_compression_algorithm(infile_name):
     elif type(filename) is str and filename.endswith('.warc'):
         return CompressionAlg.uncompressed
     else:
-        raise IllegalCompressionAlgorithmError('Cannot auto-detect compression algorithm.')
+        # Unknown, let stream negotiation try to determine the stream format
+        return CompressionAlg.auto
 
 
 def wrap_warc_stream(warc_in, mode='rb', CompressionAlg comp_alg=auto, **comp_args):

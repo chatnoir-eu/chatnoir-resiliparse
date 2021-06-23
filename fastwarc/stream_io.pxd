@@ -194,6 +194,7 @@ cdef class GZipStream(CompressingStream):
     cdef bint member_started
     cdef int compression_level
 
+    cdef void prepopulate(self, bint deflate, const string& initial_data)
     cdef void _init_z_stream(self, bint deflate) nogil
     cdef void _free_z_stream(self) nogil
     cdef bint _refill_working_buf(self, size_t size) nogil
@@ -208,19 +209,23 @@ cdef class LZ4Stream(CompressingStream):
     cdef bint frame_started
     cdef size_t stream_pos
 
+    cdef void prepopulate(self, const string& initial_data)
     cdef void _free_ctx(self) nogil
 
 
 cdef class BufferedReader:
     cdef IOStream stream
+    cdef string errstr
     cdef string buf
     cdef size_t buf_size
     cdef size_t stream_pos
     cdef size_t limit
     cdef size_t limit_consumed
+    cdef bint negotiate_stream
 
     cdef inline void set_limit(self, size_t offset) nogil
     cdef inline void reset_limit(self) nogil
+    cdef void detect_stream_type(self)
 
     cpdef string read(self, size_t size=*)
     cpdef string readline(self, bint crlf=*, size_t max_line_len=*)
@@ -229,6 +234,6 @@ cdef class BufferedReader:
     cpdef void close(self)
     cpdef string error(self)
 
-    cdef bint _fill_buf(self) except -1
+    cdef bint _fill_buf(self)
     cdef inline string_view _get_buf(self) nogil
     cdef inline void _consume_buf(self, size_t size) nogil

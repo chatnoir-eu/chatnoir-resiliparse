@@ -199,8 +199,8 @@ cdef class GZipStream(CompressingStream):
         self.zst.zalloc = Z_NULL
         self.zst.zfree = Z_NULL
         self.zst.next_in = NULL
-        self.zst.avail_in = 0
         self.zst.next_out = NULL
+        self.zst.avail_in = 0
         self.zst.avail_out = 0
         self.stream_read_status = Z_STREAM_END
         self.working_buf.clear()
@@ -212,6 +212,12 @@ cdef class GZipStream(CompressingStream):
         else:
             inflateInit2(&self.zst, 16 + MAX_WBITS)
             self.initialized = _GZIP_INFLATE
+
+    cdef void prepopulate(self, bint deflate, const string& initial_data):
+        self._init_z_stream(deflate)
+        self.working_buf.append(initial_data)
+        self.zst.next_in = <Bytef*>self.working_buf.data()
+        self.zst.avail_in = self.working_buf.size()
 
     cdef void _free_z_stream(self) nogil:
         if not self.initialized:
@@ -266,7 +272,7 @@ cdef class GZipStream(CompressingStream):
         # Error
         if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
             self._free_z_stream()
-            self.errstr = string(b'Not a valid GZip stream.')
+            self.errstr = string(b'Not a valid GZip stream')
             return string()
 
         if self.stream_read_status == Z_STREAM_END:
@@ -390,6 +396,9 @@ cdef class LZ4Stream(CompressingStream):
             return self.stream_pos
         return self.raw_stream.tell()
 
+    cdef void prepopulate(self, const string& initial_data):
+        self.working_buf.append(initial_data)
+
     cdef string read(self, size_t size):
         if self.cctx != NULL:
             # Decompression in progress
@@ -433,7 +442,7 @@ cdef class LZ4Stream(CompressingStream):
                     self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read + 1
             elif LZ4F_isError(ret):
                 self._free_ctx()
-                self.errstr = string(b'Not a valid LZ4 stream.')
+                self.errstr = string(b'Not a valid LZ4 stream')
                 return string()
             strerase(self.working_buf, 0, bytes_read)
 
@@ -537,11 +546,36 @@ cdef class BufferedReader:
         self.buf = string()
         self.limit = strnpos
         self.limit_consumed = 0
+        self.negotiate_stream = not isinstance(stream, CompressingStream)
 
     def __dealloc__(self):
         self.close()
 
-    cdef bint _fill_buf(self) except -1:
+    cdef void detect_stream_type(self):
+        if not self.negotiate_stream:
+            return
+
+        self.negotiate_stream = False
+        if self.buf.empty():
+            self._fill_buf()
+
+        if self.buf.size() > 2 and self.buf[0] == <char> 0x1f and self.buf[1] == <char> 0x8b:
+            self.stream = GZipStream.__new__(GZipStream, self.stream)
+            (<GZipStream> self.stream).prepopulate(False, self.buf)
+        elif self.buf.size() > 4 and self.buf.substr(0, 4) == <char*>b'\x04\x22\x4d\x18':
+            self.stream = LZ4Stream.__new__(LZ4Stream, self.stream)
+            (<LZ4Stream> self.stream).prepopulate(self.buf)
+        elif self.buf.size() > 5 and self.buf.substr(0, 5) == <char*>b'WARC/':
+            # Stream is uncompressed: bail out, dont' mess with buffers
+            return
+        else:
+            self.errstr = <char*>b'Not a valid WARC stream'
+            return
+
+        self.buf.clear()
+        self.buf.append(self.stream.read(self.buf_size))
+
+    cdef bint _fill_buf(self):
         if self.buf.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
@@ -659,6 +693,8 @@ cdef class BufferedReader:
             self.stream.close()
 
     cpdef string error(self):
+        if not self.errstr.empty():
+            return self.errstr
         if self.stream:
             return self.stream.error()
         return string()

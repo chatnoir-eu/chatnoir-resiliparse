@@ -492,6 +492,8 @@ cdef class ArchiveIterator:
 
     def __iter__(self):
         cdef _NextRecStatus status
+
+        self.reader.detect_stream_type()
         while True:
             status = self._read_next_record()
             if status == has_next:
