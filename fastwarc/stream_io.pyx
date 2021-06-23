@@ -149,13 +149,17 @@ cdef class CompressingStream(IOStream):
         return 0
 
 
+cdef char _GZIP_DEFLATE = 1
+cdef char _GZIP_INFLATE = 2
+
+
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf = string()
-        self.initialized = False
+        self.initialized = 0
         self.stream_read_status = Z_STREAM_END
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
@@ -164,7 +168,7 @@ cdef class GZipStream(CompressingStream):
         self.close()
 
     cdef size_t tell(self):
-        if self.stream_read_status != Z_STREAM_END:
+        if self.initialized == _GZIP_INFLATE:
             return self.stream_pos
         return self.raw_stream.tell()
 
@@ -184,16 +188,20 @@ cdef class GZipStream(CompressingStream):
 
         if deflate:
             deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
+            self.initialized = _GZIP_DEFLATE
         else:
             inflateInit2(&self.zst, 16 + MAX_WBITS)
-        self.initialized = True
+            self.initialized = _GZIP_INFLATE
 
     cdef void _free_z_stream(self) nogil:
         if not self.initialized:
             return
-        inflateEnd(&self.zst)
+        if self.initialized == _GZIP_DEFLATE:
+            deflateEnd(&self.zst)
+        elif self.initialized == _GZIP_INFLATE:
+            inflateEnd(&self.zst)
         self.working_buf.clear()
-        self.initialized = False
+        self.initialized = 0
 
     cdef bint _refill_working_buf(self, size_t size) nogil:
         strerase(self.working_buf, 0, self.working_buf.size())
@@ -210,8 +218,8 @@ cdef class GZipStream(CompressingStream):
         return True
 
     cdef string read(self, size_t size):
-        if self.member_started:
-            # Compression in progress
+        if self.initialized == _GZIP_DEFLATE:
+            # Deflate in progress
             return string()
 
         if not self.initialized:
@@ -242,7 +250,8 @@ cdef class GZipStream(CompressingStream):
 
         if self.stream_read_status == Z_STREAM_END:
             # Member end
-            self.stream_pos = self.raw_stream.tell() - (self.zst.next_in - <Bytef*>self.working_buf.data())
+            self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + \
+                              (self.zst.next_in - <Bytef*>self.working_buf.data()) + 1
             inflateReset(&self.zst)
 
         if self.zst.avail_out > 0:
@@ -255,8 +264,8 @@ cdef class GZipStream(CompressingStream):
         return out_buf
 
     cdef size_t write(self, const char* data, size_t size):
-        if self.stream_read_status != Z_STREAM_END:
-            # Decompression in progress
+        if self.initialized == _GZIP_INFLATE:
+            # Inflate in progress
             return 0
 
         if not self.initialized:
@@ -358,7 +367,7 @@ cdef class LZ4Stream(CompressingStream):
             return string()
 
         if self.working_buf.empty():
-            self.working_buf = self.raw_stream.read(size)
+            self.working_buf.append(self.raw_stream.read(size))
             if self.working_buf.empty():
                 # EOF
                 self._free_ctx()

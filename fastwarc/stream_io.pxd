@@ -177,8 +177,8 @@ cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
     cdef string working_buf
     cdef z_stream zst
-    cdef bint initialized
     cdef int stream_read_status
+    cdef char initialized
     cdef size_t stream_pos
     cdef bint member_started
     cdef int compression_level
