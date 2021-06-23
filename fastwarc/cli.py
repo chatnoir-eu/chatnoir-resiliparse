@@ -98,7 +98,7 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
 @click.option('-p', '--verify-payloads', is_flag=True, help='Also verify payload digests')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 @click.option('-o', '--output', type=click.File('w'), help='Output file with verification details')
-def verify_digests(infile, decompress_alg, verify_payloads, quiet, output):
+def check(infile, decompress_alg, verify_payloads, quiet, output):
     decompress_alg = getattr(CompressionAlg, decompress_alg)
 
     failed_digests = []
