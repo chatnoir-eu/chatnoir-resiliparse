@@ -47,7 +47,7 @@ def _human_readable_bytes(byte_num):
         byte_num /= 1024
 
 
-@main.command()
+@main.command(help='Recompress a WARC file with different settings.')
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.argument('outfile', type=click.Path(dir_okay=False, exists=False))
 @click.option('-c', '--compress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
@@ -91,7 +91,7 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
             click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
 
 
-@main.command()
+@main.command(help='Verify WARC consistency by checking all digests.')
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Decompression algorithm')
