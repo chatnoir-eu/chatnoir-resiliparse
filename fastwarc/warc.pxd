@@ -88,7 +88,17 @@ cdef class ArchiveIterator:
     cdef WarcRecord record
     cdef bint parse_http
     cdef bint verify_digests
+    cdef size_t min_content_length
+    cdef size_t max_content_length
+    cdef object func_filter
     cdef uint16_t record_type_filter
     cdef bint stream_is_compressed
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error
+
+cpdef int is_warc_10(WarcRecord record)
+cpdef int is_warc_11(WarcRecord record)
+cpdef bint has_block_digest(WarcRecord record)
+cpdef bint has_payload_digest(WarcRecord record)
+cpdef bint is_http(WarcRecord record)
+cpdef bint is_concurrent(WarcRecord record)

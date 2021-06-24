@@ -105,6 +105,7 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
         return unknown
 
 
+
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
     def __cinit__(self, encoding='utf-8'):
@@ -487,7 +488,8 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 # noinspection PyProtectedMember, PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class ArchiveIterator:
-    def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True, bint verify_digests=False):
+    def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True, bint verify_digests=False,
+                  size_t min_content_length=strnpos, size_t max_content_length=strnpos, func_filter=None):
         if not isinstance(stream, IOStream):
             for attr in ('read', 'tell', 'close'):
                 if not hasattr(stream, attr):
@@ -499,6 +501,9 @@ cdef class ArchiveIterator:
         self.record = None
         self.parse_http = parse_http
         self.verify_digests = verify_digests
+        self.min_content_length = min_content_length
+        self.max_content_length = max_content_length
+        self.func_filter = func_filter
         self.record_type_filter = record_types
         self.stream_is_compressed = isinstance(stream, CompressingStream)
 
@@ -560,11 +565,11 @@ cdef class ArchiveIterator:
         cdef str_pair h
         for h in self.record._headers._headers:
             hkey = str_to_lower(h[0])
-            if hkey == b'content-length':
-                self.record._content_length = stoi(h[1])
-                parse_count += 1
-            elif hkey == b'warc-type':
+            if hkey == b'warc-type':
                 self.record._record_type = _str_record_type_to_enum(h[1])
+                parse_count += 1
+            elif hkey == b'content-length':
+                self.record._content_length = stoi(h[1])
                 parse_count += 1
             elif hkey == b'content-type' and h[1].find(b'application/http') == 0:
                 self.record._is_http = True
@@ -573,8 +578,16 @@ cdef class ArchiveIterator:
             if parse_count >= 3:
                 break
 
-        if self.record._record_type & self.record_type_filter == 0:
-            self.reader.reset_limit()
+        # Check if record is to be skipped
+        cdef bint skip = False
+        skip |= (self.record._record_type & self.record_type_filter) == 0
+        skip |= self.max_content_length != strnpos and self.record._content_length < self.max_content_length
+        skip |= self.min_content_length != strnpos and self.record._content_length >= self.max_content_length
+        if not skip and self.func_filter is not None:
+            # Execute expensive filters last and only if skip is not already true
+            skip |= not self.func_filter(self.record)
+
+        if skip:
             self.reader.consume(self.record._content_length)
             self.record = None
             return skip_next
@@ -582,10 +595,43 @@ cdef class ArchiveIterator:
         self.reader.set_limit(self.record._content_length)
         self.record._reader = self.reader
 
+        if self.verify_digests and not self.record.verify_block_digest(False):
+            self.reader.reset_limit()
+            self.reader.consume(self.record._content_length)
+            self.record = None
+            return skip_next
+
         if self.parse_http and self.record._is_http:
             self.record.parse_http()
 
-        if self.verify_digests:
-            self.record.verify_block_digest()
-
         return has_next
+
+
+cpdef int is_warc_10(WarcRecord record):
+    """Filter function for checking if record is a WARC/1.0 record."""
+    return record._headers._status_line == <char*>b'WARC/1.0'
+
+
+cpdef int is_warc_11(WarcRecord record):
+    """Filter function for checking if record is a WARC/1.1 record."""
+    return record._headers._status_line == <char*>b'WARC/1.1'
+
+
+cpdef bint has_block_digest(WarcRecord record):
+    """Filter function for checking if record has a block digest."""
+    return 'WARC-Block-Digest' in record._headers
+
+
+cpdef bint has_payload_digest(WarcRecord record):
+    """Filter function for checking if record has a payload digest."""
+    return 'WARC-Payload-Digest' in record._headers
+
+
+cpdef bint is_http(WarcRecord record):
+    """Filter function for checking if record is an HTTP record."""
+    return record._is_http
+
+
+cpdef bint is_concurrent(WarcRecord record):
+    """Filter function for checking if record is concurrent to another record."""
+    return 'WARC-Concurrent-To' in record._headers

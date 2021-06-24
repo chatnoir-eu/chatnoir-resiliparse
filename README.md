@@ -77,16 +77,71 @@ stream = GZipStream(FileStream('warcfile.warc.gz', 'rb'))
 ```
 
 ### Filtering records
-If you are interested in records of only a certain type, you can skip all other records efficiently by passing a bitmask of all desired record types to the `ArchiveIterator` constructor:
+FastWARC provides several ways in which you can filter and efficiently skip records you are not interested in. These filters are checked very early in the parsing process, right after the WARC header block has been read. Multiple types of filters can be combined.
+
+#### Record type filter
+If you want only records of a certain type, you can skip all other records efficiently by specifying a bitmask of the desired record types:
 ```python
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 
-for record in ArchiveIterator(stream, WarcRecordType.request | WarcRecordType.response):
-    print(record.record_id)
+for record in ArchiveIterator(stream, record_types=WarcRecordType.request | WarcRecordType.response):
+    pass
 ```
 This will skip all records with a `WARC-Type` other than `request` or `response`.
 
-### Record Properties
+#### Content-Length filter
+You can automatically skip any records whose `Content-Length` exceeds or is lower than a certain value:
+```python
+from fastwarc.warc import ArchiveIterator
+
+# Skip all records that are larger than 500 KiB
+for record in ArchiveIterator(stream, max_content_length=512000):
+    pass
+
+# Skip all records that smaller than 128 bytes
+for record in ArchiveIterator(stream, min_content_length=128):
+    pass
+```
+
+#### Function filter
+If the above-mentioned filter mechanisms are not sufficient, you can pass a function object that accepts as its only parameter a `WarcRecord` and returns a `bool` value. This filter type is much slower than the previous filters, but probably still more efficient than checking the same thing later on in the loop. Be aware that since the record body hasn't been seen yet, you cannot access any information beyond what is in the record headers.
+
+FastWARC comes with a handful of existing filters that you can use:
+```python
+from fastwarc.warc import *
+
+# Skip any non-HTTP records
+for record in ArchiveIterator(stream, func_filter=is_http):
+    pass
+
+# Skip records without a block digest
+for record in ArchiveIterator(stream, func_filter=has_block_digest):
+    pass
+
+# Skip records that are not WARC/1.1
+for record in ArchiveIterator(stream, func_filter=is_warc_11):
+    pass
+```
+The full list of pre-defined function filters is: `is_warc_10`, `is_warc_11`, `has_block_digest`, `has_payload_digest`, `is_http`, `is_concurrent`. Besides these, you can pass any Python function object you want:
+```python
+# Skip records which haven't been identified as HTML pages
+for record in ArchiveIterator(stream, func_filter=lambda r: r.headers.get('WARC-Identified-Payload-Type') == 'text/html'):
+    pass
+
+# Skip records without any sort of digest header
+for record in ArchiveIterator(stream, func_filter=lambda r: has_block_digest(r) and has_payload_digest(r)):
+    pass
+```
+
+#### Digest filter
+This is the only filter that is executed after the content is available and will skip any records without or with an invalid block digest:
+```python
+for record in ArchiveIterator(stream, verify_digests=True):
+    pass
+```
+This is the most expensive filter of all and it will create an in-memory copy of the whole record. See [Verifying record digests](#Verifying-record-digests) for more information on how digest verification works.
+
+### Record properties
 The `ArchiveIterator` returns objects of type `WarcRecord`, which have various properties:
 ```python
 for record in ArchiveIterator(stream):
@@ -110,7 +165,7 @@ for record in ArchiveIterator(stream):
 ```
 As you can see, HTTP request and response records are parsed automatically for convenience. If not needed, you can disable this behaviour by passing `parse_http=False` to the `ArchiveIterator` constructor to avoid unnecessary processing. `record.reader` will then start at the beginning of the HTTP header block instead of the HTTP body. You can parse HTTP headers later on a per-record basis by calling `record.parse_http()` as long as the `BufferedReader` hasn't been consumed at that point.
 
-#### Verifying Record Digests
+#### Verifying record digests
 If a record has digest headers, you can verify the consistency of the record contents and/or its HTTP payload:
 ```python
 for record in ArchiveIterator(stream, parse_http=False):
@@ -139,7 +194,7 @@ Commands:
   recompress  Recompress a WARC file with different settings.
 ```
 
-### Check Digests
+### Check digests
 You can verify all block and payload digests in the given WARC file and print a summary of all corrupted and (optionally) all intact records with
 ```bash
 fastwarc check INFILE
