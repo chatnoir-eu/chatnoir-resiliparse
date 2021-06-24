@@ -123,7 +123,7 @@ for record in ArchiveIterator(stream, parse_http=False):
 ```
 Note that the `verify_*` methods will simply return `False` if the headers do not exist, so check that first. Also keep in mind that the block verification will fail if the reader has been (partially) consumed, so automatic HTTP parsing has to be turned off for this to work.
 
-Another small warning: Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place). If your records are very large, you need to ensure that they fit entirely into memory (e.g. by checking `record.content_length`).
+A word of warning: Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place). If your records are very large, you need to ensure that they fit into memory entirely (e.g. by checking `record.content_length`). If you do not want to preserve the stream contents, you can set `consume=True` as a parameter. This will avoid the creation of a stream copy altogether and fully consume the rest of the record instead.
 
 ## Command Line Interface (CLI)
 Besides the Python API, FastWARC also provides a command line interface with the `fastwarc` command:

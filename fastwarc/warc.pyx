@@ -393,7 +393,7 @@ cdef class WarcRecord:
 
         return bytes_written
 
-    cdef bint _verify_digest(self, const string& base32_digest):
+    cdef bint _verify_digest(self, const string& base32_digest, bint consume):
         cdef size_t sep_pos = base32_digest.find(b':')
         if sep_pos == strnpos:
             return False
@@ -411,27 +411,38 @@ cdef class WarcRecord:
             warnings.warn(f'Unsupported hash algorithm "{alg.decode()}".')
             return False
 
-        tee_stream = BytesIOStream()
         cdef string block
+        cdef BytesIOStream tee_stream
+        cdef bint consume_override = consume
+
+        if isinstance(self._reader.stream, BytesIOStream):
+            # Stream is already a BytesIOStream, so we don't need to create another copy
+            consume_override = True
+            tee_stream = <BytesIOStream>self._reader.stream
+        elif not consume:
+            tee_stream = BytesIOStream()
+
         while True:
             block = self._reader.read(1024)
             if block.empty():
                 break
             h.update(block)
-            tee_stream.write(block.data(), block.size())
+            if not consume_override:
+                tee_stream.write(block.data(), block.size())
 
-        tee_stream.seek(0)
-        self._reader = BufferedReader.__new__(BufferedReader, tee_stream)
+        if not consume:
+            tee_stream.seek(0)
+            self._reader = BufferedReader.__new__(BufferedReader, tee_stream)
 
         return h.digest() == digest
 
-    cpdef bint verify_block_digest(self):
-        return self._verify_digest(self._headers.get_header(b'WARC-Block-Digest'))
+    cpdef bint verify_block_digest(self, bint consume=False):
+        return self._verify_digest(self._headers.get_header(b'WARC-Block-Digest'), consume)
 
-    cpdef bint verify_payload_digest(self):
+    cpdef bint verify_payload_digest(self, bint consume=False):
         if not self._http_parsed:
             return False
-        return self._verify_digest(self._headers.get_header(b'WARC-Payload-Digest'))
+        return self._verify_digest(self._headers.get_header(b'WARC-Payload-Digest'), consume)
 
 
 # noinspection PyProtectedMember

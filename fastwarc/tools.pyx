@@ -170,15 +170,16 @@ def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=
 
     for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
                                           parse_http=False, record_types=WarcRecordType.any_type):
+        consume = not verify_payloads or not record.is_http
         res = {
             'record_id': record.record_id,
-            'block_digest_ok': record.verify_block_digest() if 'WARC-Block-Digest' in record.headers else None
+            'block_digest_ok': record.verify_block_digest(consume) if 'WARC-Block-Digest' in record.headers else None
         }
 
         if verify_payloads:
             if 'WARC-Payload-Digest' in record.headers:
                 record.parse_http()
-                res['payload_digest_ok'] = record.verify_payload_digest()
+                res['payload_digest_ok'] = record.verify_payload_digest(True)
             else:
                 res['payload_digest_ok'] = None
 

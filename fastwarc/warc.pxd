@@ -75,10 +75,10 @@ cdef class WarcRecord:
     cpdef void set_bytes_content(self, bytes b)
     cpdef void parse_http(self)
     cpdef size_t write(self, stream, bint checksum_data=*, size_t chunk_size=*)
-    cpdef bint verify_block_digest(self)
-    cpdef bint verify_payload_digest(self)
+    cpdef bint verify_block_digest(self, bint consume=*)
+    cpdef bint verify_payload_digest(self, bint consume=*)
 
-    cdef bint _verify_digest(self, const string& base32_digest)
+    cdef bint _verify_digest(self, const string& base32_digest, bint consume)
     cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size)
 
 
