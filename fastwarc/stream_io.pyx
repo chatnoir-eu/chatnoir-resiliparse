@@ -30,6 +30,14 @@ cdef extern from "<string.h>" nogil:
 cdef size_t strnpos = -1
 
 
+class FastWARCError(Exception):
+    """Generic FastWARC exception."""
+
+
+class StreamError(FastWARCError):
+    """FastWARC stream error."""
+
+
 @cython.auto_pickle(False)
 cdef class IOStream:
     cdef string read(self, size_t size):
@@ -105,7 +113,7 @@ cdef class FileStream(IOStream):
         self.fp = fopen(path, mode)
         if self.fp == NULL:
             self.errstr = strerror(errno)
-            raise OSError(self.errstr.decode())
+            raise StreamError(self.errstr.decode())
         self.errstr.clear()
 
     cdef void seek(self, size_t offset):

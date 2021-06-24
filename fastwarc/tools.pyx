@@ -15,6 +15,7 @@
 # distutils: language = c++
 
 from .stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, PythonIOStreamAdapter
+from .stream_io import StreamError
 from .warc cimport ArchiveIterator, WarcRecordType
 
 
@@ -64,10 +65,11 @@ def wrap_warc_stream(warc_in, mode='rb', CompressionAlg comp_alg=auto, **comp_ar
         stream = FileStream.__new__(FileStream, warc_in, mode)
     elif isinstance(warc_in, IOStream):
         stream = <IOStream>warc_in
-    elif hasattr(warc_in, 'write' if 'w' in mode else 'read'):
-        stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, warc_in)
     else:
-        raise TypeError(f"Object of type '{type(warc_in).__name__}' is not a valid input stream object.")
+        attr = 'write' if 'w' in mode else 'read'
+        if not hasattr(warc_in, attr):
+            raise AttributeError(f"Object of type '{type(warc_in).__name__}' has no attribute '{attr}'.")
+        stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, warc_in)
 
     if comp_alg == gzip:
         stream = GZipStream.__new__(GZipStream, stream, **comp_args)
@@ -101,7 +103,7 @@ def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=au
         if type(warc_in) is str:
             comp_alg_out = detect_compression_algorithm(warc_out)
         else:
-            raise ValueError('Illegal output compression algorithm: auto')
+            raise StreamError('Illegal output compression algorithm: auto')
 
     in_stream = wrap_warc_stream(warc_in, 'rb', comp_alg_in)
     out_stream = wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)

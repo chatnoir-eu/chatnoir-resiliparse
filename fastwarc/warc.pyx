@@ -27,6 +27,7 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 
 from .stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
+from .stream_io import StreamError
 
 
 cdef extern from "<cctype>" namespace "std" nogil:
@@ -520,7 +521,7 @@ cdef class ArchiveIterator:
         while True:
             version_line = self.reader.readline()
             if not self.reader.error().empty():
-                raise OSError(self.reader.error().decode())
+                raise StreamError(self.reader.error().decode())
 
             if version_line.empty():
                 # EOF

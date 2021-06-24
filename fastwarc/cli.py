@@ -18,13 +18,14 @@ import time
 import click
 from tqdm import tqdm
 
+from fastwarc import FastWARCError
 from fastwarc.tools import CompressionAlg
 import fastwarc.tools as tools
 
 
-def exception_handler(exctype, value, tb):
-    if exctype == tools.IllegalCompressionAlgorithmError:
-        click.echo('Failed to detect compression algorithm.', err=True)
+def exception_handler(exctype, value, _):
+    if exctype == FastWARCError:
+        click.echo(str(value), err=True)
         sys.exit(1)
 
     raise
