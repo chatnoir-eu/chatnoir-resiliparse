@@ -372,13 +372,13 @@ cdef class GZipStream(CompressingStream):
     cdef void close(self):
         self.end_member()
         self._free_z_stream()
-        if self.raw_stream:
+        if self.raw_stream is not None:
             self.raw_stream.close()
 
     cdef string error(self):
         if not self.errstr.empty():
             return self.errstr
-        elif self.raw_stream:
+        elif self.raw_stream is not None:
             return self.raw_stream.error()
         return string()
 
@@ -522,7 +522,7 @@ cdef class LZ4Stream(CompressingStream):
             self.end_member()
 
         self._free_ctx()
-        if self.raw_stream:
+        if self.raw_stream is not None:
             self.raw_stream.close()
 
     cdef void _free_ctx(self) nogil:
@@ -540,7 +540,7 @@ cdef class LZ4Stream(CompressingStream):
     cdef string error(self):
         if not self.errstr.empty():
             return self.errstr
-        elif self.raw_stream:
+        elif self.raw_stream is not None:
             return self.raw_stream.error()
         return string()
 
@@ -697,12 +697,12 @@ cdef class BufferedReader:
                 self._consume_buf(buf.size())
 
     cpdef void close(self):
-        if self.stream:
+        if self.stream is not None:
             self.stream.close()
 
     cpdef string error(self):
         if not self.errstr.empty():
             return self.errstr
-        if self.stream:
+        if self.stream is not None:
             return self.stream.error()
         return string()
