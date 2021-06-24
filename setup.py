@@ -18,7 +18,7 @@ import Cython.Compiler.Options
 from setuptools import setup, Extension
 
 Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
-
+this_directory = os.path.abspath(os.path.dirname(__file__))
 cpp_args = dict(
       extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
                           '-Wno-unreachable-code', '-Wno-unused-function'],
@@ -29,8 +29,7 @@ cpp_args = dict(
 #       version='1.0',
 #       description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
 #       author='Janek Bevendorff',
-#       author_email='janek.bevendorff@uni-weimar.de',
-#       url='https://webis.de',
+#       url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
 #       license='Apache License 2.0',
 #       packages=[],
 # )
@@ -41,13 +40,17 @@ fastwarc_extensions = [
       Extension('fastwarc.tools', sources=['fastwarc/tools.pyx'], **cpp_args)
 ]
 
+with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+      fastwarc_long_description = f.read()
+
 setup(
       name='FastWARC',
       version='0.1',
-      description='Optimized WARC parsing library written in Cython',
+      description='A high-performance WARC parsing library for Python written in C++/Cython.',
+      long_description=fastwarc_long_description,
+      long_description_content_type='text/markdown',
       author='Janek Bevendorff',
-      author_email='janek.bevendorff@uni-weimar.de',
-      url='https://webis.de',
+      url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
       license='Apache License 2.0',
       packages=['fastwarc'],
       install_requires=[
