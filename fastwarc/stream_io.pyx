@@ -314,7 +314,7 @@ cdef class GZipStream(CompressingStream):
         # Error
         if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
             self._free_z_stream()
-            self.errstr = string(b'Not a valid GZip stream')
+            self.errstr = <char*>b'Not a valid GZip stream'
             return string()
 
         if self.stream_read_status == Z_STREAM_END:
@@ -493,7 +493,7 @@ cdef class LZ4Stream(CompressingStream):
                     self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read + 1
             elif LZ4F_isError(ret):
                 self._free_ctx()
-                self.errstr = string(b'Not a valid LZ4 stream')
+                self.errstr = <char*>b'Not a valid LZ4 stream'
                 return string()
             strerase(self.working_buf, 0, bytes_read)
 
@@ -743,7 +743,7 @@ cdef class BufferedReader:
                 buf = self._get_buf()
                 if last_was_cr and buf.front() == <char>b'\n':
                     if capacity_remaining:
-                        line.append(b'\n')
+                        line.append(<char*>b'\n')
                     self._consume_buf(1)
                     pos = strnpos
                     break

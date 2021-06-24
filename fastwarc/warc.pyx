@@ -143,7 +143,7 @@ cdef class WarcHeaderMap:
     @property
     def status_code(self):
         """HTTP status code (unset if header block is not an HTTP header block)."""
-        if self._status_line.find(b'HTTP/') != 0:
+        if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
         s = self._status_line.split(b' ')
         if len(s) != 3 or not s[1].isdigit():
@@ -191,15 +191,15 @@ cdef class WarcHeaderMap:
         cdef size_t bytes_written = 0
         if not self._status_line.empty():
             bytes_written += stream.write(self._status_line.data(), self._status_line.size())
-            bytes_written += stream.write(b'\r\n', 2)
+            bytes_written += stream.write(<char*>b'\r\n', 2)
 
         cdef vector[str_pair].iterator it = self._headers.begin()
         while it != self._headers.end():
             if not deref(it)[0].empty():
                 bytes_written += stream.write(deref(it)[0].data(), deref(it)[0].size())
-                bytes_written += stream.write(b': ', 2)
+                bytes_written += stream.write(<char*>b': ', 2)
             bytes_written += stream.write(deref(it)[1].data(), deref(it)[1].size())
-            bytes_written += stream.write(b'\r\n', 2)
+            bytes_written += stream.write(<char*>b'\r\n', 2)
             inc(it)
         return bytes_written
 
@@ -245,11 +245,11 @@ cdef class WarcHeaderMap:
     cdef void add_continuation(self, const string& header_continuation_value):
         """Append value to previous header."""
         if not self._headers.empty():
-            self._headers.back()[1].append(b' ')
+            self._headers.back()[1].append(<char*>b' ')
             self._headers.back()[1].append(header_continuation_value)
         else:
             # This should no happen, but what can we do?!
-            self._headers.push_back((b'', header_continuation_value))
+            self._headers.push_back((<char*>b'', header_continuation_value))
         self._dict_cache_stale = True
 
 
@@ -334,11 +334,11 @@ cdef class WarcRecord:
         self.record_type = record_type
 
         self._headers.clear()
-        self._headers.set_status_line(b'WARC/1.1')
-        self._headers.append_header(b'WARC-Type', _enum_record_type_to_str(record_type))
-        self._headers.append_header(b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
-        self._headers.append_header(b'WARC-Record-ID', b''.join((b'<', record_urn, b'>')))
-        self._headers.append_header(b'Content-Length', to_string(content_length))
+        self._headers.set_status_line(<char*>b'WARC/1.1')
+        self._headers.append_header(<char*>b'WARC-Type', _enum_record_type_to_str(record_type))
+        self._headers.append_header(<char*>b'WARC-Date', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
+        self._headers.append_header(<char*>b'WARC-Record-ID', b''.join((b'<', record_urn, b'>')))
+        self._headers.append_header(<char*>b'Content-Length', to_string(content_length))
 
     cpdef void set_bytes_content(self, bytes b):
         """
@@ -384,7 +384,7 @@ cdef class WarcRecord:
 
         if self._http_parsed:
             self._http_headers.write(block_buf)
-            block_buf.write(b'\r\n', 2)
+            block_buf.write(<char*>b'\r\n', 2)
 
             if checksum_data:
                 block_digest.update(block_buf.getvalue())
@@ -401,11 +401,11 @@ cdef class WarcRecord:
                     payload_digest.update(payload_data.data()[:payload_data.size()])
             block_buf.write(payload_data.data(), payload_data.size())
 
-        self._headers.set_header(b'Content-Length', to_string(block_buf.tell()))
+        self._headers.set_header(<char*>b'Content-Length', to_string(block_buf.tell()))
         if checksum_data:
             if payload_digest is not None:
-                self._headers.set_header(b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
-            self._headers.set_header(b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_digest.digest()))
+                self._headers.set_header(<char*>b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
+            self._headers.set_header(<char*>b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_digest.digest()))
 
         block_buf.seek(0)
         return self._write_impl(block_buf, stream, False, chunk_size)
@@ -709,13 +709,13 @@ cpdef int is_warc_11(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint has_block_digest(WarcRecord record):
     """Filter function for checking if record has a block digest."""
-    return not record._headers.get_header(b'WARC-Block-Digest').empty()
+    return not record._headers.get_header(<char*>b'WARC-Block-Digest').empty()
 
 
 # noinspection PyProtectedMember
 cpdef bint has_payload_digest(WarcRecord record):
     """Filter function for checking if record has a payload digest."""
-    return not record._headers.get_header(b'WARC-Payload-Digest').empty()
+    return not record._headers.get_header(<char*>b'WARC-Payload-Digest').empty()
 
 
 # noinspection PyProtectedMember
@@ -727,4 +727,4 @@ cpdef bint is_http(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_concurrent(WarcRecord record):
     """Filter function for checking if record is concurrent to another record."""
-    return not record._headers.get_header(b'WARC-Concurrent-To').empty()
+    return not record._headers.get_header(<char*>b'WARC-Concurrent-To').empty()
