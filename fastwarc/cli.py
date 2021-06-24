@@ -19,6 +19,7 @@ import click
 from tqdm import tqdm
 
 from fastwarc import FastWARCError
+from fastwarc.benchmark import benchmark
 from fastwarc.tools import CompressionAlg
 import fastwarc.tools as tools
 
@@ -36,6 +37,7 @@ sys.excepthook = exception_handler
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
+    """FastWARC Command Line Interface."""
     return 0
 
 
@@ -48,7 +50,7 @@ def _human_readable_bytes(byte_num):
         byte_num /= 1024
 
 
-@main.command(help='Recompress a WARC file with different settings.')
+@main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.argument('outfile', type=click.Path(dir_okay=False, exists=False))
 @click.option('-c', '--compress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
@@ -59,6 +61,8 @@ def _human_readable_bytes(byte_num):
 @click.option('-l', '--compress-level', type=int, default=None, help='Compression level (defaults to max)')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, quiet):
+    """Recompress a WARC file with different settings."""
+
     compress_alg = getattr(CompressionAlg, compress_alg)
     decompress_alg = getattr(CompressionAlg, decompress_alg)
 
@@ -92,7 +96,7 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
             click.echo(f'  - Completed in: {time.time() - start:.02f} seconds')
 
 
-@main.command(help='Verify WARC consistency by checking all digests.')
+@main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Decompression algorithm')
@@ -100,6 +104,8 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 @click.option('-o', '--output', type=click.File('w'), help='Output file with verification details')
 def check(infile, decompress_alg, verify_payloads, quiet, output):
+    """Verify WARC consistency by checking all digests."""
+
     decompress_alg = getattr(CompressionAlg, decompress_alg)
 
     failed_digests = []
@@ -155,3 +161,6 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
                 for rec in failed_digests:
                     click.echo(rec)
                 sys.exit(1)
+
+
+main.add_command(benchmark)

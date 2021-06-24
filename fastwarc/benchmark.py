@@ -31,8 +31,9 @@ from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream
 
 
-@click.group(context_settings=dict(help_option_names=['-h', '--help']))
-def main():
+@click.group()
+def benchmark():
+    """Benchmark FastWARC performance."""
     return 0
 
 
@@ -102,7 +103,7 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
 
 
 # noinspection PyPackageRequirements
-@main.command()
+@benchmark.command()
 @click.argument('input_url', nargs=-1)
 @click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Decompression algorithm')
@@ -193,6 +194,3 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         click.echo(f'WARCIO:   {n} records read in {t_warcio:.02f} seconds ({n / t_warcio:.02f} records/s).')
         click.echo(f'Time difference: {t_fastwarc - t_warcio:.02f} seconds, speedup: {t_warcio / t_fastwarc:.02f}')
 
-
-if __name__ == '__main__':
-    sys.exit(main())
