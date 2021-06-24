@@ -709,13 +709,13 @@ cpdef int is_warc_11(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint has_block_digest(WarcRecord record):
     """Filter function for checking if record has a block digest."""
-    return 'WARC-Block-Digest' in record._headers
+    return not record._headers.get_header(b'WARC-Block-Digest').empty()
 
 
 # noinspection PyProtectedMember
 cpdef bint has_payload_digest(WarcRecord record):
     """Filter function for checking if record has a payload digest."""
-    return 'WARC-Payload-Digest' in record._headers
+    return not record._headers.get_header(b'WARC-Payload-Digest').empty()
 
 
 # noinspection PyProtectedMember
@@ -727,4 +727,4 @@ cpdef bint is_http(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_concurrent(WarcRecord record):
     """Filter function for checking if record is concurrent to another record."""
-    return 'WARC-Concurrent-To' in record._headers
+    return not record._headers.get_header(b'WARC-Concurrent-To').empty()
