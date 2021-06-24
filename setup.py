@@ -43,7 +43,7 @@ fastwarc_extensions = [
 
 setup(
       name='FastWARC',
-      version='1.0',
+      version='0.1',
       description='Optimized WARC parsing library written in Cython',
       author='Janek Bevendorff',
       author_email='janek.bevendorff@uni-weimar.de',

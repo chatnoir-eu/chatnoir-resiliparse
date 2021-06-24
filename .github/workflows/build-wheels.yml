@@ -18,7 +18,9 @@ jobs:
           system-packages: 'zlib-devel lz4-devel'
 
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install twine
+          twine upload dist/*-manylinux*.whl
