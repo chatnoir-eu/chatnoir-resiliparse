@@ -309,7 +309,7 @@ cdef class WarcRecord:
         self._content_length = len(b)
 
     cpdef void parse_http(self):
-        if self._http_parsed:
+        if self._http_parsed or not self._is_http:
             return
         self._http_headers = WarcHeaderMap.__new__(WarcHeaderMap, 'iso-8859-15')
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
