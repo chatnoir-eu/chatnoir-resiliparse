@@ -590,7 +590,7 @@ cdef class BufferedReader:
         self.buf.append(self.stream.read(self.buf_size))
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
-    cdef inline string_view _get_buf(self) nogil:
+    cdef string_view _get_buf(self) nogil:
         cdef string_view v = string_view(self.buf.c_str(), self.buf.size())
         cdef size_t remaining
         if self.limit != strnpos:
@@ -599,7 +599,7 @@ cdef class BufferedReader:
                 v.remove_suffix(v.size() - remaining)
         return v
 
-    cdef inline void _consume_buf(self, size_t size) nogil:
+    cdef void _consume_buf(self, size_t size) nogil:
         if self.limit == strnpos and size >= self.buf.size():
             self.buf.clear()
             return
