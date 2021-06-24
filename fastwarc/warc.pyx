@@ -108,6 +108,7 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
 
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
+    """Dict-like type representing a WARC or HTTP header block"""
     def __cinit__(self, encoding='utf-8'):
         self._enc = encoding
         self._dict_cache = None
@@ -131,14 +132,17 @@ cdef class WarcHeaderMap:
 
     @property
     def status_line(self):
+        """Header status line."""
         return self._status_line.decode(self._status_code, errors='ignore')
 
     @status_line.setter
     def status_line(self, status_line):
+        """Set status line contents."""
         self._status_line = status_line.encode(self._enc, errors='ignore')
 
     @property
     def status_code(self):
+        """HTTP status code (unset if header block is not an HTTP header block)."""
         if self._status_line.find(b'HTTP/') != 0:
             return None
         s = self._status_line.split(b' ')
@@ -147,21 +151,27 @@ cdef class WarcHeaderMap:
         return int(s)
 
     def append(self, key, value):
+        """Append header (use if header name is not unique)."""
         self.append_header(key.encode(self._enc), value.encode(self._enc))
 
     def get(self, item, default=None):
+        """Get header value or default value."""
         return self.asdict().get(item, default)
 
     def items(self):
+        """Item view of keys and values."""
         return self.asdict().items()
 
     def keys(self):
+        """Iterable of header keys."""
         return self.asdict().keys()
 
     def values(self):
+        """Iterable of header values."""
         return self.asdict().values()
 
     def asdict(self):
+        """Headers as Python dict."""
         cdef str_pair h
         if self._dict_cache_stale:
             self._dict_cache = {
@@ -170,12 +180,14 @@ cdef class WarcHeaderMap:
         return self._dict_cache
 
     def astuples(self):
+        """Headers as list of tuples (use if header keys are not necessarily unique)."""
         cdef str_pair h
         return [(h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
                 for h in self._headers]
 
 
     cdef size_t write(self, IOStream stream):
+        """Write header block into stream."""
         cdef size_t bytes_written = 0
         if not self._status_line.empty():
             bytes_written += stream.write(self._status_line.data(), self._status_line.size())
@@ -192,13 +204,16 @@ cdef class WarcHeaderMap:
         return bytes_written
 
     cdef inline void clear(self):
+        """Clear headers."""
         self._headers.clear()
         self._dict_cache_stale = True
 
     cdef inline void set_status_line(self, const string& status_line):
+        """Set status line string."""
         self._status_line = status_line
 
     cdef string get_header(self, string header_key):
+        """Get header value."""
         header_key = str_to_lower(header_key)
 
         cdef vector[str_pair].iterator it = self._headers.begin()
@@ -210,6 +225,7 @@ cdef class WarcHeaderMap:
         return string()
 
     cdef void set_header(self, const string& header_key, const string& header_value):
+        """Set new header or overwrite existing header if it exists."""
         self._dict_cache_stale = True
         cdef string header_key_lower = str_to_lower(header_key)
         cdef vector[str_pair].iterator it = self._headers.begin()
@@ -222,10 +238,12 @@ cdef class WarcHeaderMap:
         self._headers.push_back((header_key, header_value))
 
     cdef inline void append_header(self, const string& header_key, const string& header_value):
+        """Append header (use if header key is not unique)."""
         self._headers.push_back((header_key, header_value))
         self._dict_cache_stale = True
 
     cdef void add_continuation(self, const string& header_continuation_value):
+        """Append value to previous header."""
         if not self._headers.empty():
             self._headers.back()[1].append(b' ')
             self._headers.back()[1].append(header_continuation_value)
@@ -237,6 +255,8 @@ cdef class WarcHeaderMap:
 
 # noinspection PyProtectedMember, PyAttributeOutsideInit
 cdef class WarcRecord:
+    """A WARC record."""
+
     def __cinit__(self):
         self._record_type = unknown
         self._is_http = False
@@ -248,10 +268,12 @@ cdef class WarcRecord:
 
     @property
     def record_id(self):
+        """Record ID (same as `headers['WARC-Record'ID']`."""
         return self._headers['WARC-Record-ID']
 
     @property
     def record_type(self):
+        """Record type (same as `headers['WARC-Type']`."""
         return self._record_type
 
     @record_type.setter
@@ -261,33 +283,47 @@ cdef class WarcRecord:
 
     @property
     def headers(self):
+        """WARC record headers."""
         return self._headers
 
     @property
     def is_http(self):
+        """Whether record is an HTTP record"""
         return self._is_http
 
     @property
     def http_parsed(self):
+        """Whether HTTP headers have been parsed."""
         return self._http_parsed
 
     @property
     def http_headers(self):
+        """HTTP headers if record is an HTTP record and HTTP headers have been parsed yet."""
         return self._http_headers
 
     @property
     def content_length(self):
+        """Remaining WARC length in bytes (not necessarily the same as the Content-Length header)."""
         return self._content_length
 
     @property
     def reader(self):
+        """Reader for the remaining WARC record content."""
         return self._reader
 
     @property
     def stream_pos(self):
+        """WARC record start offset in the original (uncompressed stream)."""
         return self._stream_pos
 
     cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=no_type, bytes record_urn=None):
+        """
+        Initialize mandatory headers in a fresh :class:`WarcRecord` instance.
+        
+        :param content_length: WARC record body length in bytes
+        :param record_type: WARC-Type
+        :param record_urn: WARC-Record-ID as URN (without '<', '>')
+        """
         if record_urn is None:
             record_urn = uuid.uuid4().urn.encode()
 
@@ -305,10 +341,20 @@ cdef class WarcRecord:
         self._headers.append_header(b'Content-Length', to_string(content_length))
 
     cpdef void set_bytes_content(self, bytes b):
+        """
+        Set WARC body.
+        
+        :param b: body as bytes
+        """
         self._reader = BufferedReader.__new__(BufferedReader, BytesIOStream(b))
         self._content_length = len(b)
 
     cpdef void parse_http(self):
+        """
+        Parse HTTP headers and advance content reader.
+        
+        It is safe to call this method multiple times or if the record is not an HTTP record.
+        """
         if self._http_parsed or not self._is_http:
             return
         self._http_headers = WarcHeaderMap.__new__(WarcHeaderMap, 'iso-8859-15')
@@ -318,6 +364,14 @@ cdef class WarcRecord:
 
     # noinspection PyTypeChecker
     cpdef size_t write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
+        """
+        Write WARC record onto a stream.
+        
+        :param stream: output stream
+        :param checksum_data: add block and payload digest headers
+        :param chunk_size: write block size
+        :return: number of bytes written
+        """
         # If the raw byte content hasn't been parsed, we can simply pass it through
         if not checksum_data and not self.http_parsed:
             return self._write_impl(self.reader, stream, True, chunk_size)
@@ -438,9 +492,21 @@ cdef class WarcRecord:
         return h.digest() == digest
 
     cpdef bint verify_block_digest(self, bint consume=False):
+        """
+        Verify whether record block digest is valid.
+        
+        :param consume: do not create an in-memory copy of the record stream (will fully consume the rest of the record)
+        :return: `True` if digest exists and is valid
+        """
         return self._verify_digest(self._headers.get_header(b'WARC-Block-Digest'), consume)
 
     cpdef bint verify_payload_digest(self, bint consume=False):
+        """
+        Verify whether record payload digest is valid.
+        
+        :param consume: do not create an in-memory copy of the record stream (will fully consume the rest of the record)
+        :return: `True` if record is HTTP record and digest exists and is valid
+        """
         if not self._http_parsed:
             return False
         return self._verify_digest(self._headers.get_header(b'WARC-Payload-Digest'), consume)
@@ -448,6 +514,14 @@ cdef class WarcRecord:
 
 # noinspection PyProtectedMember
 cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False):
+    """
+    Helper function for parsing WARC or HTTP header blocks.
+    
+    :param reader: input reader
+    :param target: :class:`WarcHeaderMap` to fill
+    :param has_status_line: whether first line is a status line (set to `False` if status line has already been consumed)
+    :return: number of bytes read from `reader`
+    """
     cdef string line
     cdef string header_key, header_value
     cdef size_t delim_pos = 0
@@ -488,8 +562,22 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 # noinspection PyProtectedMember, PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class ArchiveIterator:
-    def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True, bint verify_digests=False,
-                  size_t min_content_length=strnpos, size_t max_content_length=strnpos, func_filter=None):
+    """WARC record stream iterator."""
+
+    def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
+                  size_t min_content_length=strnpos, size_t max_content_length=strnpos,
+                  func_filter=None, bint verify_digests=False,):
+        """
+        Initialize WARC record iterator.
+
+        :param stream: input stream (preferably an :class:`IOStream`, but any file-like Python object is fine)
+        :param parse_http: whether to parse HTTP records automatically (disable for better performance if not needed)
+        :param record_types: bitmask of record types to return (rest will be skipped)
+        :param min_content_length: skip records with Content-Length less than this
+        :param max_content_length: skip records with Content-Length large than this
+        :param func_filter: Python callable taking a :class:`WarcRecord` and returning a `bool` for further record filtering
+        :param verify_digests: skip records which have no or an invalid block digest
+        """
         if not isinstance(stream, IOStream):
             for attr in ('read', 'tell', 'close'):
                 if not hasattr(stream, attr):
@@ -509,7 +597,6 @@ cdef class ArchiveIterator:
 
     def __iter__(self):
         cdef _NextRecStatus status
-
         self.reader.detect_stream_type()
         while True:
             status = self._read_next_record()
@@ -607,31 +694,37 @@ cdef class ArchiveIterator:
         return has_next
 
 
+# noinspection PyProtectedMember
 cpdef int is_warc_10(WarcRecord record):
     """Filter function for checking if record is a WARC/1.0 record."""
     return record._headers._status_line == <char*>b'WARC/1.0'
 
 
+# noinspection PyProtectedMember
 cpdef int is_warc_11(WarcRecord record):
     """Filter function for checking if record is a WARC/1.1 record."""
     return record._headers._status_line == <char*>b'WARC/1.1'
 
 
+# noinspection PyProtectedMember
 cpdef bint has_block_digest(WarcRecord record):
     """Filter function for checking if record has a block digest."""
     return 'WARC-Block-Digest' in record._headers
 
 
+# noinspection PyProtectedMember
 cpdef bint has_payload_digest(WarcRecord record):
     """Filter function for checking if record has a payload digest."""
     return 'WARC-Payload-Digest' in record._headers
 
 
+# noinspection PyProtectedMember
 cpdef bint is_http(WarcRecord record):
     """Filter function for checking if record is an HTTP record."""
     return record._is_http
 
 
+# noinspection PyProtectedMember
 cpdef bint is_concurrent(WarcRecord record):
     """Filter function for checking if record is concurrent to another record."""
     return 'WARC-Concurrent-To' in record._headers

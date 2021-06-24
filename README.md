@@ -98,7 +98,7 @@ from fastwarc.warc import ArchiveIterator
 for record in ArchiveIterator(stream, max_content_length=512000):
     pass
 
-# Skip all records that smaller than 128 bytes
+# Skip all records that are smaller than 128 bytes
 for record in ArchiveIterator(stream, min_content_length=128):
     pass
 ```
@@ -122,7 +122,7 @@ for record in ArchiveIterator(stream, func_filter=has_block_digest):
 for record in ArchiveIterator(stream, func_filter=is_warc_11):
     pass
 ```
-The full list of pre-defined function filters is: `is_warc_10`, `is_warc_11`, `has_block_digest`, `has_payload_digest`, `is_http`, `is_concurrent`. Besides these, you can pass any Python function object you want:
+The full list of pre-defined function filters is: `is_warc_10`, `is_warc_11`, `has_block_digest`, `has_payload_digest`, `is_http`, `is_concurrent`. Besides these, you can pass any Python callable that accepts a `WarcRecord` and returns a `bool`:
 ```python
 # Skip records which haven't been identified as HTML pages
 for record in ArchiveIterator(stream, func_filter=lambda r: r.headers.get('WARC-Identified-Payload-Type') == 'text/html'):
