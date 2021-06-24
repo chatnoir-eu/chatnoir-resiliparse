@@ -31,11 +31,16 @@ WARCIO is a fantastic tool for reading and writing WARCs, but it is implemented 
 
 FastWARC's design goals are high speed, a low and fixed memory footprint, and simplicity. For the latter reason, we decided against adding support for the legacy ARC format. If you need that kind of backwards compatibility, use WARCIO instead.
 
+## Installing FastWARC
+
+Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
+```bash
+pip install fastwarc
+```
+
 ## Building FastWARC
 
-Since FastWARC is written in C++, it needs to be compiled for each target platform individually.
-
-Before you can build the binaries, you need to install all build-time dependencies. For Debian / Ubuntu, this is done with:
+If the pre-built binaries don't work for you, you can also compile FastWARC yourself, but before you can build the binaries, you need to install all build-time dependencies. For Debian / Ubuntu, this is done with:
 ```bash
 sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
 ```
