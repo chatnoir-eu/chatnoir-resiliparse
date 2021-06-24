@@ -13,11 +13,19 @@
 # limitations under the License.
 
 import os
-from Cython.Build import cythonize
-import Cython.Compiler.Options
 from setuptools import setup, Extension
 
-Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
+USE_CYTHON = True
+try:
+      from Cython.Build import cythonize
+      import Cython.Compiler.Options
+
+      Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
+      ext = 'pyx'
+except ModuleNotFoundError:
+      USE_CYTHON = False
+      ext = 'cpp'
+
 this_directory = os.path.abspath(os.path.dirname(__file__))
 cpp_args = dict(
       extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
@@ -35,17 +43,19 @@ cpp_args = dict(
 # )
 
 fastwarc_extensions = [
-      Extension('fastwarc.warc', sources=['fastwarc/warc.pyx'], **cpp_args),
-      Extension('fastwarc.stream_io', sources=['fastwarc/stream_io.pyx'], **cpp_args),
-      Extension('fastwarc.tools', sources=['fastwarc/tools.pyx'], **cpp_args)
+      Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
+      Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
+      Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
 ]
+if USE_CYTHON:
+      fastwarc_extensions=cythonize(fastwarc_extensions, annotate=Cython.Compiler.Options.annotate, language_level='3')
 
 with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
       fastwarc_long_description = f.read()
 
 setup(
       name='FastWARC',
-      version='0.2',
+      version='0.2.1',
       description='A high-performance WARC parsing library for Python written in C++/Cython.',
       long_description=fastwarc_long_description,
       long_description_content_type='text/markdown',
@@ -58,10 +68,9 @@ setup(
             'tqdm'
       ],
       setup_requires=[
-            'cython',
             'setuptools>=18.0'
       ],
-      ext_modules=cythonize(fastwarc_extensions, annotate=Cython.Compiler.Options.annotate, language_level='3'),
+      ext_modules=fastwarc_extensions,
       entry_points={
             'console_scripts': ['fastwarc=fastwarc.cli:main']
       }
