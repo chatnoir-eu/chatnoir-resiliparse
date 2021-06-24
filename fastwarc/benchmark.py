@@ -42,7 +42,7 @@ botocore = None
 s3 = None
 
 
-def __init_s3(endpoint_url, aws_access_key,  aws_secret_key=None):
+def _init_s3(endpoint_url, aws_access_key,  aws_secret_key=None):
     global boto3, botocore, s3
 
     if s3 is not None:
@@ -93,7 +93,7 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
     urls_expanded = []
     for url in input_urls:
         if url.startswith('s3://'):
-            __init_s3(endpoint_url, aws_access_key, aws_secret_key)
+            _init_s3(endpoint_url, aws_access_key, aws_secret_key)
             s3_bucket, s3_object_prefix = url[5:].split('/', 1)
             urls_expanded.extend('/'.join(('s3:/', s3_bucket, o.key))
                                  for o in s3.Bucket(s3_bucket).objects.filter(Prefix=s3_object_prefix))
