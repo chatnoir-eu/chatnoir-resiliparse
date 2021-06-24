@@ -219,9 +219,9 @@ Here are a few example runs:
 # Uncompressed WARC
 $ ./benchmark.py read foo.warc --bench-warcio
 Benchmarking read performance from 1 input path(s)...
-FastWARC: 116502 records read in 1.82 seconds (64092.09 records/s).
-WARCIO:   116502 records read in 8.25 seconds (14123.10 records/s).
-Time difference: -6.43 seconds, speedup: 4.54
+FastWARC: 126049 records read in 1.92 seconds (65694.38 records/s).
+WARCIO:   126049 records read in 9.18 seconds (13734.69 records/s).
+Time difference: -7.26 seconds, speedup: 4.78
 
 # GZip WARC
 $ ./benchmark.py read foo.warc.gz --bench-warcio
