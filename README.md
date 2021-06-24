@@ -37,22 +37,26 @@ Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
 ```bash
 pip install fastwarc
 ```
+**However:** these binaries are provided *purely for your convenience*. Since they are built on the very old `manylinux` base system for better compatibility, their performance isn't optimal (though still better than WARCIO). For best performance, see the next section on how to build FastWARC yourself.
 
 ## Building FastWARC
 
-If the pre-built binaries don't work for you, you can also compile FastWARC yourself, but before you can build the binaries, you need to install all build-time dependencies. For Debian / Ubuntu, this is done with:
+You can compile FastWARC either from the PyPi source package or directly from this repository, though in any case, you need to install all build-time dependencies first. For Debian / Ubuntu, this is done with:
 ```bash
 sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
 ```
-
-You can then build and install the binaries like so:
+Then to build FastWARC from PyPi, run
+```bash
+pip install --no-binary fastwarc fastwarc
+```
+That's it. If you prefer to build directly from this repository instead, run:
 ```bash
 # Create venv (recommended, but not required):
 python3 -m venv venv && source venv/bin/activate
 
 # Build and install:
 pip install cython setuptools
-python3 setup.py build_ext
+python3 setup.py build
 python3 setup.py install
 ```
 
