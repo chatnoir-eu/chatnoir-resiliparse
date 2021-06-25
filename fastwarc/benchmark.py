@@ -99,7 +99,7 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
                                  for o in s3.Bucket(s3_bucket).objects.filter(Prefix=s3_object_prefix))
         else:
             urls_expanded.append(url)
-    return urls_expanded,
+    return urls_expanded
 
 
 # noinspection PyPackageRequirements
@@ -128,6 +128,17 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
     Supported compression algorithms are GZip, LZ4, or uncompressed.
     """
 
+    if not input_url:
+        raise click.UsageError('Need at least one input path.')
+
+    if is_prefix:
+        input_url = _expand_s3_prefixes(input_url, endpoint_url, aws_access_key, aws_secret_key)
+    else:
+        for u in input_url:
+            if u.startswith('s3://'):
+                _init_s3(endpoint_url, aws_access_key, aws_secret_key)
+                break
+
     if decompress_alg == 'auto':
         decompress_alg = detect_compression_algorithm(input_url[0])
     else:
@@ -143,9 +154,6 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         except ModuleNotFoundError:
             click.echo("--bench-warcio requires 'warcio' to be installed.", err=True)
             sys.exit(1)
-
-    if is_prefix:
-        input_url = _expand_s3_prefixes(input_url, endpoint_url, aws_access_key, aws_secret_key)
 
     click.echo(f'Benchmarking read performance from {len(input_url)} input path(s)...')
 
@@ -163,6 +171,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
             yield from l(u)
 
         try:
+            urls[0]
             for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
                           desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
                 num += 1
