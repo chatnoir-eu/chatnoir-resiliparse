@@ -29,7 +29,7 @@ def exception_handler(exctype, value, _):
         click.echo(str(value), err=True)
         sys.exit(1)
 
-    raise
+    raise value
 
 
 sys.excepthook = exception_handler

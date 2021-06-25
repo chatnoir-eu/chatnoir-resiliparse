@@ -26,7 +26,7 @@ import botocore.exceptions
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream
+from fastwarc.stream_io import FileStream, StreamError
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream
 
@@ -164,29 +164,36 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
             rec_type_filter |= getattr(WarcRecordType, t)
 
     def _bench(urls, stream_loader, lib):
+        interrupted = False
         start = time.monotonic()
         num = 0
 
-        def _load_lazy(u, l):
-            yield from l(u)
-
         try:
-            urls[0]
+            def _load_lazy(u, l):
+                yield from l(u)
+
             for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
                           desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
                 num += 1
-        except OSError as e:
+        except StreamError as e:
             click.echo(f'Error reading input: {e}', err=True)
             sys.exit(1)
-        return num, time.monotonic() - start
+        except KeyboardInterrupt:
+            click.echo(f'Benchmark interrupted.', err=True)
+            interrupted = True
+
+        return num, time.monotonic() - start, interrupted
 
     def _fastwarc_iterator(f):
         s = _get_raw_stream_from_url(f, use_python_stream)
         s = wrap_warc_stream(s, 'rb', decompress_alg)
         return ArchiveIterator(s, rec_type_filter, parse_http=parse_http, verify_digests=verify_digests)
 
-    n, t_fastwarc = _bench(input_url, _fastwarc_iterator, 'FastWARC')
+    n, t_fastwarc, interrupted = _bench(input_url, _fastwarc_iterator, 'FastWARC')
     click.echo(f'FastWARC: {n} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:.02f} records/s).')
+
+    if interrupted:
+        sys.exit(1)
 
     if bench_warcio:
         def _warcio_iterator(f):
@@ -199,7 +206,6 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
                     if rec_type_filter & getattr(WarcRecordType, rec.rec_type) != 0:
                         yield rec
 
-        n, t_warcio = _bench(input_url, _warcio_iterator, 'WARCIO')
+        n, t_warcio, _ = _bench(input_url, _warcio_iterator, 'WARCIO')
         click.echo(f'WARCIO:   {n} records read in {t_warcio:.02f} seconds ({n / t_warcio:.02f} records/s).')
         click.echo(f'Time difference: {t_fastwarc - t_warcio:.02f} seconds, speedup: {t_warcio / t_fastwarc:.02f}')
-
