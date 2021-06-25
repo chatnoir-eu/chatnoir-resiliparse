@@ -606,9 +606,6 @@ cdef class BufferedReader:
         self.limit_consumed = 0
         self.negotiate_stream = not isinstance(stream, CompressingStream)
 
-    def __dealloc__(self):
-        self.close()
-
     cdef void detect_stream_type(self):
         """Try to auto-detect stream type (GZip, LZ4, or uncompressed)."""
         if not self.negotiate_stream:
