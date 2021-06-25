@@ -673,8 +673,8 @@ cdef class ArchiveIterator:
 
         # Check if record is to be skipped
         skip |= (self.record._record_type & self.record_type_filter) == 0
-        skip |= self.max_content_length != strnpos and self.record._content_length < self.max_content_length
-        skip |= self.min_content_length != strnpos and self.record._content_length >= self.max_content_length
+        skip |= self.max_content_length != strnpos and self.record._content_length > self.max_content_length
+        skip |= self.min_content_length != strnpos and self.record._content_length < self.max_content_length
         if not skip and self.func_filter is not None:
             # Execute expensive filters last and only if skip is not already true
             skip |= not self.func_filter(self.record)
