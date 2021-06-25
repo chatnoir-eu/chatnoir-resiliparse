@@ -55,7 +55,7 @@ with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
       name='FastWARC',
-      version='0.2.2',
+      version='0.2.3',
       description='A high-performance WARC parsing library for Python written in C++/Cython.',
       long_description=fastwarc_long_description,
       long_description_content_type='text/markdown',
