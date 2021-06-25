@@ -24,8 +24,12 @@ import warnings
 cdef extern from "<errno.h>" nogil:
     int errno
 
+cdef extern from "<cstdlib>" namespace "std" nogil:
+    long strtol(const char* str, char** endptr, int base)
+
 cdef extern from "<string.h>" nogil:
     char* strerror(int errnum)
+
 
 cdef size_t strnpos = -1
 
@@ -796,3 +800,19 @@ cdef class BufferedReader:
         if self.stream is not None:
             return self.stream.error()
         return string()
+
+
+
+cpdef string read_http_chunk(BufferedReader reader):
+    """
+    Helper function for reading chunked HTTP payloads.
+    
+    Each call to this function will try to read the next chunk. In case of an error
+    or EOF, an empty byte string will be returned.
+    
+    :param reader: input reader
+    :return: contents of the next chunk or empty string if EOF
+    """
+    cdef string header_line = reader.readline(True)
+    cdef size_t chunk_size = strtol(header_line.substr(0, header_line.size() - 2).c_str(), NULL, 16)
+    return reader.read(chunk_size + 2).substr(0, chunk_size)
