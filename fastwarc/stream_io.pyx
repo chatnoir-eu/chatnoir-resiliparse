@@ -164,6 +164,7 @@ cdef class FileStream(IOStream):
 cdef class PythonIOStreamAdapter(IOStream):
     def __cinit__(self, py_stream):
         self.py_stream = py_stream
+        self.exc = None
 
 
 cdef IOStream wrap_stream(raw_stream):

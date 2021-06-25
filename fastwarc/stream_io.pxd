@@ -157,15 +157,22 @@ cdef class PythonIOStreamAdapter(IOStream):
     """IOStream adapter for Python file-like objects."""
 
     cdef object py_stream
+    cdef Exception exc
 
     cdef inline size_t tell(self):
-        return self.py_stream.tell()
+        try:
+            return self.py_stream.tell()
+        except Exception as e:
+            self.errstr = str(e).encode()
+            self.exc = e
+            return 0
 
     cdef inline string read(self, size_t size):
         try:
             return self.py_stream.read(size)[:size]
         except Exception as e:
             self.errstr = str(e).encode()
+            self.exc = e
             return string()
 
     cdef inline size_t write(self, const char* data, size_t size):
@@ -173,14 +180,26 @@ cdef class PythonIOStreamAdapter(IOStream):
             return self.py_stream.write(data[:size])
         except Exception as e:
             self.errstr = str(e).encode()
+            self.exc = e
             return 0
 
     cdef inline void flush(self):
-        self.py_stream.flush()
+        try:
+            self.py_stream.flush()
+        except Exception as e:
+            self.errstr = str(e).encode()
+            self.exc = e
 
     cdef inline void close(self):
-        if self.py_stream:
+        if self.py_stream is None:
+            return
+
+        # noinspection PyBroadException
+        try:
             self.py_stream.close()
+        except:
+            # Ignore exceptions during close()
+            pass
 
 
 cdef class BytesIOStream(IOStream):

@@ -626,6 +626,9 @@ cdef class ArchiveIterator:
         while True:
             version_line = self.reader.readline()
             if not self.reader.error().empty():
+                if isinstance(self.stream, PythonIOStreamAdapter) and \
+                        (<PythonIOStreamAdapter>self.stream).exc is not None:
+                    raise (<PythonIOStreamAdapter>self.stream).exc
                 raise StreamError(self.reader.error().decode())
 
             if version_line.empty():
