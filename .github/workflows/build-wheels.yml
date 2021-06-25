@@ -1,8 +1,9 @@
 name: Build and publish Wheels
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - '*'
 
 jobs:
   deploy:
