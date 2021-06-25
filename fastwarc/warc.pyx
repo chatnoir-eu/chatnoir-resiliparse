@@ -34,8 +34,10 @@ cdef extern from "<cctype>" namespace "std" nogil:
     int isspace(int c)
     int tolower(int c)
 
+cdef extern from "<cstdlib>" namespace "std" nogil:
+    long strtol(const char* str, char** endptr, int base)
+
 cdef extern from "<string>" namespace "std" nogil:
-    int stoi(const string& s)
     string to_string(int i)
     string to_string(size_t i)
 
@@ -650,13 +652,14 @@ cdef class ArchiveIterator:
         cdef string hkey
         cdef size_t parse_count = 0
         cdef str_pair h
+        cdef bint skip = False
         for h in self.record._headers._headers:
             hkey = str_to_lower(h[0])
             if hkey == b'warc-type':
                 self.record._record_type = _str_record_type_to_enum(h[1])
                 parse_count += 1
             elif hkey == b'content-length':
-                self.record._content_length = stoi(h[1])
+                self.record._content_length = strtol(h[1].c_str(), NULL, 10)
                 parse_count += 1
             elif hkey == b'content-type' and h[1].find(b'application/http') == 0:
                 self.record._is_http = True
@@ -666,7 +669,6 @@ cdef class ArchiveIterator:
                 break
 
         # Check if record is to be skipped
-        cdef bint skip = False
         skip |= (self.record._record_type & self.record_type_filter) == 0
         skip |= self.max_content_length != strnpos and self.record._content_length < self.max_content_length
         skip |= self.min_content_length != strnpos and self.record._content_length >= self.max_content_length
