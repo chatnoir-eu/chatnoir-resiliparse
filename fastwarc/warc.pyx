@@ -107,6 +107,44 @@ cdef WarcRecordType _str_record_type_to_enum(string record_type):
         return unknown
 
 
+class CaseInsensitiveStr(str):
+    """Case insensitive str implementation for use as dict key."""
+    def __hash__(self):
+        return hash(self.casefold())
+
+    def __eq__(self, other):
+        return self.casefold() == other.casefold()
+
+
+class CaseInsensitiveStrDict(dict):
+    """Case-insensitive str dict."""
+    def __getitem__(self, key):
+        return super().__getitem__(CaseInsensitiveStr(key))
+
+    def __setitem__(self, key, value):
+        super().__setitem__(CaseInsensitiveStr(key), value)
+
+    def __contains__(self, key):
+        return super().__contains__(CaseInsensitiveStr(key))
+
+    def get(self, key, value=None):
+        return super().get(CaseInsensitiveStr(key), value)
+
+    def setdefault(self, key, value=None):
+        return super().setdefault(CaseInsensitiveStr(key), value)
+
+    def pop(self, key):
+        return super().pop(CaseInsensitiveStr(key))
+
+    def update(self, it=None, **kwargs):
+        if hasattr(it, 'items'):
+            it = it.items()
+        if it is not None:
+            for k, v in it:
+                super().__setitem__(CaseInsensitiveStr(k), v)
+        for k, v in kwargs.items():
+            super().__setitem__(CaseInsensitiveStr(k), v)
+
 
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
@@ -176,9 +214,9 @@ cdef class WarcHeaderMap:
         """Headers as Python dict."""
         cdef str_pair h
         if self._dict_cache_stale:
-            self._dict_cache = {
-                h[0].decode(self._enc, errors='ignore'): h[1].decode(self._enc, errors='ignore')
-                for h in self._headers}
+            self._dict_cache = <dict>CaseInsensitiveStrDict({
+                CaseInsensitiveStr(h[0].decode(self._enc, errors='ignore')): h[1].decode(self._enc, errors='ignore')
+                for h in self._headers})
         return self._dict_cache
 
     def astuples(self):
