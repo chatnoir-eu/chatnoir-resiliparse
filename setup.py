@@ -15,63 +15,84 @@
 import os
 from setuptools import setup, Extension
 
+THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
 try:
-      from Cython.Build import cythonize
-      import Cython.Compiler.Options
+    from Cython.Build import cythonize
+    import Cython.Compiler.Options
 
-      Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
-      ext = 'pyx'
+    Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
+    ext = 'pyx'
 except ModuleNotFoundError:
-      USE_CYTHON = False
-      ext = 'cpp'
+    USE_CYTHON = False
+    ext = 'cpp'
 
-this_directory = os.path.abspath(os.path.dirname(__file__))
 cpp_args = dict(
-      extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
-                          '-Wno-unreachable-code', '-Wno-unused-function'],
-      extra_link_args=['-std=c++17', '-lz', '-llz4'])
+    extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
+                        '-Wno-unreachable-code', '-Wno-unused-function'],
+    extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
-# setup(
-#       name='ResiliParse',
-#       version='1.0',
-#       description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
-#       author='Janek Bevendorff',
-#       url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
-#       license='Apache License 2.0',
-#       packages=[],
-# )
 
-fastwarc_extensions = [
-      Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-      Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
-      Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
+# ------------------------------------------
+# Resiliparse
+# ------------------------------------------
+
+resiliparse_extensions = [
+    Extension('resiliparse.warc', sources=[f'resiliparse/process_guard.{ext}'], **cpp_args)
 ]
 if USE_CYTHON:
-      fastwarc_extensions=cythonize(fastwarc_extensions, annotate=Cython.Compiler.Options.annotate, language_level='3')
-
-with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-      fastwarc_long_description = f.read()
+    resiliparse_extensions = cythonize(resiliparse_extensions,
+                                       annotate=Cython.Compiler.Options.annotate, language_level='3')
 
 setup(
-      name='FastWARC',
-      version='0.2.5',
-      description='A high-performance WARC parsing library for Python written in C++/Cython.',
-      long_description=fastwarc_long_description,
-      long_description_content_type='text/markdown',
-      author='Janek Bevendorff',
-      url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
-      license='Apache License 2.0',
-      packages=['fastwarc'],
-      install_requires=[
-            'click',
-            'tqdm'
-      ],
-      setup_requires=[
-            'setuptools>=18.0'
-      ],
-      ext_modules=fastwarc_extensions,
-      entry_points={
-            'console_scripts': ['fastwarc=fastwarc.cli:main']
-      }
+    name='ResiliParse',
+    version='1.0',
+    description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
+    author='Janek Bevendorff',
+    url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
+    license='Apache License 2.0',
+    packages=['resiliparse'],
+    install_requires=[],
+    setup_requires=[
+        'setuptools>=18.0'
+    ],
+    ext_modules=resiliparse_extensions,
+    entry_points={}
+)
+
+
+# ------------------------------------------
+# FastWARC
+# ------------------------------------------
+
+fastwarc_extensions = [
+    Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
+    Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
+    Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
+]
+if USE_CYTHON:
+    fastwarc_extensions = cythonize(fastwarc_extensions,
+                                    annotate=Cython.Compiler.Options.annotate, language_level='3')
+
+setup(
+    name='FastWARC',
+    version='0.2.5',
+    description='A high-performance WARC parsing library for Python written in C++/Cython.',
+    long_description=open(os.path.join(THIS_DIRECTORY, 'README.md')).read(),
+    long_description_content_type='text/markdown',
+    author='Janek Bevendorff',
+    url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
+    license='Apache License 2.0',
+    packages=['fastwarc'],
+    install_requires=[
+        'click',
+        'tqdm'
+    ],
+    setup_requires=[
+        'setuptools>=18.0'
+    ],
+    ext_modules=fastwarc_extensions,
+    entry_points={
+        'console_scripts': ['fastwarc=fastwarc.cli:main']
+    }
 )
