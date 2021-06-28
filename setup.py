@@ -37,12 +37,17 @@ cpp_args = dict(
 # Resiliparse
 # ------------------------------------------
 
+resiliparse_cpp_args = cpp_args.copy()
+resiliparse_cpp_args['extra_compile_args'].append('-pthread')
+resiliparse_cpp_args['extra_link_args'].append('-pthread')
+
 resiliparse_extensions = [
-    Extension('resiliparse.warc', sources=[f'resiliparse/process_guard.{ext}'], **cpp_args)
+    Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
 ]
 if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions,
                                        annotate=Cython.Compiler.Options.annotate, language_level='3')
+
 
 setup(
     name='ResiliParse',
