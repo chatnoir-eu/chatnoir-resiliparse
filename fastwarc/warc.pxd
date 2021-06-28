@@ -48,7 +48,7 @@ cdef class WarcHeaderMap:
     cdef size_t write(self, IOStream stream)
     cdef inline void clear(self)
     cdef inline void set_status_line(self, const string& status_line)
-    cdef string get_header(self, string header_key)
+    cdef string find_header(self, const string& header_key, const string& default)
     cdef void set_header(self, const string& header_key, const string& header_value)
     cdef inline void append_header(self, const string& header_key, const string& header_value)
     cdef void add_continuation(self, const string& header_continuation_value)
@@ -66,6 +66,7 @@ cdef class WarcRecord:
     cdef WarcHeaderMap _headers
     cdef bint _is_http
     cdef bint _http_parsed
+    cdef string _http_charset
     cdef WarcHeaderMap _http_headers
     cdef size_t _content_length
     cdef BufferedReader _reader

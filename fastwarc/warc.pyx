@@ -214,17 +214,16 @@ cdef class WarcHeaderMap:
         """Set status line string."""
         self._status_line = status_line
 
-    cdef string get_header(self, string header_key):
-        """Get header value."""
-        header_key = str_to_lower(header_key)
-
+    cdef string find_header(self, const string& header_key, const string& default):
+        """Return value of first header occurrence or `default` (linear complexity)."""
+        cdef string header_key_lower = str_to_lower(header_key)
         cdef vector[str_pair].iterator it = self._headers.begin()
         while it != self._headers.end():
-            if str_to_lower(deref(it)[0]) == header_key:
+            if str_to_lower(deref(it)[0]) == header_key_lower:
                 return deref(it)[1]
             inc(it)
 
-        return string()
+        return default
 
     cdef void set_header(self, const string& header_key, const string& header_value):
         """Set new header or overwrite existing header if it exists."""
@@ -302,6 +301,37 @@ cdef class WarcRecord:
     def http_headers(self):
         """HTTP headers if record is an HTTP record and HTTP headers have been parsed yet."""
         return self._http_headers
+
+    @property
+    def http_charset(self):
+        """
+        HTTP charset/encoding as returned by the server or `None` if no valid charset is set.
+        A returned string is guaranteed to be a valid Python encoding name.
+        """
+        if not self._http_parsed or self._http_charset == <char*>b'_':
+            return None
+
+        if not self._http_charset.empty():
+            return self._http_charset.decode()
+
+        cdef string content_type = self._http_headers.find_header(<char*>b'content-type', <char*>b'')
+        cdef size_t pos = content_type.find(<char*>b'charset=')
+        if pos == strnpos:
+            return None
+
+        pos += 8
+        cdef size_t pos_end = content_type.find(<char*>b';', pos)
+        if pos_end != strnpos:
+            pos_end = pos_end - pos
+
+        self._http_charset = str_to_lower(strip_str(content_type.substr(pos, pos_end)))
+        try:
+            ''.encode(encoding=self._http_charset.decode())
+        except LookupError:
+            self._http_charset = <char*>b'_'
+            return None
+
+        return self._http_charset.decode()
 
     @property
     def content_length(self):
@@ -500,7 +530,7 @@ cdef class WarcRecord:
         :param consume: do not create an in-memory copy of the record stream (will fully consume the rest of the record)
         :return: `True` if digest exists and is valid
         """
-        return self._verify_digest(self._headers.get_header(b'WARC-Block-Digest'), consume)
+        return self._verify_digest(self._headers.find_header(<char*>b'WARC-Block-Digest', <char*>b''), consume)
 
     cpdef bint verify_payload_digest(self, bint consume=False):
         """
@@ -511,7 +541,7 @@ cdef class WarcRecord:
         """
         if not self._http_parsed:
             return False
-        return self._verify_digest(self._headers.get_header(b'WARC-Payload-Digest'), consume)
+        return self._verify_digest(self._headers.find_header(<char*>b'WARC-Payload-Digest', <char*>b''), consume)
 
 
 # noinspection PyProtectedMember
@@ -714,13 +744,13 @@ cpdef int is_warc_11(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint has_block_digest(WarcRecord record):
     """Filter function for checking if record has a block digest."""
-    return not record._headers.get_header(<char*>b'WARC-Block-Digest').empty()
+    return not record._headers.find_header(<char*>b'WARC-Block-Digest', <char*>b'').empty()
 
 
 # noinspection PyProtectedMember
 cpdef bint has_payload_digest(WarcRecord record):
     """Filter function for checking if record has a payload digest."""
-    return not record._headers.get_header(<char*>b'WARC-Payload-Digest').empty()
+    return not record._headers.find_header(<char*>b'WARC-Payload-Digest', <char*>b'').empty()
 
 
 # noinspection PyProtectedMember
@@ -732,4 +762,4 @@ cpdef bint is_http(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_concurrent(WarcRecord record):
     """Filter function for checking if record is concurrent to another record."""
-    return not record._headers.get_header(<char*>b'WARC-Concurrent-To').empty()
+    return not record._headers.find_header(<char*>b'WARC-Concurrent-To', <char*>b'').empty()
