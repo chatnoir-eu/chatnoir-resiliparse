@@ -17,6 +17,7 @@
 import base64
 from datetime import datetime
 import hashlib
+from typing import Iterable, List, Optional, Tuple
 import uuid
 import warnings
 
@@ -171,9 +172,9 @@ cdef class WarcHeaderMap:
         return item in self.asdict()
 
     @property
-    def status_line(self):
+    def status_line(self) -> str:
         """Header status line."""
-        return self._status_line.decode(self._status_code, errors='ignore')
+        return self._status_line.decode(self._enc, errors='ignore')
 
     @status_line.setter
     def status_line(self, status_line):
@@ -181,7 +182,7 @@ cdef class WarcHeaderMap:
         self._status_line = status_line.encode(self._enc, errors='ignore')
 
     @property
-    def status_code(self):
+    def status_code(self) -> int:
         """HTTP status code (unset if header block is not an HTTP header block)."""
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
@@ -194,7 +195,7 @@ cdef class WarcHeaderMap:
         """Append header (use if header name is not unique)."""
         self.append_header(key.encode(self._enc), value.encode(self._enc))
 
-    def get(self, item, default=None):
+    def get(self, item, default=None) -> str:
         """Get header value or default value."""
         return self.asdict().get(item, default)
 
@@ -210,7 +211,7 @@ cdef class WarcHeaderMap:
         """Iterable of header values."""
         return self.asdict().values()
 
-    def asdict(self):
+    def asdict(self) -> dict:
         """Headers as Python dict."""
         cdef str_pair h
         if self._dict_cache_stale:
@@ -219,7 +220,7 @@ cdef class WarcHeaderMap:
                 for h in self._headers})
         return self._dict_cache
 
-    def astuples(self):
+    def astuples(self) -> List[Tuple[str, str]]:
         """Headers as list of tuples (use if header keys are not necessarily unique)."""
         cdef str_pair h
         return [(h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
@@ -306,12 +307,12 @@ cdef class WarcRecord:
         self._stream_pos = 0
 
     @property
-    def record_id(self):
+    def record_id(self) -> str:
         """Record ID (same as `headers['WARC-Record'ID']`."""
         return self._headers['WARC-Record-ID']
 
     @property
-    def record_type(self):
+    def record_type(self) -> WarcRecordType:
         """Record type (same as `headers['WARC-Type']`."""
         return self._record_type
 
@@ -321,27 +322,27 @@ cdef class WarcRecord:
         self._headers['WARC-Type'] = _enum_record_type_to_str(record_type)
 
     @property
-    def headers(self):
+    def headers(self) -> WarcHeaderMap:
         """WARC record headers."""
         return self._headers
 
     @property
-    def is_http(self):
+    def is_http(self) -> bool:
         """Whether record is an HTTP record"""
         return self._is_http
 
     @property
-    def http_parsed(self):
+    def is_http_parsed(self) -> bool:
         """Whether HTTP headers have been parsed."""
         return self._http_parsed
 
     @property
-    def http_headers(self):
+    def http_headers(self) -> Optional[WarcHeaderMap]:
         """HTTP headers if record is an HTTP record and HTTP headers have been parsed yet."""
         return self._http_headers
 
     @property
-    def http_charset(self):
+    def http_charset(self) -> Optional[str]:
         """
         HTTP charset/encoding as returned by the server or `None` if no valid charset is set.
         A returned string is guaranteed to be a valid Python encoding name.
@@ -372,17 +373,17 @@ cdef class WarcRecord:
         return self._http_charset.decode()
 
     @property
-    def content_length(self):
+    def content_length(self) -> int:
         """Remaining WARC length in bytes (not necessarily the same as the Content-Length header)."""
         return self._content_length
 
     @property
-    def reader(self):
+    def reader(self) -> BufferedReader:
         """Reader for the remaining WARC record content."""
         return self._reader
 
     @property
-    def stream_pos(self):
+    def stream_pos(self) -> int:
         """WARC record start offset in the original (uncompressed stream)."""
         return self._stream_pos
 
@@ -665,7 +666,7 @@ cdef class ArchiveIterator:
         self.record_type_filter = record_types
         self.stream_is_compressed = isinstance(stream, CompressingStream)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[WarcRecord]:
         cdef _NextRecStatus status
         self.reader.detect_stream_type()
         while True:
@@ -768,13 +769,13 @@ cdef class ArchiveIterator:
 
 
 # noinspection PyProtectedMember
-cpdef int is_warc_10(WarcRecord record):
+cpdef bint is_warc_10(WarcRecord record):
     """Filter function for checking if record is a WARC/1.0 record."""
     return record._headers._status_line == <char*>b'WARC/1.0'
 
 
 # noinspection PyProtectedMember
-cpdef int is_warc_11(WarcRecord record):
+cpdef bint is_warc_11(WarcRecord record):
     """Filter function for checking if record is a WARC/1.1 record."""
     return record._headers._status_line == <char*>b'WARC/1.1'
 

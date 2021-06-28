@@ -13,3 +13,9 @@
 # limitations under the License.
 
 # distutils: language = c++
+
+def timer_guard(func):
+    return _timer_guard
+
+cdef _timer_guard():
+    return
