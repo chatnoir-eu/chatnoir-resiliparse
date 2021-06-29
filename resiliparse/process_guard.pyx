@@ -19,6 +19,7 @@ from threading import current_thread, Thread
 from typing import Any, Iterable
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
+from libc.stdio cimport fflush, fprintf, stderr
 
 cdef extern from "<signal.h>" nogil:
     const int SIGHUP
@@ -238,6 +239,9 @@ cdef class TimeGuard(_ResiliparseGuard):
                             pthread_kill(main_thread_id, SIGKILL)
                         elif self.interrupt_type != exception:
                             pthread_kill(main_thread_id, SIGTERM)
+                        fprintf(stderr, <char*>b'ERROR: Guarded thread did not respond to TERM signal. '
+                                               b'Terminating guard context.\n')
+                        fflush(stderr)
                         break
 
 
