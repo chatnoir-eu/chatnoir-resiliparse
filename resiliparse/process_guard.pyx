@@ -113,6 +113,14 @@ cdef class _ResiliparseGuard:
 
         return guard_wrapper
 
+    def __enter__(self):
+        self.exec_before()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exec_after()
+        self.finish()
+
     cdef void exec_before(self):
         pass
 
@@ -126,7 +134,7 @@ cdef class TimeGuard(_ResiliparseGuard):
     cdef size_t grace_period
     cdef InterruptType interrupt_type
 
-    def __cinit__(self, size_t timeout, size_t grace_period, InterruptType interrupt_type):
+    def __cinit__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal):
         self.timeout = timeout
         self.grace_period = grace_period
         self.interrupt_type = interrupt_type
