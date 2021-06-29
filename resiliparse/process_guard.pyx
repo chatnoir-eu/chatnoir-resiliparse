@@ -104,7 +104,13 @@ cdef class _ResiliparseGuard:
             return ret
 
         # Retain `self`, but do not bind via `__get__()` or else `func` will belong to this class
-        guard_wrapper._self = self
+        guard_wrapper._guard_self = self
+
+        # Decorate with public methods of guard instance for convenience
+        for attr in dir(self):
+            if not attr.startswith('_'):
+                setattr(guard_wrapper, attr, getattr(self, attr))
+
         return guard_wrapper
 
     cdef void exec_before(self):
@@ -178,6 +184,7 @@ cdef class TimeGuard(_ResiliparseGuard):
     cpdef void progress(self):
         """
         Increment epoch counter to indicate progress and reset the guard timeout.
+        This method is thread-safe.
         """
         self.gctx.epoch_counter.fetch_add(1)
 
@@ -219,7 +226,8 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
 
 def progress(caller=None):
     """
-    Increment :class:`TimeGuard` epoch counter to indicate progress and reset the guard timeout.
+    Increment :class:`TimeGuard` epoch counter to indicate progress and reset the guard timeout
+    for the active guard context surrounding the caller.
 
     If `caller` ist `None`, the last valid guard context from the global namespace on
     the call stack will be used. If the guard context does not live in the module's
@@ -235,11 +243,10 @@ def progress(caller=None):
         for i in range(len(inspect.stack())):
             frame_info = inspect.stack()[i]
             caller = frame_info[0].f_globals.get(frame_info[3])
-            if isinstance(getattr(caller, '_self', None), TimeGuard):
+            if isinstance(getattr(caller, '_guard_self', None), TimeGuard):
                 break
 
-    if not isinstance(getattr(caller, '_self', None), TimeGuard):
+    if not isinstance(getattr(caller, '_guard_self', None), TimeGuard):
         raise RuntimeError('No initialized guard context.')
 
-    cdef _GuardContext* gctx = &(<TimeGuard>caller._self).gctx
-    gctx.epoch_counter.store(gctx.epoch_counter.load() + 1)
+    (<TimeGuard>caller._guard_self).progress()
