@@ -31,26 +31,36 @@ cdef extern from "<pthread.h>" nogil:
     pthread_t pthread_self()
     int pthread_kill(pthread_t thread, int sig)
 
-    ctypedef struct pthread_mutex_t:
-        long sig
-        char* opaque
-    ctypedef struct pthread_mutexattr_t:
-        long sig
-        char * opaque
-    pthread_mutex_t PTHREAD_MUTEX_INITIALIZER
-    int pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr)
-    int pthread_mutex_destroy(pthread_mutex_t* mutex)
-    int pthread_mutex_lock(pthread_mutex_t* mutex)
-    int pthread_mutex_unlock(pthread_mutex_t* mutex)
+    # ctypedef struct pthread_mutex_t:
+    #     long sig
+    #     char* opaque
+    # ctypedef struct pthread_mutexattr_t:
+    #     long sig
+    #     char * opaque
+    # pthread_mutex_t PTHREAD_MUTEX_INITIALIZER
+    # int pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr)
+    # int pthread_mutex_destroy(pthread_mutex_t* mutex)
+    # int pthread_mutex_lock(pthread_mutex_t* mutex)
+    # int pthread_mutex_unlock(pthread_mutex_t* mutex)
+
+
+cdef extern from "<atomic>" namespace "std" nogil:
+    cdef cppclass atomic[T]:
+        atomic()
+        T load() const
+        void store(T desired)
+        T fetch_add(T arg)
+    ctypedef atomic[bint] atomic_bool
+    ctypedef atomic[size_t] atomic_size_t
+
 
 cdef extern from "<unistd.h>" nogil:
     int usleep(size_t usec)
 
 
 cdef struct _GuardContext:
-    size_t epoch_counter
-    bint ended
-    pthread_mutex_t lock
+    atomic_size_t epoch_counter
+    atomic_bool ended
 
 
 cpdef enum InterruptType:
@@ -75,17 +85,15 @@ cdef class _ResiliparseGuard:
     cdef _GuardContext gctx
 
     def __cinit__(self, *args, **kwargs):
-        self.gctx.epoch_counter = 0
-        self.gctx.ended = False
-        self.gctx.lock = PTHREAD_MUTEX_INITIALIZER
+        self.gctx.epoch_counter.store(0)
+        self.gctx.ended.store(False)
 
     def __dealloc__(self):
         self.finish()
 
     cdef void finish(self):
-        if not self.gctx.ended:
-            self.gctx.ended = True
-            pthread_mutex_destroy(&self.gctx.lock)
+        if not self.gctx.ended.load():
+            self.gctx.ended.store(True)
 
     def __call__(self, func):
         def guard_wrapper(*args, **kwargs):
@@ -107,7 +115,7 @@ cdef class _ResiliparseGuard:
 
 
 # noinspection PyAttributeOutsideInit
-cdef class _TimeGuard(_ResiliparseGuard):
+cdef class TimeGuard(_ResiliparseGuard):
     cdef size_t timeout
     cdef size_t grace_period
     cdef InterruptType interrupt_type
@@ -128,18 +136,16 @@ cdef class _TimeGuard(_ResiliparseGuard):
 
             with nogil:
                 while True:
-                    if self.gctx.ended:
+                    if self.gctx.ended.load():
                         break
 
                     usleep(500 * 1000)
 
-                    pthread_mutex_lock(&self.gctx.lock)
-                    if self.gctx.epoch_counter > last_epoch:
+                    if self.gctx.epoch_counter.load() > last_epoch:
                         sec_ctr = 0
-                        last_epoch = self.gctx.epoch_counter
+                        last_epoch = self.gctx.epoch_counter.load()
                     else:
                         sec_ctr += 1
-                    pthread_mutex_unlock(&self.gctx.lock)
 
                     # Exceeded, but within grace period
                     if sec_ctr == self.timeout * 2:
@@ -168,6 +174,12 @@ cdef class _TimeGuard(_ResiliparseGuard):
         cdef guard_thread = Thread(target=_thread_exec)
         guard_thread.setDaemon(True)
         guard_thread.start()
+
+    cpdef void progress(self):
+        """
+        Increment epoch counter to indicate progress and reset the guard timeout.
+        """
+        self.gctx.epoch_counter.fetch_add(1)
 
 
 def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal):
@@ -202,12 +214,12 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
 
     """
-    return _TimeGuard.__new__(_TimeGuard, timeout, grace_period, interrupt_type)
+    return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type)
 
 
 def progress(caller=None):
     """
-    Increment guard epoch counter to indicate progress and reset the guard timeout.
+    Increment :class:`TimeGuard` epoch counter to indicate progress and reset the guard timeout.
 
     If `caller` ist `None`, the last valid guard context from the global namespace on
     the call stack will be used. If the guard context does not live in the module's
@@ -223,13 +235,11 @@ def progress(caller=None):
         for i in range(len(inspect.stack())):
             frame_info = inspect.stack()[i]
             caller = frame_info[0].f_globals.get(frame_info[3])
-            if isinstance(getattr(caller, '_self', None), _ResiliparseGuard):
+            if isinstance(getattr(caller, '_self', None), TimeGuard):
                 break
 
-    if not isinstance(getattr(caller, '_self', None), _ResiliparseGuard):
+    if not isinstance(getattr(caller, '_self', None), TimeGuard):
         raise RuntimeError('No initialized guard context.')
 
-    cdef _GuardContext* gctx = &(<_ResiliparseGuard>caller._self).gctx
-    pthread_mutex_lock(&gctx.lock)
-    gctx.epoch_counter += 1
-    pthread_mutex_unlock(&gctx.lock)
+    cdef _GuardContext* gctx = &(<TimeGuard>caller._self).gctx
+    gctx.epoch_counter.store(gctx.epoch_counter.load() + 1)
