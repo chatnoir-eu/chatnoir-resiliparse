@@ -260,7 +260,7 @@ cdef class TimeGuard(_ResiliparseGuard):
 def time_guard(size_t timeout, size_t grace_period=15,
                InterruptType interrupt_type=exception_then_signal, bint send_kill=False) -> TimeGuard:
     """
-    Decorator for guarding the execution time of a function.
+    Decorator and context manager for guarding the execution time of a function.
 
     See :class:`TimeGuard` for details.
 
