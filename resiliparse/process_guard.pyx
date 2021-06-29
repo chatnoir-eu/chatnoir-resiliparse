@@ -137,7 +137,7 @@ cdef class TimeGuard(_ResiliparseGuard):
 
     If a the guarded context runs longer than the pre-defined timeout, the guard will send
     an interrupt to the running function context. To signal progress to the guard and reset
-    the timeout, call :func:`refresh()` from the guarded context.
+    the timeout, call :meth:`TimeGuard.progress` or :func:`progress` from the guarded context.
 
     There are two interrupt mechanisms: throwing an asynchronous exception and sending
     a UNIX signal. The exception mechanism is the most gentle method of the two, but
