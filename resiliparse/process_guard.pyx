@@ -16,6 +16,7 @@
 
 import inspect
 from threading import current_thread, Thread
+from typing import Any, Iterable
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
 
@@ -253,7 +254,7 @@ cdef class TimeGuard(_ResiliparseGuard):
 
 
 def time_guard(size_t timeout, size_t grace_period=15,
-               InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
+               InterruptType interrupt_type=exception_then_signal, bint send_kill=False) -> TimeGuard:
     """
     Decorator for guarding the execution time of a function.
 
@@ -267,29 +268,43 @@ def time_guard(size_t timeout, size_t grace_period=15,
     return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type, send_kill)
 
 
-def progress(caller=None):
+cpdef progress(ctx=None):
     """
     Increment :class:`TimeGuard` epoch counter to indicate progress and reset the guard timeout
     for the active guard context surrounding the caller.
 
-    If `caller` ist `None`, the last valid guard context from the global namespace on
+    If `ctx` ist `None`, the last valid guard context from the global namespace on
     the call stack will be used. If the guard context does not live in the module's
     global namespace, this auto-detection will fail and the caller has to be supplied
     explicitly.
 
-    If `caller` ist not a valid guard context, the progress report will fail and a
+    If `ctx` ist not a valid guard context, the progress report will fail and a
     :class:`RuntimeError` will be raised.
 
-    :param caller: calling context (if None, last context from stack will be used)
+    :param ctx: active guard context (optional, will use last global context from stack if unset)
     """
-    if caller is None:
+    if ctx is None:
         for i in range(len(inspect.stack())):
             frame_info = inspect.stack()[i]
-            caller = frame_info[0].f_globals.get(frame_info[3])
-            if isinstance(getattr(caller, '_guard_self', None), TimeGuard):
+            ctx = frame_info[0].f_globals.get(frame_info[3])
+            if isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
                 break
 
-    if not isinstance(getattr(caller, '_guard_self', None), TimeGuard):
+    if not isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
         raise RuntimeError('No initialized guard context.')
 
-    (<TimeGuard>caller._guard_self).progress()
+    # noinspection PyProtectedMember
+    (<TimeGuard>ctx._guard_self).progress()
+
+
+def progress_loop(it: Iterable[Any], ctx=None) -> Iterable[Any]:
+    """
+    Wraps an iterator to report progress after each iteration.
+
+    :param it: original iterator
+    :param ctx: active guard context (optional, will use last global context from stack if unset)
+    :return: wrapped iterator
+    """
+    for i in it:
+        yield i
+        progress(ctx)
