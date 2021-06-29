@@ -23,6 +23,7 @@ cdef extern from "<signal.h>" nogil:
     const int SIGHUP
     const int SIGINT
     const int SIGTERM
+    const int SIGKILL
 
 cdef extern from "<pthread.h>" nogil:
     ctypedef struct pthread
@@ -128,16 +129,64 @@ cdef class _ResiliparseGuard:
         pass
 
 
-# noinspection PyAttributeOutsideInit
 cdef class TimeGuard(_ResiliparseGuard):
+    """
+    Execution time context guard.
+
+    If a the guarded context runs longer than the pre-defined timeout, the guard will send
+    an interrupt to the running function context. To signal progress to the guard and reset
+    the timeout, call :func:`refresh()` from the guarded context.
+
+    There are two interrupt mechanisms: throwing an asynchronous exception and sending
+    a UNIX signal. The exception mechanism is the most gentle method of the two, but
+    may be unreliable if execution is blocking outside the Python program flow (e.g.,
+    in a native C extension or in a syscall). The signal method is more reliable
+    in this regard, but does not work if the guarded thread is not the interpreter main
+    thread, since only the main thread can receive and handle signals.
+
+    Interrupt behaviour can be configured with the `interrupt_type` constructor parameter:
+
+    If `interrupt_type` is `InterruptType.exception`, a :class:`ExecutionTimeout`
+    exception will be sent to the running thread after `timeout` seconds. If the thread
+    does not react, the exception will be thrown once more after `grace_period` seconds.
+
+    If `interrupt_type` is `InterruptType.signal`, first a `SIGINT` will be sent to the
+    current thread (which will trigger a :class:`KeyboardInterrupt` exception, but can
+    also be handled with a custom `signal` handler. If the thread does not react, a less
+    friendly `SIGTERM` will be sent after `grace_period` seconds. A third and final
+    attempt of a `SIGTERM` will be sent after `grace_period`.
+
+    If `interrupt_type` is `InterruptType.exception_then_signal` (the default), the
+    first attempt will be an exception and after the grace period, the guard will
+    start sending signals.
+
+    With `send_kill` set to `True`, the third and final attempt will be a `SIGKILL` instead
+    of a `SIGTERM`. This will kill the entire interpreter (even if the guarded thread is not
+    the main thread), so you will need an external facility to restart it.
+    """
+
     cdef size_t timeout
     cdef size_t grace_period
+    cdef bint send_kill
     cdef InterruptType interrupt_type
 
-    def __cinit__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal):
+    def __init__(self, size_t timeout, size_t grace_period=15,
+                 InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
+        """
+        Initialize :class:`TimeGuard` context.
+
+        :param timeout: max execution time in seconds before invoking interrupt
+        :param grace_period: grace period in seconds after which to send another (harsher) interrupt
+        :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
+        :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
+        """
+
+    def __cinit__(self, size_t timeout, size_t grace_period=15,
+                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
         self.timeout = timeout
         self.grace_period = grace_period
         self.interrupt_type = interrupt_type
+        self.send_kill = send_kill
 
     cdef void exec_before(self):
         # Save pthread and Python thread IDs (they should be the same, but don't take chances)
@@ -162,12 +211,15 @@ cdef class TimeGuard(_ResiliparseGuard):
                         sec_ctr += 1
 
                     # Exceeded, but within grace period
-                    if sec_ctr == self.timeout * 2:
+                    if self.timeout == 0 or sec_ctr == self.timeout * 2:
                         if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
                             with gil:
                                 PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
                         elif self.interrupt_type == signal:
                             pthread_kill(main_thread_id, SIGINT)
+
+                        if self.timeout == 0:
+                            break
 
                     # Grace period exceeded
                     elif sec_ctr == (self.timeout + self.grace_period) * 2:
@@ -179,11 +231,14 @@ cdef class TimeGuard(_ResiliparseGuard):
                             with gil:
                                 PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
 
-                    # If process still hasn't reacted, send SIGTERM and then exit
+                    # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
                     elif sec_ctr >= (self.timeout + self.grace_period * 2) * 2:
-                        if self.interrupt_type != exception:
+                        if self.interrupt_type != exception and self.send_kill:
+                            pthread_kill(main_thread_id, SIGKILL)
+                        elif self.interrupt_type != exception:
                             pthread_kill(main_thread_id, SIGTERM)
                         break
+
 
         cdef guard_thread = Thread(target=_thread_exec)
         guard_thread.setDaemon(True)
@@ -197,39 +252,19 @@ cdef class TimeGuard(_ResiliparseGuard):
         self.gctx.epoch_counter.fetch_add(1)
 
 
-def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal):
+def time_guard(size_t timeout, size_t grace_period=15,
+               InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
     """
-    Decorator for guarding execution time of a function.
+    Decorator for guarding the execution time of a function.
 
-    If a function runs longer than the pre-defined timeout, the guard will send an
-    interrupt to the running function context. To signal progress to the guard and reset
-    the timeout, call :func:`refresh()` from the guarded context.
-
-    There are two interrupt mechanisms: throwing an asynchronous exception and sending
-    a UNIX signal. The exception mechanism is the most gentle method of the two, but
-    may be unreliable if execution is blocking outside the Python program context (e.g.,
-    in a native C extension or in a `sleep()` routine).
-
-    If `interrupt_type` is `InterruptType.exception`, a :class:`ExecutionTimeout`
-    exception will be sent to the running thread after `timeout` seconds. If the thread
-    does not react, the exception will be thrown once more after `grace_period` seconds.
-
-    If `interrupt_type` is `InterruptType.signal`, first a `SIGINT` will be sent to the
-    current thread (which will trigger a :class:`KeyboardInterrupt` exception, but can
-    also be handled with a custom `signal` handler. If the thread does not react, a less
-    friendly `SIGTERM` will be sent after `grace_period` seconds. A third and final
-    attempt of a `SIGTERM` will be sent after `grace_period`.
-
-    If `interrupt_type` is `InterruptType.exception_then_signal` (the default), the
-    first attempt will be an exception and after the grace period, the guard will
-    start sending signals.
+    See :class:`TimeGuard` for details.
 
     :param timeout: max execution time in seconds before invoking interrupt
     :param grace_period: grace period in seconds after which to send another (harsher) interrupt
     :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
-
+    :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
     """
-    return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type)
+    return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type, send_kill)
 
 
 def progress(caller=None):
