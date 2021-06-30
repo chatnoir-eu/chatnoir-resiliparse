@@ -19,7 +19,16 @@ from threading import current_thread, Thread
 from typing import Any, Iterable
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
-from libc.stdio cimport fflush, fprintf, stderr
+from libc.stdio cimport FILE, fclose, fflush, fopen, fprintf, fread, stderr
+from libcpp.string cimport string
+
+cdef extern from "<string>" namespace "std" nogil:
+    string to_string(int i)
+
+cdef size_t strnpos = -1
+
+cdef extern from "<cstdlib>" namespace "std" nogil:
+    long strtol(const char* str, char** endptr, int base)
 
 cdef extern from "<signal.h>" nogil:
     const int SIGHUP
@@ -34,18 +43,6 @@ cdef extern from "<pthread.h>" nogil:
     pthread_t pthread_self()
     int pthread_kill(pthread_t thread, int sig)
 
-    # ctypedef struct pthread_mutex_t:
-    #     long sig
-    #     char* opaque
-    # ctypedef struct pthread_mutexattr_t:
-    #     long sig
-    #     char * opaque
-    # pthread_mutex_t PTHREAD_MUTEX_INITIALIZER
-    # int pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr)
-    # int pthread_mutex_destroy(pthread_mutex_t* mutex)
-    # int pthread_mutex_lock(pthread_mutex_t* mutex)
-    # int pthread_mutex_unlock(pthread_mutex_t* mutex)
-
 
 cdef extern from "<atomic>" namespace "std" nogil:
     cdef cppclass atomic[T]:
@@ -58,6 +55,9 @@ cdef extern from "<atomic>" namespace "std" nogil:
 
 
 cdef extern from "<unistd.h>" nogil:
+    ctypedef int pid_t
+    pid_t getpid()
+    int getpagesize()
     int usleep(size_t usec)
 
 
@@ -260,7 +260,7 @@ cdef class TimeGuard(_ResiliparseGuard):
 def time_guard(size_t timeout, size_t grace_period=15,
                InterruptType interrupt_type=exception_then_signal, bint send_kill=False) -> TimeGuard:
     """
-    Decorator and context manager for guarding the execution time of a function.
+    Decorator and context manager for guarding the execution time of a program context.
 
     See :class:`TimeGuard` for details.
 
@@ -295,7 +295,7 @@ cpdef progress(ctx=None):
                 break
 
     if not isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
-        raise RuntimeError('No initialized guard context.')
+        raise RuntimeError('No initialized time guard context.')
 
     # noinspection PyProtectedMember
     (<TimeGuard>ctx._guard_self).progress()
@@ -312,3 +312,94 @@ def progress_loop(it: Iterable[Any], ctx=None) -> Iterable[Any]:
     for i in it:
         yield i
         progress(ctx)
+
+
+cdef class MemGuard(_ResiliparseGuard):
+    """
+    Process memory guard.
+    """
+
+    cdef size_t max_memory
+    cdef bint absolute
+    cdef size_t grace_period
+    cdef bint send_kill
+    cdef InterruptType interrupt_type
+
+    def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
+                 InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
+        """
+        Initialize :class:`MemGuard` context.
+
+        :param max_memory: max allowed memory kB since context creation before interrupt will be sent
+        :param absolute: whether `max_memory` is an absolute limit for the process or a relative growth limit
+        :param grace_period: grace period in seconds before an interrupt will be sent after exceeding `max_memory`
+        :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
+        :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
+        """
+
+    def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
+                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False):
+        self.max_memory = max_memory
+        self.absolute = absolute
+        self.grace_period = grace_period
+        self.interrupt_type = interrupt_type
+        self.send_kill = send_kill
+
+    cdef void exec_before(self):
+        def _thread_exec():
+
+            cdef FILE* fp = NULL
+            cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
+            cdef string read_buf
+            cdef size_t read, delim_pos, rss
+
+            with nogil:
+                while True:
+                    if self.gctx.ended.load():
+                        break
+
+                    read_buf.clear()
+                    read_buf.resize(128)
+                    fp = fopen(proc_file.c_str(), <char*>b'rb')
+                    read = fread(read_buf.data(), sizeof(char), 128, fp)
+                    fclose(fp)
+                    fp = NULL
+
+                    delim_pos = read_buf.find(<char*>b' ')
+                    if delim_pos == strnpos:
+                        # Something went wrong, exit.
+                        fprintf(stderr, <char*>b'Failed to retrieve memory usage. Terminating guard context.')
+                        break
+
+                    read_buf = read_buf.substr(delim_pos)
+                    if delim_pos == strnpos or delim_pos > read:
+                        fprintf(stderr, <char*>b'Failed to retrieve memory usage. Terminating guard context.')
+                        break
+
+                    read_buf.resize(delim_pos)
+                    rss = strtol(read_buf.c_str(), NULL, 10) * getpagesize()
+
+                    usleep(1000 * 1000)
+
+                    # TODO: react
+
+
+        cdef guard_thread = Thread(target=_thread_exec)
+        guard_thread.setDaemon(True)
+        guard_thread.start()
+
+
+def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=15,
+              InterruptType interrupt_type=exception_then_signal, bint send_kill=False) -> MemGuard:
+    """
+    Decorator and context manager for guarding maximum memory usage of a program context.
+
+    See :class:`MemGuard` for details.
+
+    :param max_memory: max allowed memory in kB since context creation before interrupt will be sent
+    :param absolute: whether `max_memory` is an absolute limit for the process or a relative growth limit
+    :param grace_period: grace period in seconds before an interrupt will be sent after exceeding `max_memory`
+    :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
+    :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
+    """
+    return MemGuard.__new__(MemGuard, max_memory, absolute, grace_period, interrupt_type, send_kill)
