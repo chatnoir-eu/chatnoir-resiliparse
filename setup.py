@@ -49,7 +49,7 @@ if platform.system() in ('Linux', 'Darwin'):
         Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
     ])
 else:
-    warnings.warn(f"Unsupported platform '{platform.system()}': Building without process guard extension.")
+    warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
 
 if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions,
@@ -59,6 +59,8 @@ setup(
     name='ResiliParse',
     version='1.0',
     description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
+    long_description=open(os.path.join(THIS_DIRECTORY, 'resiliparse/README.md')).read(),
+    long_description_content_type='text/markdown',
     author='Janek Bevendorff',
     url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
     license='Apache License 2.0',
@@ -89,7 +91,7 @@ setup(
     name='FastWARC',
     version='0.2.5',
     description='A high-performance WARC parsing library for Python written in C++/Cython.',
-    long_description=open(os.path.join(THIS_DIRECTORY, 'README.md')).read(),
+    long_description=open(os.path.join(THIS_DIRECTORY, 'fastwarc/README.md')).read(),
     long_description_content_type='text/markdown',
     author='Janek Bevendorff',
     url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
