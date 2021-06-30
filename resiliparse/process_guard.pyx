@@ -15,12 +15,18 @@
 # distutils: language = c++
 
 import inspect
+import platform
 from threading import current_thread, Thread
 from typing import Any, Iterable
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
-from libc.stdio cimport FILE, fclose, fflush, fopen, fprintf, fread, stderr
+from libc.stdio cimport FILE, fclose, feof, fgets, fopen, fflush, fprintf, stderr
 from libcpp.string cimport string
+
+
+cdef extern from "<stdio.h>" nogil:
+    FILE* popen(const char* command, const char* type);
+    int pclose(FILE* stream);
 
 cdef extern from "<string>" namespace "std" nogil:
     string to_string(int i)
@@ -37,12 +43,11 @@ cdef extern from "<signal.h>" nogil:
     const int SIGKILL
 
 cdef extern from "<pthread.h>" nogil:
-    ctypedef struct pthread
+    cdef struct pthread
     ctypedef pthread* pthread_t
 
     pthread_t pthread_self()
     int pthread_kill(pthread_t thread, int sig)
-
 
 cdef extern from "<atomic>" namespace "std" nogil:
     cdef cppclass atomic[T]:
@@ -53,18 +58,15 @@ cdef extern from "<atomic>" namespace "std" nogil:
     ctypedef atomic[bint] atomic_bool
     ctypedef atomic[size_t] atomic_size_t
 
-
 cdef extern from "<unistd.h>" nogil:
     ctypedef int pid_t
     pid_t getpid()
     int getpagesize()
     int usleep(size_t usec)
 
-
 cdef struct _GuardContext:
     atomic_size_t epoch_counter
     atomic_bool ended
-
 
 cpdef enum InterruptType:
     exception,
@@ -345,39 +347,50 @@ cdef class MemGuard(_ResiliparseGuard):
         self.interrupt_type = interrupt_type
         self.send_kill = send_kill
 
-    cdef void exec_before(self):
-        def _thread_exec():
+    cdef size_t _get_rss_linux(self) nogil:
+        cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
+        cdef string buffer = string(128, <char>0)
+        cdef string statm
+        cdef FILE* fp = fopen(proc_file.c_str(), <char *> b'r')
+        if fp == NULL:
+            return 0
+        while not feof(fp):
+            if fgets(buffer.data(), 128, fp) != NULL:
+                statm.append(buffer)
+        fclose(fp)
 
-            cdef FILE* fp = NULL
-            cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
-            cdef string read_buf
-            cdef size_t read, delim_pos, rss
+        statm = statm.substr(statm.find(<char*>b' ') + 1)   # VmSize (skip)
+        statm = statm.substr(0, statm.find(<char*>b' '))    # VmRSS
+        return strtol(statm.c_str(), NULL, 10) * getpagesize() // 1024u
+
+    cdef inline size_t _get_rss_posix(self) nogil:
+        cdef string cmd = string(<char*>b'ps ').append(to_string(getpid())).append(<char*>b' -o rss=')
+        cdef string buffer = string(64, <char>0)
+        cdef string out
+        cdef FILE* fp = popen(cmd.c_str(), <char*>b'r')
+        if fp == NULL:
+            return 0
+        while not feof(fp):
+            if fgets(buffer.data(), 64, fp) != NULL:
+                out.append(buffer)
+        pclose(fp)
+        return strtol(out.c_str(), NULL, 10)
+
+    cdef void exec_before(self):
+        cdef bint is_linux = (platform.platform() == 'Linux')
+
+        def _thread_exec():
+            cdef size_t rss
 
             with nogil:
                 while True:
                     if self.gctx.ended.load():
                         break
 
-                    read_buf.clear()
-                    read_buf.resize(128)
-                    fp = fopen(proc_file.c_str(), <char*>b'rb')
-                    read = fread(read_buf.data(), sizeof(char), 128, fp)
-                    fclose(fp)
-                    fp = NULL
-
-                    delim_pos = read_buf.find(<char*>b' ')
-                    if delim_pos == strnpos:
-                        # Something went wrong, exit.
-                        fprintf(stderr, <char*>b'Failed to retrieve memory usage. Terminating guard context.')
-                        break
-
-                    read_buf = read_buf.substr(delim_pos)
-                    if delim_pos == strnpos or delim_pos > read:
-                        fprintf(stderr, <char*>b'Failed to retrieve memory usage. Terminating guard context.')
-                        break
-
-                    read_buf.resize(delim_pos)
-                    rss = strtol(read_buf.c_str(), NULL, 10) * getpagesize()
+                    if is_linux:
+                        rss = self._get_rss_linux()
+                    else:
+                        rss = self._get_rss_posix()
 
                     usleep(1000 * 1000)
 

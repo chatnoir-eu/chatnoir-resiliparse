@@ -44,7 +44,7 @@ resiliparse_cpp_args['extra_compile_args'].append('-pthread')
 resiliparse_cpp_args['extra_link_args'].append('-pthread')
 
 resiliparse_extensions = []
-if platform.system() != 'Linux':
+if os.name == 'posix':
     resiliparse_extensions.extend([
         Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
     ])
