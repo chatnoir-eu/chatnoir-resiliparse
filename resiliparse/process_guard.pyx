@@ -16,7 +16,7 @@
 
 import inspect
 import platform
-from threading import current_thread, Thread
+from threading import Thread
 from typing import Any, Iterable
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
@@ -43,9 +43,7 @@ cdef extern from "<signal.h>" nogil:
     const int SIGKILL
 
 cdef extern from "<pthread.h>" nogil:
-    cdef struct pthread
-    ctypedef pthread* pthread_t
-
+    ctypedef unsigned long pthread_t
     pthread_t pthread_self()
     int pthread_kill(pthread_t thread, int sig)
 
@@ -159,37 +157,35 @@ cdef class _ResiliparseGuard:
         """Interrupt exception type to send"""
         pass
 
-    cdef void send_interrupt(self, unsigned char escalation_level) nogil:
-        cdef pthread_t main_thread_id = pthread_self()
-
+    cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) nogil:
         if escalation_level == 0:
             if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
                 with gil:
                     self.exc_type = self.get_exception_type()
-                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
+                    PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
             elif self.interrupt_type == signal:
-                pthread_kill(main_thread_id, SIGINT)
+                pthread_kill(target_thread, SIGINT)
 
         elif escalation_level == 1:
             if self.interrupt_type == signal:
-                pthread_kill(main_thread_id, SIGTERM)
+                pthread_kill(target_thread, SIGTERM)
             elif self.interrupt_type == exception_then_signal:
-                pthread_kill(main_thread_id, SIGINT)
+                pthread_kill(target_thread, SIGINT)
             elif self.interrupt_type == exception:
                 with gil:
                     self.exc_type = self.get_exception_type()
-                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
+                    PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
 
         elif escalation_level == 2:
             if self.interrupt_type != exception and self.send_kill:
-                pthread_kill(main_thread_id, SIGKILL)
+                pthread_kill(target_thread, SIGKILL)
             elif self.interrupt_type != exception:
-                pthread_kill(main_thread_id, SIGTERM)
+                pthread_kill(target_thread, SIGTERM)
             elif self.interrupt_type == exception:
                 with gil:
                     self.exc_type = self.get_exception_type()
-                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
-            fprintf(stderr, <char*> b'ERROR: Guarded thread did not respond to TERM signal.\n')
+                    PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
+            fprintf(stderr, <char*>b'ERROR: Guarded thread did not respond to TERM signal.\n')
             fflush(stderr)
 
 
@@ -254,9 +250,7 @@ cdef class TimeGuard(_ResiliparseGuard):
         return ExecutionTimeout
 
     cdef void exec_before(self):
-        # Save pthread and Python thread IDs (they should be the same, but don't take chances)
-        cdef unsigned long main_thread_ident = current_thread().ident
-        cdef pthread_t main_thread_id = pthread_self()
+        cdef pthread_t main_thread = pthread_self()
 
         def _thread_exec():
             cdef size_t last_epoch = 0
@@ -282,19 +276,19 @@ cdef class TimeGuard(_ResiliparseGuard):
                     # Exceeded, but within grace period
                     if self.timeout == 0 or (now.tv_sec - start >= self.timeout and signals_sent == 0):
                         signals_sent = 1
-                        self.send_interrupt(0)
+                        self.send_interrupt(0, main_thread)
                         if self.timeout == 0:
                             break
 
                     # Grace period exceeded
                     elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
                         signals_sent = 2
-                        self.send_interrupt(1)
+                        self.send_interrupt(1, main_thread)
 
                     # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
                     elif now.tv_sec - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
                         signals_sent = 3
-                        self.send_interrupt(2)
+                        self.send_interrupt(2, main_thread)
                         fprintf(stderr, <char*>b'Terminating guard context.\n')
                         fflush(stderr)
                         break
@@ -441,9 +435,7 @@ cdef class MemGuard(_ResiliparseGuard):
         return MemoryLimitExceeded
 
     cdef void exec_before(self):
-        # Save pthread and Python thread IDs (they should be the same, but don't take chances)
-        cdef unsigned long main_thread_ident = current_thread().ident
-        cdef pthread_t main_thread_id = pthread_self()
+        cdef pthread_t main_thread = pthread_self()
 
         cdef size_t max_mem = self.max_memory
         if not self.absolute:
@@ -468,17 +460,17 @@ cdef class MemGuard(_ResiliparseGuard):
                         # Exceeded, but within grace period
                         elif now.tv_sec - grace_start > self.grace_period and signals_sent == 0:
                             signals_sent = 1
-                            self.send_interrupt(0)
+                            self.send_interrupt(0, main_thread)
 
                         # Grace period exceeded
                         elif now.tv_sec - grace_start > self.grace_period * 2 and signals_sent == 1:
                             signals_sent = 2
-                            self.send_interrupt(1)
+                            self.send_interrupt(1, main_thread)
 
                         # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
                         elif now.tv_sec - grace_start > self.grace_period * 3 and signals_sent == 2:
                             signals_sent = 3
-                            self.send_interrupt(2)
+                            self.send_interrupt(2, main_thread)
                             fprintf(stderr, <char*>b'Terminating guard context.\n')
                             fflush(stderr)
                             break
