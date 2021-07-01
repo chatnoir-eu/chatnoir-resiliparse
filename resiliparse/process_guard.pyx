@@ -64,6 +64,14 @@ cdef extern from "<unistd.h>" nogil:
     int getpagesize()
     int usleep(size_t usec)
 
+cdef extern from "<sys/time.h>" nogil:
+    ctypedef long int time_t
+    ctypedef long int suseconds_t
+    cdef struct timeval:
+        long int tv_sec
+    cdef struct timezone
+    int gettimeofday(timeval* tv, timezone* tz)
+
 cdef struct _GuardContext:
     atomic_size_t epoch_counter
     atomic_bool ended
@@ -201,8 +209,11 @@ cdef class TimeGuard(_ResiliparseGuard):
         cdef pthread_t main_thread_id = pthread_self()
 
         def _thread_exec():
-            cdef size_t sec_ctr = 0
             cdef size_t last_epoch = 0
+            cdef timeval now
+            gettimeofday(&now, NULL)
+            cdef size_t start = now.tv_sec
+            cdef bint signals_sent = 0
 
             with nogil:
                 while True:
@@ -210,15 +221,16 @@ cdef class TimeGuard(_ResiliparseGuard):
                         break
 
                     usleep(self.check_interval * 1000)
+                    gettimeofday(&now, NULL)
 
                     if self.gctx.epoch_counter.load() > last_epoch:
-                        sec_ctr = 0
+                        start = now.tv_sec
                         last_epoch = self.gctx.epoch_counter.load()
-                    else:
-                        sec_ctr += 1
+                        signals_sent = 0
 
                     # Exceeded, but within grace period
-                    if self.timeout == 0 or sec_ctr == self.timeout * 2:
+                    if self.timeout == 0 or (now.tv_sec - start >= self.timeout and signals_sent == 0):
+                        signals_sent = 1
                         if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
                             with gil:
                                 PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
@@ -229,7 +241,8 @@ cdef class TimeGuard(_ResiliparseGuard):
                             break
 
                     # Grace period exceeded
-                    elif sec_ctr == (self.timeout + self.grace_period) * 2:
+                    elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
+                        signals_sent = 2
                         if self.interrupt_type == signal:
                             pthread_kill(main_thread_id, SIGTERM)
                         elif self.interrupt_type == exception_then_signal:
@@ -239,7 +252,8 @@ cdef class TimeGuard(_ResiliparseGuard):
                                 PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
 
                     # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                    elif sec_ctr >= (self.timeout + self.grace_period * 2) * 2:
+                    elif now.tv_sec - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
+                        signals_sent = 3
                         if self.interrupt_type != exception and self.send_kill:
                             pthread_kill(main_thread_id, SIGKILL)
                         elif self.interrupt_type != exception:
