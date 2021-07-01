@@ -94,10 +94,25 @@ class MemoryLimitExceeded(ResiliparseGuardException):
     """Memory limit exceeded exception."""
 
 
+# noinspection PyAttributeOutsideInit
 cdef class _ResiliparseGuard:
     cdef _GuardContext gctx
+    cdef size_t check_interval
+    cdef bint send_kill
+    cdef InterruptType interrupt_type
+    cdef exc_type
 
-    def __cinit__(self, *args, **kwargs):
+    def __cinit__(self, *args, InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
+                  size_t check_interval=500, **kwargs):
+        """
+        :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
+        :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
+        :param check_interval: interval in milliseconds between execution time checks
+        """
+
+        self.interrupt_type = interrupt_type
+        self.send_kill = send_kill
+        self.check_interval = check_interval
         self.gctx.epoch_counter.store(0)
         self.gctx.ended.store(False)
 
@@ -140,6 +155,43 @@ cdef class _ResiliparseGuard:
     cdef void exec_after(self):
         pass
 
+    cdef get_exception_type(self):
+        """Interrupt exception type to send"""
+        pass
+
+    cdef void send_interrupt(self, unsigned char escalation_level) nogil:
+        cdef pthread_t main_thread_id = pthread_self()
+
+        if escalation_level == 0:
+            if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
+                with gil:
+                    self.exc_type = self.get_exception_type()
+                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
+            elif self.interrupt_type == signal:
+                pthread_kill(main_thread_id, SIGINT)
+
+        elif escalation_level == 1:
+            if self.interrupt_type == signal:
+                pthread_kill(main_thread_id, SIGTERM)
+            elif self.interrupt_type == exception_then_signal:
+                pthread_kill(main_thread_id, SIGINT)
+            elif self.interrupt_type == exception:
+                with gil:
+                    self.exc_type = self.get_exception_type()
+                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
+
+        elif escalation_level == 2:
+            if self.interrupt_type != exception and self.send_kill:
+                pthread_kill(main_thread_id, SIGKILL)
+            elif self.interrupt_type != exception:
+                pthread_kill(main_thread_id, SIGTERM)
+            elif self.interrupt_type == exception:
+                with gil:
+                    self.exc_type = self.get_exception_type()
+                    PyThreadState_SetAsyncExc(<long int>main_thread_id, <PyObject*>self.exc_type)
+            fprintf(stderr, <char*> b'ERROR: Guarded thread did not respond to TERM signal.\n')
+            fflush(stderr)
+
 
 cdef class TimeGuard(_ResiliparseGuard):
     """
@@ -177,11 +229,8 @@ cdef class TimeGuard(_ResiliparseGuard):
     the main thread), so you will need an external facility to restart it.
     """
 
-    cdef size_t check_interval
     cdef size_t timeout
     cdef size_t grace_period
-    cdef bint send_kill
-    cdef InterruptType interrupt_type
 
     def __init__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
                  bint send_kill=False, size_t check_interval=500):
@@ -195,13 +244,14 @@ cdef class TimeGuard(_ResiliparseGuard):
         :param check_interval: interval in milliseconds between execution time checks
         """
 
+    # noinspection PyMethodOverriding
     def __cinit__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
                   bint send_kill=False, size_t check_interval=500):
         self.timeout = timeout
         self.grace_period = grace_period
-        self.interrupt_type = interrupt_type
-        self.send_kill = send_kill
-        self.check_interval = check_interval
+
+    cdef get_exception_type(self):
+        return ExecutionTimeout
 
     cdef void exec_before(self):
         # Save pthread and Python thread IDs (they should be the same, but don't take chances)
@@ -232,35 +282,20 @@ cdef class TimeGuard(_ResiliparseGuard):
                     # Exceeded, but within grace period
                     if self.timeout == 0 or (now.tv_sec - start >= self.timeout and signals_sent == 0):
                         signals_sent = 1
-                        if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
-                            with gil:
-                                PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
-                        elif self.interrupt_type == signal:
-                            pthread_kill(main_thread_id, SIGINT)
-
+                        self.send_interrupt(0)
                         if self.timeout == 0:
                             break
 
                     # Grace period exceeded
                     elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
                         signals_sent = 2
-                        if self.interrupt_type == signal:
-                            pthread_kill(main_thread_id, SIGTERM)
-                        elif self.interrupt_type == exception_then_signal:
-                            pthread_kill(main_thread_id, SIGINT)
-                        elif self.interrupt_type == exception:
-                            with gil:
-                                PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>ExecutionTimeout)
+                        self.send_interrupt(1)
 
                     # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
                     elif now.tv_sec - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
                         signals_sent = 3
-                        if self.interrupt_type != exception and self.send_kill:
-                            pthread_kill(main_thread_id, SIGKILL)
-                        elif self.interrupt_type != exception:
-                            pthread_kill(main_thread_id, SIGTERM)
-                        fprintf(stderr, <char*>b'ERROR: Guarded thread did not respond to TERM signal. '
-                                               b'Terminating guard context.\n')
+                        self.send_interrupt(2)
+                        fprintf(stderr, <char*>b'Terminating guard context.\n')
                         fflush(stderr)
                         break
 
@@ -340,12 +375,9 @@ cdef class MemGuard(_ResiliparseGuard):
     Process memory guard.
     """
 
-    cdef size_t check_interval
     cdef size_t max_memory
     cdef bint absolute
     cdef size_t grace_period
-    cdef bint send_kill
-    cdef InterruptType interrupt_type
     cdef bint is_linux
 
     def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
@@ -362,15 +394,12 @@ cdef class MemGuard(_ResiliparseGuard):
         :param check_interval: interval in milliseconds between memory consumption checks
         """
 
+    # noinspection PyMethodOverriding
     def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
-                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
-                 size_t check_interval=800):
+                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=800):
         self.max_memory = max_memory
         self.absolute = absolute
         self.grace_period = grace_period
-        self.interrupt_type = interrupt_type
-        self.send_kill = send_kill
-        self.check_interval = check_interval
         self.is_linux = (platform.system() == 'Linux')
 
     cdef size_t _get_rss_linux(self) nogil:
@@ -408,6 +437,9 @@ cdef class MemGuard(_ResiliparseGuard):
         else:
             return self._get_rss_posix()
 
+    cdef get_exception_type(self):
+        return MemoryLimitExceeded
+
     cdef void exec_before(self):
         # Save pthread and Python thread IDs (they should be the same, but don't take chances)
         cdef unsigned long main_thread_ident = current_thread().ident
@@ -436,32 +468,18 @@ cdef class MemGuard(_ResiliparseGuard):
                         # Exceeded, but within grace period
                         elif now.tv_sec - grace_start > self.grace_period and signals_sent == 0:
                             signals_sent = 1
-                            if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
-                                with gil:
-                                    PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>MemoryLimitExceeded)
-                            elif self.interrupt_type == signal:
-                                pthread_kill(main_thread_id, SIGINT)
+                            self.send_interrupt(0)
 
                         # Grace period exceeded
                         elif now.tv_sec - grace_start > self.grace_period * 2 and signals_sent == 1:
                             signals_sent = 2
-                            if self.interrupt_type == signal:
-                                pthread_kill(main_thread_id, SIGTERM)
-                            elif self.interrupt_type == exception_then_signal:
-                                pthread_kill(main_thread_id, SIGINT)
-                            elif self.interrupt_type == exception:
-                                with gil:
-                                    PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>MemoryLimitExceeded)
+                            self.send_interrupt(1)
 
                         # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
                         elif now.tv_sec - grace_start > self.grace_period * 3 and signals_sent == 2:
                             signals_sent = 3
-                            if self.interrupt_type != exception and self.send_kill:
-                                pthread_kill(main_thread_id, SIGKILL)
-                            elif self.interrupt_type != exception:
-                                pthread_kill(main_thread_id, SIGTERM)
-                            fprintf(stderr, <char *> b'ERROR: Guarded thread did not respond to TERM signal. '
-                                                     b'Terminating guard context.\n')
+                            self.send_interrupt(2)
+                            fprintf(stderr, <char*>b'Terminating guard context.\n')
                             fflush(stderr)
                             break
 
