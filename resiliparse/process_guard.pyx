@@ -213,14 +213,15 @@ cdef class TimeGuard(_ResiliparseGuard):
             cdef timeval now
             gettimeofday(&now, NULL)
             cdef size_t start = now.tv_sec
-            cdef bint signals_sent = 0
+            cdef unsigned char signals_sent = 0
 
             with nogil:
                 while True:
+                    usleep(self.check_interval * 1000)
+
                     if self.gctx.ended.load():
                         break
 
-                    usleep(self.check_interval * 1000)
                     gettimeofday(&now, NULL)
 
                     if self.gctx.epoch_counter.load() > last_epoch:
@@ -345,6 +346,7 @@ cdef class MemGuard(_ResiliparseGuard):
     cdef size_t grace_period
     cdef bint send_kill
     cdef InterruptType interrupt_type
+    cdef bint is_linux
 
     def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
@@ -369,6 +371,7 @@ cdef class MemGuard(_ResiliparseGuard):
         self.interrupt_type = interrupt_type
         self.send_kill = send_kill
         self.check_interval = check_interval
+        self.is_linux = (platform.system() == 'Linux')
 
     cdef size_t _get_rss_linux(self) nogil:
         cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
@@ -399,26 +402,76 @@ cdef class MemGuard(_ResiliparseGuard):
         pclose(fp)
         return strtol(out.c_str(), NULL, 10)
 
+    cdef inline size_t _get_rss(self) nogil:
+        if self.is_linux:
+            return self._get_rss_linux()
+        else:
+            return self._get_rss_posix()
+
     cdef void exec_before(self):
-        cdef bint is_linux = (platform.platform() == 'Linux')
+        # Save pthread and Python thread IDs (they should be the same, but don't take chances)
+        cdef unsigned long main_thread_ident = current_thread().ident
+        cdef pthread_t main_thread_id = pthread_self()
+
+        cdef size_t max_mem = self.max_memory
+        if not self.absolute:
+            max_mem += self._get_rss()
 
         def _thread_exec():
-            cdef size_t rss
+            cdef size_t grace_start = 0
+            cdef unsigned char signals_sent = 0
+            cdef size_t rss = 0
+            cdef timeval now
 
             with nogil:
                 while True:
-                    if self.gctx.ended.load():
-                        break
+                    rss = self._get_rss()
 
-                    if is_linux:
-                        rss = self._get_rss_linux()
-                    else:
-                        rss = self._get_rss_posix()
+                    if rss > max_mem:
+                        # Memory usage above limit, start grace period
+                        gettimeofday(&now, NULL)
+                        if grace_start == 0:
+                            grace_start = now.tv_sec
+
+                        # Exceeded, but within grace period
+                        elif now.tv_sec - grace_start > self.grace_period and signals_sent == 0:
+                            signals_sent = 1
+                            if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
+                                with gil:
+                                    PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>MemoryLimitExceeded)
+                            elif self.interrupt_type == signal:
+                                pthread_kill(main_thread_id, SIGINT)
+
+                        # Grace period exceeded
+                        elif now.tv_sec - grace_start > self.grace_period * 2 and signals_sent == 1:
+                            signals_sent = 2
+                            if self.interrupt_type == signal:
+                                pthread_kill(main_thread_id, SIGTERM)
+                            elif self.interrupt_type == exception_then_signal:
+                                pthread_kill(main_thread_id, SIGINT)
+                            elif self.interrupt_type == exception:
+                                with gil:
+                                    PyThreadState_SetAsyncExc(main_thread_ident, <PyObject*>MemoryLimitExceeded)
+
+                        # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
+                        elif now.tv_sec - grace_start > self.grace_period * 3 and signals_sent == 2:
+                            signals_sent = 3
+                            if self.interrupt_type != exception and self.send_kill:
+                                pthread_kill(main_thread_id, SIGKILL)
+                            elif self.interrupt_type != exception:
+                                pthread_kill(main_thread_id, SIGTERM)
+                            fprintf(stderr, <char *> b'ERROR: Guarded thread did not respond to TERM signal. '
+                                                     b'Terminating guard context.\n')
+                            fflush(stderr)
+                            break
+
+                    elif rss < max_mem and grace_start != 0:
+                        # Memory usage dropped, reset grace period
+                        grace_start = 0
 
                     usleep(self.check_interval * 1000)
-
-                    # TODO: react
-
+                    if self.gctx.ended.load():
+                        break
 
         cdef guard_thread = Thread(target=_thread_exec)
         guard_thread.setDaemon(True)
