@@ -100,17 +100,7 @@ cdef class _ResiliparseGuard:
     cdef InterruptType interrupt_type
     cdef exc_type
 
-    def __cinit__(self, *args, InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
-                  size_t check_interval=500, **kwargs):
-        """
-        :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
-        :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
-        :param check_interval: interval in milliseconds between execution time checks
-        """
-
-        self.interrupt_type = interrupt_type
-        self.send_kill = send_kill
-        self.check_interval = check_interval
+    def __cinit__(self, *args, **kwargs):
         self.gctx.epoch_counter.store(0)
         self.gctx.ended.store(False)
 
@@ -245,6 +235,9 @@ cdef class TimeGuard(_ResiliparseGuard):
                   bint send_kill=False, size_t check_interval=500):
         self.timeout = timeout
         self.grace_period = grace_period
+        self.interrupt_type = interrupt_type
+        self.send_kill = send_kill
+        self.check_interval = check_interval
 
     cdef get_exception_type(self):
         return ExecutionTimeout
@@ -375,8 +368,7 @@ cdef class MemGuard(_ResiliparseGuard):
     cdef bint is_linux
 
     def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
-                 InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
-                 size_t check_interval=500):
+                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
         """
         Initialize :class:`MemGuard` context.
 
@@ -390,10 +382,13 @@ cdef class MemGuard(_ResiliparseGuard):
 
     # noinspection PyMethodOverriding
     def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
-                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=800):
+                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
         self.max_memory = max_memory
         self.absolute = absolute
         self.grace_period = grace_period
+        self.interrupt_type = interrupt_type
+        self.send_kill = send_kill
+        self.check_interval = check_interval
         self.is_linux = (platform.system() == 'Linux')
 
     cdef size_t _get_rss_linux(self) nogil:
@@ -490,7 +485,7 @@ cdef class MemGuard(_ResiliparseGuard):
 
 def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=15,
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
-              size_t check_interval=800) -> MemGuard:
+              size_t check_interval=500) -> MemGuard:
     """
     Decorator and context manager for guarding maximum memory usage of a program context.
 
