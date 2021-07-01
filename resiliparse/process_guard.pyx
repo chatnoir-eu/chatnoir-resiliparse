@@ -98,7 +98,7 @@ cdef class _ResiliparseGuard:
     cdef size_t check_interval
     cdef bint send_kill
     cdef InterruptType interrupt_type
-    cdef exc_type
+    cdef type exc_type
 
     def __cinit__(self, *args, **kwargs):
         self.gctx.epoch_counter.store(0)
@@ -143,7 +143,7 @@ cdef class _ResiliparseGuard:
     cdef void exec_after(self):
         pass
 
-    cdef get_exception_type(self):
+    cdef type get_exception_type(self):
         """Interrupt exception type to send"""
         pass
 
@@ -239,7 +239,7 @@ cdef class TimeGuard(_ResiliparseGuard):
         self.send_kill = send_kill
         self.check_interval = check_interval
 
-    cdef get_exception_type(self):
+    cdef type get_exception_type(self):
         return ExecutionTimeout
 
     cdef void exec_before(self):
@@ -426,7 +426,7 @@ cdef class MemGuard(_ResiliparseGuard):
         else:
             return self._get_rss_posix()
 
-    cdef get_exception_type(self):
+    cdef type get_exception_type(self):
         return MemoryLimitExceeded
 
     cdef void exec_before(self):
