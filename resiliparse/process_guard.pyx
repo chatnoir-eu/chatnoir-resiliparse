@@ -473,6 +473,7 @@ cdef class MemGuard(_ResiliparseGuard):
                     elif rss < max_mem and grace_start != 0:
                         # Memory usage dropped, reset grace period
                         grace_start = 0
+                        signals_sent = 0
 
                     usleep(self.check_interval * 1000)
                     if self.gctx.ended.load():
