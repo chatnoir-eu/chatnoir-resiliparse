@@ -413,7 +413,7 @@ cdef class MemGuard(_ResiliparseGuard):
         return strtol(statm.c_str(), NULL, 10) * getpagesize() // 1024u
 
     cdef size_t _get_rss_posix(self) nogil:
-        cdef string cmd = string(<char*>b'ps ').append(to_string(getpid())).append(<char*>b' -o rss=')
+        cdef string cmd = string(<char*>b'ps -p ').append(to_string(getpid())).append(<char*>b' -o rss=')
         cdef string buffer = string(64, <char>0)
         cdef string out
         cdef FILE* fp = popen(cmd.c_str(), <char*>b'r')
