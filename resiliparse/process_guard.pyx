@@ -395,10 +395,8 @@ cdef class MemGuard(_ResiliparseGuard):
         self.is_linux = (platform.system() == 'Linux')
 
     cdef size_t _get_rss_linux(self) nogil:
-        cdef string proc_file = <char*>b'/proc/'
-        proc_file.append(to_string(getpid())).append(<char*>b'/statm')
-        cdef string buffer
-        buffer.resize(64)
+        cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
+        cdef string buffer = string(64, <char>0)
         cdef string statm
         cdef FILE* fp = fopen(proc_file.c_str(), <char*>b'r')
         if fp == NULL:
@@ -413,10 +411,8 @@ cdef class MemGuard(_ResiliparseGuard):
         return strtol(statm.c_str(), NULL, 10) * getpagesize() // 1024u
 
     cdef size_t _get_rss_posix(self) nogil:
-        cdef string cmd = <char*>b'ps -p '
-        cmd.append(to_string(getpid())).append(<char*>b' -o rss=')
-        cdef string buffer
-        buffer.resize(64)
+        cdef string cmd = string(<char*>b'ps -p ').append(to_string(getpid())).append(<char*>b' -o rss=')
+        cdef string buffer = string(64, <char>0)
         cdef string out
         cdef FILE* fp = popen(cmd.c_str(), <char*>b'r')
         if fp == NULL:
