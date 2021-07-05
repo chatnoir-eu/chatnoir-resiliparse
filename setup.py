@@ -33,7 +33,7 @@ except ModuleNotFoundError:
 cpp_args = dict(
     extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
                         '-Wno-unreachable-code', '-Wno-unused-function'],
-    extra_link_args=['-std=c++17', '-lz', '-llz4'])
+    extra_link_args=['-std=c++17'])
 
 BUILD_PACKAGES = ['fastwarc', 'resiliparse']
 if os.environ.get('BUILD_PACKAGES'):
@@ -45,14 +45,15 @@ if os.environ.get('BUILD_PACKAGES'):
 # ------------------------------------------
 
 if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
-    resiliparse_cpp_args = cpp_args.copy()
-    resiliparse_cpp_args['extra_compile_args'].append('-pthread')
-    resiliparse_cpp_args['extra_link_args'].append('-pthread')
+    resiliparse_pg_cpp_args = cpp_args.copy()
+    resiliparse_pg_cpp_args['extra_compile_args'].append('-pthread')
+    resiliparse_pg_cpp_args['extra_link_args'].append('-pthread')
 
     resiliparse_extensions = []
     if os.name == 'posix':
         resiliparse_extensions.extend([
-            Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
+            Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'],
+                      **resiliparse_pg_cpp_args)
         ])
     else:
         warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
@@ -86,9 +87,12 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
 # ------------------------------------------
 
 if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
+    fastwarc_stream_cpp_args = cpp_args.copy()
+    fastwarc_stream_cpp_args['extra_link_args'].extend(['-lz', '-llz4'])
+
     fastwarc_extensions = [
         Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
+        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **fastwarc_stream_cpp_args),
         Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
     ]
     if USE_CYTHON:
