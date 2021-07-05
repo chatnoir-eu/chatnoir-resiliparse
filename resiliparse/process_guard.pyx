@@ -251,6 +251,7 @@ cdef class TimeGuard(_ResiliparseGuard):
             gettimeofday(&now, NULL)
             cdef size_t start = now.tv_sec
             cdef unsigned char signals_sent = 0
+            cdef grace_period = max(1u, self.grace_period)
 
             with nogil:
                 while True:
@@ -274,12 +275,12 @@ cdef class TimeGuard(_ResiliparseGuard):
                             break
 
                     # Grace period exceeded
-                    elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
+                    elif now.tv_sec - start >= (self.timeout + grace_period) and signals_sent == 1:
                         signals_sent = 2
                         self.send_interrupt(1, main_thread)
 
                     # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                    elif now.tv_sec - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
+                    elif now.tv_sec - start >= (self.timeout + grace_period * 2) and signals_sent == 2:
                         signals_sent = 3
                         self.send_interrupt(2, main_thread)
                         fprintf(stderr, <char*>b'Terminating guard context.\n')
