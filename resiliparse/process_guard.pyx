@@ -372,7 +372,7 @@ cdef class MemGuard(_ResiliparseGuard):
         """
         Initialize :class:`MemGuard` context.
 
-        :param max_memory: max allowed memory kB since context creation before interrupt will be sent
+        :param max_memory: max allowed memory KiB since context creation before interrupt will be sent
         :param absolute: whether `max_memory` is an absolute limit for the process or a relative growth limit
         :param grace_period: grace period in seconds before an interrupt will be sent after exceeding `max_memory`
         :param interrupt_type: type of interrupt (default: `InterruptType.exception_then_signal`)
@@ -441,6 +441,7 @@ cdef class MemGuard(_ResiliparseGuard):
             cdef unsigned char signals_sent = 0
             cdef size_t rss = 0
             cdef timeval now
+            cdef size_t secondary_grace_period = max(5u, self.grace_period)
 
             with nogil:
                 while True:
@@ -458,12 +459,14 @@ cdef class MemGuard(_ResiliparseGuard):
                             self.send_interrupt(0, main_thread)
 
                         # Grace period exceeded
-                        elif now.tv_sec - grace_start > self.grace_period * 2 and signals_sent == 1:
+                        elif now.tv_sec - grace_start > self.grace_period + secondary_grace_period \
+                                and signals_sent == 1:
                             signals_sent = 2
                             self.send_interrupt(1, main_thread)
 
                         # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                        elif now.tv_sec - grace_start > self.grace_period * 3 and signals_sent == 2:
+                        elif now.tv_sec - grace_start > self.grace_period + secondary_grace_period * 2 \
+                                and signals_sent == 2:
                             signals_sent = 3
                             self.send_interrupt(2, main_thread)
                             fprintf(stderr, <char*>b'Terminating guard context.\n')
