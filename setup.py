@@ -16,7 +16,6 @@ import os
 import platform
 from setuptools import setup, Extension
 import warnings
-import sys
 
 VERSION = '0.2.6'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
@@ -36,15 +35,16 @@ cpp_args = dict(
                         '-Wno-unreachable-code', '-Wno-unused-function'],
     extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
-BUILD_PACKAGES = []
+BUILD_PACKAGES = ['fastwarc', 'resiliparse']
 if os.environ.get('BUILD_PACKAGES'):
     BUILD_PACKAGES = os.environ.get('BUILD_PACKAGES').split(' ')
+
 
 # ------------------------------------------
 # Resiliparse
 # ------------------------------------------
 
-if not BUILD_PACKAGES or 'resiliparse' in BUILD_PACKAGES:
+if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
     resiliparse_cpp_args = cpp_args.copy()
     resiliparse_cpp_args['extra_compile_args'].append('-pthread')
     resiliparse_cpp_args['extra_link_args'].append('-pthread')
@@ -72,6 +72,7 @@ if not BUILD_PACKAGES or 'resiliparse' in BUILD_PACKAGES:
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
         packages=['resiliparse'],
+        package_data={'resiliparse': ['*.pyx', '*.pxd', '*.md']},
         install_requires=[],
         setup_requires=[
             'setuptools>=18.0'
@@ -84,7 +85,7 @@ if not BUILD_PACKAGES or 'resiliparse' in BUILD_PACKAGES:
 # FastWARC
 # ------------------------------------------
 
-if not BUILD_PACKAGES or 'fastwarc' in BUILD_PACKAGES:
+if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
     fastwarc_extensions = [
         Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
         Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
@@ -104,6 +105,7 @@ if not BUILD_PACKAGES or 'fastwarc' in BUILD_PACKAGES:
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
         packages=['fastwarc'],
+        package_data={'fastwarc': ['*.pyx', '*.pxd', '*.md']},
         install_requires=[
             'click',
             'tqdm'

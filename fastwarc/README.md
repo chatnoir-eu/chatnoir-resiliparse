@@ -34,8 +34,7 @@ python3 -m venv venv && source venv/bin/activate
 
 # Build and install:
 pip install cython setuptools
-python3 setup.py build
-python3 setup.py install
+BUILD_PACKAGES=fastwarc python setup.py install
 ```
 
 ## Iterating WARC Files:

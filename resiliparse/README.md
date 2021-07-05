@@ -4,6 +4,21 @@ A collection of robust and fast processing tools for parsing and analyzing (not 
 
 Resiliparse is a part of the [ChatNoir](https://github.com/chatnoir-eu/) web data processing pipeline.
 
+## Building Resiliparse
+
+You can compile Resiliparse either from the PyPi source package or directly from this repository. To build FastWARC from PyPi, run
+```bash
+pip install --no-binary resiliparse resiliparse
+```
+If you prefer to build directly from this repository instead, run:
+```bash
+# Create venv (recommended, but not required):
+python3 -m venv venv && source venv/bin/activate
+
+# Build and install:
+pip install cython setuptools
+BUILD_PACKAGES=resiliparse python setup.py install
+```
 
 ## Process Guards
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits on execution time and memory usage. ProcessGuard helps to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
