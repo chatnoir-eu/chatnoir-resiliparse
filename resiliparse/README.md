@@ -4,9 +4,14 @@ A collection of robust and fast processing tools for parsing and analyzing (not 
 
 Resiliparse is a part of the [ChatNoir](https://github.com/chatnoir-eu/) web data processing pipeline.
 
-## Building Resiliparse
+## Installing Resiliparse
+Pre-built Resiliparse binaries can be installed from PyPi:
+```bash
+pip install resiliparse
+```
 
-You can compile Resiliparse either from the PyPi source package or directly from this repository. To build FastWARC from PyPi, run
+## Building Resiliparse
+To build Resiliparse from sources, you can either compile it from the PyPi source package or directly from this repository. To build Resiliparse from PyPi, run:
 ```bash
 pip install --no-binary resiliparse resiliparse
 ```
@@ -26,7 +31,6 @@ BUILD_PACKAGES=resiliparse python setup.py install
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits on execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
 ### TimeGuard
-
 TimeGuard guards a function or a specific execution context to not exceed a set execution time limit. Upon reaching this limit, an exception or a signal will be sent to interrupt execution. The guard timeout can be reset at any time by proactively reporting progress to the guard instance.
 
 For guarding a function, the decorator interface can be used:
@@ -132,7 +136,6 @@ with time_guard(timeout=10) as guard:
 ```
 
 ### MemGuard
-
 Similar to TimeGuard, MemGuard guards a processing context to stay within pre-defined memory bounds. Upon exceeding these bounds, an exception or signal will be sent to the executing thread.
 ```python
 from resiliparse.process_guard import mem_guard, MemoryLimitExceeded
@@ -155,7 +158,6 @@ This will raise an exception immediately upon exceeding the pre-defined process 
 MemGuard provides the same parameters as TimeGuard for controlling the interrupt escalation behaviour (see: [TimeGuard interrupt escalation behaviour](#Interrupt-Escalation-Behaviour)), but the time interval before triggering the next escalation level is independent of the grace period and defaults to five seconds to give the application sufficient time to react and deallocate excess memory. This secondary grace period can be configured with the `secondary_grace_period` parameter and must be at least one second.
 
 #### Using MemGuard as a Context Manager
-
 Similar to TimeGuard, MemGuard can also be used as a context manager:
 ```python
 with mem_guard(max_memory=1024 * 50, grace_period=2):

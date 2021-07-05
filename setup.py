@@ -17,7 +17,7 @@ import platform
 from setuptools import setup, Extension
 import warnings
 
-VERSION = '0.2.7'
+VERSION = '0.2.8'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
 try:
