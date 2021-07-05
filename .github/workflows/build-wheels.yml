@@ -14,21 +14,38 @@ jobs:
       - name: Build Source Dist
         run: |
           python -m pip install --upgrade pip
-          python -m pip install cython
+          python -m pip install cython twine
           python setup.py sdist
 
       - name: Build Wheels
-        uses: RalfG/python-wheels-manylinux-build@v0.3.4-manylinux2014_x86_64
+        uses: addnab/docker-run-action@v3
         with:
-          python-versions: 'cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310'
-          build-requirements: 'cython setuptools'
-          system-packages: 'zlib-devel lz4-devel'
+          image: quay.io/pypa/manylinux2014_x86_64
+          options: -v ${{ github.workspace }}:/work
+          run: |
+            set -e
 
-      - name: Publish Package
+            yum install -y zlib-devel lz4-devel
+
+            cd /work
+            for py in /opt/python/{cp37-cp37m,cp38-cp38,cp39-cp39,cp310-cp310}; do
+              for pkg in resiliparse fastwarc; do
+                BUILD_PACKAGES=${pkg} ${py}/bin/python setup.py bdist_wheel
+              done
+            done
+
+            find dist -type f -name '*-linux*.whl' -exec auditwheel repair -w dist --plat manylinux2014_x86_64 {} \;
+
+      - name: Publish FastWARC Package
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
         run: |
-          python -m pip install twine
-          twine upload dist/*-manylinux*.whl dist/*.tar.gz
+          twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
 
+      - name: Publish Resiliparse Package
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
+        run: |
+          twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz

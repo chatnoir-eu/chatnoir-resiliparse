@@ -16,7 +16,9 @@ import os
 import platform
 from setuptools import setup, Extension
 import warnings
+import sys
 
+VERSION = '0.2.6'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
 try:
@@ -34,78 +36,83 @@ cpp_args = dict(
                         '-Wno-unreachable-code', '-Wno-unused-function'],
     extra_link_args=['-std=c++17', '-lz', '-llz4'])
 
+BUILD_PACKAGES = []
+if os.environ.get('BUILD_PACKAGES'):
+    BUILD_PACKAGES = os.environ.get('BUILD_PACKAGES').split(' ')
 
 # ------------------------------------------
 # Resiliparse
 # ------------------------------------------
 
-resiliparse_cpp_args = cpp_args.copy()
-resiliparse_cpp_args['extra_compile_args'].append('-pthread')
-resiliparse_cpp_args['extra_link_args'].append('-pthread')
+if not BUILD_PACKAGES or 'resiliparse' in BUILD_PACKAGES:
+    resiliparse_cpp_args = cpp_args.copy()
+    resiliparse_cpp_args['extra_compile_args'].append('-pthread')
+    resiliparse_cpp_args['extra_link_args'].append('-pthread')
 
-resiliparse_extensions = []
-if os.name == 'posix':
-    resiliparse_extensions.extend([
-        Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
-    ])
-else:
-    warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
+    resiliparse_extensions = []
+    if os.name == 'posix':
+        resiliparse_extensions.extend([
+            Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'], **resiliparse_cpp_args)
+        ])
+    else:
+        warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
 
-if USE_CYTHON:
-    resiliparse_extensions = cythonize(resiliparse_extensions,
-                                       annotate=Cython.Compiler.Options.annotate, language_level='3')
+    if USE_CYTHON:
+        resiliparse_extensions = cythonize(resiliparse_extensions,
+                                           annotate=Cython.Compiler.Options.annotate, language_level='3')
 
-setup(
-    name='ResiliParse',
-    version='1.0',
-    description='Optimized and resilient web archive parsing library with fixed memory and execution time ceiling.',
-    long_description=open(os.path.join(THIS_DIRECTORY, 'resiliparse/README.md')).read(),
-    long_description_content_type='text/markdown',
-    author='Janek Bevendorff',
-    url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
-    license='Apache License 2.0',
-    packages=['resiliparse'],
-    install_requires=[],
-    setup_requires=[
-        'setuptools>=18.0'
-    ],
-    ext_modules=resiliparse_extensions,
-    entry_points={}
-)
+    setup(
+        name='Resiliparse',
+        version=VERSION,
+        description='A collection of robust and fast processing tools for parsing and '
+                    'analyzing (not only) web archive data.',
+        long_description=open(os.path.join(THIS_DIRECTORY, 'resiliparse/README.md')).read(),
+        long_description_content_type='text/markdown',
+        author='Janek Bevendorff',
+        url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
+        license='Apache License 2.0',
+        packages=['resiliparse'],
+        install_requires=[],
+        setup_requires=[
+            'setuptools>=18.0'
+        ],
+        ext_modules=resiliparse_extensions
+    )
 
 
 # ------------------------------------------
 # FastWARC
 # ------------------------------------------
 
-fastwarc_extensions = [
-    Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-    Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
-    Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
-]
-if USE_CYTHON:
-    fastwarc_extensions = cythonize(fastwarc_extensions,
-                                    annotate=Cython.Compiler.Options.annotate, language_level='3')
+if not BUILD_PACKAGES or 'fastwarc' in BUILD_PACKAGES:
+    fastwarc_extensions = [
+        Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
+        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **cpp_args),
+        Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
+    ]
+    if USE_CYTHON:
+        fastwarc_extensions = cythonize(fastwarc_extensions,
+                                        annotate=Cython.Compiler.Options.annotate, language_level='3')
 
-setup(
-    name='FastWARC',
-    version='0.2.5',
-    description='A high-performance WARC parsing library for Python written in C++/Cython.',
-    long_description=open(os.path.join(THIS_DIRECTORY, 'fastwarc/README.md')).read(),
-    long_description_content_type='text/markdown',
-    author='Janek Bevendorff',
-    url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
-    license='Apache License 2.0',
-    packages=['fastwarc'],
-    install_requires=[
-        'click',
-        'tqdm'
-    ],
-    setup_requires=[
-        'setuptools>=18.0'
-    ],
-    ext_modules=fastwarc_extensions,
-    entry_points={
-        'console_scripts': ['fastwarc=fastwarc.cli:main']
-    }
-)
+    setup(
+        name='FastWARC',
+        version=VERSION,
+        description='A high-performance WARC parsing library for Python written in C++/Cython.',
+        long_description=open(os.path.join(THIS_DIRECTORY, 'fastwarc/README.md')).read(),
+        long_description_content_type='text/markdown',
+        author='Janek Bevendorff',
+        url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
+        license='Apache License 2.0',
+        packages=['fastwarc'],
+        install_requires=[
+            'click',
+            'tqdm'
+        ],
+        setup_requires=[
+            'setuptools>=18.0'
+        ],
+        ext_modules=fastwarc_extensions,
+        entry_points={
+            'console_scripts': ['fastwarc=fastwarc.cli:main']
+        }
+    )
