@@ -367,7 +367,7 @@ cdef class MemGuard(_ResiliparseGuard):
     cdef size_t grace_period
     cdef bint is_linux
 
-    def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
+    def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=0,
                   InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
         """
         Initialize :class:`MemGuard` context.
@@ -381,7 +381,7 @@ cdef class MemGuard(_ResiliparseGuard):
         """
 
     # noinspection PyMethodOverriding
-    def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=15,
+    def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=0,
                   InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
         self.max_memory = max_memory
         self.absolute = absolute
@@ -487,7 +487,7 @@ cdef class MemGuard(_ResiliparseGuard):
         guard_thread.start()
 
 
-def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=15,
+def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0,
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
               size_t check_interval=500) -> MemGuard:
     """
