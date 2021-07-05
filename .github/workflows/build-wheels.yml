@@ -8,44 +8,47 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux2014_x86_64:latest
+    env:
+      PYTHON: python3.9
+      PY_TARGETS: cp37-cp37m,cp38-cp38,cp39-cp39,cp310-cp310
+
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build Source Dist
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install cython twine
-          python setup.py sdist
+          set -e
 
-      - name: Build Wheels
-        uses: addnab/docker-run-action@v3
-        with:
-          image: quay.io/pypa/manylinux2014_x86_64
-          options: -v ${{ github.workspace }}:/work
-          run: |
-            set -e
+          yum install -y zlib-devel lz4-devel
+          $PYTHON -m pip install --upgrade pip
+          $PYTHON -m pip install cython twine
 
-            yum install -y zlib-devel lz4-devel
+      - name: Build Packages
+        run: |
+          set -e
 
-            cd /work
-            for py in /opt/python/{cp37-cp37m,cp38-cp38,cp39-cp39,cp310-cp310}; do
-              for pkg in resiliparse fastwarc; do
-                BUILD_PACKAGES=${pkg} ${py}/bin/python setup.py bdist_wheel
-              done
+          for pkg in resiliparse fastwarc; do
+            BUILD_PACKAGES=${pkg} $PYTHON setup.py sdist
+
+            for py in $(eval ls -d "/opt/python/{$PY_TARGETS}/bin/python"); do
+              BUILD_PACKAGES=${pkg} ${py} setup.py bdist_wheel
             done
+          done
 
-            find dist -type f -name '*-linux*.whl' -exec auditwheel repair -w dist --plat manylinux2014_x86_64 {} \;
+          find dist -type f -name '*-linux*.whl' -exec auditwheel repair -w dist --plat manylinux2014_x86_64 {} \;
 
       - name: Publish FastWARC Package
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
         run: |
-          twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
+          $PYTHON -m twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
 
       - name: Publish Resiliparse Package
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
         run: |
-          twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz
+          $PYTHON -m twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz
