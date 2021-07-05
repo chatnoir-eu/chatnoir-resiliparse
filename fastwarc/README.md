@@ -38,7 +38,7 @@ python3 setup.py build
 python3 setup.py install
 ```
 
-## Iterating WARC files:
+## Iterating WARC Files:
 
 The central class for stream-processing WARC files is `fastwarc.warc.ArchiveIterator`:
 ```python
@@ -63,10 +63,10 @@ from fastwarc.stream_io import *
 stream = GZipStream(FileStream('warcfile.warc.gz', 'rb'))
 ```
 
-### Filtering records
+### Filtering Records
 FastWARC provides several ways in which you can filter and efficiently skip records you are not interested in. These filters are checked very early in the parsing process, right after the WARC header block has been read. Multiple types of filters can be combined.
 
-#### Record type filter
+#### Record Type Filter
 If you want only records of a certain type, you can skip all other records efficiently by specifying a bitmask of the desired record types:
 ```python
 from fastwarc.warc import ArchiveIterator, WarcRecordType
@@ -76,7 +76,7 @@ for record in ArchiveIterator(stream, record_types=WarcRecordType.request | Warc
 ```
 This will skip all records with a `WARC-Type` other than `request` or `response`.
 
-#### Content-Length filter
+#### Content-Length Filter
 You can automatically skip any records whose `Content-Length` exceeds or is lower than a certain value:
 ```python
 from fastwarc.warc import ArchiveIterator
@@ -90,7 +90,7 @@ for record in ArchiveIterator(stream, min_content_length=128):
     pass
 ```
 
-#### Function filter
+#### Function Filter
 If the above-mentioned filter mechanisms are not sufficient, you can pass a function object that accepts as its only parameter a `WarcRecord` and returns a `bool` value. This filter type is much slower than the previous filters, but probably still more efficient than checking the same thing later on in the loop. Be aware that since the record body hasn't been seen yet, you cannot access any information beyond what is in the record headers.
 
 FastWARC comes with a handful of existing filters that you can use:
@@ -120,7 +120,7 @@ for record in ArchiveIterator(stream, func_filter=lambda r: has_block_digest(r) 
     pass
 ```
 
-#### Digest filter
+#### Digest Filter
 This is the only filter that is executed after the content is available and will skip any records without or with an invalid block digest:
 ```python
 for record in ArchiveIterator(stream, verify_digests=True):
@@ -128,7 +128,7 @@ for record in ArchiveIterator(stream, verify_digests=True):
 ```
 This is the most expensive filter of all and it will create an in-memory copy of the whole record. See [Verifying record digests](#Verifying-record-digests) for more information on how digest verification works.
 
-### Record properties
+### Record Properties
 The `ArchiveIterator` returns objects of type `WarcRecord`, which have various properties:
 ```python
 for record in ArchiveIterator(stream):
@@ -153,7 +153,7 @@ for record in ArchiveIterator(stream):
 ```
 As you can see, HTTP request and response records are parsed automatically for convenience. If not needed, you can disable this behaviour by passing `parse_http=False` to the `ArchiveIterator` constructor to avoid unnecessary processing. `record.reader` will then start at the beginning of the HTTP header block instead of the HTTP body. You can parse HTTP headers later on a per-record basis by calling `record.parse_http()` as long as the `BufferedReader` hasn't been consumed at that point.
 
-#### Verifying record digests
+#### Verifying Record Digests
 If a record has digest headers, you can verify the consistency of the record contents and/or its HTTP payload:
 ```python
 for record in ArchiveIterator(stream, parse_http=False):
@@ -185,7 +185,7 @@ Commands:
   recompress  Recompress a WARC file with different settings.
 ```
 
-### Check digests
+### Check Digests
 You can verify all block and payload digests in the given WARC file and print a summary of all corrupted and (optionally) all intact records with
 ```bash
 fastwarc check INFILE
