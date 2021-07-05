@@ -40,12 +40,12 @@ from resiliparse.process_guard import time_guard, ExecutionTimeout
 
 @time_guard(timeout=10)
 def foo():
-    try:
-        while True:
+    for _ in range(1000):
+        try:
             sleep(0.1)
-            
-    except ExecutionTimeout:
-        print('Time out!')
+        except ExecutionTimeout:
+            print('Time out!')
+            break
 
 foo()
 ```
@@ -84,13 +84,13 @@ from resiliparse.process_guard import progress, time_guard, ExecutionTimeout
 
 @time_guard(timeout=10)
 def foo():
-    try:
-        while True:
+    for _ in range(1000):
+        try:
             sleep(0.1)
             progress()
-            
-    except ExecutionTimeout:
-        print('Time out!')  # This will never happen
+        except ExecutionTimeout:
+            print('Time out!')
+            break
 
 foo()
 ```
@@ -99,16 +99,15 @@ The `progress()` function will automatically select the last active guard contex
 def foo():
     @time_guard(timeout=10)
     def bar():
-        try:
-            # This loop runs forever
-            while True:
+        for _ in range(1000):
+            try:
                 sleep(0.1)
                 # Function bar() is not in the global scope,
                 # so we have to reference the guard context explicitly.
                 bar.progress()
-                
-        except ExecutionTimeout:
-            print('Time out!')  # This will never happen
+            except ExecutionTimeout:
+                print('Time out!')
+                break
     bar()
 foo()
 ```
@@ -117,7 +116,7 @@ foo()
 Instead of the decorator interface, TimeGuard also provides a context manager interface that can be used with Pythons `with` statement:
 ```python
 with time_guard(timeout=10):
-    while True:
+    for _ in range(1000):
         try:
             sleep(0.1)
         except ExecutionTimeout:
@@ -127,10 +126,37 @@ To report progress and reset the timeout, call the `progress()` method on the gu
 
 ```python
 with time_guard(timeout=10) as guard:
-    while True:
+    for _ in range(1000):
         try:
             sleep(0.1)
             guard.progress()
+        except ExecutionTimeout:
+            break
+```
+
+#### Progress Loops
+
+Since running a `for` loop and reporting progress after each iteration is a very common pattern, you can use the `progress_loop` pass-through generator as a shortcut:
+```python
+from time import sleep
+from resiliparse.process_guard import progress_loop, time_guard, ExecutionTimeout
+
+@time_guard(timeout=10)
+def foo():
+    for _ in progress_loop(range(1000)):
+        try:
+            sleep(0.1)
+        except ExecutionTimeout:
+            break
+
+foo()
+```
+In cases where context auto-detection doesn't work, the active guard context can be passed to the generator via the `ctx` parameter:
+```python
+with time_guard(timeout=10) as guard:
+    for _ in progress_loop(range(1000), ctx=guard):
+        try:
+            sleep(0.1)
         except ExecutionTimeout:
             break
 ```
@@ -146,10 +172,9 @@ def foo():
     try:
         while True:
             x.extend([1] * 1000)
-            
     except MemoryLimitExceeded:
-        x.clear()
         print('Memory limit exceeded')
+        x.clear()
 
 foo()
 ```
@@ -165,10 +190,9 @@ with mem_guard(max_memory=1024 * 50, grace_period=2):
     try:
         while True:
             x.extend([1] * 1000)
-            
     except MemoryLimitExceeded:
-        x.clear()
         print('Memory limit exceeded')
+        x.clear()
 ```
 Particularly with this notation, remember to actually deallocate your buffers, since they will not automatically go out of scope as they would when returning from a function call! 
 
