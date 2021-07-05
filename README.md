@@ -21,15 +21,49 @@ Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) toolkit. If you use 
 
 ## Modules
 
-The Resiliparse collection encompasses the following modules at the moment:
+The Resiliparse collection encompasses the following two modules at the moment:
 
-### Resiliparse ProcessGuard
-The Resiliparse ProcessGuard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. ProcessGuard helps to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
+### M1: Resiliparse
+The Resiliparse main module with the following subcomponents:
+
+#### Process Guards
+The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
 For more information, see the [Process Guard documentation](resiliparse/README.md#Process-Guards)
 
 
-### FastWARC
+### M2: FastWARC
 FastWARC is a high-performance WARC parsing library for Python written in C++/Cython. The API is inspired in large parts by [WARCIO](https://github.com/webrecorder/warcio), but does not aim at being a drop-in replacement.  FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are GZip and LZ4.
 
 For more information, see the [FastWARC documentation](fastwarc/README.md)
+
+## Building and Installing Resiliparse
+The main Resiliparse package can be installed from PyPi as follows:
+```bash
+pip install resiliparse
+```
+FastWARC is being distributed as its own package that has to be installed separately. For optimal performance, it is recommended to build FastWARC from sources instead of relying on the pre-built binaries.
+```bash
+# Option 1: Install pre-built binaries:
+pip install fastwarc
+
+# Option 2: Install from sources (requires build-time dependencies to be installed,
+#           but is recommended for better performance, see FastWARC docs):
+pip install --no-binary fastwarc fastwarc:
+```
+You can also build Resiliparse directly from this repository with all or just some of its modules:
+```bash
+# Create venv (recommended, but not required)
+python3 -m venv venv && source venv/bin/activate
+
+# Install build dependencies
+sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
+pip install cython setuptools
+
+# Build only FastWARC
+BUILD_PACKAGES=fastwarc python setup.py install
+
+# Build all modules
+python setup.py install
+```
+For more information about the build process, dependencies, or usage instructions, please consult the individual module READMEs.

@@ -29,11 +29,13 @@ pip install --no-binary fastwarc fastwarc
 ```
 That's it. If you prefer to build directly from this repository instead, run:
 ```bash
-# Create venv (recommended, but not required):
+# Create venv (recommended, but not required)
 python3 -m venv venv && source venv/bin/activate
 
-# Build and install:
+# Install additional build dependencies
 pip install cython setuptools
+
+# Build and install:
 BUILD_PACKAGES=fastwarc python setup.py install
 ```
 
