@@ -51,6 +51,8 @@ foo()
 ```
 This will send an asynchronous `ExecutionTimeout` exception to the running thread after 10 seconds to end the loop. If the running thread does not react, a `SIGINT` UNIX signal will be sent after a certain grace period (default: 15 seconds). This signal can be caught either as a `KeyboardInterrupt` exception or via a custom `signal` handler. If the grace period times out again, a `SIGTERM` will be sent as a final attempt, after which the guard context will exit.
 
+**Hint:** If you want to be on the safe side, you should place the `try/except` block around the loop, since there is a (very) small chance the exception will fire while the loop condition is being evaluated. In a practical scenario, however, you will more often than not want to simply skip to the next iteration, in which case it is probably more convenient to catch the exception inside the loop and have some sort of external contingency mechanism in place for restarting the whole batch should the exception not be caught properly.
+
 #### Interrupt Escalation Behaviour
 The above-described interrupt escalation behaviour is configurable. There are two basic interrupt mechanisms: throwing an asynchronous exception or sending a UNIX signal. The exception mechanism is the most gentle method of the two, but it may be unreliable if execution is blocking outside the Python program flow (e.g., in a native C extension or in a syscall). The signal method is a bit more reliable in this regard, but it does not work if the guarded thread is not the interpreter main thread, since in Python, only the main thread can receive and handle signals. Thus, if you are guarding a dedicated worker thread, you have to use exceptions.
 
