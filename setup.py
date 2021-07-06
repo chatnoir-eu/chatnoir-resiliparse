@@ -16,6 +16,7 @@ import os
 import platform
 from setuptools import setup, Extension
 import warnings
+import sys
 
 VERSION = '0.2.9'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
@@ -38,6 +39,15 @@ cpp_args = dict(
 BUILD_PACKAGES = ['fastwarc', 'resiliparse']
 if os.environ.get('BUILD_PACKAGES'):
     BUILD_PACKAGES = os.environ.get('BUILD_PACKAGES').split(' ')
+
+data_ext = ['*.pxd', '*.md']
+inc_module = []
+inc_module_data = {}
+if 'sdist' in sys.argv:
+    # Include resiliparse_inc module and *.pyx only in source distribution
+    data_ext.append('*.pyx')
+    inc_module.append('resiliparse_inc')
+    inc_module_data['resiliparse_inc'] = data_ext
 
 
 # ------------------------------------------
@@ -73,10 +83,10 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
         author='Janek Bevendorff',
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
-        packages=['resiliparse', 'resiliparse_inc'],
+        packages=['resiliparse', *inc_module],
         package_data={
-            'resiliparse': ['*.pyx', '*.pxd', '*.md'],
-            'resiliparse_inc': ['*.pxd']
+            'resiliparse': data_ext,
+            **inc_module_data
         },
         install_requires=[],
         setup_requires=[
@@ -112,10 +122,10 @@ if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
         author='Janek Bevendorff',
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
-        packages=['fastwarc', 'resiliparse_inc'],
+        packages=['fastwarc', *inc_module],
         package_data={
-            'fastwarc': ['*.pyx', '*.pxd', '*.md'],
-            'resiliparse_inc': ['*.pxd']
+            'fastwarc': data_ext,
+            **inc_module_data
         },
         install_requires=[
             'click',
