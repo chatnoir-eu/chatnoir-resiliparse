@@ -51,7 +51,7 @@ foo()
 ```
 This will send an asynchronous `ExecutionTimeout` exception to the running thread after 10 seconds to end the loop. If the running thread does not react, a `SIGINT` UNIX signal will be sent after a certain grace period (default: 15 seconds). This signal can be caught either as a `KeyboardInterrupt` exception or via a custom `signal` handler. If the grace period times out again, a `SIGTERM` will be sent as a final attempt, after which the guard context will exit.
 
-**Hint:** If you want to be on the safe side, you should place the `try/except` block around the loop, since there is a (very) small chance the exception will fire while the loop condition is being evaluated. In a practical scenario, however, you will more often than not want to simply skip to the next iteration, in which case it is probably more convenient to catch the exception inside the loop and have some sort of external contingency mechanism in place for restarting the whole batch should the exception not be caught properly.
+**Hint:** If you want to be on the safe side, you should place the `try/except` block around the loop, since there is a (very) small chance the exception will fire while the loop condition is being evaluated. In a practical scenario, however, you will more often than not want to simply skip to the next iteration, in which case it is probably more convenient to catch the exception inside the loop and have some sort of external contingency mechanism in place for restarting the whole batch should the exception not be caught properly. If you are working with "heavy-weight" iterators that take significant amounts of processing time or may raise exceptions on their own, you may want to have a look at [Exception Loops](#Exception-Loops).
 
 #### Interrupt Escalation Behaviour
 The above-described interrupt escalation behaviour is configurable. There are two basic interrupt mechanisms: throwing an asynchronous exception or sending a UNIX signal. The exception mechanism is the most gentle method of the two, but it may be unreliable if execution is blocking outside the Python program flow (e.g., in a native C extension or in a syscall). The signal method is a bit more reliable in this regard, but it does not work if the guarded thread is not the interpreter main thread, since in Python, only the main thread can receive and handle signals. Thus, if you are guarding a dedicated worker thread, you have to use exceptions.
@@ -176,10 +176,10 @@ By default, MemGuard will check the current memory usage every 500ms. If you nee
 
 
 ## Itertools
-Resiliparse Itertools are a collection of convenient and robust helpers for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
+Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
 
 ### Progress Loops
-Progress loops are a convenience tool for iterating data with an active [TimeGuard](#TimeGuard) context. Since running a `for` loop in a TimeGuard and reporting progress after each iteration is a very common pattern, you can use the `progress_loop` pass-through generator as a shortcut:
+Progress loops are a convenience tool for iterating data with an active [TimeGuard](#TimeGuard) context. Since running a `for` loop in a TimeGuard with progress being reported after each iteration is a very common pattern, you can use the `progress_loop` pass-through generator as a shortcut:
 ```python
 from time import sleep
 from resiliparse.itertools import progress_loop
@@ -227,4 +227,19 @@ for val, exc in exc_loop(throw_gen()):
         break
 
     print(val)
+```
+
+### WARC Retry Loops
+The WARC retry loop helper wraps a [FastWARC](../fastwarc/README.md) `ArchiveIterator` instance to retry in case of read failures.
+
+Use a WARC retry loop if the underlying stream is unreliable, such as when reading from a network data source. If an exception other than `StopIteration` is raised while consuming the iterator, the WARC reading process will be retried up to `retry_count` times. When a stream failure occurs,  the `ArchiveIterator` will be reinitialised with a new stream object by calling `stream_factory`. The new stream object returned by `stream_factory()` must be seekable.
+```python
+from fastwarc.warc import ArchiveIterator
+from resiliparse.itertools import warc_retry
+
+def stream_factory():
+    return open('warcfile.warc.gz', 'rb')
+
+for record in warc_retry(ArchiveIterator(stream_factory()), stream_factory, retry_count=3):
+    pass
 ```

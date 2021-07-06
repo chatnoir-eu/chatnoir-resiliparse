@@ -14,7 +14,7 @@
 
 # distutils: language = c++
 
-from typing import Any, Iterable, Optional, Union, Tuple
+from typing import Any, Callable, Iterable, Optional, Union, Tuple
 
 from resiliparse.process_guard cimport progress
 
@@ -54,5 +54,50 @@ def exc_loop(it: Iterable[Any]) -> Iterable[Tuple[Optional[Any], Optional[Union[
             yield next(it), None
         except StopIteration as e:
             raise e
-        except (Exception, BaseException) as e:
+        except BaseException as e:
             yield None, e
+
+
+def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3):
+    """
+    Wrap a :class:`fastwarc.warc.ArchiveIterator` instance to retry in case of read failures.
+
+    Use if the underlying stream is unreliable, such as when reading from a network data source.
+    If an exception other than `StopIteration` is raised while consuming the iterator, the WARC
+    reading process will be retried up to `retry_count` times. When a stream failure occurs,
+    `archive_iterator` will be reinitialised with a new stream object by calling `stream_factory`.
+    The new stream object returned by `stream_factory()` must be seekable.
+
+    Requires FastWARC to be installed.
+
+    :param archive_iterator: input :class:`fastwarc.warc.ArchiveIterator`
+    :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
+    :param retry_count: maximum number of retries before giving up (set to `None` or zero for no limit)
+    :return: wrapped :class:`fastwarc.warc.ArchiveIterator`
+    """
+
+    cdef size_t retries = 0
+    cdef size_t last_pos = 0
+    cdef bint skip_next = False
+    it = archive_iterator.__iter__()
+
+    while True:
+        try:
+            if skip_next:
+                next(it)
+                skip_next = False
+            next_rec = next(it)
+            last_pos = next_rec.stream_pos
+            yield next_rec
+        except StopIteration as e:
+            raise e
+        except BaseException as e:
+            retries += 1
+            if retry_count and retries > retry_count:
+                raise e
+            stream = stream_factory()
+            stream.seek(max(0, <long>last_pos - 1))
+            # noinspection PyProtectedMember
+            archive_iterator._set_stream(stream)
+            it = archive_iterator.__iter__()
+            skip_next = True

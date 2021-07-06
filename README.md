@@ -31,6 +31,9 @@ The Resiliparse Process Guard module is a set of decorators and context managers
 
 For more information, see the [Process Guard documentation](resiliparse/README.md#Process-Guards)
 
+#### Itertools
+Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
+
 
 ### M2: FastWARC
 FastWARC is a high-performance WARC parsing library for Python written in C++/Cython. The API is inspired in large parts by [WARCIO](https://github.com/webrecorder/warcio), but does not aim at being a drop-in replacement.  FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are GZip and LZ4.

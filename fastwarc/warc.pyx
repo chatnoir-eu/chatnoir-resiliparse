@@ -650,6 +650,7 @@ cdef class ArchiveIterator:
 
     def __iter__(self) -> Iterable[WarcRecord]:
         cdef _NextRecStatus status
+
         while True:
             status = self._read_next_record()
             if status == has_next:
@@ -761,6 +762,7 @@ cdef class ArchiveIterator:
 
         cdef IOStream stream_ = <IOStream>stream
         self.reader = BufferedReader.__new__(BufferedReader, stream_)
+        self.record = None
 
 
 # noinspection PyProtectedMember
