@@ -72,8 +72,11 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
         author='Janek Bevendorff',
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
-        packages=['resiliparse'],
-        package_data={'resiliparse': ['*.pyx', '*.pxd', '*.md']},
+        packages=['resiliparse', 'resiliparse_inc'],
+        package_data={
+            'resiliparse': ['*.pyx', '*.pxd', '*.md'],
+            'resiliparse_inc': ['*.pxd']
+        },
         install_requires=[],
         setup_requires=[
             'setuptools>=18.0'
@@ -108,8 +111,11 @@ if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
         author='Janek Bevendorff',
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
-        packages=['fastwarc'],
-        package_data={'fastwarc': ['*.pyx', '*.pxd', '*.md']},
+        packages=['fastwarc', 'resiliparse_inc'],
+        package_data={
+            'fastwarc': ['*.pyx', '*.pxd', '*.md'],
+            'resiliparse_inc': ['*.pxd']
+        },
         install_requires=[
             'click',
             'tqdm'

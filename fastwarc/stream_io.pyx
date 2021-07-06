@@ -14,24 +14,15 @@
 
 # distutils: language = c++
 
-
 cimport cython
-from libc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
-from libcpp.string cimport string
 
 import warnings
 
-cdef extern from "<errno.h>" nogil:
-    int errno
-
-cdef extern from "<cstdlib>" namespace "std" nogil:
-    long strtol(const char* str, char** endptr, int base)
-
-cdef extern from "<string.h>" nogil:
-    char* strerror(int errnum)
-
-
-cdef size_t strnpos = -1
+from resiliparse_inc.cstdlib cimport strtol
+from resiliparse_inc.cstring cimport strerror
+from resiliparse_inc.errno cimport errno
+from resiliparse_inc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
+from resiliparse_inc.string cimport npos as strnpos, string
 
 
 class FastWARCError(Exception):
@@ -277,7 +268,7 @@ cdef class GZipStream(CompressingStream):
         self.initialized = 0
 
     cdef bint _refill_working_buf(self, size_t size) nogil:
-        strerase(self.working_buf, 0, self.working_buf.size())
+        self.working_buf.erase(0, self.working_buf.size())
         with gil:
             self.working_buf.append(self.raw_stream.read(max(1024u, size)))
             if self.working_buf.empty():
@@ -481,7 +472,7 @@ cdef class LZ4Stream(CompressingStream):
                                   self.working_buf.data(), &bytes_read, NULL)
             while ret != 0 and bytes_written == 0 and not LZ4F_isError(ret):
                 with gil:
-                    strerase(self.working_buf, 0, bytes_read)
+                    self.working_buf.erase(0, bytes_read)
                     self.working_buf.append(self.raw_stream.read(size))
                 if self.working_buf.empty():
                     # EOF
@@ -500,7 +491,7 @@ cdef class LZ4Stream(CompressingStream):
                 self._free_ctx()
                 self.errstr = <char*>b'Not a valid LZ4 stream'
                 return string()
-            strerase(self.working_buf, 0, bytes_read)
+            self.working_buf.erase(0, bytes_read)
 
             if out_buf.size() != bytes_written:
                 out_buf.resize(bytes_written)
@@ -672,7 +663,7 @@ cdef class BufferedReader:
                 size = self.limit - self.limit_consumed
             self.limit_consumed += size
 
-        strerase(self.buf, 0, size)
+        self.buf.erase(0, size)
 
     cdef inline void set_limit(self, size_t offset) nogil:
         """
@@ -798,7 +789,6 @@ cdef class BufferedReader:
         if self.stream is not None:
             return self.stream.error()
         return string()
-
 
 
 cpdef string read_http_chunk(BufferedReader reader):

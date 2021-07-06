@@ -14,9 +14,9 @@
 
 # distutils: language = c++
 
-from .stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, PythonIOStreamAdapter
-from .stream_io import StreamError
-from .warc cimport ArchiveIterator, WarcRecordType
+from fastwarc.stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, PythonIOStreamAdapter
+from fastwarc.stream_io import StreamError
+from fastwarc.warc cimport ArchiveIterator, WarcRecordType
 
 
 cpdef enum CompressionAlg:
@@ -109,6 +109,7 @@ def recompress_warc_interactive(warc_in, warc_out, CompressionAlg comp_alg_in=au
     out_stream = wrap_warc_stream(warc_out, 'wb', comp_alg_out, **comp_args)
 
     num = 0
+    # noinspection PyTypeChecker
     for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
                                           parse_http=False, record_types=WarcRecordType.any_type):
         bytes_written = record.write(out_stream)
@@ -168,6 +169,7 @@ def verify_digests(warc_in, bint verify_payloads=False, CompressionAlg comp_alg=
 
     in_stream = wrap_warc_stream(warc_in, 'rb', comp_alg)
 
+    # noinspection PyTypeChecker
     for record in ArchiveIterator.__new__(ArchiveIterator, in_stream,
                                           parse_http=False, record_types=WarcRecordType.any_type):
         consume = not verify_payloads or not record.is_http

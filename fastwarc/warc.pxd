@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# distutils: language = c++
-
 from libc.stdint cimport uint16_t
-from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from .stream_io cimport IOStream, BufferedReader
+from resiliparse_inc.string cimport string
+from fastwarc.stream_io cimport IOStream, BufferedReader
 
 
 cpdef enum WarcRecordType:

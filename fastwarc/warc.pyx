@@ -14,6 +14,11 @@
 
 # distutils: language = c++
 
+cimport cython
+from cython.operator cimport dereference as deref, preincrement as inc
+from libc.stdint cimport uint16_t
+from libcpp.vector cimport vector
+
 import base64
 from datetime import datetime
 import hashlib
@@ -21,28 +26,13 @@ from typing import Iterable, List, Optional, Tuple
 import uuid
 import warnings
 
-cimport cython
-from cython.operator cimport dereference as deref, preincrement as inc
-from libc.stdint cimport uint16_t
-from libcpp.string cimport string
-from libcpp.vector cimport vector
+from resiliparse_inc.cctype cimport isspace, tolower
+from resiliparse_inc.cstdlib cimport strtol
+from resiliparse_inc.string cimport npos as strnpos, string, to_string
 
-from .stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
-from .stream_io import StreamError
+from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
+from fastwarc.stream_io import StreamError
 
-
-cdef extern from "<cctype>" namespace "std" nogil:
-    int isspace(int c)
-    int tolower(int c)
-
-cdef extern from "<cstdlib>" namespace "std" nogil:
-    long strtol(const char* str, char** endptr, int base)
-
-cdef extern from "<string>" namespace "std" nogil:
-    string to_string(int i)
-    string to_string(size_t i)
-
-cdef size_t strnpos = -1
 
 cdef string strip_str(const string& s) nogil:
     cdef size_t start = 0
@@ -65,7 +55,7 @@ cdef string str_to_lower(string s) nogil:
     return s
 
 
-cdef const char* _enum_record_type_to_str(WarcRecordType record_type):
+cdef const char* _enum_record_type_to_str(WarcRecordType record_type) nogil:
     if record_type == warcinfo:
         return b'warcinfo'
     elif record_type == response:
@@ -86,7 +76,7 @@ cdef const char* _enum_record_type_to_str(WarcRecordType record_type):
         return b'unknown'
 
 
-cdef WarcRecordType _str_record_type_to_enum(string record_type):
+cdef WarcRecordType _str_record_type_to_enum(string record_type) nogil:
     record_type = str_to_lower(record_type)
     if record_type == b'warcinfo':
         return warcinfo

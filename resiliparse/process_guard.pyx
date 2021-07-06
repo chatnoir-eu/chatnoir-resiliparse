@@ -14,70 +14,20 @@
 
 # distutils: language = c++
 
+from cpython cimport PyObject, PyThreadState_SetAsyncExc
+from libc.signal cimport SIGINT, SIGTERM, SIGKILL
+
 import inspect
 import platform
 from threading import Thread
 from typing import Any, Iterable
 
-from cpython cimport PyObject, PyThreadState_SetAsyncExc
-from libc.stdio cimport FILE, fclose, feof, fgets, fopen, fflush, fprintf, stderr
-from libcpp.string cimport string
-
-
-cdef extern from "<stdio.h>" nogil:
-    FILE* popen(const char* command, const char* type);
-    int pclose(FILE* stream);
-
-cdef extern from "<string>" namespace "std" nogil:
-    string to_string(int i)
-
-cdef size_t strnpos = -1
-
-cdef extern from "<cstdlib>" namespace "std" nogil:
-    long strtol(const char* str, char** endptr, int base)
-
-cdef extern from "<signal.h>" nogil:
-    const int SIGHUP
-    const int SIGINT
-    const int SIGTERM
-    const int SIGKILL
-
-cdef extern from "<pthread.h>" nogil:
-    ctypedef unsigned long pthread_t
-    pthread_t pthread_self()
-    int pthread_kill(pthread_t thread, int sig)
-
-cdef extern from "<atomic>" namespace "std" nogil:
-    cdef cppclass atomic[T]:
-        atomic()
-        T load() const
-        void store(T desired)
-        T fetch_add(T arg)
-    ctypedef atomic[bint] atomic_bool
-    ctypedef atomic[size_t] atomic_size_t
-
-cdef extern from "<unistd.h>" nogil:
-    ctypedef int pid_t
-    pid_t getpid()
-    int getpagesize()
-    int usleep(size_t usec)
-
-cdef extern from "<sys/time.h>" nogil:
-    ctypedef long int time_t
-    ctypedef long int suseconds_t
-    cdef struct timeval:
-        long int tv_sec
-    cdef struct timezone
-    int gettimeofday(timeval* tv, timezone* tz)
-
-cdef struct _GuardContext:
-    atomic_size_t epoch_counter
-    atomic_bool ended
-
-cpdef enum InterruptType:
-    exception,
-    signal,
-    exception_then_signal
+from resiliparse_inc.cstdlib cimport strtol
+from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
+from resiliparse_inc.string cimport string, to_string
+from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen, fflush, fprintf, popen, pclose, stderr
+from resiliparse_inc.sys.time cimport timeval, gettimeofday
+from resiliparse_inc.unistd cimport getpagesize, getpid, usleep
 
 
 class ResiliparseGuardException(BaseException):
@@ -94,11 +44,7 @@ class MemoryLimitExceeded(ResiliparseGuardException):
 
 # noinspection PyAttributeOutsideInit
 cdef class _ResiliparseGuard:
-    cdef _GuardContext gctx
-    cdef size_t check_interval
-    cdef bint send_kill
-    cdef InterruptType interrupt_type
-    cdef type exc_type
+    """Resiliparse context guard base class."""
 
     def __cinit__(self, *args, **kwargs):
         self.gctx.epoch_counter.store(0)
@@ -214,9 +160,6 @@ cdef class TimeGuard(_ResiliparseGuard):
     of a `SIGTERM`. This will kill the entire interpreter (even if the guarded thread is not
     the main thread), so you will need an external facility to restart it.
     """
-
-    cdef size_t timeout
-    cdef size_t grace_period
 
     def __init__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
                  bint send_kill=False, size_t check_interval=500):
@@ -361,12 +304,6 @@ cdef class MemGuard(_ResiliparseGuard):
     """
     Process memory guard.
     """
-
-    cdef size_t max_memory
-    cdef bint absolute
-    cdef size_t grace_period
-    cdef size_t secondary_grace_period
-    cdef bint is_linux
 
     def __init__(self, size_t max_memory, bint absolute=True, size_t grace_period=0, size_t secondary_grace_period=5,
                   InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
