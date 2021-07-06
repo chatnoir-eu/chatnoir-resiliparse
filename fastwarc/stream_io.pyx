@@ -316,7 +316,7 @@ cdef class GZipStream(CompressingStream):
         if self.stream_read_status == Z_STREAM_END:
             # Member end
             self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + \
-                              (self.zst.next_in - <Bytef*>self.working_buf.data()) + 1
+                              (self.zst.next_in - <Bytef*>self.working_buf.data())
             inflateReset(&self.zst)
 
         if self.zst.avail_out > 0:
@@ -486,7 +486,7 @@ cdef class LZ4Stream(CompressingStream):
             if ret == 0:
                 # Frame end
                 with gil:
-                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read + 1
+                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read
             elif LZ4F_isError(ret):
                 self._free_ctx()
                 self.errstr = <char*>b'Not a valid LZ4 stream'

@@ -690,9 +690,6 @@ cdef class ArchiveIterator:
 
             version_line = strip_str(version_line)
             if version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
-                if not self.reader.stream_is_compressed and self.record._stream_pos > 0:
-                    self.record._stream_pos += 1
-
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)
                 break
