@@ -52,7 +52,7 @@ pip install fastwarc
 
 # Option 2: Install from sources (requires build-time dependencies to be installed,
 #           but is recommended for better performance, see FastWARC docs):
-pip install --no-binary fastwarc fastwarc:
+pip install --no-binary fastwarc fastwarc
 ```
 You can also build Resiliparse directly from this repository with all or just some of its modules:
 ```bash
