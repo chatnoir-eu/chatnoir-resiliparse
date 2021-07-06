@@ -595,11 +595,17 @@ cdef class BufferedReader:
         self.buf = string()
         self.limit = strnpos
         self.limit_consumed = 0
-        self.negotiate_stream = not isinstance(stream, CompressingStream)
+        self.stream_is_compressed = isinstance(stream, CompressingStream)
+        self.stream_started = False
+        self.negotiate_stream = not self.stream_is_compressed
 
     cdef void detect_stream_type(self):
-        """Try to auto-detect stream type (GZip, LZ4, or uncompressed)."""
-        if not self.negotiate_stream:
+        """
+        Try to auto-detect stream type (GZip, LZ4, or uncompressed).
+        
+        :return: `True` if stream is compressed
+        """
+        if not self.negotiate_stream or self.stream_started:
             return
 
         self.negotiate_stream = False
@@ -614,13 +620,17 @@ cdef class BufferedReader:
             (<LZ4Stream> self.stream).prepopulate(self.buf)
         elif self.buf.size() > 5 and self.buf.substr(0, 5) == <char*>b'WARC/':
             # Stream is uncompressed: bail out, dont' mess with buffers
+            self.stream_is_compressed = False
             return
         else:
             self.errstr = <char*>b'Not a valid WARC stream'
+            self.stream_is_compressed = False
             return
 
+        self.stream_is_compressed = isinstance(self.stream, CompressingStream)
         self.buf.clear()
         self.buf.append(self.stream.read(self.buf_size))
+        self.stream_started = False
 
     cdef bint _fill_buf(self):
         """
@@ -628,6 +638,7 @@ cdef class BufferedReader:
         
         :return: `True` if refill was successful, `False` otherwise (EOF)
         """
+        self.stream_started = True
         if self.buf.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
@@ -752,8 +763,17 @@ cdef class BufferedReader:
 
     cpdef size_t tell(self):
         """Offset on the input stream."""
+        if not self.stream_started:
+            return 0
+
         if self.limit != strnpos:
             return self.limit_consumed
+
+        if self.stream_is_compressed:
+            # Compressed streams advance their position only on block boundaries.
+            # The reader position inside the stream is meaningless.
+            return self.stream.tell()
+
         return self.stream.tell() - self.buf.size()
 
     cpdef void consume(self, size_t size=strnpos):

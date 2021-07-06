@@ -627,7 +627,7 @@ cdef class ArchiveIterator:
 
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
                   size_t min_content_length=strnpos, size_t max_content_length=strnpos,
-                  func_filter=None, bint verify_digests=False,):
+                  func_filter=None, bint verify_digests=False):
         """
         Initialize WARC record iterator.
 
@@ -639,14 +639,7 @@ cdef class ArchiveIterator:
         :param func_filter: Python callable taking a :class:`WarcRecord` and returning a `bool` for further record filtering
         :param verify_digests: skip records which have no or an invalid block digest
         """
-        if not isinstance(stream, IOStream):
-            for attr in ('read', 'tell', 'close'):
-                if not hasattr(stream, attr):
-                    raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute '{attr}'.")
-            stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, stream)
-
-        self.stream = <IOStream>stream
-        self.reader = BufferedReader.__new__(BufferedReader, self.stream)
+        self._set_stream(stream)
         self.record = None
         self.parse_http = parse_http
         self.verify_digests = verify_digests
@@ -654,11 +647,9 @@ cdef class ArchiveIterator:
         self.max_content_length = max_content_length
         self.func_filter = func_filter
         self.record_type_filter = record_types
-        self.stream_is_compressed = isinstance(stream, CompressingStream)
 
     def __iter__(self) -> Iterable[WarcRecord]:
         cdef _NextRecStatus status
-        self.reader.detect_stream_type()
         while True:
             status = self._read_next_record()
             if status == has_next:
@@ -668,26 +659,22 @@ cdef class ArchiveIterator:
                 return
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error:
+        self.reader.detect_stream_type()
+
         if self.record is not None:
             self.reader.consume()
             self.reader.reset_limit()
 
         self.record = WarcRecord.__new__(WarcRecord)
-
-        if self.stream_is_compressed:
-            # Compressed streams advance their position only on block boundaries
-            # and the reader position inside the stream is meaningless.
-            self.record._stream_pos = self.stream.tell()
-        else:
-            self.record._stream_pos = self.reader.tell()
+        self.record._stream_pos = self.reader.tell()
 
         cdef string version_line
         while True:
             version_line = self.reader.readline()
             if not self.reader.error().empty():
-                if isinstance(self.stream, PythonIOStreamAdapter) and \
-                        (<PythonIOStreamAdapter>self.stream).exc is not None:
-                    raise (<PythonIOStreamAdapter>self.stream).exc
+                if isinstance(self.reader.stream, PythonIOStreamAdapter) and \
+                        (<PythonIOStreamAdapter>self.reader.stream).exc is not None:
+                    raise (<PythonIOStreamAdapter>self.reader.stream).exc
                 raise StreamError(self.reader.error().decode())
 
             if version_line.empty():
@@ -696,12 +683,15 @@ cdef class ArchiveIterator:
 
             if version_line == b'\r\n' or version_line == b'\n':
                 # Consume empty lines
-                if not self.stream_is_compressed:
-                    self.record._stream_pos += version_line.size() + 1
+                if not self.reader.stream_is_compressed:
+                    self.record._stream_pos += version_line.size()
                 continue
 
             version_line = strip_str(version_line)
             if version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
+                if not self.reader.stream_is_compressed and self.record._stream_pos > 0:
+                    self.record._stream_pos += 1
+
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)
                 break
@@ -756,6 +746,21 @@ cdef class ArchiveIterator:
             self.record.parse_http()
 
         return has_next
+
+    cpdef void _set_stream(self, stream):
+        """
+        Replace underlying input stream.
+        
+        This method is for internal use and should not be called by external users.
+        """
+        if not isinstance(stream, IOStream):
+            for attr in ('read', 'tell', 'close'):
+                if not hasattr(stream, attr):
+                    raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute '{attr}'.")
+            stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, stream)
+
+        cdef IOStream stream_ = <IOStream>stream
+        self.reader = BufferedReader.__new__(BufferedReader, stream_)
 
 
 # noinspection PyProtectedMember

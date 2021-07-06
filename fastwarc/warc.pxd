@@ -82,7 +82,6 @@ cdef class WarcRecord:
 
 
 cdef class ArchiveIterator:
-    cdef IOStream stream
     cdef BufferedReader reader
     cdef WarcRecord record
     cdef bint parse_http
@@ -91,9 +90,10 @@ cdef class ArchiveIterator:
     cdef size_t max_content_length
     cdef object func_filter
     cdef uint16_t record_type_filter
-    cdef bint stream_is_compressed
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error
+    cpdef void _set_stream(self, stream)
+
 
 cpdef bint is_warc_10(WarcRecord record)
 cpdef bint is_warc_11(WarcRecord record)

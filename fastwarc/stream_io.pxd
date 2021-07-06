@@ -140,6 +140,8 @@ cdef class BufferedReader:
     cdef size_t limit
     cdef size_t limit_consumed
     cdef bint negotiate_stream
+    cdef bint stream_started
+    cdef bint stream_is_compressed
 
     cdef inline void set_limit(self, size_t offset) nogil
     cdef inline void reset_limit(self) nogil
