@@ -53,7 +53,8 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
     if os.name == 'posix':
         resiliparse_extensions.extend([
             Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'],
-                      **resiliparse_pg_cpp_args)
+                      **resiliparse_pg_cpp_args),
+            Extension('resiliparse.itertools', sources=[f'resiliparse/itertools.{ext}'], **cpp_args)
         ])
     else:
         warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")

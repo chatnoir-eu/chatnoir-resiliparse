@@ -287,19 +287,6 @@ cpdef progress(ctx=None):
     (<TimeGuard>ctx._guard_self).progress()
 
 
-def progress_loop(it: Iterable[Any], ctx=None) -> Iterable[Any]:
-    """
-    Wraps an iterator to report progress after each iteration.
-
-    :param it: original iterator
-    :param ctx: active guard context (optional, will use last global context from stack if unset)
-    :return: wrapped iterator
-    """
-    for i in it:
-        yield i
-        progress(ctx)
-
-
 cdef class MemGuard(_ResiliparseGuard):
     """
     Process memory guard.

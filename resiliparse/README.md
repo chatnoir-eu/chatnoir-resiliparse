@@ -28,7 +28,7 @@ BUILD_PACKAGES=resiliparse python setup.py install
 ```
 
 ## Process Guards
-The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits on execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
+The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits on execution time and memory usage. Process guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
 ### TimeGuard
 TimeGuard guards a function or a specific execution context to not exceed a set execution time limit. Upon reaching this limit, an exception or a signal will be sent to interrupt execution. The guard timeout can be reset at any time by proactively reporting progress to the guard instance.
@@ -115,7 +115,7 @@ foo()
 ```
 
 #### Using TimeGuard as a Context Manager
-Instead of the decorator interface, TimeGuard also provides a context manager interface that can be used with Pythons `with` statement:
+Instead of the decorator interface, TimeGuard also provides a context manager interface that can be used with Python's `with` statement:
 ```python
 with time_guard(timeout=10):
     for _ in range(1000):
@@ -132,33 +132,6 @@ with time_guard(timeout=10) as guard:
         try:
             sleep(0.1)
             guard.progress()
-        except ExecutionTimeout:
-            break
-```
-
-#### Progress Loops
-
-Since running a `for` loop and reporting progress after each iteration is a very common pattern, you can use the `progress_loop` pass-through generator as a shortcut:
-```python
-from time import sleep
-from resiliparse.process_guard import progress_loop, time_guard, ExecutionTimeout
-
-@time_guard(timeout=10)
-def foo():
-    for _ in progress_loop(range(1000)):
-        try:
-            sleep(0.1)
-        except ExecutionTimeout:
-            break
-
-foo()
-```
-In cases where context auto-detection doesn't work, the active guard context can be passed to the generator via the `ctx` parameter:
-```python
-with time_guard(timeout=10) as guard:
-    for _ in progress_loop(range(1000), ctx=guard):
-        try:
-            sleep(0.1)
         except ExecutionTimeout:
             break
 ```
@@ -200,3 +173,58 @@ Particularly with this notation, remember to actually deallocate your buffers, s
 
 #### MemGuard Check Interval
 By default, MemGuard will check the current memory usage every 500ms. If you need a higher resolution, you can configure a lower check interval with `check_interval=<MILLISECONDS>`. For performance reasons, however, this interval should be chosen as large as possible, since the check involves reading from the `/proc` filesystem on Linux or invoking the `ps` command on other POSIX platforms, which is a relatively expensive operation.
+
+
+## Itertools
+Resiliparse Itertools are a collection of convenient and robust helpers for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
+
+### Progress Loops
+Progress loops are a convenience tool for iterating data with an active [TimeGuard](#TimeGuard) context. Since running a `for` loop in a TimeGuard and reporting progress after each iteration is a very common pattern, you can use the `progress_loop` pass-through generator as a shortcut:
+```python
+from time import sleep
+from resiliparse.itertools import progress_loop
+from resiliparse.process_guard import time_guard, ExecutionTimeout
+
+@time_guard(timeout=10)
+def foo():
+    for _ in progress_loop(range(1000)):
+        try:
+            sleep(0.1)
+        except ExecutionTimeout:
+            break
+
+foo()
+```
+In cases where context auto-detection doesn't work, the active guard context can be passed to the generator via the `ctx` parameter:
+```python
+with time_guard(timeout=10) as guard:
+    for _ in progress_loop(range(1000), ctx=guard):
+        try:
+            sleep(0.1)
+        except ExecutionTimeout:
+            break
+```
+
+### Exception Loops
+Exception loops wrap an iterator to catch and return any exceptions raised while evaluating the input iterator.
+
+This is primarily useful for unreliable generators that may throw unpredictably at any time  for unknown reasons (e.g., generators reading from a network data source). If you do not want to  wrap the entire loop in a `try/except` clause, you can use an :func:`exc_loop` to catch  any such exceptions and return them. 
+
+Remember that a generator will end after throwing an exception, so if the input iterator is  a generator, you will have to create a new instance in order to retry or continue.
+```python
+from resiliparse.itertools import exc_loop
+
+def throw_gen():
+    from random import random
+    for i in range(100):
+        if random() <= 0.1:
+            raise Exception('Random exception')
+        yield i
+
+for val, exc in exc_loop(throw_gen()):
+    if exc is not None:
+        print('Exception raised:', exc)
+        break
+
+    print(val)
+```
