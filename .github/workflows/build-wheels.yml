@@ -34,6 +34,7 @@ jobs:
 
             for py in $(eval ls -d "/opt/python/{$PY_TARGETS}/bin/python"); do
               BUILD_PACKAGES=${pkg} ${py} setup.py bdist_wheel
+              rm -rf build
             done
           done
 
