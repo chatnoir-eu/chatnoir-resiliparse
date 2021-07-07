@@ -1,7 +1,12 @@
-.. _fastwarc-api:
+.. _fastwarc-warc-api:
 
-FastWARC API
-============
+FastWARC
+========
+
+Resiliparse FastWARC API documentation.
+
+WARC
+----
 
 .. automodule:: fastwarc.warc
    :members:
@@ -29,3 +34,14 @@ FastWARC API
       .. autoattribute:: no_type
 
          Special type: no record type (filter only)
+
+
+.. _fastwarc-stream-io-api:
+
+StreamIO
+--------
+
+.. automodule:: fastwarc.stream_io
+   :members:
+   :undoc-members:
+   :special-members: __init__

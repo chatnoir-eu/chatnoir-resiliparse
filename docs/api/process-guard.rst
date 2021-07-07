@@ -1,7 +1,9 @@
 .. _process-guard-api:
 
-Resiliparse Process Guards API
-==============================
+Resiliparse Process Guards
+==========================
+
+Resiliparse Process Guard API documentation.
 
 .. automodule:: resiliparse.process_guard
    :members:

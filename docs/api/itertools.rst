@@ -1,7 +1,9 @@
 .. _itertools-api:
 
-Resiliparse Itertools API
-=========================
+Resiliparse Itertools
+=====================
+
+Resiliparse Itertools API documentation.
 
 .. automodule:: resiliparse.itertools
    :members:

@@ -30,7 +30,6 @@ This is the full table of contents for this documentation:
    api/process-guard
    api/itertools
    api/fastwarc
-   api/fastwarc-stream-io
 
 
 Indices and Tables
