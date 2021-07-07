@@ -1,5 +1,7 @@
 # ChatNoir Resiliparse
 
+[![Documentation Status](https://readthedocs.org/projects/chatnoir-resiliparse/badge/?version=latest)](https://chatnoir-resiliparse.readthedocs.io/en/latest/?badge=latest)
+
 A collection of robust and fast processing tools for parsing and analyzing web archive data.
 
 Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolkit. If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our ECIR demo paper:
@@ -73,4 +75,4 @@ pip install fastwarc
 pip install --no-binary fastwarc fastwarc
 ```
 
-For more information about the build process, dependencies, or usage instructions, please consult the [Resiliparse Documentation](docs/index.rst)
+For more information about the build process, dependencies, or usage instructions, please consult the [Resiliparse Documentation](https://chatnoir-resiliparse.readthedocs.io/en/latest/index.html)

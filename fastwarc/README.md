@@ -35,4 +35,4 @@ BUILD_PACKAGES=fastwarc python setup.py install
 ```
 
 ## Usage Instructions
-For detailed usage instructions, see the [FastWARC User Manual](https://github.com/chatnoir-eu/chatnoir-resiliparse/tree/docs/man/fastwarc.rst).
+For detailed usage instructions, please consult the [FastWARC User Manual](https://chatnoir-resiliparse.readthedocs.io/en/latest/man/fastwarc.html).

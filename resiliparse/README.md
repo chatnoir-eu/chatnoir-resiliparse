@@ -28,4 +28,4 @@ BUILD_PACKAGES=resiliparse python setup.py install
 ```
 
 ## Usage Instructions
-For detailed usage instructions, see the [Resiliparse User Manual](https://github.com/chatnoir-eu/chatnoir-resiliparse/tree/docs/man/index.rst).
+For detailed usage instructions, please consult the [Resiliparse User Manual](https://chatnoir-resiliparse.readthedocs.io/en/latest/index.html).
