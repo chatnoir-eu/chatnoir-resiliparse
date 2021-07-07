@@ -29,7 +29,7 @@ Indices and Tables
 Resiliparse Module Summary
 ==========================
 
-As of version |release|, Resiliparse collection encompasses the following two modules:
+As of version |release|, the Resiliparse collection encompasses the following two modules:
 
 1. Resiliparse
 --------------
