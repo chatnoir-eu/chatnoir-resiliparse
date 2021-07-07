@@ -126,7 +126,7 @@ cdef class _ResiliparseGuard:
 
 cdef class TimeGuard(_ResiliparseGuard):
     """
-    Decorator or context manager for guarding the execution time of a program context.
+    Decorator and context manager for guarding the execution time of a program context.
 
     Use the :func:`time_guard` factory function for instantiation.
 
@@ -285,7 +285,7 @@ cpdef progress(ctx=None):
 
 cdef class MemGuard(_ResiliparseGuard):
     """
-    Decorator or context manager for guarding maximum memory usage of a program context.
+    Decorator and context manager for guarding maximum memory usage of a program context.
 
     Use the :func:`mem_guard` factory function for instantiation.
 

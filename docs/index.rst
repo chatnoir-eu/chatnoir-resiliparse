@@ -1,10 +1,10 @@
-.. _resiliparse-index:
+.. _resiliparse-docs-index:
 
 ++++++++++++++++++++++++++++++++++++++++++++
 ChatNoir Resiliparse |release| Documentation
 ++++++++++++++++++++++++++++++++++++++++++++
 
-ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing web archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`_.
+ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`_.
 
 
 Table of Contents
@@ -14,16 +14,30 @@ This is the full table of contents for this documentation:
 
 .. toctree::
    :maxdepth: 4
+   :caption: User Manual
 
-   man/index
-   api/index
+   man/installation
+   man/process-guard
+   man/itertools
+   man/fastwarc
+   man/fastwarc-cli
+
+
+.. toctree::
+   :maxdepth: 4
+   :caption: API Documentation
+
+   api/process-guard
+   api/itertools
+   api/fastwarc
+   api/fastwarc-stream-io
+
 
 Indices and Tables
 ------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
 
 
 Resiliparse Module Summary
@@ -33,19 +47,19 @@ As of version |release|, the Resiliparse collection encompasses the following tw
 
 1. Resiliparse
 --------------
-The Resiliparse main module with the following subcomponents:
+The Resiliparse main module comes with the following subcomponents:
 
 Process Guard
 ^^^^^^^^^^^^^
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
-For more information, see :ref:`process-guard-manual`.
+Main documentation: :ref:`process-guard-manual`.
 
 Itertools
 ^^^^^^^^^
 Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
 
-For more information, see :ref:`itertools-manual`.
+Main documentation: :ref:`itertools-manual`.
 
 2. FastWARC
 -----------
@@ -53,7 +67,7 @@ FastWARC is a high-performance WARC parsing library for Python written in C++/Cy
 
 FastWARC provides both a Python API and a command line interface (CLI).
 
-For more information, see: :ref:`fastwarc-manual` and :ref:`fastwarc-cli`.
+Main documentation: :ref:`fastwarc-manual` and :ref:`fastwarc-cli`
 
 
 About ChatNoir

@@ -5,7 +5,7 @@ FastWARC
 
 FastWARC is a high-performance WARC parsing library for Python written in C++/Cython. The API is inspired in large parts by `WARCIO <https://github.com/webrecorder/warcio>`_, but does not aim at being a drop-in replacement.  FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are GZip and LZ4.
 
-FastWARC belongs to the :ref:`ChatNoir Resiliparse toolkit <resiliparse-index>` for fast and robust web data processing.
+FastWARC belongs to the :ref:`ChatNoir Resiliparse toolkit <resiliparse-docs-index>` for fast and robust web data processing.
 
 Why FastWARC and not WARCIO?
 ----------------------------

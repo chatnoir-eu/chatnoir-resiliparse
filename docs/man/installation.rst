@@ -1,4 +1,4 @@
-.. resiliparse-installation:
+.. _resiliparse-installation:
 
 Installation Instructions
 =========================
