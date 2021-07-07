@@ -15,7 +15,7 @@ FastWARC API
       :exclude-members: unknown, any_type, no_type
       :member-order: bysource
 
-      Enum indicating a WARC record's type as given by its ``Warc-Record-Type`` header.
+      Enum indicating a WARC record's type as given by its ``WARC-Type`` header.
       Multiple types can be combined with boolean operators for filtering records.
 
       .. autoattribute:: unknown
