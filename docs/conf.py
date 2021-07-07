@@ -11,18 +11,18 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
 
-sys.path.insert(0, os.path.abspath('..'))
-
-from version import VERSION
+src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(src_dir)
 
 # -- Project information -----------------------------------------------------
 
 project = 'ChatNoir Resiliparse'
 copyright = '2021, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = VERSION
+release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$", open(os.path.join(src_dir, 'setup.py')).read(), re.M).group(1)
 
 # -- General configuration ---------------------------------------------------
 
