@@ -65,16 +65,16 @@ If you use ChatNoir or any of its tools for a publication, you can make us happy
 
 .. code-block:: bibtex
 
-    @InProceedings{bevendorff:2018,
-      address =             {Berlin Heidelberg New York},
-      author =              {Janek Bevendorff and Benno Stein and Matthias Hagen and Martin Potthast},
-      booktitle =           {Advances in Information Retrieval. 40th European Conference on IR Research (ECIR 2018)},
-      editor =              {Leif Azzopardi and Allan Hanbury and Gabriella Pasi and Benjamin Piwowarski},
-      ids =                 {potthast:2018c,stein:2018c},
-      month =               mar,
-      publisher =           {Springer},
-      series =              {Lecture Notes in Computer Science},
-      site =                {Grenoble, France},
-      title =               {{Elastic ChatNoir: Search Engine for the ClueWeb and the Common Crawl}},
-      year =                2018
-    }
+  @InProceedings{bevendorff:2018,
+    address =             {Berlin Heidelberg New York},
+    author =              {Janek Bevendorff and Benno Stein and Matthias Hagen and Martin Potthast},
+    booktitle =           {Advances in Information Retrieval. 40th European Conference on IR Research (ECIR 2018)},
+    editor =              {Leif Azzopardi and Allan Hanbury and Gabriella Pasi and Benjamin Piwowarski},
+    ids =                 {potthast:2018c,stein:2018c},
+    month =               mar,
+    publisher =           {Springer},
+    series =              {Lecture Notes in Computer Science},
+    site =                {Grenoble, France},
+    title =               {{Elastic ChatNoir: Search Engine for the ClueWeb and the Common Crawl}},
+    year =                2018
+  }
