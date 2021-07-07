@@ -11,8 +11,8 @@ WARC
 .. automodule:: fastwarc.warc
    :members:
    :special-members: __init__
-   :undoc-members:
    :exclude-members: CaseInsensitiveStr, CaseInsensitiveStrDict
+   :show-inheritance:
 
    .. autoclass:: WarcRecordType
       :members:
@@ -43,5 +43,5 @@ StreamIO
 
 .. automodule:: fastwarc.stream_io
    :members:
-   :undoc-members:
    :special-members: __init__
+   :show-inheritance:

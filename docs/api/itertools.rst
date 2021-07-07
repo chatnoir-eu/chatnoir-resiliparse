@@ -7,4 +7,5 @@ Resiliparse Itertools API documentation.
 
 .. automodule:: resiliparse.itertools
    :members:
-   :undoc-members:
+   :special-members: __init__
+   :show-inheritance:

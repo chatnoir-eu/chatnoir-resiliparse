@@ -24,15 +24,15 @@ Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
 
   pip install fastwarc
 
-.. warning::
+.. attention::
 
-  These binaries are provided **purely for your convenience**. Since they are built on the very old *manylinux* base system for better compatibility, their performance isn't optimal (though still better than WARCIO).
+  These binaries are provided **solely for your convenience**. Since they are built on the very old *manylinux* base system for better compatibility, their performance isn't optimal (though still better than WARCIO).
 
   *For best performance, see the next section on how to build FastWARC yourself.*
 
 Building FastWARC
 -----------------
-You can compile FastWARC either from the PyPi source package or directly from this repository, though in any case, you need to install all build-time dependencies first. For Debian / Ubuntu, this is done with:
+You can compile FastWARC either from the `PyPi <https://pypi.org/project/FastWARC/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all build-time dependencies first. For Debian / Ubuntu, this is done with:
 
 .. code-block:: bash
 
@@ -44,9 +44,13 @@ Then to build FastWARC from PyPi, run
 
   pip install --no-binary fastwarc fastwarc
 
-That's it. If you prefer to build directly from this repository instead, run:
+That's it. If you prefer to build directly from the GitHub repository instead, run:
 
 .. code-block:: bash
+
+  # Clone repository
+  git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
+  cd chatnoir-resiliparse
 
   # Create venv (recommended, but not required)
   python3 -m venv venv && source venv/bin/activate
@@ -164,7 +168,7 @@ This is the only filter that is executed after the content is available and will
   for record in ArchiveIterator(stream, verify_digests=True):
       pass
 
-.. note::
+.. warning::
 
   This is the most expensive filter of all and it will create an in-memory copy of the whole record. See :ref:`verifying-record-digests` for more information on how digest verification works.
 
@@ -213,6 +217,10 @@ If a record has digest headers, you can verify the consistency of the record con
           record.parse_http()    # It's safe to call this even if the record has no HTTP payload
           print('Payload digest OK:', record.verify_payload_digest())
 
-Note that the ``verify_*`` methods will simply return ``False`` if the headers do not exist, so check that first. Also keep in mind that the block verification will fail if the reader has been (partially) consumed, so automatic HTTP parsing has to be turned off for this to work.
+Note that both :meth:`~.WarcRecord.verify_block_digest` and :meth:`~.WarcRecord.verify_payload_digest` will simply return ``False`` if the headers do not exist, so check that first. Also keep in mind that the block verification will fail if the reader has been (partially) consumed, so automatic HTTP parsing has to be turned off for this to work.
 
-A word of warning: Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place). If your records are very large, you need to ensure that they fit into memory entirely (e.g. by checking :attr:`record.content_length <.WarcRecord.content_length>`). If you do not want to preserve the stream contents, you can set ``consume=True`` as a parameter. This will avoid the creation of a stream copy altogether and fully consume the rest of the record instead.
+.. warning::
+
+  Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place).
+
+If your records are very large, you need to ensure that they fit into memory entirely (e.g. by checking :attr:`record.content_length <.WarcRecord.content_length>`). If you do not want to preserve the stream contents, you can set ``consume=True`` as a parameter. This will avoid the creation of a stream copy altogether and fully consume the rest of the record instead.

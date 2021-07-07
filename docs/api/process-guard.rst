@@ -7,9 +7,12 @@ Resiliparse Process Guard API documentation.
 
 .. automodule:: resiliparse.process_guard
    :members:
-   :undoc-members:
+   :special-members: __init__
+   :show-inheritance:
 
    .. autoclass:: InterruptType
+      :members:
+      :member-order: bysource
 
       Resiliparse context guard interrupt type.
 

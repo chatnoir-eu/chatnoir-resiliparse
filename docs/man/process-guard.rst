@@ -4,12 +4,12 @@
 Resiliparse Process Guards
 ==========================
 
-The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits on execution time and memory usage. Process guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
+The Resiliparse Process Guard module is a set of decorators and context managers for guarding running tasks to stay within pre-defined limits on execution time and memory usage. Process guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
 TimeGuard
 ---------
 
-:class:`.TimeGuard` guards a function or a specific execution context to not exceed a set execution time limit. Upon reaching this limit, an exception or a signal will be sent to interrupt execution. The guard timeout can be reset at any time by proactively reporting progress to the guard instance.
+:class:`.TimeGuard` guards the execution time of a function or a specific program context to not exceed a certain time limit. Upon reaching this limit, an exception or a signal is sent to interrupt execution. The guard timeout can be reset at any time by proactively reporting progress to the guard instance.
 
 For guarding a function, the decorator interface can be used:
 
@@ -108,7 +108,7 @@ The :meth:`~.TimeGuard.progress()` function will automatically select the last a
 
 Using TimeGuard as a Context Manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Instead of the decorator interface, :class:`.TimeGuard` also provides a context manager interface that can be used with Python's ``with`` statement:
+Instead of the decorator interface, :class:`.TimeGuard` also provides a context manager interface that can be used with Python's ``with`` statement for guarding arbitrary program contexts:
 
 .. code-block:: python
 
@@ -140,7 +140,7 @@ By default, :class:`.TimeGuard` monitors the execution time in steps of 500ms. I
 MemGuard
 --------
 
-Similar to :class:`.TimeGuard`, :class:`.MemGuard` guards a processing context to stay within pre-defined memory bounds. Upon exceeding these bounds, an exception or signal will be sent to the executing thread.
+:class:`.MemGuard` guards a function or program context to stay within pre-defined memory bounds. If, at any time, the running Python process exceeds these bounds, an exception or signal will be sent to the executing thread.
 
 .. code-block:: python
 
@@ -177,7 +177,9 @@ Similar to :class:`.TimeGuard`, :class:`.MemGuard` can also be used as a context
           print('Memory limit exceeded')
           x.clear()
 
-Particularly with this notation, remember to actually deallocate your buffers, since they will not automatically go out of scope as they would when returning from a function call!
+.. Attention::
+
+  Particularly with this notation, remember to actually deallocate your buffers, since they will not automatically go out of scope as they would when returning from a function call!
 
 MemGuard Check Interval
 ^^^^^^^^^^^^^^^^^^^^^^^

@@ -10,7 +10,7 @@ Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
 ```bash
 pip install fastwarc
 ```
-**However:** these binaries are provided *purely for your convenience*. Since they are built on the very old `manylinux` base system for better compatibility, their performance isn't optimal (though still better than WARCIO). For best performance, see the next section on how to build FastWARC yourself.
+**However:** these binaries are provided *solely for your convenience*. Since they are built on the very old `manylinux` base system for better compatibility, their performance isn't optimal (though still better than WARCIO). For best performance, see the next section on how to build FastWARC yourself.
 
 ## Building FastWARC
 

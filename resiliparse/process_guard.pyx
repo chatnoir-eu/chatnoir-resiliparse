@@ -126,40 +126,9 @@ cdef class _ResiliparseGuard:
 
 cdef class TimeGuard(_ResiliparseGuard):
     """
-    Decorator and context manager for guarding the execution time of a program context.
+    Decorator and context manager for guarding the execution time of a running task.
 
     Use the :func:`time_guard` factory function for instantiation.
-
-    If a the guarded context runs longer than the pre-defined timeout, the guard will send
-    an interrupt to the running function context. To signal progress to the guard and reset
-    the timeout, call :meth:`TimeGuard.progress` or :func:`progress` from the guarded context.
-
-    There are two interrupt mechanisms: throwing an asynchronous exception and sending
-    a UNIX signal. The exception mechanism is the most gentle method of the two, but
-    may be unreliable if execution is blocking outside the Python program flow (e.g.,
-    in a native C extension or in a syscall). The signal method is more reliable
-    in this regard, but does not work if the guarded thread is not the interpreter main
-    thread, since only the main thread can receive and handle signals.
-
-    Interrupt behaviour can be configured with the ``interrupt_type`` constructor parameter:
-
-    If ``interrupt_type`` is :attr:`InterruptType.exception`, a :exc:`ExecutionTimeout`
-    exception will be sent to the running thread after `timeout` seconds. If the thread
-    does not react, the exception will be thrown once more after `grace_period` seconds.
-
-    If ``interrupt_type`` is :attr:`InterruptType.signal`, first a ``SIGINT`` will be sent to the
-    current thread (which will trigger a :exc:`KeyboardInterrupt` exception, but can
-    also be handled with a custom ``signal`` handler. If the thread does not react, a less
-    friendly ``SIGTERM`` will be sent after ``grace_period`` seconds. A third and final
-    attempt of a ``SIGTERM`` will be sent after ``grace_period``.
-
-    If ``interrupt_type`` is :attr:`InterruptType.exception_then_signal` (the default), the
-    first attempt will be an exception and after the grace period, the guard will
-    start sending signals.
-
-    With ``send_kill`` set to ``True``, the third and final attempt will be a ``SIGKILL`` instead
-    of a ``SIGTERM``. This will kill the entire interpreter (even if the guarded thread is not
-    the main thread), so you will need an external facility to restart it.
     """
 
     # noinspection PyMethodOverriding
@@ -234,18 +203,47 @@ cdef class TimeGuard(_ResiliparseGuard):
 def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
                bint send_kill=False, check_interval=500) -> TimeGuard:
     """
-    Create a :class:`TimeGuard` decorator or context manager for guarding the execution time
-    of a program context.
+    Create a :class:`TimeGuard` instance that can be used as a decorator or context manager
+    for guarding the execution time of a running task.
 
-    See :class:`TimeGuard` for details.
+    If a the guarded context runs longer than the pre-defined timeout, the guard will send
+    an interrupt to the running function context. To signal progress to the guard and reset
+    the timeout, call :meth:`TimeGuard.progress` or :func:`progress` from the guarded context.
+
+    There are two interrupt mechanisms: throwing an asynchronous exception and sending
+    a UNIX signal. The exception mechanism is the most gentle method of the two, but
+    may be unreliable if execution is blocking outside the Python program flow (e.g.,
+    in a native C extension or in a syscall). The signal method is more reliable
+    in this regard, but does not work if the guarded thread is not the interpreter main
+    thread, since only the main thread can receive and handle signals.
+
+    The Interrupt behaviour can be configured with the ``interrupt_type`` parameter:
+
+    If ``interrupt_type`` is :attr:`InterruptType.exception`, a :exc:`ExecutionTimeout`
+    exception will be sent to the running thread after `timeout` seconds. If the thread
+    does not react, the exception will be thrown once more after `grace_period` seconds.
+
+    If ``interrupt_type`` is :attr:`InterruptType.signal`, first a ``SIGINT`` will be sent to the
+    current thread (which will trigger a :exc:`KeyboardInterrupt` exception, but can
+    also be handled with a custom ``signal`` handler. If the thread does not react, a less
+    friendly ``SIGTERM`` will be sent after ``grace_period`` seconds. A third and final
+    attempt of a ``SIGTERM`` will be sent after ``grace_period``.
+
+    If ``interrupt_type`` is :attr:`InterruptType.exception_then_signal` (the default), the
+    first attempt will be an exception and after the grace period, the guard will
+    start sending signals.
+
+    With ``send_kill`` set to ``True``, the third and final attempt will be a ``SIGKILL`` instead
+    of a ``SIGTERM``. This will kill the entire interpreter (even if the guarded thread is not
+    the main thread), so you will need an external facility to restart it.
 
     :param timeout: max execution time in seconds before invoking interrupt
     :type timeout: int
     :param grace_period: grace period in seconds after which to send another interrupt
     :type grace_period: int, optional, default: 15
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional, default: :attr:`~InterruptType.exception_then_signal`
-    :param send_kill: if sending signals, send `SIGKILL` as third attempt instead of `SIGTERM`
+    :type interrupt_type: InterruptType, optional, default: exception_then_signal
+    :param send_kill: if sending signals, send ``SIGKILL`` as third attempt instead of ``SIGTERM``
     :type send_kill: bool, optional, default: False
     :param check_interval: interval in milliseconds between execution time checks
     :type check_interval: int, optional, default: 500
@@ -285,27 +283,9 @@ cpdef progress(ctx=None):
 
 cdef class MemGuard(_ResiliparseGuard):
     """
-    Decorator and context manager for guarding maximum memory usage of a program context.
+    Decorator and context manager for enforcing memory limits on a running task.
 
     Use the :func:`mem_guard` factory function for instantiation.
-
-    Similar to :class:`TimeGuard`, :class:`MemGuard` guards a processing context to
-    stay within pre-defined memory bounds. Upon exceeding these bounds, an exception
-    or signal will be sent to the executing thread.
-
-    If the thread does not react to this exception, the same escalation procedure will
-    kick in as known from class:`TimeGuard`. In order for :class:`MemGuard` to tolerate
-    short spikes above the memory limit, set the ``grace_period`` parameter to a
-    positive non-zero value. If memory usage exceeds the limit, a timer will start
-    that expires after ``grace_period`` seconds and triggers the interrupt procedure.
-    If memory usage falls below the threshold during the grace period, the timer is reset.
-
-    :class:`MemGuard` provides the same parameters as :class:`TimeGuard` for controlling
-    the interrupt escalation behaviour, but the time interval before triggering the
-    next escalation level is independent of the grace period and defaults to five
-    seconds to give the application sufficient time to react and deallocate excess memory.
-    This secondary grace period can be configured with the ``secondary_grace_period``
-    parameter and must be at least one second.
     """
 
     # noinspection PyMethodOverriding
@@ -421,10 +401,25 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
               size_t check_interval=500) -> MemGuard:
     """
-    Create a :class:`MemGuard` decorator or context manager for guarding maximum memory usage
-    of a program context.
+    Create a :class:`MemGuard` instance that can be used as a decorator or context manager for
+    enforcing memory limits on a running task.
 
-    See :class:`MemGuard` for details.
+    :class:`MemGuard` guards a processing context to stay within pre-defined memory bounds.
+    Upon exceeding these bounds, an exception or signal will be sent to the executing thread.
+
+    If the thread does not react to this exception, the same escalation procedure will
+    kick in as known from :class:`TimeGuard`. In order for :class:`MemGuard` to tolerate
+    short spikes above the memory limit, set the ``grace_period`` parameter to a
+    positive non-zero value. If memory usage exceeds the limit, a timer will start
+    that expires after ``grace_period`` seconds and triggers the interrupt procedure.
+    If memory usage falls below the threshold during the grace period, the timer is reset.
+
+    :class:`MemGuard` provides the same parameters as :class:`TimeGuard` for controlling
+    the interrupt escalation behaviour, but the time interval before triggering the
+    next escalation level is independent of the grace period and defaults to five
+    seconds to give the application sufficient time to react and deallocate excess memory.
+    This secondary grace period can be configured with the ``secondary_grace_period``
+    parameter and must be at least one second.
 
     :param max_memory: max allowed memory in kB since context creation before interrupt will be sent
     :type max_memory: int
@@ -435,7 +430,7 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     :param secondary_grace_period: time to wait after ``grace_period`` before triggering next escalation level
     :type secondary_grace_period: int, optional, default: 5
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional, default: :attr:`~InterruptType.exception_then_signal`
+    :type interrupt_type: InterruptType, optional, default: exception_then_signal
     :param bool send_kill: if sending signals, send ``SIGKILL`` as third attempt instead of ``SIGTERM``
     :type send_kill: bool, optional, default: False
     :param int check_interval: interval in milliseconds between memory consumption checks
