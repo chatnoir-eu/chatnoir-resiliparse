@@ -22,10 +22,12 @@ from resiliparse.process_guard cimport progress
 def progress_loop(it: Iterable[Any], ctx=None) -> Iterable[Any]:
     """
     Wraps an iterator into a pass-through iterator that reports progress
-    to an active :class:`TimeGuard` context guard after each iteration.
+    to an active :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
 
     :param it: original iterator
-    :param ctx: active guard context (optional, will use last global context from stack if unset)
+    :type it: Iterable
+    :param ctx: active guard context (will use last global context from stack if unset)
+    :type ctx: optional
     :return: wrapped iterator
     """
     for i in it:
@@ -40,13 +42,14 @@ def exc_loop(it: Iterable[Any]) -> Iterable[Tuple[Optional[Any], Optional[Union[
 
     This is primarily useful for unreliable generators that may throw unpredictably at any time
     for unknown reasons (e.g., generators reading from a network data source). If you do not want to
-    wrap the entire loop in a `try/except` clause, you can use an :func:`exc_loop` to catch
+    wrap the entire loop in a ``try/except`` clause, you can use an :func:`exc_loop` to catch
     any such exceptions and return them.
     Remember that a generator will end after throwing an exception, so if the input iterator is
     a generator, you will have to create a new instance in order to retry or continue.
 
     :param it: original iterator
-    :return: iterator of items and `None` or `None` and exception instance
+    :type it: Iterable
+    :return: iterator of items and ``None`` or ``None`` and exception instance
     """
     it = iter(it)
     while True:
@@ -63,17 +66,20 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3)
     Wrap a :class:`fastwarc.warc.ArchiveIterator` instance to retry in case of read failures.
 
     Use if the underlying stream is unreliable, such as when reading from a network data source.
-    If an exception other than `StopIteration` is raised while consuming the iterator, the WARC
+    If an exception other than :exc:`StopIteration` is raised while consuming the iterator, the WARC
     reading process will be retried up to `retry_count` times. When a stream failure occurs,
-    `archive_iterator` will be reinitialised with a new stream object by calling `stream_factory`.
-    The new stream object returned by `stream_factory()` must be seekable.
+    ``archive_iterator`` will be reinitialised with a new stream object by calling ``stream_factory``.
+    The new stream object returned by ``stream_factory()`` must be seekable.
 
     Requires FastWARC to be installed.
 
-    :param archive_iterator: input :class:`fastwarc.warc.ArchiveIterator`
+    :param archive_iterator: input WARC iterator
+    :type archive_iterator: ~fastwarc.warc.ArchiveIterator
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
-    :param retry_count: maximum number of retries before giving up (set to `None` or zero for no limit)
-    :return: wrapped :class:`fastwarc.warc.ArchiveIterator`
+    :type stream_factory: Callable
+    :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
+    :type retry_count: int, optional, default: 3
+    :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
     """
 
     cdef size_t retries = 0
@@ -96,7 +102,7 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3)
             if retry_count and retries > retry_count:
                 raise e
             stream = stream_factory()
-            stream.seek(max(0, <long>last_pos - 1))
+            stream.seek(max(0, <long>last_pos))
             # noinspection PyProtectedMember
             archive_iterator._set_stream(stream)
             it = archive_iterator.__iter__()

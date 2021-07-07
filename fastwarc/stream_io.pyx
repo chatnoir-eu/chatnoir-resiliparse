@@ -60,8 +60,13 @@ cdef class IOStream:
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     """IOStream that uses an in-memory buffer."""
+    def __init__(self, *args, **kwargs):
+        """
+        :param initial_data: fill internal buffer with this initial data
+        :type initial_data: bytes, optional
+        """
 
-    def __init__(self, bytes initial_data=b''):
+    def __cinit__(self, bytes initial_data=b''):
         self.pos = 0
         self.buffer = initial_data
 
@@ -98,6 +103,14 @@ cdef class BytesIOStream(IOStream):
 @cython.auto_pickle(False)
 cdef class FileStream(IOStream):
     """Fast alternative to Python file objects for local files."""
+
+    def __init__(self, *args, **kwargs):
+        """
+        :param filename: input filename
+        :type filename: str, optional
+        :param mode: file open mode
+        :type mode: str, optional, default: 'rb'
+        """
 
     def __cinit__(self, str filename=None, str mode='rb'):
         self.fp = NULL
@@ -153,15 +166,20 @@ cdef class FileStream(IOStream):
 
 @cython.auto_pickle(False)
 cdef class PythonIOStreamAdapter(IOStream):
+    def __init__(self, *args, **kwargs):
+        """
+        :param py_stream: input Python stream object
+        """
+
     def __cinit__(self, py_stream):
         self.py_stream = py_stream
         self.exc = None
 
 
-cdef IOStream wrap_stream(raw_stream):
+cpdef IOStream wrap_stream(raw_stream):
     """
-    Wrap stream into :class:`PythonIOStreamAdapter` if it is a Python object or return stream
-    unmodified if it is a :class:`IOStream` already.
+    Wrap ``raw_stream`` into a :class:`PythonIOStreamAdapter` if it is a Python object or
+    return ``raw_stream`` unmodified if it is a :class:`IOStream` already.
     
     :param raw_stream: stream to wrap
     :return: wrapped stream
@@ -177,7 +195,7 @@ cdef IOStream wrap_stream(raw_stream):
 
 @cython.auto_pickle(False)
 cdef class CompressingStream(IOStream):
-    """Base class for compressed :class:`IOStream`s."""
+    """Base class for compressed :class:`IOStream` types."""
 
     cdef size_t begin_member(self):
         """Begin compression member/frame (if not already started)."""
@@ -196,6 +214,13 @@ cdef char _GZIP_INFLATE = 2
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     """GZip :class:`IOStream` implementation."""
+
+    def __init__(self, *args, **kwargs):
+        """
+        :param raw_stream: raw data stream
+        :param compression_level: GZip compression level (for compression only)
+        :type compression_level: int, optional, default: 9
+        """
 
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         self.raw_stream = wrap_stream(raw_stream)
@@ -216,9 +241,9 @@ cdef class GZipStream(CompressingStream):
 
     cdef void _init_z_stream(self, bint deflate) nogil:
         """
-        Reset internal state and initialize `z_stream`.
+        Reset internal state and initialize ``z_stream``.
         
-        :param deflate: `True` for compression context, `False` for decompression context.
+        :param deflate: ``True`` for compression context, ``False`` for decompression context.
         """
 
         if self.initialized:
@@ -248,7 +273,7 @@ cdef class GZipStream(CompressingStream):
         Use if some initial data of the stream have already been consumed (e.g., for stream content negotiation).
         Has to be called before the first :meth:`read()`.
         
-        :param deflate: `True` if `data` is uncompressed, `False` if `data` is compressed GZip data. 
+        :param deflate: ``True`` if ``data`` is uncompressed, ``False`` if ``data`` is compressed GZip data. 
         :param initial_data: data to prepopulate
         """
         self._init_z_stream(deflate)
@@ -417,6 +442,15 @@ cdef class GZipStream(CompressingStream):
 @cython.auto_pickle(False)
 cdef class LZ4Stream(CompressingStream):
     """LZ4 :class:`IOStream` implementation."""
+
+    def __init__(self, *args, **kwargs):
+        """
+        :param raw_stream: raw data stream
+        :param compression_level: LZ4 compression level (for compression only)
+        :type compression_level: int, optional, default: 12
+        :param favor_dec_speed: favor decompression speed over compression speed and size
+        :type favor_dec_speed: bool, optional, default: True
+        """
 
     def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
         self.raw_stream = wrap_stream(raw_stream)
@@ -587,9 +621,21 @@ cdef class LZ4Stream(CompressingStream):
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BufferedReader:
-    """Buffered reader operating on a :class:`IOStream`."""
+    """Buffered reader operating on an :class:`IOStream` instance."""
 
-    def __cinit__(self, IOStream stream, size_t buf_size=16384):
+    def __init__(self, IOStream stream, size_t buf_size=16384, bint negotiate_stream=True):
+        """
+        Initialize :class:`BufferedReader`.
+
+        :param stream: stream to operate on
+        :type stream: IOStream
+        :param buf_size: internal buffer size
+        :type buf_size: int, optional, default: 16384
+        :param negotiate_stream: whether to auto-negotiate stream type
+        :type negotiate_stream: bool, optional, default: True
+        """
+
+    def __cinit__(self, IOStream stream, size_t buf_size=16384, bint negotiate_stream=True):
         self.stream = stream
         self.buf_size = max(1024u, buf_size)
         self.buf = string()
@@ -597,13 +643,11 @@ cdef class BufferedReader:
         self.limit_consumed = 0
         self.stream_is_compressed = isinstance(stream, CompressingStream)
         self.stream_started = False
-        self.negotiate_stream = not self.stream_is_compressed
+        self.negotiate_stream = negotiate_stream and not self.stream_is_compressed
 
     cdef void detect_stream_type(self):
         """
         Try to auto-detect stream type (GZip, LZ4, or uncompressed).
-        
-        :return: `True` if stream is compressed
         """
         if not self.negotiate_stream or self.stream_started:
             return
@@ -636,7 +680,7 @@ cdef class BufferedReader:
         """
         Refill internal buffer.
         
-        :return: `True` if refill was successful, `False` otherwise (EOF)
+        :return: ``True`` if refill was successful, ``False`` otherwise (EOF)
         """
         self.stream_started = True
         if self.buf.size() > 0:
@@ -661,9 +705,10 @@ cdef class BufferedReader:
 
     cdef void _consume_buf(self, size_t size) nogil:
         """
-        Consume up to `size` bytes from internal buffer. Takes a set limit into account.
+        Consume up to ``size`` bytes from internal buffer. Takes a set limit into account.
         
         :param size: number of bytes to read
+        :type size: int
         """
         if self.limit == strnpos and size >= self.buf.size():
             self.buf.clear()
@@ -682,6 +727,7 @@ cdef class BufferedReader:
         A set limit can be reset by calling :meth:`reset_limit()`.
         
         :param offset: limit in bytes
+        :type offset: int
         """
         self.limit = offset
         self.limit_consumed = 0
@@ -692,10 +738,11 @@ cdef class BufferedReader:
 
     cpdef string read(self, size_t size=strnpos):
         """
-        Read up to `size` bytes from the input stream.
+        Read up to ``size`` bytes from the input stream.
         
         :param size: number of bytes to read (default means read remaining stream)
-        :return: consumed buffer contents (or empty if EOF)
+        :type size: int, optional, default: strnpos
+        :return: consumed buffer contents as bytes (or empty string if EOF)
         """
         cdef string data_read
         cdef size_t missing = size
@@ -713,8 +760,10 @@ cdef class BufferedReader:
         Read a single line from the input stream.
         
         :param crlf: whether lines are separated by CRLF or LF
-        :param max_line_len: maximum line length
-                             (longer lines will still be consumed, but the return value will not be larger than this)
+        :type crlf: bool, optional, default: True
+        :param max_line_len: maximum line length (longer lines will still be consumed, but the return
+                             value will not be larger than this)
+        :type max_line_len: int, optional, default: 4096
         :return: line contents (or empty string if EOF)
         """
         cdef string line
@@ -762,7 +811,11 @@ cdef class BufferedReader:
         return line
 
     cpdef size_t tell(self):
-        """Offset on the input stream."""
+        """
+        Offset on the input stream.
+        
+        :return: offset
+        """
         if not self.stream_started:
             return 0
 
@@ -778,9 +831,10 @@ cdef class BufferedReader:
 
     cpdef void consume(self, size_t size=strnpos):
         """
-        Consume up to `size` bytes from the input stream without allocating a buffer for it.
+        Consume up to ``size`` bytes from the input stream without allocating a buffer for it.
         
         :param size: number of bytes to read (default means read remaining stream)
+        :type size: int, optional, default: strnpos
         """
         cdef string_view buf
         cdef size_t bytes_to_consume
@@ -803,7 +857,11 @@ cdef class BufferedReader:
             self.stream.close()
 
     cpdef string error(self):
-        """Error message of last stream exception (or empty if no error has occurred)."""
+        """
+        Return error message of last stream exception (or empty if no error has occurred).
+        
+        :return: error message or empty string
+        """
         if not self.errstr.empty():
             return self.errstr
         if self.stream is not None:
@@ -819,6 +877,7 @@ cpdef string read_http_chunk(BufferedReader reader):
     or EOF, an empty byte string will be returned.
     
     :param reader: input reader
+    :type reader: BufferedReader
     :return: contents of the next chunk or empty string if EOF
     """
     cdef string header_line = reader.readline(True)
