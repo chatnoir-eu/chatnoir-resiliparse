@@ -1,4 +1,4 @@
-name: Build and publish Wheels
+name: Build Wheels
 
 on:
   push:
@@ -53,10 +53,3 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
         run: |
           $PYTHON -m twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz
-
-      - name: Trigger RTDs build
-        uses: dfm/rtds-action@v1
-        with:
-          webhook_url: ${{ secrets.RTDS_WEBHOOK_URL }}
-          webhook_token: ${{ secrets.RTDS_WEBHOOK_TOKEN }}
-          commit_ref: ${{ github.ref }}
