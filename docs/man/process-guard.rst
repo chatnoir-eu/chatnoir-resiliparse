@@ -9,7 +9,7 @@ The Resiliparse Process Guard module is a set of decorators and context managers
 TimeGuard
 ---------
 
-:class:`.TimeGuard` guards the execution time of a function or a specific program context to not exceed a certain time limit. Upon reaching this limit, an exception or a signal is sent to interrupt execution. The guard timeout can be reset at any time by proactively reporting progress to the guard instance.
+:class:`.TimeGuard` guards the execution time of a function or other program context to not exceed a certain time limit. Upon reaching this limit, the execution is interrupted by sending an exception or signal to the executing thread. The guard timeout can be reset at any time by proactively reporting progress to the guard instance (see: :ref:`timeguard-report-progress`).
 
 For guarding a function, the decorator interface can be used:
 
@@ -29,7 +29,7 @@ For guarding a function, the decorator interface can be used:
 
   foo()
 
-This will send an asynchronous :exc:`.ExecutionTimeout` exception to the running thread after 10 seconds to end the loop. If the running thread does not react, a ``SIGINT`` UNIX signal will be sent after a certain grace period (default: 15 seconds). This signal can be caught either as a :exc:`KeyboardInterrupt` exception or via a custom ``signal`` handler. If the grace period times out again, a ``SIGTERM`` will be sent as a final attempt, after which the guard context will exit.
+This will send an asynchronous :exc:`.ExecutionTimeout` exception to the running thread after 10 seconds to end the loop. If the running thread does not react to this interrupt, a follow-up ``SIGINT`` signal will be sent after a certain grace period (default: 15 seconds). This signal can be caught either as a :exc:`KeyboardInterrupt` exception or via a custom ``signal`` handler. If the grace period times out again, a ``SIGTERM`` will be sent as a final attempt, after which the guard context will exit.
 
 .. note::
 
@@ -41,7 +41,7 @@ Interrupt Escalation Behaviour
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The above-described interrupt escalation behaviour is configurable. There are two basic interrupt mechanisms: throwing an asynchronous exception or sending a UNIX signal. The exception mechanism is the most gentle method of the two, but it may be unreliable if execution is blocking outside the Python program flow (e.g., in a native C extension or in a syscall). The signal method is a bit more reliable in this regard, but it does not work if the guarded thread is not the interpreter main thread, since in Python, only the main thread can receive and handle signals. Thus, if you are guarding a dedicated worker thread, you have to use exceptions.
 
-The three supported escalation strategies are :attr:`~.InterruptType.exception`, :attr:`~.InterruptType.signal`, and :attr:`~.InterruptType.exception_then_signal` (the default):
+The three supported escalation strategies are :attr:`~.InterruptType.exception`, :attr:`~.InterruptType.signal`, and :attr:`~.InterruptType.exception_then_signal` (which is the default):
 
 .. code-block:: python
 
@@ -63,7 +63,9 @@ The three supported escalation strategies are :attr:`~.InterruptType.exception`,
   def foo():
       pass
 
-The grace period is configurable with the ``grace_period=<SECONDS>`` parameter. The minimum interval between escalation levels is one second (i.e., the next signal/exception will wait at least another second, even if ``grace_period`` is zero) If UNIX signals are being sent, you can also set ``send_kill=True`` to send a ``SIGKILL`` instead of a ``SIGTERM`` as the last ditch attempt. This signal cannot be caught and will immediately end the Python interpreter.
+The grace period is configurable with the ``grace_period=<SECONDS>`` parameter. The minimum interval between escalation levels is one second (i.e., the next signal/exception will wait at least another second, even if ``grace_period`` is zero) If UNIX signals are being sent, you can also set ``send_kill=True`` to send a ``SIGKILL`` instead of a ``SIGTERM`` as the last ditch attempt. This signal cannot be caught and will immediately end the Python interpreter (thus you will need an external facility to restart it).
+
+.. _timeguard-report-progress:
 
 Reporting Progress
 ^^^^^^^^^^^^^^^^^^
@@ -134,13 +136,13 @@ To report progress and reset the timeout, call the :meth:`~.TimeGuard.progress()
 
 TimeGuard Check Interval
 ^^^^^^^^^^^^^^^^^^^^^^^^
-By default, :class:`.TimeGuard` monitors the execution time in steps of 500ms. If you need a higher resolution, you can configure a lower check interval with ``check_interval=<MILLISECONDS>``.
+By default, :class:`.TimeGuard` monitors the execution time in steps of 500 ms. If you need a higher resolution, you can configure a lower check interval with ``check_interval=<MILLISECONDS>``.
 
 
 MemGuard
 --------
 
-:class:`.MemGuard` guards a function or program context to stay within pre-defined memory bounds. If, at any time, the running Python process exceeds these bounds, an exception or signal will be sent to the executing thread.
+:class:`.MemGuard` guards a function or program context to stay within pre-defined memory bounds. If the running Python process ever exceeds these bounds while the guard context is active, an exception or signal will be sent to the executing thread.
 
 .. code-block:: python
 
@@ -158,7 +160,7 @@ MemGuard
 
   foo()
 
-This will raise an exception immediately upon exceeding the pre-defined process memory limit of 50 MiB. If the thread does not react to this exception, the same escalation procedure will kick in as known from :class:`.TimeGuard`. In order for :class:`.MemGuard` to tolerate short spikes above the memory limit, set ``grace_period`` to a positive non-zero value. If memory usage exceeds the limit, a timer will start that expires after ``grace_period`` seconds and triggers the interrupt procedure. If memory usage falls below the threshold during the grace period, the timer is reset.
+This will raise an exception immediately upon exceeding the pre-defined process memory limit of 50 MiB. If the thread does not react to this exception, the same escalation procedure will kick in as known from :class:`.TimeGuard`. In order for :class:`.MemGuard` to tolerate short spikes above the memory limit, set ``grace_period`` to a positive non-zero value. If memory usage exceeds the limit, a timer will start that expires after ``grace_period`` seconds and triggers the interrupt procedure. If memory usage falls below the threshold during the grace period, the timer is reset.
 
 :class:`.MemGuard` provides the same parameters as :class:`.TimeGuard` for controlling the interrupt escalation behaviour (see: :ref:`timeguard-interrupt-escalation-behaviour`), but the time interval before triggering the next escalation level is independent of the grace period and defaults to five seconds to give the application sufficient time to react and deallocate excess memory. This secondary grace period can be configured with the ``secondary_grace_period`` parameter and must be at least one second.
 
@@ -183,4 +185,4 @@ Similar to :class:`.TimeGuard`, :class:`.MemGuard` can also be used as a context
 
 MemGuard Check Interval
 ^^^^^^^^^^^^^^^^^^^^^^^
-By default, :class:`.MemGuard` checks the current memory usage every 500ms. If you need a higher resolution, you can configure a lower check interval with ``check_interval=<MILLISECONDS>``. For performance reasons, however, this interval should be chosen as large as possible, since the check involves reading from the ``/proc`` filesystem on Linux or invoking the ``ps`` command on other POSIX platforms, which is a relatively expensive operation.
+By default, :class:`.MemGuard` checks the current memory usage every 500 ms. If you need a higher resolution, you can configure a lower check interval with ``check_interval=<MILLISECONDS>``. For performance reasons, however, this interval should be chosen as large as possible, since the check involves reading from the ``/proc`` filesystem on Linux or invoking the ``ps`` command on other POSIX platforms, which is a relatively expensive operation.

@@ -207,8 +207,10 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     for guarding the execution time of a running task.
 
     If a the guarded context runs longer than the pre-defined timeout, the guard will send
-    an interrupt to the running function context. To signal progress to the guard and reset
-    the timeout, call :meth:`TimeGuard.progress` or :func:`progress` from the guarded context.
+    an interrupt to the running thread. The timeout can be reset at any time by proactively
+    reporting progress to the guard instance. This can be done by calling
+    :meth:`TimeGuard.progress` on the guard instance or the convenience function
+    :func:`progress` (if the context is in the global scope).
 
     There are two interrupt mechanisms: throwing an asynchronous exception and sending
     a UNIX signal. The exception mechanism is the most gentle method of the two, but
@@ -217,21 +219,22 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     in this regard, but does not work if the guarded thread is not the interpreter main
     thread, since only the main thread can receive and handle signals.
 
-    The Interrupt behaviour can be configured with the ``interrupt_type`` parameter:
+    The Interrupt behaviour can be configured with the ``interrupt_type`` parameter, which
+    accepts an enum value of type :class:`InterruptType`:
 
-    If ``interrupt_type`` is :attr:`InterruptType.exception`, a :exc:`ExecutionTimeout`
+    If ``interrupt_type`` is :attr:`~InterruptType.exception`, an :exc:`ExecutionTimeout`
     exception will be sent to the running thread after `timeout` seconds. If the thread
     does not react, the exception will be thrown once more after `grace_period` seconds.
 
-    If ``interrupt_type`` is :attr:`InterruptType.signal`, first a ``SIGINT`` will be sent to the
+    If ``interrupt_type`` is :attr:`~InterruptType.signal`, first a ``SIGINT`` will be sent to the
     current thread (which will trigger a :exc:`KeyboardInterrupt` exception, but can
-    also be handled with a custom ``signal`` handler. If the thread does not react, a less
+    also be handled with a custom ``signal`` handler). If the thread does not react, a less
     friendly ``SIGTERM`` will be sent after ``grace_period`` seconds. A third and final
-    attempt of a ``SIGTERM`` will be sent after ``grace_period``.
+    attempt of a ``SIGTERM`` will be sent after another ``grace_period`` seconds.
 
-    If ``interrupt_type`` is :attr:`InterruptType.exception_then_signal` (the default), the
-    first attempt will be an exception and after the grace period, the guard will
-    start sending signals.
+    If ``interrupt_type`` is :attr:`~InterruptType.exception_then_signal` (the default), the
+    first attempt will be an exception and after the grace period, the guard will start
+    sending signals.
 
     With ``send_kill`` set to ``True``, the third and final attempt will be a ``SIGKILL`` instead
     of a ``SIGTERM``. This will kill the entire interpreter (even if the guarded thread is not
@@ -243,7 +246,8 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :type grace_period: int, optional, default: 15
     :param interrupt_type: type of interrupt
     :type interrupt_type: InterruptType, optional, default: exception_then_signal
-    :param send_kill: if sending signals, send ``SIGKILL`` as third attempt instead of ``SIGTERM``
+    :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
+                     ``interrupt_type`` is :attr:`~InterruptType.exception`)
     :type send_kill: bool, optional, default: False
     :param check_interval: interval in milliseconds between execution time checks
     :type check_interval: int, optional, default: 500
@@ -261,11 +265,12 @@ cpdef progress(ctx=None):
     global namespace, this auto-detection will fail and the caller has to be supplied
     explicitly.
 
-    If ``ctx`` ist not a valid guard context, the progress report will fail and a
+    If no valid guard context can be determined, the progress report will fail and a
     :class:`RuntimeError` will be raised.
 
     :param ctx: active guard context (will use last global context from stack if unset)
     :type ctx: optional
+    :raise RuntimeError: if no valid :class:`TimeGuard` found
     """
     if ctx is None:
         for i in range(len(inspect.stack())):
@@ -401,11 +406,12 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
               size_t check_interval=500) -> MemGuard:
     """
-    Create a :class:`MemGuard` instance that can be used as a decorator or context manager for
-    enforcing memory limits on a running task.
+    Create a :class:`MemGuard` instance that can be used as a decorator or context manager
+    for enforcing memory limits on a running task.
 
-    :class:`MemGuard` guards a processing context to stay within pre-defined memory bounds.
-    Upon exceeding these bounds, an exception or signal will be sent to the executing thread.
+    :class:`MemGuard` guards a function or other context to stay within pre-defined memory
+    bounds. If the running Python process exceeds these bounds while the guard context
+    is active, an exception or signal will be sent to the executing thread.
 
     If the thread does not react to this exception, the same escalation procedure will
     kick in as known from :class:`TimeGuard`. In order for :class:`MemGuard` to tolerate

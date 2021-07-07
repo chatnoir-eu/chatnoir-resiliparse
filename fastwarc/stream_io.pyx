@@ -448,7 +448,7 @@ cdef class LZ4Stream(CompressingStream):
         :param raw_stream: raw data stream
         :param compression_level: LZ4 compression level (for compression only)
         :type compression_level: int, optional, default: 12
-        :param favor_dec_speed: favor decompression speed over compression speed and size
+        :param favor_dec_speed: favour decompression speed over compression speed and size
         :type favor_dec_speed: bool, optional, default: True
         """
 
