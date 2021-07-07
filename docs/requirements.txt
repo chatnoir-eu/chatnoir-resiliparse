@@ -1,1 +1,3 @@
+fastwarc
+resiliparse
 sphinx_rtd_theme
