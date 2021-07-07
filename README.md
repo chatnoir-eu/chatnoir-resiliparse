@@ -21,8 +21,10 @@ Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolki
 }
 ```
 
-## Resiliparse Module Summary
+## Usage Instructions
+For detailed information about the build process, dependencies, APIs, or usage instructions, please read the [Resiliparse Documentation](https://chatnoir-resiliparse.readthedocs.io/en/latest/index.html)
 
+## Resiliparse Module Summary
 The Resiliparse collection encompasses the following two modules at the moment:
 
 ### 1. Resiliparse
@@ -74,5 +76,3 @@ pip install fastwarc
 #           but is recommended for better performance, see FastWARC docs):
 pip install --no-binary fastwarc fastwarc
 ```
-
-For more information about the build process, dependencies, or usage instructions, please consult the [Resiliparse Documentation](https://chatnoir-resiliparse.readthedocs.io/en/latest/index.html)
