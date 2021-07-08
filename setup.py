@@ -28,8 +28,8 @@ try:
     Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
     ext = 'pyx'
     cython_args = dict(annotate=Cython.Compiler.Options.annotate,
-                       language_level='3',
-                       compiler_directives=dict(embedsignature=True))
+                       language_level='3')
+
 except ModuleNotFoundError:
     USE_CYTHON = False
     ext = 'cpp'

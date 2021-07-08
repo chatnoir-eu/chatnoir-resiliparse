@@ -19,7 +19,7 @@ from libc.signal cimport SIGINT, SIGTERM, SIGKILL
 
 import inspect
 import platform
-from threading import Thread
+import threading
 
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
@@ -188,12 +188,14 @@ cdef class TimeGuard(_ResiliparseGuard):
                         break
 
 
-        cdef guard_thread = Thread(target=_thread_exec)
+        cdef guard_thread = threading.Thread(target=_thread_exec)
         guard_thread.setDaemon(True)
         guard_thread.start()
 
     cpdef void progress(self):
         """
+        progress(self)
+        
         Increment epoch counter to indicate progress and reset the guard timeout.
         This method is thread-safe.
         """
@@ -203,8 +205,11 @@ cdef class TimeGuard(_ResiliparseGuard):
 
 
 def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
-               bint send_kill=False, check_interval=500) -> TimeGuard:
+               bint send_kill=False, size_t check_interval=500) -> TimeGuard:
     """
+    time_guard(timeout, grace_period=15, interrupt_type=exception_then_signal, \
+               send_kill=False, check_interval=500)
+
     Create a :class:`TimeGuard` instance that can be used as a decorator or context manager
     for guarding the execution time of a running task.
 
@@ -245,20 +250,23 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :param timeout: max execution time in seconds before invoking interrupt
     :type timeout: int
     :param grace_period: grace period in seconds after which to send another interrupt
-    :type grace_period: int, optional
+    :type grace_period: int
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional
+    :type interrupt_type: InterruptType
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
                      ``interrupt_type`` is :attr:`~InterruptType.exception`)
-    :type send_kill: bool, optional
+    :type send_kill: bool
     :param check_interval: interval in milliseconds between execution time checks
-    :type check_interval: int, optional
+    :type check_interval: int
+    :rtype: TimeGuard
     """
     return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type, send_kill, check_interval)
 
 
 cpdef progress(ctx=None):
     """
+    progress(ctx=None)
+    
     Increment :class:`TimeGuard` epoch counter to indicate progress and reset the guard timeout
     for the active guard context surrounding the caller.
 
@@ -271,7 +279,6 @@ cpdef progress(ctx=None):
     :class:`RuntimeError` will be raised.
 
     :param ctx: active guard context (will use last global context from stack if unset)
-    :type ctx: optional
     :raise RuntimeError: if no valid :class:`TimeGuard` found
     """
     if ctx is None:
@@ -403,7 +410,7 @@ cdef class MemGuard(_ResiliparseGuard):
                     if self.gctx.ended.load():
                         break
 
-        cdef guard_thread = Thread(target=_thread_exec)
+        cdef guard_thread = threading.Thread(target=_thread_exec)
         guard_thread.setDaemon(True)
         guard_thread.start()
 
@@ -412,6 +419,9 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
               size_t check_interval=500) -> MemGuard:
     """
+    mem_guard(max_memory, absolute=True, grace_period=0, secondary_grace_period=5, \
+              interrupt_type=exception_then_signal, send_kill=False, check_interval=500)
+
     Create a :class:`MemGuard` instance that can be used as a decorator or context manager
     for enforcing memory limits on a running task.
 
@@ -436,18 +446,19 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     :param max_memory: max allowed memory in KiB since context creation before interrupt will be sent
     :type max_memory: int
     :param absolute: whether ``max_memory`` is an absolute limit for the process or a relative growth limit
-    :type absolute: bool, optional
+    :type absolute: bool
     :param grace_period: grace period in seconds before sending an interrupt after exceeding ``max_memory``
-    :type grace_period: int, optional
+    :type grace_period: int
     :param secondary_grace_period: time to wait after ``grace_period`` before triggering next escalation level
-    :type secondary_grace_period: int, optional
+    :type secondary_grace_period: int
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional
+    :type interrupt_type: InterruptType
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
                      ``interrupt_type`` is :attr:`~InterruptType.exception`)
-    :type send_kill: bool, optional
+    :type send_kill: bool
     :param check_interval: interval in milliseconds between memory consumption checks
-    :type check_interval: int, optional
+    :type check_interval: int
+    :rtype: MemGuard
     """
     return MemGuard.__new__(MemGuard, max_memory, absolute, grace_period, secondary_grace_period,
                             interrupt_type, send_kill, check_interval)

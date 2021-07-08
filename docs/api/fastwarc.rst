@@ -10,7 +10,6 @@ WARC
 
 .. automodule:: fastwarc.warc
    :members:
-   :special-members: __init__
    :exclude-members: CaseInsensitiveStr, CaseInsensitiveStrDict
    :show-inheritance:
 
@@ -43,5 +42,4 @@ StreamIO
 
 .. automodule:: fastwarc.stream_io
    :members:
-   :special-members: __init__
    :show-inheritance:

@@ -14,29 +14,33 @@
 
 # distutils: language = c++
 
-from typing import Any, Callable, Iterable, Optional, Union, Tuple
+import typing as t
 
 from resiliparse.process_guard cimport progress
 
 
-def progress_loop(it: Iterable[Any], ctx=None) -> Iterable[Any]:
+def progress_loop(it: t.Iterable[t.Any], ctx=None) -> t.Iterable[t.Any]:
     """
+    progress_loop(it, ctx=None)
+
     Wraps an iterator into a pass-through iterator that reports progress
     to an active :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
 
     :param it: original iterator
-    :type it: Iterable
+    :type it: t.Iterable
     :param ctx: active guard context (will use last global context from stack if unset)
-    :type ctx: optional
     :return: wrapped iterator
+    :rtype: t.Iterable[t.Any]
     """
     for i in it:
         yield i
         progress(ctx)
 
 
-def exc_loop(it: Iterable[Any]) -> Iterable[Tuple[Optional[Any], Optional[Union[Exception, BaseException]]]]:
+def exc_loop(it: t.Iterable[t.Any]) -> t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[BaseException]]]:
     """
+    exc_loop(it)
+
     Wraps an iterator into another iterator that catches and returns any exceptions raised
     while evaluating the input iterator.
 
@@ -48,21 +52,25 @@ def exc_loop(it: Iterable[Any]) -> Iterable[Tuple[Optional[Any], Optional[Union[
     a generator, you will have to create a new instance in order to retry or continue.
 
     :param it: original iterator
-    :type it: Iterable
+    :type it: t.Iterable[Any]
     :return: iterator of items and ``None`` or ``None`` and exception instance
+    :rtype: t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[t.BaseException]]]
     """
-    it = iter(it)
+    i = iter(it)
     while True:
         try:
-            yield next(it), None
+            yield next(i), None
         except StopIteration as e:
             raise e
         except BaseException as e:
             yield None, e
 
 
-def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3, seek: Optional[bool] = True):
+def warc_retry(archive_iterator, stream_factory: t.Union[t.Callable[[], t.Any], t.Callable[[int], t.Any]],
+               retry_count: int = 3, seek: t.Optional[bool] = True):
     """
+    warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True)
+
     Wrap a :class:`fastwarc.warc.ArchiveIterator` to try to continue reading after a stream failure.
 
     Use if the underlying stream is unreliable, such as when reading from a network data source.
@@ -90,14 +98,15 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3,
     Requires FastWARC to be installed.
 
     :param archive_iterator: input WARC iterator
-    :type archive_iterator: ~fastwarc.warc.ArchiveIterator
+    :type archive_iterator: fastwarc.warc.ArchiveIterator
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
-    :type stream_factory: Callable
+    :type stream_factory: t.Union[t.Callable[[], t.Any], t.Callable[[int], t.Any]]
     :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
-    :type retry_count: int, optional
+    :type retry_count: int
     :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
-    :type seek: Optional[bool], optional
+    :type seek: t.Optional[bool]
     :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
+    :rtype: t.Iterable[fastwarc.warc.WarcRecord]
     """
 
     cdef size_t retries = 0

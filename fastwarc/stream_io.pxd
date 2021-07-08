@@ -34,8 +34,6 @@ cdef class IOStream:
 
 # noinspection PyAttributeOutsideInit
 cdef class PythonIOStreamAdapter(IOStream):
-    """IOStream adapter for Python file-like objects."""
-
     cdef object py_stream
     cdef Exception exc
 
