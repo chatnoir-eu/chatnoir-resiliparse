@@ -276,13 +276,17 @@ cpdef progress(ctx=None):
         for i in range(len(inspect.stack())):
             frame_info = inspect.stack()[i]
             ctx = frame_info[0].f_globals.get(frame_info[3])
-            if isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
+            if isinstance(ctx, TimeGuard) or isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
                 break
+
+    if isinstance(ctx, TimeGuard):
+        (<TimeGuard>ctx).progress()
+        return
 
     if not isinstance(getattr(ctx, '_guard_self', None), TimeGuard):
         raise RuntimeError('No initialized time guard context.')
 
-    # noinspection PyProtectedMember
+    # noinspection PyProtectedMember, PyUnresolvedReferences
     (<TimeGuard>ctx._guard_self).progress()
 
 
