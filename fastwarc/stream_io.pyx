@@ -37,6 +37,12 @@ class StreamError(FastWARCError):
 cdef class IOStream:
     """IOStream base class."""
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     cdef string read(self, size_t size):
         pass
 
