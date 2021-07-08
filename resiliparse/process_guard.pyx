@@ -197,7 +197,9 @@ cdef class TimeGuard(_ResiliparseGuard):
         Increment epoch counter to indicate progress and reset the guard timeout.
         This method is thread-safe.
         """
-        self.gctx.epoch_counter.fetch_add(1)
+        cdef timeval now
+        gettimeofday(&now, NULL)
+        self.gctx.epoch_counter.store(now.tv_sec)
 
 
 def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
