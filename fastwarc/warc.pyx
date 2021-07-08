@@ -454,6 +454,23 @@ cdef class WarcRecord:
         return self._http_headers
 
     @property
+    def http_content_type(self) -> t.Optional[str]:
+        """
+        Plain HTTP Content-Type without additional fields such as ``charset=``.
+
+        :rtype: t.Optional[str]
+        """
+        if not self._http_parsed:
+            return None
+
+        cdef string content_type = self._http_headers.find_header(<char*>b'content-type', <char*>b'')
+        if content_type.empty():
+            return None
+
+        content_type = strip_str(content_type.substr(0, content_type.find(<char*>b';')))
+        return content_type.decode(self._http_headers._enc, errors='ignore')
+
+    @property
     def http_charset(self) -> t.Optional[str]:
         """
         HTTP charset/encoding as returned by the server or ``None`` if no valid charset is set.
@@ -484,7 +501,7 @@ cdef class WarcRecord:
             self._http_charset = <char*>b'_'
             return None
 
-        return self._http_charset.decode()
+        return self._http_charset.decode(self._http_headers._enc, errors='ignore')
 
     @property
     def content_length(self) -> int:
