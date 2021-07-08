@@ -61,15 +61,31 @@ def exc_loop(it: Iterable[Any]) -> Iterable[Tuple[Optional[Any], Optional[Union[
             yield None, e
 
 
-def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3):
+def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3, seek: Optional[bool] = True):
     """
-    Wrap a :class:`fastwarc.warc.ArchiveIterator` instance to retry in case of read failures.
+    Wrap a :class:`fastwarc.warc.ArchiveIterator` to try to continue reading after a stream failure.
 
     Use if the underlying stream is unreliable, such as when reading from a network data source.
     If an exception other than :exc:`StopIteration` is raised while consuming the iterator, the WARC
     reading process will be retried up to `retry_count` times. When a stream failure occurs,
     ``archive_iterator`` will be reinitialised with a new stream object by calling ``stream_factory``.
-    The new stream object returned by ``stream_factory()`` must be seekable.
+
+    The new stream object returned by ``stream_factory()`` must be seekable. If the stream does not
+    support seeking, you can set ``seek=False``. In this case, the stream position in bytes of the last
+    successfully read record will be passed as a parameter to ``stream_factory()``. The factory is then
+    expected to return a stream that already starts at this exact position (or else reading would
+    restart from the beginning resulting in duplicate records). This is primarily useful for streams
+    that are not inherently seekable, but have an external facility for starting them at the correct
+    position (such as S3 HTTPS streams created from range requests).
+
+    As another option, ``seek`` can also be ``None``, which instructs :func:`warc_retry` to consume the
+    stream up to the continuation position. The stream returned by ``stream_factory()`` must start at
+    the beginning and will be read normally, but all bytes before the last record will be skipped over
+    before continuing to parse the contents. This is the most expensive method of "seeking" on a stream
+    and should only be used if the stream is not seekable and there is no other option for starting it
+    at the correct offset.
+
+    Exceptions raised inside ``stream_factory()`` will be caught and count towards ``retry_count``.
 
     Requires FastWARC to be installed.
 
@@ -79,6 +95,8 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3)
     :type stream_factory: Callable
     :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
     :type retry_count: int, optional, default: 3
+    :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
+    :type seek: Optional[bool], optional, default: True
     :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
     """
 
@@ -101,8 +119,31 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3)
             retries += 1
             if retry_count and retries > retry_count:
                 raise e
-            stream = stream_factory()
-            stream.seek(max(0, <long>last_pos))
+
+            while True:
+                try:
+                    if seek is True:
+                        stream = stream_factory()
+                        stream.seek(last_pos)
+                        break
+                    elif seek is False:
+                        stream = stream_factory(last_pos)
+                        break
+                    elif seek is None:
+                        consumed = 0
+                        stream = stream_factory()
+                        while consumed < last_pos:
+                            n = len(stream.read(min(16384, last_pos - consumed)))
+                            if n == 0:
+                                return  # Unexpected EOF
+                            consumed += n
+                        break
+
+                except BaseException as e:
+                    retries += 1
+                    if retry_count and retries > retry_count:
+                        raise e
+
             # noinspection PyProtectedMember
             archive_iterator._set_stream(stream)
             it = archive_iterator.__iter__()
