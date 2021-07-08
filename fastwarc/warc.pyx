@@ -198,7 +198,7 @@ cdef class WarcHeaderMap:
         """
         HTTP status code (unset if header block is not an HTTP header block).
 
-        :rtype: Optional[int]
+        :rtype: t.Optional[int]
         """
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None

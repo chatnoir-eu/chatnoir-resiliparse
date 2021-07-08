@@ -27,7 +27,7 @@ def progress_loop(it: t.Iterable[t.Any], ctx=None) -> t.Iterable[t.Any]:
     to an active :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
 
     :param it: original iterator
-    :type it: t.Iterable
+    :type it: t.Iterable[t.Any]
     :param ctx: active guard context (will use last global context from stack if unset)
     :return: wrapped iterator
     :rtype: t.Iterable[t.Any]
@@ -52,9 +52,9 @@ def exc_loop(it: t.Iterable[t.Any]) -> t.Iterable[t.Tuple[t.Optional[t.Any], t.O
     a generator, you will have to create a new instance in order to retry or continue.
 
     :param it: original iterator
-    :type it: t.Iterable[Any]
+    :type it: t.Iterable[t.Any]
     :return: iterator of items and ``None`` or ``None`` and exception instance
-    :rtype: t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[t.BaseException]]]
+    :rtype: t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[BaseException]]]
     """
     i = iter(it)
     while True:
