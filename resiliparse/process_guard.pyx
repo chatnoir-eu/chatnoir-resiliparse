@@ -243,14 +243,14 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :param timeout: max execution time in seconds before invoking interrupt
     :type timeout: int
     :param grace_period: grace period in seconds after which to send another interrupt
-    :type grace_period: int, optional, default: 15
+    :type grace_period: int, optional
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional, default: exception_then_signal
+    :type interrupt_type: InterruptType, optional
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
                      ``interrupt_type`` is :attr:`~InterruptType.exception`)
-    :type send_kill: bool, optional, default: False
+    :type send_kill: bool, optional
     :param check_interval: interval in milliseconds between execution time checks
-    :type check_interval: int, optional, default: 500
+    :type check_interval: int, optional
     """
     return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type, send_kill, check_interval)
 
@@ -430,18 +430,18 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     :param max_memory: max allowed memory in KiB since context creation before interrupt will be sent
     :type max_memory: int
     :param absolute: whether ``max_memory`` is an absolute limit for the process or a relative growth limit
-    :type absolute: bool, optional, default: True
+    :type absolute: bool, optional
     :param grace_period: grace period in seconds before sending an interrupt after exceeding ``max_memory``
-    :type grace_period: int, optional, default: 0
+    :type grace_period: int, optional
     :param secondary_grace_period: time to wait after ``grace_period`` before triggering next escalation level
-    :type secondary_grace_period: int, optional, default: 5
+    :type secondary_grace_period: int, optional
     :param interrupt_type: type of interrupt
-    :type interrupt_type: InterruptType, optional, default: exception_then_signal
+    :type interrupt_type: InterruptType, optional
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
                      ``interrupt_type`` is :attr:`~InterruptType.exception`)
-    :type send_kill: bool, optional, default: False
+    :type send_kill: bool, optional
     :param check_interval: interval in milliseconds between memory consumption checks
-    :type check_interval: int, optional, default: 500
+    :type check_interval: int, optional
     """
     return MemGuard.__new__(MemGuard, max_memory, absolute, grace_period, secondary_grace_period,
                             interrupt_type, send_kill, check_interval)

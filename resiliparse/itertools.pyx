@@ -94,9 +94,9 @@ def warc_retry(archive_iterator, stream_factory: Callable, retry_count: int = 3,
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
     :type stream_factory: Callable
     :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
-    :type retry_count: int, optional, default: 3
+    :type retry_count: int, optional
     :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
-    :type seek: Optional[bool], optional, default: True
+    :type seek: Optional[bool], optional
     :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
     """
 

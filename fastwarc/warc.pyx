@@ -143,13 +143,13 @@ class CaseInsensitiveStrDict(dict):
 cdef class WarcHeaderMap:
     """Dict-like type representing a WARC or HTTP header block"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, str encoding='utf-8'):
         """
         :param encoding: header source encoding
-        :type encoding: str, optional, default: 'utf-8'
+        :type encoding: str, optional
         """
 
-    def __cinit__(self, encoding='utf-8'):
+    def __cinit__(self, str encoding='utf-8'):
         self._enc = encoding
         self._dict_cache = None
         self._dict_cache_stale = True
@@ -393,7 +393,7 @@ cdef class WarcRecord:
         :param content_length: WARC record body length in bytes
         :type content_length: int
         :param record_type: WARC-Type
-        :type record_type: WarcRecordType, optional, default: no_type
+        :type record_type: WarcRecordType, optional
         :param record_urn: WARC-Record-ID as URN without ``'<'``, ``'>'`` (if unset, a random URN will be generated)
         :type record_urn: bytes, optional
         """
@@ -443,9 +443,9 @@ cdef class WarcRecord:
         
         :param stream: output stream
         :param checksum_data: add block and payload digest headers
-        :type checksum_data: bool, optional, default: False
+        :type checksum_data: bool, optional
         :param chunk_size: write block size
-        :type chunk_size: int, optional, default: 16384
+        :type chunk_size: int, optional
         :return: number of bytes written
         """
         # If the raw byte content hasn't been parsed, we can simply pass it through
@@ -573,7 +573,7 @@ cdef class WarcRecord:
         
         :param consume: do not create an in-memory copy of the record stream
                         (will fully consume the rest of the record)
-        :type consume: bool, optional, default: False
+        :type consume: bool, optional
         :return: ``True`` if digest exists and is valid
         """
         return self._verify_digest(self._headers.find_header(<char*>b'WARC-Block-Digest', <char*>b''), consume)
@@ -584,7 +584,7 @@ cdef class WarcRecord:
         
         :param consume: do not create an in-memory copy of the record stream
                         (will fully consume the rest of the record)
-        :type consume: bool, optional, default: False
+        :type consume: bool, optional
         :return: ``True`` if record is HTTP record and digest exists and is valid
         """
         if not self._http_parsed:
@@ -602,7 +602,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     :param target: header map to fill
     :type reader: WarcHeaderMap
     :param has_status_line: whether first line is a status line or already a header
-    :type has_status_line: bool, optional, default: False
+    :type has_status_line: bool, optional
     :return: number of bytes read from `reader`
     """
     cdef string line
@@ -647,16 +647,18 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 cdef class ArchiveIterator:
     """WARC record stream iterator."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
+                  size_t min_content_length=strnpos, size_t max_content_length=strnpos,
+                  func_filter=None, bint verify_digests=False):
         """
         Initialize WARC record iterator.
 
         :param stream: input stream (preferably an :class:`~fastwarc.stream_io.IOStream`,
                        but any file-like Python object is fine)
         :param parse_http: whether to parse HTTP records automatically (disable for better performance if not needed)
-        :type parse_http: bool, optional, default: True
+        :type parse_http: bool, optional
         :param record_types: bitmask of :class:`WarcRecordType` record types to return (others will be skipped)
-        :type record_types: int, optional, default: any_type
+        :type record_types: int, optional
         :param min_content_length: skip records with Content-Length less than this
         :type min_content_length: int, optional
         :param max_content_length: skip records with Content-Length large than this
@@ -665,7 +667,7 @@ cdef class ArchiveIterator:
                             for further record filtering
         :type func_filter: Callable, optional
         :param verify_digests: skip records which have no or an invalid block digest
-        :type verify_digests: bool, optional, default: False
+        :type verify_digests: bool, optional
         """
 
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,

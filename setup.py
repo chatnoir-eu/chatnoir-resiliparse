@@ -18,7 +18,7 @@ from setuptools import setup, Extension
 import warnings
 import sys
 
-VERSION = '0.3.4'
+VERSION = '0.3.5'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
 try:
@@ -27,9 +27,13 @@ try:
 
     Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
     ext = 'pyx'
+    cython_args = dict(annotate=Cython.Compiler.Options.annotate,
+                       language_level='3',
+                       compiler_directives=dict(embedsignature=True))
 except ModuleNotFoundError:
     USE_CYTHON = False
     ext = 'cpp'
+    cython_args = {}
 
 cpp_args = dict(
     extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
@@ -70,8 +74,7 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
         warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
 
     if USE_CYTHON:
-        resiliparse_extensions = cythonize(resiliparse_extensions,
-                                           annotate=Cython.Compiler.Options.annotate, language_level='3')
+        resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)
 
     setup(
         name='Resiliparse',
@@ -110,8 +113,7 @@ if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
         Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
     ]
     if USE_CYTHON:
-        fastwarc_extensions = cythonize(fastwarc_extensions,
-                                        annotate=Cython.Compiler.Options.annotate, language_level='3')
+        fastwarc_extensions = cythonize(fastwarc_extensions, **cython_args)
 
     setup(
         name='FastWARC',

@@ -66,7 +66,7 @@ cdef class IOStream:
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     """IOStream that uses an in-memory buffer."""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, bytes initial_data=b''):
         """
         :param initial_data: fill internal buffer with this initial data
         :type initial_data: bytes, optional
@@ -110,12 +110,12 @@ cdef class BytesIOStream(IOStream):
 cdef class FileStream(IOStream):
     """Fast alternative to Python file objects for local files."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, str filename=None, str mode='rb'):
         """
         :param filename: input filename
         :type filename: str, optional
         :param mode: file open mode
-        :type mode: str, optional, default: 'rb'
+        :type mode: str, optional
         """
 
     def __cinit__(self, str filename=None, str mode='rb'):
@@ -172,7 +172,7 @@ cdef class FileStream(IOStream):
 
 @cython.auto_pickle(False)
 cdef class PythonIOStreamAdapter(IOStream):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, py_stream):
         """
         :param py_stream: input Python stream object
         """
@@ -221,11 +221,11 @@ cdef char _GZIP_INFLATE = 2
 cdef class GZipStream(CompressingStream):
     """GZip :class:`IOStream` implementation."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
         """
         :param raw_stream: raw data stream
         :param compression_level: GZip compression level (for compression only)
-        :type compression_level: int, optional, default: 9
+        :type compression_level: int, optional
         """
 
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
@@ -449,13 +449,13 @@ cdef class GZipStream(CompressingStream):
 cdef class LZ4Stream(CompressingStream):
     """LZ4 :class:`IOStream` implementation."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
         """
         :param raw_stream: raw data stream
         :param compression_level: LZ4 compression level (for compression only)
-        :type compression_level: int, optional, default: 12
+        :type compression_level: int, optional
         :param favor_dec_speed: favour decompression speed over compression speed and size
-        :type favor_dec_speed: bool, optional, default: True
+        :type favor_dec_speed: bool, optional
         """
 
     def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
@@ -636,9 +636,9 @@ cdef class BufferedReader:
         :param stream: stream to operate on
         :type stream: IOStream
         :param buf_size: internal buffer size
-        :type buf_size: int, optional, default: 16384
+        :type buf_size: int, optional
         :param negotiate_stream: whether to auto-negotiate stream type
-        :type negotiate_stream: bool, optional, default: True
+        :type negotiate_stream: bool, optional
         """
 
     def __cinit__(self, IOStream stream, size_t buf_size=16384, bint negotiate_stream=True):
@@ -747,7 +747,7 @@ cdef class BufferedReader:
         Read up to ``size`` bytes from the input stream.
         
         :param size: number of bytes to read (default means read remaining stream)
-        :type size: int, optional, default: strnpos
+        :type size: int, optional
         :return: consumed buffer contents as bytes (or empty string if EOF)
         """
         cdef string data_read
@@ -766,10 +766,10 @@ cdef class BufferedReader:
         Read a single line from the input stream.
         
         :param crlf: whether lines are separated by CRLF or LF
-        :type crlf: bool, optional, default: True
+        :type crlf: bool, optional
         :param max_line_len: maximum line length (longer lines will still be consumed, but the return
                              value will not be larger than this)
-        :type max_line_len: int, optional, default: 4096
+        :type max_line_len: int, optional
         :return: line contents (or empty string if EOF)
         """
         cdef string line
@@ -840,7 +840,7 @@ cdef class BufferedReader:
         Consume up to ``size`` bytes from the input stream without allocating a buffer for it.
         
         :param size: number of bytes to read (default means read remaining stream)
-        :type size: int, optional, default: strnpos
+        :type size: int, optional
         """
         cdef string_view buf
         cdef size_t bytes_to_consume
