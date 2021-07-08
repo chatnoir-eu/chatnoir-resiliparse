@@ -427,19 +427,20 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     This secondary grace period can be configured with the ``secondary_grace_period``
     parameter and must be at least one second.
 
-    :param max_memory: max allowed memory in kB since context creation before interrupt will be sent
+    :param max_memory: max allowed memory in KiB since context creation before interrupt will be sent
     :type max_memory: int
     :param absolute: whether ``max_memory`` is an absolute limit for the process or a relative growth limit
     :type absolute: bool, optional, default: True
-    :param grace_period: grace period in seconds before an interrupt will be sent after exceeding ``max_memory``
+    :param grace_period: grace period in seconds before sending an interrupt after exceeding ``max_memory``
     :type grace_period: int, optional, default: 0
     :param secondary_grace_period: time to wait after ``grace_period`` before triggering next escalation level
     :type secondary_grace_period: int, optional, default: 5
     :param interrupt_type: type of interrupt
     :type interrupt_type: InterruptType, optional, default: exception_then_signal
-    :param bool send_kill: if sending signals, send ``SIGKILL`` as third attempt instead of ``SIGTERM``
+    :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
+                     ``interrupt_type`` is :attr:`~InterruptType.exception`)
     :type send_kill: bool, optional, default: False
-    :param int check_interval: interval in milliseconds between memory consumption checks
+    :param check_interval: interval in milliseconds between memory consumption checks
     :type check_interval: int, optional, default: 500
     """
     return MemGuard.__new__(MemGuard, max_memory, absolute, grace_period, secondary_grace_period,
