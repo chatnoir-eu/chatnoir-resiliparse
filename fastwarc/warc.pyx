@@ -105,28 +105,28 @@ class CaseInsensitiveStr(str):
         return hash(self.casefold())
 
     def __eq__(self, other):
-        return self.casefold() == other.casefold()
+        return isinstance(other, str) and self.casefold() == other.casefold()
 
 
 class CaseInsensitiveStrDict(dict):
     """Case-insensitive str dict."""
 
-    def __getitem__(self, key):
+    def __getitem__(self, str key not None):
         return super().__getitem__(CaseInsensitiveStr(key))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, str key not None, str value not None):
         super().__setitem__(CaseInsensitiveStr(key), value)
 
-    def __contains__(self, key):
+    def __contains__(self, str key not None):
         return super().__contains__(CaseInsensitiveStr(key))
 
-    def get(self, key, value=None):
+    def get(self, str key not None, str value=None):
         return super().get(CaseInsensitiveStr(key), value)
 
-    def setdefault(self, key, value=None):
+    def setdefault(self, str key not None, str value=None):
         return super().setdefault(CaseInsensitiveStr(key), value)
 
-    def pop(self, key):
+    def pop(self, str key not None):
         return super().pop(CaseInsensitiveStr(key))
 
     def update(self, it=None, **kwargs):
@@ -184,7 +184,7 @@ cdef class WarcHeaderMap:
         return self._status_line.decode(self._enc, errors='ignore')
 
     @status_line.setter
-    def status_line(self, str status_line):
+    def status_line(self, str status_line not None):
         """
         Set status line contents.
 
@@ -207,7 +207,7 @@ cdef class WarcHeaderMap:
             return None
         return int(s)
 
-    def append(self, str key, str value):
+    def append(self, str key not None, str value not None):
         """
         append(self, key, value)
 
@@ -220,7 +220,7 @@ cdef class WarcHeaderMap:
         """
         self.append_header(key.encode(self._enc), value.encode(self._enc))
 
-    def get(self, str key, str default=None) -> str:
+    def get(self, str key not None, str default=None) -> str:
         """
         get(self, key, default=None)
 
