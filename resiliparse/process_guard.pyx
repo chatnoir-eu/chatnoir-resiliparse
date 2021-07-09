@@ -15,6 +15,7 @@
 # distutils: language = c++
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
+cimport cython
 from libc.signal cimport SIGINT, SIGTERM, SIGKILL
 
 import inspect
@@ -41,7 +42,7 @@ class MemoryLimitExceeded(ResiliparseGuardException):
     """Memory limit exceeded exception."""
 
 
-# noinspection PyAttributeOutsideInit
+@cython.auto_pickle(False)
 cdef class _ResiliparseGuard:
     """Resiliparse context guard base class."""
 
@@ -124,6 +125,7 @@ cdef class _ResiliparseGuard:
             fflush(stderr)
 
 
+@cython.auto_pickle(False)
 cdef class TimeGuard(_ResiliparseGuard):
     """
     Decorator and context manager for guarding the execution time of a running task.
@@ -299,6 +301,7 @@ cpdef progress(ctx=None):
     (<TimeGuard>ctx._guard_self).progress()
 
 
+@cython.auto_pickle(False)
 cdef class MemGuard(_ResiliparseGuard):
     """
     Decorator and context manager for enforcing memory limits on a running task.
