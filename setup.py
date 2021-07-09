@@ -59,15 +59,13 @@ if 'sdist' in sys.argv:
 # ------------------------------------------
 
 if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
-    resiliparse_pg_cpp_args = cpp_args.copy()
-    resiliparse_pg_cpp_args['extra_compile_args'].append('-pthread')
-    resiliparse_pg_cpp_args['extra_link_args'].append('-pthread')
-
-    resiliparse_extensions = []
+    resiliparse_extensions = [
+        Extension('resiliparse.parse', sources=[f'resiliparse/parse.{ext}'], **cpp_args)
+    ]
     if os.name == 'posix':
         resiliparse_extensions.extend([
             Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'],
-                      **resiliparse_pg_cpp_args),
+                      libraries=['pthread'], **cpp_args),
             Extension('resiliparse.itertools', sources=[f'resiliparse/itertools.{ext}'], **cpp_args)
         ])
     else:
@@ -91,7 +89,9 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
             'resiliparse': data_ext,
             **inc_module_data
         },
-        install_requires=[],
+        install_requires=[
+            'selectolax'
+        ],
         setup_requires=[
             'setuptools>=18.0'
         ],
@@ -104,12 +104,9 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
 # ------------------------------------------
 
 if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
-    fastwarc_stream_cpp_args = cpp_args.copy()
-    fastwarc_stream_cpp_args['extra_link_args'].extend(['-lz', '-llz4'])
-
     fastwarc_extensions = [
         Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], **fastwarc_stream_cpp_args),
+        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], libraries=['z', 'lz4'], **cpp_args),
         Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
     ]
     if USE_CYTHON:
