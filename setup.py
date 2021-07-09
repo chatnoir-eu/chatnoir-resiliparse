@@ -49,7 +49,7 @@ inc_module = []
 inc_module_data = {}
 if 'sdist' in sys.argv:
     # Include resiliparse_inc module and *.pyx only in source distribution
-    data_ext.append('*.pyx')
+    data_ext.extend(['*.pyx', '*.pxi'])
     inc_module.append('resiliparse_inc')
     inc_module_data['resiliparse_inc'] = data_ext
 
@@ -90,6 +90,7 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
             **inc_module_data
         },
         install_requires=[
+            'chardet',
             'selectolax'
         ],
         setup_requires=[
