@@ -17,7 +17,7 @@
 import atexit
 
 from resiliparse_inc.string cimport string
-from resiliparse_inc.uchardet cimport uchardet_t, uchardet_new, uchardet_delete, uchardet_handle_data, \
+from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
     uchardet_data_end, uchardet_reset, uchardet_get_charset
 
 include 'parse_selectolax.pxi'
@@ -29,7 +29,6 @@ cdef class CharsetDetector:
 
     `uchardet` is a C wrapper and a continuation of Mozilla's `Universal Charset Detector` library.
     """
-    cdef uchardet_t d
 
     def __cinit__(self):
         self.d = uchardet_new()

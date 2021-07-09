@@ -11,3 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+from resiliparse_inc.string cimport string
+from resiliparse_inc.uchardet cimport uchardet_t
+
+cdef class CharsetDetector:
+    cdef uchardet_t d
+
+    cpdef void update(self, const string& data)
+    cdef string encoding_str(self)
+    cpdef str encoding(self)
