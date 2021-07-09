@@ -31,7 +31,7 @@ For guarding a function, the decorator interface can be used:
 
 .. note::
 
-  Since decorated functions are not picklable, you cannot use the decorator interface in applications such as PySpark. In this case, use the :ref:`context manager interface <_timeguard-as-context-manager>` instead. Everything else in this section still applies.
+  Since decorated functions are not picklable, you cannot use the decorator interface in applications such as PySpark. In that case, use the :ref:`context manager interface <timeguard-as-context-manager>` instead. Everything else in this section still applies.
 
 This will send an asynchronous :exc:`.ExecutionTimeout` exception to the running thread after 10 seconds to end the loop. If the running thread does not react to this interrupt, a follow-up ``SIGINT`` signal will be sent after a certain grace period (default: 15 seconds). This signal can be caught either as a :exc:`KeyboardInterrupt` exception or via a custom ``signal`` handler. If the grace period times out again, a ``SIGTERM`` will be sent as a final attempt, after which the guard context will exit.
 
