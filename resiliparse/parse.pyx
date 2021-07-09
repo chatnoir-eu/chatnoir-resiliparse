@@ -59,7 +59,7 @@ cdef class CharsetDetector:
         uchardet_reset(self.d)
         return enc
 
-    def encoding(self):
+    cpdef str encoding(self):
         """
         encoding(self)
 
@@ -105,20 +105,20 @@ def detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=False):
 
     :param data: input string for which to detect the encoding
     :type data: bytes
-    :param max_len: maximum number of bytes to scan
+    :param max_len: maximum number of bytes to feed to detector (0 for no limit)
     :type max_len: int
     :param from_html_meta: if string is an HTML document, use meta tag info
     :type from_html_meta: bool
     :return: detected encoding
     :rtype: str
     """
-    if <size_t>len(data) > max_len:
-        data = data[:max_len // 2] + data[-(max_len // 2):]
+    if max_len != 0 and <size_t>len(data) > max_len:
+        data = data[:(max_len + 1) // 2] + data[-((max_len + 1) // 2):]
 
     if from_html_meta:
         encoding = __slx.myencoding_prescan_stream_to_determine_encoding(<char*>data, len(data))
         if encoding != MyENCODING_NOT_DETERMINED:
-            return __slx.myencoding_name_by_id(encoding, NULL).decode().lower()
+            return __slx.myencoding_name_by_id(encoding, NULL).decode()
 
     global __chardet
     if __chardet is None:
