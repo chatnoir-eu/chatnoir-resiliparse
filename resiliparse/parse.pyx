@@ -124,3 +124,40 @@ def detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=False):
         __chardet = CharsetDetector.__new__(CharsetDetector)
     __chardet.update(<string>data)
     return __chardet.encoding()
+
+
+def bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore'):
+    """
+    bytes_to_str(data, encoding='utf-8', errors='ignore')
+
+    Helper for decoding a byte string into a unicode string using a given encoding.
+    This encoding should be determined beforehand, e.g., with :func:`detect_encoding`.
+
+    :func:`bytes_to_str` tries to decode the byte string with ``encoding``. If that fails,
+    it will fall back to UTF-8 and Latin-1. If both fallbacks fail as well, the string
+    will be double-decoded with ``encoding`` and invalid characters will be treated according
+    to ``errors``, which has the same options as for :meth:`bytes.decode` (i.e., ``"ignore"``
+    or ``"replace"``). The double-decoding step ensures that the resulting string is sane
+    and can be re-encoded without errors.
+
+    :param data: input byte string
+    :type data: bytes
+    :param encoding: desired encoding
+    :type encoding: str
+    :param errors: error handling for invalid characters
+    :type errors: str
+    :return: decoded string
+    :rtype: str
+    """
+
+    for i, enc in enumerate((encoding, 'utf-8', 'iso-8859-15', 'iso-8859-1')):
+        if i > 0 and enc == encoding:
+            # No need to try that again
+            continue
+
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            pass
+
+    return data.decode(encoding, errors=errors).encode(errors=errors).decode()
