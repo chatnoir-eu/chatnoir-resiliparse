@@ -150,13 +150,13 @@ def bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore'):
     :rtype: str
     """
 
-    for i, enc in enumerate((encoding, 'utf-8', 'iso-8859-15', 'iso-8859-1')):
-        if i > 0 and enc == encoding:
+    for i, e in enumerate((encoding, 'utf-8', 'iso-8859-15', 'iso-8859-1')):
+        if i > 0 and e == encoding:
             # No need to try that again
             continue
 
         try:
-            return data.decode(encoding)
+            return data.decode(e)
         except UnicodeDecodeError:
             pass
 
