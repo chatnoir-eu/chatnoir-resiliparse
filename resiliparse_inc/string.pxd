@@ -1,11 +1,10 @@
-# Complete redeclaration of libcpp.string, since Cython's std::string is vastly incomplete and buggy.
+# Complete redeclaration of libcpp.string, since Cython's std::string is incomplete and buggy.
+# See https://github.com/cython/cython/pull/4276
 
-# Fixed std::string::npos (see: https://github.com/cython/cython/issues/4268_
-cdef extern from "<string>" namespace "std::string" nogil:
-    const size_t npos
-
-# Copy of https://github.com/cython/cython/blob/master/Cython/Includes/libcpp/string.pxd with additions at the end
 cdef extern from "<string>" namespace "std" nogil:
+
+    const size_t npos "std::string::npos"
+
     cdef cppclass string:
         cppclass iterator:
             iterator()
@@ -57,19 +56,23 @@ cdef extern from "<string>" namespace "std" nogil:
         size_t length()
         void resize(size_t)
         void resize(size_t, char c)
+        void shrink_to_fit()
         size_t capacity()
         void reserve(size_t)
         void clear()
         bint empty()
-        iterator erase(iterator position)
-        iterator erase(const_iterator position)
-        iterator erase(iterator first, iterator last)
-        iterator erase(const_iterator first, const_iterator last)
+        iterator erase(iterator, iterator)
+        iterator erase(iterator)
+        iterator erase(const_iterator, const_iterator)
+        iterator erase(const_iterator)
+        string& erase(size_t, size_t) except +
+        string& erase(size_t) except +
+        string& erase() except +
 
         char& at(size_t) except +
         char& operator[](size_t)
-        char& front()  # C++11
-        char& back()   # C++11
+        char& front()
+        char& back()
         int compare(const string&)
 
         string& append(const string&) except +
@@ -86,13 +89,13 @@ cdef extern from "<string>" namespace "std" nogil:
         string& assign (const char *)
         string& assign (size_t n, char c)
 
-        string& insert(size_t, const string&) except +
         string& insert(size_t, const string&, size_t, size_t) except +
+        string& insert(size_t, const string&) except +
         string& insert(size_t, const char* s, size_t) except +
-
-
         string& insert(size_t, const char* s) except +
         string& insert(size_t, size_t, char c) except +
+        void insert(iterator, size_t, char)
+        iterator insert(iterator, char)
 
         size_t copy(char *, size_t, size_t) except +
 
@@ -173,19 +176,37 @@ cdef extern from "<string>" namespace "std" nogil:
         bint operator>= (const string&)
         bint operator>= (const char*)
 
-        # ADDITIONS:
-        string& erase(size_t index, size_t count)
 
+    string to_string(int)
+    string to_string(long)
+    string to_string(long long)
+    string to_string(unsigned)
+    string to_string(unsigned long)
+    string to_string(unsigned long long)
+    string to_string(float)
+    string to_string(double)
+    string to_string(long double)
 
-    string to_string(int val)
-    string to_string(long val)
-    string to_string (long long val)
-    string to_string (unsigned val)
-    string to_string (unsigned long val)
-    string to_string (unsigned long long val)
-    string to_string (float val)
-    string to_string (double val)
-    string to_string (long double val)
+    int stoi(const string&, size_t*, int) except +
+    int stoi(const string&, size_t*) except +
+    int stoi(const string&) except +
+    long stol(const string&, size_t*, int) except +
+    long stol(const string&, size_t*) except +
+    long stol(const string&) except +
+    long long stoll(const string&, size_t*, int) except +
+    long long stoll(const string&, size_t*) except +
+    long long stoll(const string&) except +
 
-    # ADDITIONS:
-    string to_string(size_t i)
+    unsigned long stoul(const string&, size_t*, int) except +
+    unsigned long stoul(const string&, size_t*) except +
+    unsigned long stoul(const string&) except +
+    unsigned long long stoull(const string&, size_t*, int) except +
+    unsigned long long stoull(const string&, size_t*) except +
+    unsigned long long stoull(const string&) except +
+
+    float stof(const string&, size_t*) except +
+    float stof(const string&) except +
+    double stod(const string&, size_t*) except +
+    double stod(const string&) except +
+    long double stold(const string&, size_t*) except +
+    long double stold(const string&) except +

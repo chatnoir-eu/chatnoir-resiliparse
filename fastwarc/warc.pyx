@@ -557,7 +557,7 @@ cdef class WarcRecord:
         self._headers.append_header(<char*>b'WARC-Type', _enum_record_type_to_str(record_type))
         self._headers.append_header(<char*>b'WARC-Date', datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ').encode())
         self._headers.append_header(<char*>b'WARC-Record-ID', b''.join((b'<', record_urn, b'>')))
-        self._headers.append_header(<char*>b'Content-Length', to_string(content_length))
+        self._headers.append_header(<char*>b'Content-Length', to_string(<long int>content_length))
 
     cpdef void set_bytes_content(self, bytes b):
         """
@@ -630,7 +630,7 @@ cdef class WarcRecord:
                     payload_digest.update(payload_data.data()[:payload_data.size()])
             block_buf.write(payload_data.data(), payload_data.size())
 
-        self._headers.set_header(<char*>b'Content-Length', to_string(block_buf.tell()))
+        self._headers.set_header(<char*>b'Content-Length', to_string(<long int>block_buf.tell()))
         if checksum_data:
             if payload_digest is not None:
                 self._headers.set_header(<char*>b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
