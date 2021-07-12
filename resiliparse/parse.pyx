@@ -15,6 +15,7 @@
 # distutils: language = c++
 
 import atexit
+import codecs
 
 from resiliparse_inc.string cimport string
 from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
@@ -47,27 +48,24 @@ cdef class CharsetDetector:
         """
         uchardet_handle_data(self.d, data.data(), data.size())
 
-    cdef string encoding_str(self):
-        """
-        Get an iconv-compatible name of the encoding that was detected and reset the detector.
-        
-        :return: detected encoding
-        """
-        uchardet_data_end(self.d)
-        cdef string enc = uchardet_get_charset(self.d)
-        uchardet_reset(self.d)
-        return enc
-
     cpdef str encoding(self):
         """
         encoding(self)
 
-        Get an iconv-compatible name of the encoding that was detected and reset the detector.
+        Get a Python-compatible name of the encoding that was detected and reset the detector.
 
-        :return: detected encoding
-        :rtype: str
+        :return: detected encoding or ``None`` on failure
+        :rtype: str | None
         """
-        return self.encoding_str().decode()
+        uchardet_data_end(self.d)
+        cdef str enc = uchardet_get_charset(self.d).decode()
+        uchardet_reset(self.d)
+        try:
+            codecs.lookup(enc)
+        except LookupError:
+            return None
+
+        return enc if enc != '' else None
 
     def __dealloc__(self):
         if self.d != NULL:

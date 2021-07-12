@@ -20,5 +20,4 @@ cdef class CharsetDetector:
     cdef uchardet_t d
 
     cpdef void update(self, const string& data)
-    cdef string encoding_str(self)
     cpdef str encoding(self)
