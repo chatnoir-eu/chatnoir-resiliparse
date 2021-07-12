@@ -21,7 +21,7 @@ jobs:
         run: |
           set -e
 
-          yum install -y zlib-devel lz4-devel
+          yum install -y zlib-devel lz4-devel uchardet-devel
           $PYTHON -m pip install --upgrade pip
           $PYTHON -m pip install cython twine
 
