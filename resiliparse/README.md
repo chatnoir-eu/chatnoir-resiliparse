@@ -21,6 +21,7 @@ If you prefer to build directly from this repository instead, run:
 python3 -m venv venv && source venv/bin/activate
 
 # Install build dependencies
+sudo apt install libuchardet-dev
 pip install cython setuptools
 
 # Build and install

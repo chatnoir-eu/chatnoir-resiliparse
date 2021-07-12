@@ -58,7 +58,7 @@ You can also build Resiliparse directly from this repository with all or just so
 python3 -m venv venv && source venv/bin/activate
 
 # Install build dependencies
-sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
+sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev libuchardet-dev
 pip install cython setuptools
 
 # Build only FastWARC
