@@ -872,11 +872,6 @@ cdef class ArchiveIterator:
         cdef string version_line
         while True:
             version_line = self.reader.readline()
-            if not self.reader.error().empty():
-                if isinstance(self.reader.stream, PythonIOStreamAdapter) and \
-                        (<PythonIOStreamAdapter>self.reader.stream).exc is not None:
-                    raise (<PythonIOStreamAdapter>self.reader.stream).exc
-                raise StreamError(self.reader.error().decode())
 
             if version_line.empty():
                 # EOF
@@ -945,7 +940,7 @@ cdef class ArchiveIterator:
 
         return has_next
 
-    cpdef void _set_stream(self, stream):
+    cpdef bint _set_stream(self, stream) except 0:
         """
         _set_stream(self, stream)
         
@@ -962,6 +957,7 @@ cdef class ArchiveIterator:
         cdef IOStream stream_ = <IOStream>stream
         self.reader = BufferedReader.__new__(BufferedReader, stream_)
         self.record = None
+        return True
 
 
 # noinspection PyProtectedMember

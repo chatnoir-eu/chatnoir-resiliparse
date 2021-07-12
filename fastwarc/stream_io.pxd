@@ -22,69 +22,40 @@ from resiliparse_inc.string_view cimport string_view
 
 
 cdef class IOStream:
-    cdef string errstr
-
-    cdef string read(self, size_t size)
-    cdef size_t write(self, const char* data, size_t size)
-    cdef size_t tell(self)
-    cdef void flush(self)
-    cdef void close(self)
-    cdef string error(self)
+    cdef string read(self, size_t size) except *
+    cdef size_t write(self, const char* data, size_t size) except -1
+    cdef size_t tell(self) except -1
+    cdef void flush(self)  except *
+    cdef void close(self) except *
 
 
 # noinspection PyAttributeOutsideInit
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
-    cdef Exception exc
 
-    cdef inline size_t tell(self):
-        try:
-            return self.py_stream.tell()
-        except Exception as e:
-            self.errstr = str(e).encode()
-            self.exc = e
-            return 0
+    cdef inline string read(self, size_t size) except *:
+        return self.py_stream.read(size)[:size]
 
-    cdef inline string read(self, size_t size):
-        try:
-            return self.py_stream.read(size)[:size]
-        except Exception as e:
-            self.errstr = str(e).encode()
-            self.exc = e
-            return string()
+    cdef inline size_t write(self, const char* data, size_t size) except -1:
+        return self.py_stream.write(data[:size])
 
-    cdef inline size_t write(self, const char* data, size_t size):
-        try:
-            return self.py_stream.write(data[:size])
-        except Exception as e:
-            self.errstr = str(e).encode()
-            self.exc = e
-            return 0
+    cdef inline size_t tell(self) except -1:
+        return self.py_stream.tell()
 
-    cdef inline void flush(self):
-        try:
-            self.py_stream.flush()
-        except Exception as e:
-            self.errstr = str(e).encode()
-            self.exc = e
+    cdef inline void flush(self) except *:
+        self.py_stream.flush()
 
-    cdef inline void close(self):
+    cdef inline void close(self) except *:
         if self.py_stream is None:
             return
-
-        # noinspection PyBroadException
-        try:
-            self.py_stream.close()
-        except:
-            # Ignore exceptions during close()
-            pass
+        self.py_stream.close()
 
 
 cdef class BytesIOStream(IOStream):
     cdef string buffer
     cdef size_t pos
 
-    cdef void seek(self, size_t offset)
+    cdef void seek(self, size_t offset) except *
     cdef string getvalue(self)
 
 
@@ -92,7 +63,7 @@ cdef class FileStream(IOStream):
     cdef FILE* fp
 
     cdef void open(self, const char* path, char* mode=*) except *
-    cdef void seek(self, size_t offset)
+    cdef void seek(self, size_t offset) except *
 
 
 cdef class CompressingStream(IOStream):
@@ -113,7 +84,7 @@ cdef class GZipStream(CompressingStream):
     cdef void prepopulate(self, bint deflate, const string& initial_data)
     cdef void _init_z_stream(self, bint deflate) nogil
     cdef void _free_z_stream(self) nogil
-    cdef bint _refill_working_buf(self, size_t size) nogil
+    cdef bint _refill_working_buf(self, size_t size) nogil except -1
 
 
 cdef class LZ4Stream(CompressingStream):
@@ -143,15 +114,14 @@ cdef class BufferedReader:
 
     cdef inline void set_limit(self, size_t offset) nogil
     cdef inline void reset_limit(self) nogil
-    cdef void detect_stream_type(self)
+    cdef bint detect_stream_type(self) except 0
 
-    cpdef string read(self, size_t size=*)
-    cpdef string readline(self, bint crlf=*, size_t max_line_len=*)
-    cpdef size_t tell(self)
-    cpdef void consume(self, size_t size=*)
-    cpdef void close(self)
-    cpdef string error(self)
+    cpdef string read(self, size_t size=*) except *
+    cpdef string readline(self, bint crlf=*, size_t max_line_len=*)  except *
+    cpdef size_t tell(self) except -1
+    cpdef void consume(self, size_t size=*) except *
+    cpdef void close(self) except *
 
-    cdef bint _fill_buf(self)
+    cdef bint _fill_buf(self) except -1
     cdef inline string_view _get_buf(self) nogil
     cdef inline void _consume_buf(self, size_t size) nogil

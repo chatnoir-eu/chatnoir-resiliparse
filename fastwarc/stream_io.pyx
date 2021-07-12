@@ -16,8 +16,6 @@
 
 cimport cython
 
-import warnings
-
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
@@ -46,30 +44,27 @@ cdef class IOStream:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    cdef string read(self, size_t size):
+    cdef string read(self, size_t size) except *:
         pass
 
-    cdef size_t write(self, const char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size) except -1:
         pass
 
-    cdef size_t tell(self):
+    cdef size_t tell(self) except -1:
         pass
 
-    cdef void flush(self):
+    cdef void flush(self) except *:
         pass
 
-    cdef void close(self):
+    cdef void close(self) except *:
         pass
-
-    cdef string error(self):
-        return self.errstr
 
 
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     """
-    __init__(self, initial_data=b'')
+    __init__(self, initial_data=None)
 
     IOStream that uses an in-memory buffer.
 
@@ -79,24 +74,25 @@ cdef class BytesIOStream(IOStream):
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, bytes initial_data=b''):
+    def __cinit__(self, bytes initial_data=None):
         self.pos = 0
-        self.buffer = initial_data
+        if initial_data is not None:
+            self.buffer = initial_data
 
-    cdef inline size_t tell(self):
+    cdef inline size_t tell(self) except -1:
         return self.pos
 
-    cdef inline void seek(self, size_t offset):
+    cdef inline void seek(self, size_t offset) except *:
         self.pos = min(self.buffer.size(), offset)
 
-    cdef inline string read(self, size_t size):
+    cdef string read(self, size_t size) except *:
         if self.pos >= self.buffer.size():
             return string()
         cdef string substr = self.buffer.substr(self.pos, size)
         self.seek(self.pos + size)
         return substr
 
-    cdef inline size_t write(self, const char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size) except -1:
         if self.pos + size > self.buffer.size():
             self.buffer.resize(self.pos + size)
         cdef size_t i
@@ -105,7 +101,7 @@ cdef class BytesIOStream(IOStream):
         self.pos += size
         return size
 
-    cdef inline void close(self):
+    cdef inline void close(self) except *:
         self.buffer.clear()
 
     cdef inline string getvalue(self):
@@ -143,39 +139,36 @@ cdef class FileStream(IOStream):
 
         self.fp = fopen(path, mode)
         if self.fp == NULL:
-            self.errstr = strerror(errno)
-            raise StreamError(self.errstr.decode())
-        self.errstr.clear()
+            raise StreamError(strerror(errno).decode())
 
-    cdef void seek(self, size_t offset):
+    cdef void seek(self, size_t offset) except *:
         fseek(self.fp, offset, SEEK_SET)
 
-    cdef size_t tell(self):
+    cdef size_t tell(self) except -1:
         return ftell(self.fp)
 
-    cdef string read(self, size_t size):
+    cdef string read(self, size_t size) except *:
         cdef string buf
         cdef size_t c
         with nogil:
             buf.resize(size)
             c = fread(buf.data(), sizeof(char), size, self.fp)
             if errno:
-                self.errstr = strerror(errno)
-                return string()
+                with gil:
+                    raise StreamError(strerror(errno).decode())
             buf.resize(c)
             return buf
 
-    cdef size_t write(self, const char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size) except -1:
         cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
         if errno:
-            self.errstr = strerror(errno)
-            return 0
+            raise StreamError(strerror(errno).decode())
         return w
 
-    cdef void flush(self):
+    cdef void flush(self) except *:
         fflush(self.fp)
 
-    cdef void close(self):
+    cdef void close(self) except *:
         if self.fp != NULL:
             fclose(self.fp)
             self.fp = NULL
@@ -196,7 +189,6 @@ cdef class PythonIOStreamAdapter(IOStream):
 
     def __cinit__(self, py_stream):
         self.py_stream = py_stream
-        self.exc = None
 
 
 cpdef IOStream wrap_stream(raw_stream):
@@ -215,8 +207,7 @@ cpdef IOStream wrap_stream(raw_stream):
     elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
         return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, raw_stream)
     else:
-        warnings.warn(f"Object of type '{type(raw_stream).__name__}' is not a valid stream.", RuntimeWarning)
-        return None
+        raise ValueError(f"Object of type '{type(raw_stream).__name__}' is not a valid stream.")
 
 
 @cython.auto_pickle(False)
@@ -264,7 +255,7 @@ cdef class GZipStream(CompressingStream):
     def __dealloc__(self):
         self.close()
 
-    cdef size_t tell(self):
+    cdef size_t tell(self) except -1:
         if self.initialized == _GZIP_INFLATE:
             return self.stream_pos
         return self.raw_stream.tell()
@@ -288,7 +279,6 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_out = 0
         self.stream_read_status = Z_STREAM_END
         self.working_buf.clear()
-        self.errstr.clear()
 
         if deflate:
             deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
@@ -322,7 +312,7 @@ cdef class GZipStream(CompressingStream):
         self.working_buf.clear()
         self.initialized = 0
 
-    cdef bint _refill_working_buf(self, size_t size) nogil:
+    cdef bint _refill_working_buf(self, size_t size) nogil except -1:
         self.working_buf.erase(0, self.working_buf.size())
         with gil:
             self.working_buf.append(self.raw_stream.read(max(1024u, size)))
@@ -336,7 +326,7 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_in = self.working_buf.size()
         return True
 
-    cdef string read(self, size_t size):
+    cdef string read(self, size_t size) except *:
         if self.initialized == _GZIP_DEFLATE:
             # Deflate in progress
             return string()
@@ -365,8 +355,7 @@ cdef class GZipStream(CompressingStream):
         # Error
         if self.stream_read_status < 0 and self.stream_read_status != Z_BUF_ERROR:
             self._free_z_stream()
-            self.errstr = <char*>b'Not a valid GZip stream'
-            return string()
+            raise StreamError('Not a valid GZip stream')
 
         if self.stream_read_status == Z_STREAM_END:
             # Member end
@@ -383,7 +372,7 @@ cdef class GZipStream(CompressingStream):
 
         return out_buf
 
-    cdef size_t write(self, const char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size) except -1:
         if self.initialized == _GZIP_INFLATE:
             # Inflate in progress
             return 0
@@ -450,22 +439,15 @@ cdef class GZipStream(CompressingStream):
             return 0
         return self.raw_stream.write(self.working_buf.data(), written)
 
-    cdef void flush(self):
+    cdef void flush(self) except *:
         self.end_member()
         self.raw_stream.flush()
 
-    cdef void close(self):
+    cdef void close(self) except *:
         self.end_member()
         self._free_z_stream()
         if self.raw_stream is not None:
             self.raw_stream.close()
-
-    cdef string error(self):
-        if not self.errstr.empty():
-            return self.errstr
-        elif self.raw_stream is not None:
-            return self.raw_stream.error()
-        return string()
 
 
 # noinspection PyAttributeOutsideInit
@@ -499,7 +481,7 @@ cdef class LZ4Stream(CompressingStream):
     def __dealloc__(self):
         self.close()
 
-    cdef size_t tell(self):
+    cdef size_t tell(self) except -1:
         if self.dctx != NULL:
             return self.stream_pos
         return self.raw_stream.tell()
@@ -514,7 +496,7 @@ cdef class LZ4Stream(CompressingStream):
         """
         self.working_buf.append(initial_data)
 
-    cdef string read(self, size_t size):
+    cdef string read(self, size_t size) except *:
         if self.cctx != NULL:
             # Decompression in progress
             return string()
@@ -533,7 +515,6 @@ cdef class LZ4Stream(CompressingStream):
             bytes_written = out_buf.size()
 
             if self.dctx == NULL:
-                self.errstr.clear()
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
             ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
@@ -557,8 +538,8 @@ cdef class LZ4Stream(CompressingStream):
                     self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_read
             elif LZ4F_isError(ret):
                 self._free_ctx()
-                self.errstr = <char*>b'Not a valid LZ4 stream'
-                return string()
+                with gil:
+                    raise StreamError('Not a valid LZ4 stream')
             self.working_buf.erase(0, bytes_read)
 
             if out_buf.size() != bytes_written:
@@ -574,7 +555,6 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t written
         with nogil:
             if self.cctx == NULL:
-                self.errstr.clear()
                 LZ4F_isError(LZ4F_createCompressionContext(&self.cctx, LZ4F_VERSION))
 
             if self.frame_started:
@@ -596,7 +576,7 @@ cdef class LZ4Stream(CompressingStream):
             self.frame_started = False
         return self.raw_stream.write(self.working_buf.data(), written)
 
-    cdef size_t write(self, const char* data, size_t size):
+    cdef size_t write(self, const char* data, size_t size) except -1:
         if self.dctx != NULL:
             # Compression in progress
             return 0
@@ -612,7 +592,7 @@ cdef class LZ4Stream(CompressingStream):
                                           data, size, NULL)
         return self.raw_stream.write(self.working_buf.data(), written) + header_bytes_written
 
-    cdef void flush(self):
+    cdef void flush(self) except *:
         cdef size_t written
         cdef size_t buf_needed
         if self.cctx != NULL:
@@ -624,7 +604,7 @@ cdef class LZ4Stream(CompressingStream):
             self.raw_stream.write(self.working_buf.data(), written)
         self.raw_stream.flush()
 
-    cdef void close(self):
+    cdef void close(self) except *:
         if self.cctx != NULL:
             self.end_member()
 
@@ -643,13 +623,6 @@ cdef class LZ4Stream(CompressingStream):
 
         if not self.working_buf.empty():
             self.working_buf.clear()
-
-    cdef string error(self):
-        if not self.errstr.empty():
-            return self.errstr
-        elif self.raw_stream is not None:
-            return self.raw_stream.error()
-        return string()
 
 
 # noinspection PyAttributeOutsideInit
@@ -681,12 +654,12 @@ cdef class BufferedReader:
         self.stream_started = False
         self.negotiate_stream = negotiate_stream and not self.stream_is_compressed
 
-    cdef void detect_stream_type(self):
+    cdef bint detect_stream_type(self) except 0:
         """
         Try to auto-detect stream type (GZip, LZ4, or uncompressed).
         """
         if not self.negotiate_stream or self.stream_started:
-            return
+            return True
 
         self.negotiate_stream = False
         if self.buf.empty():
@@ -701,18 +674,18 @@ cdef class BufferedReader:
         elif self.buf.size() > 5 and self.buf.substr(0, 5) == <char*>b'WARC/':
             # Stream is uncompressed: bail out, dont' mess with buffers
             self.stream_is_compressed = False
-            return
+            return True
         else:
-            self.errstr = <char*>b'Not a valid WARC stream'
             self.stream_is_compressed = False
-            return
+            raise StreamError('Not a valid WARC stream')
 
         self.stream_is_compressed = isinstance(self.stream, CompressingStream)
         self.buf.clear()
         self.buf.append(self.stream.read(self.buf_size))
         self.stream_started = False
+        return True
 
-    cdef bint _fill_buf(self):
+    cdef bint _fill_buf(self) except -1:
         """
         Refill internal buffer.
         
@@ -770,7 +743,7 @@ cdef class BufferedReader:
         """Reset any previously set stream limit."""
         self.limit = strnpos
 
-    cpdef string read(self, size_t size=strnpos):
+    cpdef string read(self, size_t size=strnpos) except *:
         """
         read(self, size=-1)
         
@@ -792,7 +765,7 @@ cdef class BufferedReader:
             self._consume_buf(buf_sub.size())
         return data_read
 
-    cpdef string readline(self, bint crlf=True, size_t max_line_len=4096):
+    cpdef string readline(self, bint crlf=True, size_t max_line_len=4096) except *:
         """
         readline(self, crlf=True, max_line_len=4096)
         
@@ -850,7 +823,7 @@ cdef class BufferedReader:
 
         return line
 
-    cpdef size_t tell(self):
+    cpdef size_t tell(self) except -1:
         """
         tell(self)
         
@@ -872,7 +845,7 @@ cdef class BufferedReader:
 
         return self.stream.tell() - self.buf.size()
 
-    cpdef void consume(self, size_t size=strnpos):
+    cpdef void consume(self, size_t size=strnpos) except *:
         """
         consume(self, size=-1)
         
@@ -896,7 +869,7 @@ cdef class BufferedReader:
             else:
                 self._consume_buf(buf.size())
 
-    cpdef void close(self):
+    cpdef void close(self) except *:
         """
         close(self)
         
@@ -905,20 +878,6 @@ cdef class BufferedReader:
         if self.stream is not None:
             self.stream.close()
 
-    cpdef string error(self):
-        """
-        error(self)
-        
-        Return error message of last stream exception (or empty if no error has occurred).
-        
-        :return: error message or empty string
-        :rtype: bytes
-        """
-        if not self.errstr.empty():
-            return self.errstr
-        if self.stream is not None:
-            return self.stream.error()
-        return string()
 
 
 cpdef string read_http_chunk(BufferedReader reader):

@@ -92,7 +92,7 @@ cdef class ArchiveIterator:
     cdef uint16_t record_type_filter
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error
-    cpdef void _set_stream(self, stream)
+    cpdef bint _set_stream(self, stream) except 0
 
 
 cpdef bint is_warc_10(WarcRecord record)
