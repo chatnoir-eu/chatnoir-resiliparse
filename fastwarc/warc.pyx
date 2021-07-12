@@ -198,7 +198,7 @@ cdef class WarcHeaderMap:
         """
         HTTP status code (unset if header block is not an HTTP header block).
 
-        :rtype: t.Optional[int]
+        :rtype: int | None
         """
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
@@ -244,7 +244,7 @@ cdef class WarcHeaderMap:
 
         If multiple headers have the same key, only the last occurrence will be returned.
 
-        :rtype: t.Iterable[t.Tuple[str, str]]
+        :rtype: t.Iterable[(str, str)]
         """
         return self.asdict().items()
 
@@ -296,7 +296,7 @@ cdef class WarcHeaderMap:
         Headers as list of tuples, including multiple headers with the same key.
         Use this over :meth:`items` if header keys are not necessarily unique.
 
-        :rtype: t.List[t.Tuple[str, str]]
+        :rtype: list[(str, str)]
         """
         cdef str_pair h
         return [(h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
@@ -449,7 +449,7 @@ cdef class WarcRecord:
         """
         HTTP headers if record is an HTTP record and HTTP headers have been parsed yet.
 
-        :rtype: t.Optional[WarcHeaderMap]
+        :rtype: WarcHeaderMap | None
         """
         return self._http_headers
 
@@ -458,7 +458,7 @@ cdef class WarcRecord:
         """
         Plain HTTP Content-Type without additional fields such as ``charset=``.
 
-        :rtype: t.Optional[str]
+        :rtype: str | None
         """
         if not self._http_parsed:
             return None
@@ -476,7 +476,7 @@ cdef class WarcRecord:
         HTTP charset/encoding as returned by the server or ``None`` if no valid charset is set.
         A returned string is guaranteed to be a valid Python encoding name.
 
-        :rtype: t.Optional[str]
+        :rtype: str | None
         """
         if not self._http_parsed or self._http_charset == <char*>b'_':
             return None

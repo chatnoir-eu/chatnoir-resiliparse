@@ -19,7 +19,7 @@ import typing as t
 from resiliparse.process_guard cimport progress
 
 
-def progress_loop(it: t.Iterable[t.Any], ctx=None) -> t.Iterable[t.Any]:
+def progress_loop(it, ctx=None) -> t.Iterable[t.Any]:
     """
     progress_loop(it, ctx=None)
 
@@ -37,7 +37,7 @@ def progress_loop(it: t.Iterable[t.Any], ctx=None) -> t.Iterable[t.Any]:
         progress(ctx)
 
 
-def exc_loop(it: t.Iterable[t.Any]) -> t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[BaseException]]]:
+def exc_loop(it):
     """
     exc_loop(it)
 
@@ -54,7 +54,7 @@ def exc_loop(it: t.Iterable[t.Any]) -> t.Iterable[t.Tuple[t.Optional[t.Any], t.O
     :param it: original iterator
     :type it: t.Iterable[t.Any]
     :return: iterator of items and ``None`` or ``None`` and exception instance
-    :rtype: t.Iterable[t.Tuple[t.Optional[t.Any], t.Optional[BaseException]]]
+    :rtype: t.Iterable[(t.Any | None, BaseException | None)]
     """
     i = iter(it)
     while True:
@@ -66,8 +66,7 @@ def exc_loop(it: t.Iterable[t.Any]) -> t.Iterable[t.Tuple[t.Optional[t.Any], t.O
             yield None, e
 
 
-def warc_retry(archive_iterator, stream_factory: t.Union[t.Callable[[], t.Any], t.Callable[[int], t.Any]],
-               retry_count: int = 3, seek: t.Optional[bool] = True):
+def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
     """
     warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True)
 
@@ -100,11 +99,11 @@ def warc_retry(archive_iterator, stream_factory: t.Union[t.Callable[[], t.Any], 
     :param archive_iterator: input WARC iterator
     :type archive_iterator: fastwarc.warc.ArchiveIterator
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
-    :type stream_factory: t.Union[t.Callable[[], t.Any], t.Callable[[int], t.Any]]
+    :type stream_factory: t.Callable[[], t.Any] | t.Callable[[int], t.Any]
     :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
     :type retry_count: int
     :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
-    :type seek: t.Optional[bool]
+    :type seek: bool | None
     :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
     :rtype: t.Iterable[fastwarc.warc.WarcRecord]
     """

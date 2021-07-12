@@ -256,7 +256,7 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :param interrupt_type: type of interrupt
     :type interrupt_type: InterruptType
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
-                     ``interrupt_type`` is :attr:`~InterruptType.exception`)
+                      ``interrupt_type`` is :attr:`~InterruptType.exception`)
     :type send_kill: bool
     :param check_interval: interval in milliseconds between execution time checks
     :type check_interval: int
