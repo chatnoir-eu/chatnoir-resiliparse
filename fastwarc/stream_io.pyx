@@ -44,7 +44,7 @@ cdef class IOStream:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    cdef string read(self, size_t size) except *:
+    cdef size_t read(self, string& out, size_t size) except -1:
         pass
 
     cdef size_t write(self, const char* data, size_t size) except -1:
@@ -85,12 +85,13 @@ cdef class BytesIOStream(IOStream):
     cdef inline void seek(self, size_t offset) except *:
         self.pos = min(self.buffer.size(), offset)
 
-    cdef string read(self, size_t size) except *:
+    cdef size_t read(self, string& out, size_t size) except -1:
         if self.pos >= self.buffer.size():
-            return string()
-        cdef string substr = self.buffer.substr(self.pos, size)
+            out.clear()
+            return 0
+        out.assign(self.buffer.substr(self.pos, size))
         self.seek(self.pos + size)
-        return substr
+        return out.size()
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         if self.pos + size > self.buffer.size():
@@ -147,17 +148,18 @@ cdef class FileStream(IOStream):
     cdef size_t tell(self) except -1:
         return ftell(self.fp)
 
-    cdef string read(self, size_t size) except *:
-        cdef string buf
+    cdef size_t read(self, string& out, size_t size) except -1:
         cdef size_t c
         with nogil:
-            buf.resize(size)
-            c = fread(buf.data(), sizeof(char), size, self.fp)
+            if out.size() < size:
+                out.resize(size)
+            c = fread(out.data(), sizeof(char), size, self.fp)
             if errno:
+                out.clear()
                 with gil:
                     raise StreamError(strerror(errno).decode())
-            buf.resize(c)
-            return buf
+            out.resize(c)
+            return out.size()
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
@@ -314,8 +316,10 @@ cdef class GZipStream(CompressingStream):
 
     cdef bint _refill_working_buf(self, size_t size) nogil except -1:
         self.working_buf.erase(0, self.working_buf.size())
+        cdef string raw_data
         with gil:
-            self.working_buf.append(self.raw_stream.read(max(1024u, size)))
+            self.raw_stream.read(raw_data, max(1024u, size))
+            self.working_buf.append(raw_data)
             if self.working_buf.empty():
                 # EOF
                 self._free_z_stream()
@@ -326,26 +330,26 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_in = self.working_buf.size()
         return True
 
-    cdef string read(self, size_t size) except *:
+    cdef size_t read(self, string& out, size_t size) except -1:
         if self.initialized == _GZIP_DEFLATE:
-            # Deflate in progress
-            return string()
+            raise StreamError('Compression in progress.')
 
         if not self.initialized:
             self._init_z_stream(False)
 
         if self.zst.avail_in == 0 or self.working_buf.empty():
             if not self._refill_working_buf(size):
-                return string()
+                out.clear()
+                return 0
 
-        cdef string out_buf = string(size, <char>0)
-        self.zst.next_out = <Bytef*>out_buf.data()
-        self.zst.avail_out = out_buf.size()
+        out.resize(size)
+        self.zst.next_out = <Bytef*>out.data()
+        self.zst.avail_out = out.size()
 
         with nogil:
             self.stream_read_status = inflate(&self.zst, Z_NO_FLUSH)
-            while self.zst.next_out == <Bytef*>out_buf.data() and (self.stream_read_status == Z_OK or
-                                                                   self.stream_read_status == Z_BUF_ERROR):
+            while self.zst.next_out == <Bytef*>out.data() and (self.stream_read_status == Z_OK or
+                                                               self.stream_read_status == Z_BUF_ERROR):
                 if self.zst.avail_in == 0:
                     if not self._refill_working_buf(size):
                         break
@@ -364,18 +368,17 @@ cdef class GZipStream(CompressingStream):
             inflateReset(&self.zst)
 
         if self.zst.avail_out > 0:
-            out_buf.resize(self.zst.next_out - <Bytef*>out_buf.data())
+            out.resize(self.zst.next_out - <Bytef*>out.data())
 
-        if out_buf.empty():
+        if out.empty():
             # We may have hit a member boundary, try again
-            return self.read(size)
+            return self.read(out, size)
 
-        return out_buf
+        return out.size()
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         if self.initialized == _GZIP_INFLATE:
-            # Inflate in progress
-            return 0
+            raise StreamError('Decompression in progress')
 
         if not self.initialized:
             self._init_z_stream(True)
@@ -496,40 +499,40 @@ cdef class LZ4Stream(CompressingStream):
         """
         self.working_buf.append(initial_data)
 
-    cdef string read(self, size_t size) except *:
+    cdef size_t read(self, string& out, size_t size) except -1:
         if self.cctx != NULL:
-            # Decompression in progress
-            return string()
+            raise StreamError('Compression in progress.')
 
+        self.raw_stream.read(self.working_buf, size)
         if self.working_buf.empty():
-            self.working_buf.append(self.raw_stream.read(size))
             if self.working_buf.empty():
                 # EOF
                 self._free_ctx()
-                return string()
+                return 0
 
-        cdef string out_buf = string(size, <char>0)
+        out.resize(size)
         cdef size_t ret, bytes_read, bytes_written
         with nogil:
             bytes_read = self.working_buf.size()
-            bytes_written = out_buf.size()
+            bytes_written = out.size()
 
             if self.dctx == NULL:
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
-            ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
+            ret = LZ4F_decompress(self.dctx, out.data(), &bytes_written,
                                   self.working_buf.data(), &bytes_read, NULL)
             while ret != 0 and bytes_written == 0 and not LZ4F_isError(ret):
                 with gil:
                     self.working_buf.erase(0, bytes_read)
-                    self.working_buf.append(self.raw_stream.read(size))
+                    self.raw_stream.read(self.working_buf, size)
                 if self.working_buf.empty():
                     # EOF
                     self._free_ctx()
-                    return string()
+                    out.clear()
+                    return 0
                 bytes_read = self.working_buf.size()
-                bytes_written = out_buf.size()
-                ret = LZ4F_decompress(self.dctx, out_buf.data(), &bytes_written,
+                bytes_written = out.size()
+                ret = LZ4F_decompress(self.dctx, out.data(), &bytes_written,
                                       self.working_buf.data(), &bytes_read, NULL)
 
             if ret == 0:
@@ -542,14 +545,14 @@ cdef class LZ4Stream(CompressingStream):
                     raise StreamError('Not a valid LZ4 stream')
             self.working_buf.erase(0, bytes_read)
 
-            if out_buf.size() != bytes_written:
-                out_buf.resize(bytes_written)
+            if out.size() != bytes_written:
+                out.resize(bytes_written)
 
-        if out_buf.empty():
+        if out.empty():
             # Everything OK, we may have hit a frame boundary
-            return self.read(size)
+            return self.read(out, size)
 
-        return out_buf
+        return out.size()
 
     cdef size_t begin_member(self):
         cdef size_t written
@@ -578,8 +581,7 @@ cdef class LZ4Stream(CompressingStream):
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         if self.dctx != NULL:
-            # Compression in progress
-            return 0
+            raise StreamError('Decompression in progress.')
 
         cdef size_t buf_needed, written
         cdef size_t header_bytes_written = self.begin_member()
@@ -681,7 +683,9 @@ cdef class BufferedReader:
 
         self.stream_is_compressed = isinstance(self.stream, CompressingStream)
         self.buf.clear()
-        self.buf.append(self.stream.read(self.buf_size))
+        cdef string raw_data
+        self.stream.read(raw_data, self.buf_size)
+        self.buf.append(raw_data)
         self.stream_started = False
         return True
 
@@ -695,7 +699,9 @@ cdef class BufferedReader:
         if self.buf.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
-        self.buf.append(self.stream.read(self.buf_size))
+        cdef string stream_data
+        self.stream.read(stream_data, self.buf_size)
+        self.buf.append(stream_data)
         return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
 
     cdef string_view _get_buf(self) nogil:
@@ -845,7 +851,7 @@ cdef class BufferedReader:
 
         return self.stream.tell() - self.buf.size()
 
-    cpdef void consume(self, size_t size=strnpos) except *:
+    cpdef bint consume(self, size_t size=strnpos) except 0:
         """
         consume(self, size=-1)
         
@@ -868,6 +874,8 @@ cdef class BufferedReader:
                 size -= bytes_to_consume
             else:
                 self._consume_buf(buf.size())
+
+        return True
 
     cpdef void close(self) except *:
         """

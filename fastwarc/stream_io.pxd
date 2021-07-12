@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from libc.stdio cimport FILE
+from libcpp.utility cimport move
 
 from resiliparse_inc.zlib cimport *
 from resiliparse_inc.lz4hc cimport *
@@ -22,7 +23,7 @@ from resiliparse_inc.string_view cimport string_view
 
 
 cdef class IOStream:
-    cdef string read(self, size_t size) except *
+    cdef size_t read(self, string& out, size_t size) except -1
     cdef size_t write(self, const char* data, size_t size) except -1
     cdef size_t tell(self) except -1
     cdef void flush(self)  except *
@@ -33,8 +34,10 @@ cdef class IOStream:
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
-    cdef inline string read(self, size_t size) except *:
-        return self.py_stream.read(size)[:size]
+    cdef inline size_t read(self, string& out, size_t size) except -1:
+        cdef string data = self.py_stream.read(size)[:size]
+        out.assign(move(data))
+        return out.size()
 
     cdef inline size_t write(self, const char* data, size_t size) except -1:
         return self.py_stream.write(data[:size])
@@ -119,7 +122,7 @@ cdef class BufferedReader:
     cpdef string read(self, size_t size=*) except *
     cpdef string readline(self, bint crlf=*, size_t max_line_len=*)  except *
     cpdef size_t tell(self) except -1
-    cpdef void consume(self, size_t size=*) except *
+    cpdef bint consume(self, size_t size=*) except 0
     cpdef void close(self) except *
 
     cdef bint _fill_buf(self) except -1
