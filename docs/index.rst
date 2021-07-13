@@ -19,6 +19,7 @@ This is the full table of contents for this documentation:
    man/installation
    man/process-guard
    man/itertools
+   man/parse
    man/fastwarc
    man/fastwarc-cli
 
@@ -29,6 +30,7 @@ This is the full table of contents for this documentation:
 
    api/process-guard
    api/itertools
+   api/parse
    api/fastwarc
 
 

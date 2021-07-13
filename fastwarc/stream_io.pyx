@@ -16,7 +16,6 @@
 
 cimport cython
 
-from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
 from resiliparse_inc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
@@ -885,23 +884,3 @@ cdef class BufferedReader:
         """
         if self.stream is not None:
             self.stream.close()
-
-
-
-cpdef string read_http_chunk(BufferedReader reader):
-    """
-    read_http_chunk(reader)
-    
-    Helper function for reading chunked HTTP payloads.
-    
-    Each call to this function will try to read the next chunk. In case of an error
-    or EOF, an empty byte string will be returned.
-    
-    :param reader: input reader
-    :type reader: BufferedReader
-    :return: contents of the next chunk or empty string if EOF
-    :rtype: bytes
-    """
-    cdef string header_line = reader.readline(True)
-    cdef size_t chunk_size = strtol(header_line.substr(0, header_line.size() - 2).c_str(), NULL, 16)
-    return reader.read(chunk_size + 2).substr(0, chunk_size)
