@@ -1,7 +1,7 @@
 # ChatNoir Resiliparse
 
 [![Build Wheels](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-wheels.yml/badge.svg)](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-wheels.yml)
-[![Documentation Status](https://readthedocs.org/projects/chatnoir-resiliparse/badge/?version=latest)](https://chatnoir-resiliparse.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/chatnoir-resiliparse/badge/?version=latest)](https://resiliparse.chatnoir.eu/en/latest/?badge=latest)
 
 A collection of robust and fast processing tools for parsing and analyzing web archive data.
 
@@ -23,7 +23,7 @@ Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolki
 ```
 
 ## Usage Instructions
-For detailed information about the build process, dependencies, APIs, or usage instructions, please read the [Resiliparse Documentation](https://chatnoir-resiliparse.readthedocs.io/en/latest/index.html)
+For detailed information about the build process, dependencies, APIs, or usage instructions, please read the [Resiliparse Documentation](https://resiliparse.chatnoir.eu/en/latest/index.html)
 
 ## Resiliparse Module Summary
 The Resiliparse collection encompasses the following two modules at the moment:
