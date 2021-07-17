@@ -50,7 +50,7 @@ Before decoding the contents of a web page with an encoding that was extracted f
   print(map_encoding_to_html5('csisolatin9'))   # iso8859-15
   print(map_encoding_to_html5('oops'))          # utf-8
 
-You see that the given input name does not necessarily have to be a valid Python encoding name, but the returned output will be. Unknown or invalid encodings are mapped to UTF-8. Set ``fallback_utf8=False`` if do not want that.
+You see that the given input name does not necessarily have to be a valid Python encoding name, but the returned output will be. Unknown or invalid encodings are mapped to UTF-8. Set ``fallback_utf8=False`` if you prefer to get ``None`` back instead.
 
 If you use :class:`~.parse.EncodingDetector` for encoding auto-detection (see: :ref:`parse-encoding-detection`), encoding names are already remapped by default.
 
