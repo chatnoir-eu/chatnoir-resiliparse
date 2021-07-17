@@ -39,7 +39,7 @@ Convert Byte String to Unicode
 ------------------------------
 Detecting the encoding of a byte string is one thing, but the next step is actually decoding it into a Unicode string. Resiliparse provides :func:`~.parse.bytes_to_str`, which does exactly that.
 
-The function takes the raw byte string desired encoding name and tries to decode it into a Python Unicode string. If the decoding fails (due to undecodable characters), it will try to fall back onto UTF-8 and Latin-1. If both fallbacks fail as well, the string will be decoded with the originally intended encoding and invalid characters either skipped or replaced with a suitable replacement character (controllable via the ``errors`` parameter, which accepts the same values as Python's :meth:`str.decode`).
+The function takes the raw byte string desired encoding name and tries to decode it into a Python Unicode string. If the decoding fails (due to undecodable characters), it will try to fall back onto UTF-8 and Windows-1252. If both fallbacks fail as well, the string will be decoded with the originally intended encoding and invalid characters will either be skipped or replaced with a suitable replacement character (controllable via the ``errors`` parameter, which accepts the same values as Python's :meth:`str.decode`).
 
 .. code-block:: python
 
@@ -48,7 +48,11 @@ The function takes the raw byte string desired encoding name and tries to decode
   bytestr = b'\xc3\x9cbung macht den Meister'
   decoded = bytes_to_str(bytestr, detect_encoding(bytestr))  # 'Übung macht den Meister'
 
-Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial example, but sometimes the encoding detection is inaccurate or fails completely or the string turns out to contain mixed or broken encodings. In that case there is no other option than trying multiple encodings and ignoring errors when all of them fail.
+Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial example, but sometimes the encoding detection is inaccurate or fails completely or the string turns out to contain mixed or broken encodings. In that case there is no other option than trying multiple encodings and ignoring errors if all of them fail.
+
+.. important::
+
+  For the fallback encodings, keep in mind that single-byte encodings without undefined codepoints (such as IANA ISO-8859-1) will never fail, so it does not make sense to have more than one of those in the fallback list. In fact, even very dense encodings such as Windows-1252 are very unlikely to ever fail.
 
 :func:`bytes_to_str` also ensures that the resulting string can be re-encoded as UTF-8 without errors, which is not always the case when doing a simple :meth:`str.encode`:
 
@@ -57,7 +61,7 @@ Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial e
   from resiliparse.parse import bytes_to_str
 
   # This will produce the unencodable string 'ઉ\udd7a笞':
-  unencodeable = b'+Condensed'.decode('utf-7', errors='ignore').encode('utf-7')
+  unencodeable = b'+Condensed'.decode('utf-7', errors='ignore')
 
   # OK, but somewhat broken: b'+Condense-'
   unencodeable.encode('utf-7')
@@ -65,7 +69,7 @@ Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial e
   # Error: UnicodeEncodeError: 'utf-8' codec can't encode character '\udd7a' in position 1: surrogates not allowed
   unencodeable.encode()
 
-With :func:`~.parse.bytes_to_str`, these issues can be mostly avoided:
+With :func:`~.parse.bytes_to_str`, these issues can be avoided:
 
 .. code-block:: python
 

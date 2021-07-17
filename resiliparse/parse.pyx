@@ -127,17 +127,16 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=F
 
 
 cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
-                       fallback_encodings=('utf-8', 'iso-8859-15', 'iso-8859-1')):
+                       fallback_encodings=('utf-8', 'windows-1252')):
     """
-    bytes_to_str(data, encoding='utf-8', errors='ignore', \
-                 fallback_encodings=('utf-8', 'iso-8859-15', 'iso-8859-1'))
+    bytes_to_str(data, encoding='utf-8', errors='ignore', fallback_encodings=('utf-8', 'windows-1252'))
 
     Helper for decoding a byte string into a unicode string using a given encoding.
     This encoding should be determined beforehand, e.g., with :func:`detect_encoding`.
 
     :func:`bytes_to_str` tries to decode the byte string with ``encoding``. If that
-    fails, it will fall back to UTF-8 and Latin-1 (or whichever encodings where given
-    in ``fallback_encodings``). If all fallbacks fail as well, the string will be
+    fails, it will fall back to UTF-8 and Windows-1252 (or whichever encodings where
+    given in ``fallback_encodings``). If all fallbacks fail as well, the string will be
     double-decoded with ``encoding`` and invalid characters will be treated according
     to ``errors``, which has the same options as for :meth:`bytes.decode` (i.e.,
     ``"ignore"`` or ``"replace"``). The double-decoding step ensures that the resulting
