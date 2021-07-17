@@ -100,7 +100,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint prefer_8859_15=T
     Detect the encoding of a byte string. This is a convenience wrapper around :class:`EncodingDetector`
     that uses a single global instance.
 
-    The string that is passed to the :class:`'EncodingDetector` will be no longer than ``max_len``
+    The string that is passed to the :class:`EncodingDetector` will be no longer than ``max_len``
     bytes to prevent slow-downs and keep memory usage low. If the string is longer than this limit, only
     the ``max_len / 2`` bytes from the start and from the end of the string will be used. This is a tradeoff
     between performance and accuracy. If you need higher accuracy, increase the limit to feed more data
@@ -112,7 +112,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint prefer_8859_15=T
     contained in the HTML string if available and readable with an ASCII-compatible single-byte encoding
     or else fall back to auto-detection with `uchardet`.
     
-    The value of ``prefer_8859_15`` is passed to :meth:`EncodingDetector.encode`.
+    The value of ``prefer_8859_15`` is passed to :meth:`EncodingDetector.encoding`.
 
     :param data: input string for which to detect the encoding
     :type data: bytes
