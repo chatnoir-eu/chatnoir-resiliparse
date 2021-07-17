@@ -50,12 +50,19 @@ cdef class EncodingDetector:
         """
         uchardet_handle_data(self.d, data.data(), data.size())
 
-    cpdef str encoding(self):
+    cpdef str encoding(self, bint prefer_8859_15=True):
         """
-        encoding(self)
+        encoding(self, prefer_8859_15=True)
 
         Get a Python-compatible name of the encoding that was detected and reset the detector.
+        
+        Since `uchardet` tends to predict ISO-8859-1 for Western scripts, even though ISO-8859-15
+        is often the more sensible guess at least for somewhat recent web data, such predictions
+        are automatically "corrected" to ISO-8859-15. You can disable this behaviour by setting
+        ``prefer_8859_15=False``.
 
+        :param prefer_8859_15: Prefer ISO-8859-15 over ISO-8859-1
+        :type prefer_8859_15: bool
         :return: detected encoding or ``None`` on failure
         :rtype: str | None
         """
@@ -66,6 +73,9 @@ cdef class EncodingDetector:
             codecs.lookup(enc)
         except LookupError:
             return None
+
+        if prefer_8859_15 and enc == 'ISO-8859-1':
+            enc = 'ISO-8859-15'
 
         return enc if enc != '' else None
 
@@ -83,9 +93,9 @@ def __chardet_exit():
     __chardet = None
 
 
-cpdef str detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=False):
+cpdef str detect_encoding(bytes data, size_t max_len=4096, bint prefer_8859_15=True, bint from_html_meta=False):
     """
-    detect_encoding(data, max_len=4096, from_html_meta=False)
+    detect_encoding(data, max_len=4096, prefer_8859_15=True, from_html_meta=False)
 
     Detect the encoding of a byte string. This is a convenience wrapper around :class:`EncodingDetector`
     that uses a single global instance.
@@ -101,11 +111,15 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=F
     instead. With ``from_html_meta=True``, :func:`detect_encoding` will try to use the charset metadata
     contained in the HTML string if available and readable with an ASCII-compatible single-byte encoding
     or else fall back to auto-detection with `uchardet`.
+    
+    The value of ``prefer_8859_15`` is passed to :meth:`EncodingDetector.encode`.
 
     :param data: input string for which to detect the encoding
     :type data: bytes
     :param max_len: maximum number of bytes to feed to detector (0 for no limit)
     :type max_len: int
+    :param prefer_8859_15: Prefer ISO-8859-15 over ISO-8859-1
+    :type prefer_8859_15: bool
     :param from_html_meta: if string is an HTML document, use meta tag info
     :type from_html_meta: bool
     :return: detected encoding
@@ -123,7 +137,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint from_html_meta=F
     if __chardet is None:
         __chardet = EncodingDetector.__new__(EncodingDetector)
     __chardet.update(<string>data)
-    return __chardet.encoding()
+    return __chardet.encoding(prefer_8859_15)
 
 
 cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
