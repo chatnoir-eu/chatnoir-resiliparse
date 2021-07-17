@@ -272,7 +272,7 @@ cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     :param fallback_utf8: Whether to fall back to UTF-8 or return ``None`` for unknown encodings
     :type fallback_utf8: bool
     :return: mapped output encoding name
-    :rtype: str
+    :rtype: str | None
     """
     return __enc_html5_map.get(encoding.strip().casefold(), 'UTF-8' if fallback_utf8 else None)
 
