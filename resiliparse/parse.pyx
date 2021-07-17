@@ -302,7 +302,7 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     string is sane and can be re-encoded without errors.
     
     This function also takes care to strip BOMs from the beginning of the string if
-    ``strip_bom=True`.
+    ``strip_bom=True``.
 
     :param data: input byte string
     :type data: bytes
