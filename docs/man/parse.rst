@@ -17,10 +17,10 @@ Resiliparse provides fast and accurate text encoding detection with :class:`~.pa
 
   det = EncodingDetector()
   det.update(b'\xff\xfeH\x00e\x00l\x00l\x00o\x00 \x00W\x00o\x00r\x00l\x00d\x00')
-  enc = det.encoding()  # UTF-16LE
+  enc = det.encoding()  # utf-16-le
 
   det.update(b'Autres temps, autres m\x9curs.')
-  enc = det.encoding()  # WINDOWS-1252
+  enc = det.encoding()  # cp1252 (Windows-1252)
 
 You can call :meth:`~.parse.EncodingDetector.update` multiple times to feed more input. The more data the detector has to sample from, the more accurate the prediction will be. Calling :meth:`~.parse.EncodingDetector.encoding` will return the predicted encoding name as a string and reset the internal state so that the detector can be reused for a different document.
 
@@ -32,7 +32,7 @@ As a convenience shortcut, Resiliparse also provides :func:`~.parse.detect_encod
 
   from resiliparse.parse import detect_encoding
 
-  enc = detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.')  # ISO-8859-2
+  enc = detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.')  # iso8859-2
 
 
 .. _parse-map-encodings:
@@ -46,9 +46,9 @@ Before decoding the contents of a web page with an encoding that was extracted f
 
   from resiliparse.parse import map_encoding_to_html5
 
-  print(map_encoding_to_html5('iso-8859-1'))    # WINDOWS-1252
-  print(map_encoding_to_html5('csisolatin9'))   # ISO-8859-15
-  print(map_encoding_to_html5('oops'))          # UTF-8
+  print(map_encoding_to_html5('iso-8859-1'))    # cp1252
+  print(map_encoding_to_html5('csisolatin9'))   # iso8859-15
+  print(map_encoding_to_html5('oops'))          # utf-8
 
 You see that the given input name does not necessarily have to be a valid Python encoding name, but the returned output will be. Unknown or invalid encodings are mapped to UTF-8. Set ``fallback_utf8=False`` if do not want that.
 
