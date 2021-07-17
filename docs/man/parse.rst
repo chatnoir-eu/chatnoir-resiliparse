@@ -48,11 +48,11 @@ The function takes the raw byte string desired encoding name and tries to decode
   bytestr = b'\xc3\x9cbung macht den Meister'
   decoded = bytes_to_str(bytestr, detect_encoding(bytestr))  # 'Übung macht den Meister'
 
-Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial example, but sometimes the encoding detection is inaccurate or fails completely or the string turns out to contain mixed or broken encodings. In that case there is no other option than trying multiple encodings and ignoring errors if all of them fail.
+Of course simple :meth:`bytestr.decode` would be sufficient for such a trivial example, but sometimes the encoding detection is inaccurate or fails completely or the string turns out to contain mixed or broken encodings. In that case there is no other option than trying multiple encodings and ignoring errors if all of them fail. The default fallback encodings to try in that case can be overridden with the ``fallback_encodings`` parameter.
 
 .. important::
 
-  For the fallback encodings, keep in mind that single-byte encodings without undefined codepoints (such as IANA ISO-8859-1) will never fail, so it does not make sense to have more than one of those in the fallback list. In fact, even very dense encodings such as Windows-1252 are very unlikely to ever fail.
+  For these fallback encodings, keep in mind that single-byte encodings without undefined codepoints (such as IANA ISO-8859-1) will never fail, so it does not make sense to have more than one of those in the fallback list. In fact, even very dense encodings such as Windows-1252 are very unlikely to ever fail.
 
 :func:`bytes_to_str` also ensures that the resulting string can be re-encoded as UTF-8 without errors, which is not always the case when doing a simple :meth:`str.encode`:
 
