@@ -277,10 +277,26 @@ cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     return __enc_html5_map.get(encoding.strip().casefold(), 'UTF-8' if fallback_utf8 else None)
 
 
+cdef str __map_utf(str enc, bytes data, bint strip):
+    if not strip:
+        return enc
+
+    if enc == 'utf-8' and data.startswith(codecs.BOM_UTF8):
+        return 'utf-8-sig'
+    if enc.startswith('utf-16-') and (data.startswith(codecs.BOM_UTF16_LE) or data.startswith(codecs.BOM_UTF16_BE)):
+        return 'utf-16'
+    if enc.startswith('utf-32-') and (data.startswith(codecs.BOM_UTF32_LE) or data.startswith(codecs.BOM_UTF32_BE)):
+        return 'utf-32'
+
+    return enc
+
+
+# noinspection PyTypeChecker
 cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
-                       fallback_encodings=('utf-8', 'windows-1252')):
+                       fallback_encodings=('utf-8', 'windows-1252'), bint strip_bom=True):
     """
-    bytes_to_str(data, encoding='utf-8', errors='ignore', fallback_encodings=('utf-8', 'windows-1252'))
+    bytes_to_str(data, encoding='utf-8', errors='ignore', \
+                 fallback_encodings=('utf-8', 'windows-1252'), strip_bom=True)
 
     Helper for decoding a byte string into a unicode string using a given encoding.
     This encoding should be determined beforehand, e.g., with :func:`detect_encoding`.
@@ -292,6 +308,9 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     to ``errors``, which has the same options as for :meth:`bytes.decode` (i.e.,
     ``"ignore"`` or ``"replace"``). The double-decoding step ensures that the resulting
     string is sane and can be re-encoded without errors.
+    
+    This function also takes care to strip BOMs from the beginning of the string if
+    ``strip_bom=True`.
 
     :param data: input byte string
     :type data: bytes
@@ -301,21 +320,26 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     :type errors: str
     :param fallback_encodings: list of fallback encodings to try if the primary encoding fails
     :type fallback_encodings: t.Iterable[str]
+    :param strip_bom: strip BOM sequences from beginning of the string
+    :type strip_bom: bool
     :return: decoded string
     :rtype: str
     """
 
+    encoding = codecs.lookup(encoding).name
+
     for i, e in enumerate((encoding, *fallback_encodings)):
+        e = codecs.lookup(e).name
         if i > 0 and e == encoding:
             # No need to try that again
             continue
 
         try:
-            return data.decode(e)
+            return data.decode(__map_utf(e, data, strip_bom))
         except UnicodeDecodeError:
             pass
 
-    return data.decode(encoding, errors=errors).encode(errors=errors).decode()
+    return data.decode(__map_utf(encoding, data, strip_bom), errors=errors).encode(errors=errors).decode()
 
 cpdef bytes read_http_chunk(reader):
     """
