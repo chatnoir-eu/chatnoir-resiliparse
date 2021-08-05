@@ -287,6 +287,7 @@ cdef class WarcHeaderMap:
             self._dict_cache = <dict>CaseInsensitiveStrDict({
                 CaseInsensitiveStr(h[0].decode(self._enc, errors='ignore')): h[1].decode(self._enc, errors='ignore')
                 for h in self._headers})
+            self._dict_cache_stale = False
         return self._dict_cache
 
     def astuples(self) -> t.List[t.Tuple[str, str]]:
