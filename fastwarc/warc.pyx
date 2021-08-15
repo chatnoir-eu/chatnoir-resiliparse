@@ -602,7 +602,7 @@ cdef class WarcRecord:
         :rtype: int
         """
         # If the raw byte content hasn't been parsed, we can simply pass it through
-        if not checksum_data and not self.http_parsed:
+        if not checksum_data and not self._http_parsed:
             return self._write_impl(self.reader, stream, True, chunk_size)
 
         # Otherwise read everything into memory for content-length correction and checksumming
