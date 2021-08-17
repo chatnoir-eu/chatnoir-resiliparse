@@ -23,7 +23,7 @@ import urllib.request
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream, StreamError, FastWARCError
+from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream, \
     recompress_warc_interactive, verify_digests
@@ -166,6 +166,32 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
                 for rec in failed_digests:
                     click.echo(rec)
                 sys.exit(1)
+
+@main.command()
+@click.argument('infile', type=click.Path(dir_okay=False, exists=True))
+@click.argument('offset', type=click.INT)
+@click.option('--payload', is_flag=True,
+              help='output only record payload (transfer and/or content encoding are preserved')
+@click.option('--headers', is_flag=True, help='output only record (and HTTP) headers')
+def extract(infile, offset, payload, headers):
+    """Extract WARC record by offset.
+    """
+    compl_record = not (payload or headers)
+    with open(infile, 'rb') as stream:
+        stream.seek(offset)
+        record = next(iter(ArchiveIterator(stream)))
+        if headers or compl_record:
+            ostream = PythonIOStreamAdapter(sys.stdout.buffer)
+            record.headers.write(ostream)
+            sys.stdout.buffer.write(b'\r\n')
+            if record.is_http:
+                record.http_headers.write(ostream)
+                sys.stdout.buffer.write(b'\r\n')
+        if payload or compl_record:
+            buf = record.reader.read(4096)
+            while buf:
+                sys.stdout.buffer.write(buf)
+                buf = record.reader.read(4096)
 
 
 @main.group()

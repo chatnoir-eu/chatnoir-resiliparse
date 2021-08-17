@@ -362,7 +362,7 @@ cdef class WarcHeaderMap:
         self._status_line.clear()
         self._dict_cache_stale = True
 
-    cdef size_t write(self, IOStream stream) except -1:
+    cpdef size_t write(self, IOStream stream) except -1:
         """Write header block into stream."""
         cdef size_t bytes_written = 0
         if not self._status_line.empty():
