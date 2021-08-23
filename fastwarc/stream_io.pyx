@@ -701,7 +701,12 @@ cdef class BufferedReader:
         cdef string stream_data
         self.stream.read(stream_data, self.buf_size)
         self.buf.append(stream_data)
-        return self.buf.size() > 0 if self.limit == strnpos else self.limit > self.limit_consumed
+
+        if self.buf.size() == 0:
+            return False
+        elif self.limit != strnpos:
+            return self.limit > self.limit_consumed
+        return True
 
     cdef string_view _get_buf(self) nogil:
         """
