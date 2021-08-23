@@ -51,7 +51,11 @@ cdef class PythonIOStreamAdapter(IOStream):
     cdef inline void close(self) except *:
         if self.py_stream is None:
             return
-        self.py_stream.close()
+        try:
+            self.py_stream.close()
+        except ValueError:
+            # Ignore if already closed
+            pass
 
 
 cdef class BytesIOStream(IOStream):
