@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 import getpass
 import importlib
 from itertools import chain
+import json
 import os
 import sys
 import time
@@ -198,6 +200,54 @@ def extract(infile, offset, payload, headers):
 def benchmark():
     """Benchmark FastWARC performance."""
     return 0
+
+
+def _index_record(output, fields, record, next_record_offset, file_name):
+    idx = OrderedDict()
+    for f in fields:
+        v = None
+        if f == 'offset':
+            v = str(record.stream_pos)
+        elif f == 'length':
+            v = str(next_record_offset - record.stream_pos)
+        elif f == 'filename':
+            v = file_name
+        elif f == 'http:status':
+            if (record.record_type & (WarcRecordType.response | WarcRecordType.revisit)) and record.http_headers:
+                idx[f] = str(record.http_headers.status_code)
+        elif f.startswith('http:'):
+            if record.http_headers:
+                v = record.http_headers.get(f[5:])
+        elif f == 'rec.content_length':
+            v = record.content_length
+        else:
+            v = record.headers.get(f)
+        if v is not None:
+            idx[f] = v
+    output.write(json.dumps(idx) + '\n')
+
+
+@main.command()
+@click.argument('infiles', type=click.Path(dir_okay=False, exists=True), nargs=-1)
+@click.option('-o', '--output', type=click.File('w'), default=sys.stdout,
+              help='Output file, default is stdout')
+@click.option('-f', '--fields', type=click.STRING,
+              default='offset,warc-type,warc-target-uri',
+              help='comma-separated list of indexed fields, eg. "offset", "length", "filename", '
+                   '"http:status", "http:<http-header>", or "<warc-record-header>"')
+def index(infiles, output, fields):
+    """Index WARC records into CDXJ.
+    """
+    fields = fields.split(',')
+    for infile in infiles:
+        with open(infile, 'rb') as stream:
+            last_record = None
+            for record in ArchiveIterator(stream):
+                if last_record is not None:
+                    _index_record(output, fields, last_record, record.stream_pos, infile)
+                last_record = record
+            if last_record:
+                _index_record(output, fields, last_record, stream.tell(), infile)
 
 
 boto3 = None
