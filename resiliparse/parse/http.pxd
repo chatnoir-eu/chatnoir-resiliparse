@@ -12,16 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from resiliparse_inc.string cimport string
-from resiliparse_inc.uchardet cimport uchardet_t
-
-cdef class EncodingDetector:
-    cdef uchardet_t d
-
-    cpdef void update(self, const string& data)
-    cpdef str encoding(self, bint html5_compatible=*)
-
-cpdef str detect_encoding(bytes data, size_t max_len=*, bint html5_compatible=*, bint from_html_meta=*)
-cpdef str bytes_to_str(bytes data, str encoding=*, str errors=*, fallback_encodings=*, bint strip_bom=*)
 cpdef bytes read_http_chunk(reader)

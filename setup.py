@@ -60,8 +60,10 @@ if 'sdist' in sys.argv:
 
 if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
     resiliparse_extensions = [
-        Extension('resiliparse.parse', sources=[f'resiliparse/parse.{ext}'],
-                  libraries=['uchardet'], **cpp_args)
+        Extension('resiliparse.parse.encoding',
+                  sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet'], **cpp_args),
+        Extension('resiliparse.parse.http',
+                  sources=[f'resiliparse/parse/http.{ext}'], libraries=['uchardet'], **cpp_args)
     ]
     if os.name == 'posix':
         resiliparse_extensions.extend([
@@ -88,6 +90,7 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
         packages=['resiliparse', *inc_module],
         package_data={
             'resiliparse': data_ext,
+            'resiliparse.parse': data_ext,
             **inc_module_data
         },
         install_requires=[

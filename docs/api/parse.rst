@@ -1,10 +1,12 @@
-.. _parse-api:
+Resiliparse Parsing Utilities
+=============================
 
-Resiliparse Parsing Tools
-=========================
+Resiliparse parsing utilities API documentation.
 
-Resiliparse text parsing and transformation tools.
 
-.. automodule:: resiliparse.parse
-   :members:
-   :show-inheritance:
+.. toctree::
+   :maxdepth: 3
+   :caption: Parsing Utilities
+
+   parse/encoding
+   parse/http

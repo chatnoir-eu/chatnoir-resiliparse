@@ -13,7 +13,7 @@ Table of Contents
 This is the full table of contents for this documentation:
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 3
    :caption: User Manual
 
    man/installation
@@ -25,7 +25,7 @@ This is the full table of contents for this documentation:
 
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 3
    :caption: API Documentation
 
    api/process-guard

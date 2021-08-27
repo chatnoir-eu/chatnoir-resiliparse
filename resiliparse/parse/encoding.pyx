@@ -18,12 +18,12 @@ import atexit
 import codecs
 import typing as t
 
-from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.string cimport string
 from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
     uchardet_data_end, uchardet_reset, uchardet_get_charset
 
 include 'parse_selectolax.pxi'
+
 
 # Encoding name and label map according to https://encoding.spec.whatwg.org/#names-and-labels
 # Differences:
@@ -113,12 +113,12 @@ cdef class EncodingDetector:
     cpdef void update(self, const string& data):
         """
         update(self, data)
-        
+
         Update charset detector with more data.
-        
+
         The detector will shortcut processing when it has enough data to reach certainty, so you don't
         need to worry too much about limiting the input data.
-        
+
         :param data: input data
         :type data: bytes
         """
@@ -129,12 +129,12 @@ cdef class EncodingDetector:
         encoding(self, html5_compatible=True)
 
         Get a Python-compatible name of the encoding that was detected and reset the detector.
-        
+
         By default, the detected encoding is remapped based on the `WHATWG encoding specification
         <https://encoding.spec.whatwg.org/#names-and-labels>`_, which is primarily suitable for web
         content. To disable this behaviour, set ``html5_compatible=False``. For more information,
         see: :func:`map_encoding_to_html5`.
-        
+
         If WHATWG remapping is enabled, UTF-8 is returned as a fallback encoding. Otherwise, the
         method returns ``None`` on failure to detect the encoding.
 
@@ -162,7 +162,9 @@ cdef class EncodingDetector:
             uchardet_delete(self.d)
             self.d = NULL
 
+
 cdef EncodingDetector __chardet = None
+
 
 @atexit.register
 def __chardet_exit():
@@ -188,12 +190,12 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
     instead. With ``from_html_meta=True``, :func:`detect_encoding` will try to use the charset metadata
     contained in the HTML string if available and readable with an ASCII-compatible single-byte encoding
     or else fall back to auto-detection with `uchardet`.
-    
+
     By default, the detected encoding is remapped based on the `WHATWG encoding specification
     <https://encoding.spec.whatwg.org/#names-and-labels>`_, which is primarily suitable for web content.
     To disable this behaviour, set ``html5_compatible=False``. For more information, see:
     :func:`map_encoding_to_html5`.
-    
+
     If WHATWG remapping is enabled, UTF-8 is returned as a fallback encoding. Otherwise, the method returns
     ``None`` on failure to detect the encoding.
 
@@ -229,14 +231,14 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
 cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     """
     map_encoding_to_html5(str encoding, fallback_utf8=True)
-    
+
     Map an encoding name to a subset of names allowed by the HTML5 standard.
-    
+
     This function will remap the given name according to the mapping definition given in
     `Section 4.2 <https://encoding.spec.whatwg.org/#names-and-labels>`_ of the WHATWG encoding
     specification. The returned value will always be a valid Python encoding name, but the
     supplied input name does not necessarily have to be.
-    
+
     The WHATWG mapping is designed to boil down the many possible encoding names to a smaller
     subset of canonical names while taking into account common encoding mislabelling practices.
     The main purpose of this function is to map encoding names extracted from HTTP headers or
@@ -245,21 +247,21 @@ cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     the web, such as the mapping from ISO-8859-1 to Windows-1252, which is more likely to be
     correct, even if both options are possible. :meth:`EncodingDetector.encoding` already remaps
     its detected encodings to the WHATWG set by default.
-    
+
     The mapping does not involve Python's encoding alias names, but instead uses an adjusted
     WHATWG mapping. Inputs not defined in this mapping are remapped to UTF-8. Hence, the function
     always produces a valid output, but the mapped encoding is not guaranteed to be compatible
     with the original encoding. Use :func:`bytes_to_str` to avoid decoding errors. You can also
     set ``fallback_utf8=False`` to return ``None`` instead if the supplied encoding is unknown.
-    
+
     The adjusted encoding mapping differs from the WHATWG spec in the following details:
-    
+
       * ISO-8859-8-I name replaced with ISO-8859-8
       * WINDOWS-874 name replaced with ISO-8859-11
       * x-mac-cyrillic is unsupported
       * x-user-defined is unsupported
       * No "replacement" mapping for 7-bit versions of ISO/IEC 2022
-    
+
     :param encoding: input encoding name
     :type encoding: str
     :param fallback_utf8: Whether to fall back to UTF-8 or return ``None`` for unknown encodings
@@ -300,7 +302,7 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     to ``errors``, which has the same options as for :meth:`bytes.decode` (i.e.,
     ``"ignore"`` or ``"replace"``). The double-decoding step ensures that the resulting
     string is sane and can be re-encoded without errors.
-    
+
     This function also takes care to strip BOMs from the beginning of the string if
     ``strip_bom=True``.
 
@@ -332,41 +334,3 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
             pass
 
     return data.decode(__map_utf(encoding, data, strip_bom), errors=errors).encode(errors=errors).decode()
-
-
-cpdef bytes read_http_chunk(reader):
-    """
-    read_http_chunk(reader)
-
-    Helper function for reading chunked HTTP payloads.
-
-    Each call to this function will try to read the next chunk. In case of an error
-    or EOF, an empty byte string will be returned.
-
-    :param reader: input reader
-    :type reader: fastwarc.stream_io.BufferedReader
-    :return: contents of the next chunk or empty string if EOF
-    :rtype: bytes
-    """
-    cdef string header_line = reader.readline()
-    cdef size_t chunk_size = strtol(header_line.substr(0, header_line.size() - 2).c_str(), NULL, 16)
-    return reader.read(chunk_size + 2)[:chunk_size]
-
-
-def iterate_http_chunks(reader):
-    """
-    iterate_http_chunks(reader)
-
-    Generator wrapping :func:`read_http_chunk` for fully consuming a chunked HTTP payload.
-    
-    :param reader: input reader
-    :type reader: fastwarc.stream_io.BufferedReader
-    :return: generator of chunks
-    :rtype: t.Generator[bytes]
-    """
-    cdef bytes chunk
-    while True:
-        chunk = read_http_chunk(reader)
-        if len(chunk) == 0:
-            return
-        yield chunk

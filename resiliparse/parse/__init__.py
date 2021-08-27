@@ -11,3 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Global module imports for backwards compatibility
+from .encoding import EncodingDetector, bytes_to_str, detect_encoding, map_encoding_to_html5
+from .http import iterate_http_chunks, read_http_chunk

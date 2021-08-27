@@ -37,8 +37,7 @@ cdef class __Selectolax:
 
     def __cinit__(self):
         import glob, os
-        path = os.path.join(glob.glob(os.path.join(os.path.dirname(selectolax.__file__),
-                                                   'parser.*.so'))[0]).encode()
+        path = os.path.join(glob.glob(os.path.join(os.path.dirname(selectolax.__file__), 'parser.*.so'))[0]).encode()
         self._sx = dlopen(<char*>path, RTLD_LAZY)
         if self._sx == NULL:
             return
