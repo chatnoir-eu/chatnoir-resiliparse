@@ -42,7 +42,6 @@ cdef extern from "<lexbor/html/html.h>" nogil:
     ctypedef struct lxb_html_form_element_t
     ctypedef struct lxb_html_head_element_t
     ctypedef struct lxb_html_body_element_t
-    ctypedef struct lxb_dom_element_t
     ctypedef struct lexbor_mraw_t
     ctypedef struct lexbor_hash_t
     ctypedef struct lxb_dom_document_type_t
@@ -77,6 +76,30 @@ cdef extern from "<lexbor/html/html.h>" nogil:
         void *user
 
         lxb_dom_node_type_t    type
+
+    ctypedef enum lxb_dom_element_custom_state_t:
+        LXB_DOM_ELEMENT_CUSTOM_STATE_UNDEFINED      = 0x00,
+        LXB_DOM_ELEMENT_CUSTOM_STATE_FAILED         = 0x01,
+        LXB_DOM_ELEMENT_CUSTOM_STATE_UNCUSTOMIZED   = 0x02,
+        LXB_DOM_ELEMENT_CUSTOM_STATE_CUSTOM         = 0x03
+
+    ctypedef uintptr_t lxb_dom_attr_id_t
+
+    ctypedef struct lxb_dom_element_t:
+        lxb_dom_node_t                 node
+
+        lxb_dom_attr_id_t              upper_name
+        lxb_dom_attr_id_t              qualified_name
+
+        lexbor_str_t                   *is_value
+
+        lxb_dom_attr_t                 *first_attr
+        lxb_dom_attr_t                 *last_attr
+
+        lxb_dom_attr_t                 *attr_id
+        lxb_dom_attr_t                 *attr_class
+
+        lxb_dom_element_custom_state_t custom_state;
 
     ctypedef struct lxb_dom_document_t:
         lxb_dom_node_t              node
@@ -221,8 +244,8 @@ cdef extern from "<lexbor/html/html.h>" nogil:
     # Functions
     lxb_html_document_t * lxb_html_document_create()
     lxb_status_t lxb_html_document_parse(lxb_html_document_t *document, const lxb_char_t *html, size_t size)
-    lxb_html_body_element_t * lxb_html_document_body_element_noi(lxb_html_document_t *document)
-    lxb_html_head_element_t * lxb_html_document_head_element_noi(lxb_html_document_t *document)
+    lxb_html_body_element_t * lxb_html_document_body_element(lxb_html_document_t *document)
+    lxb_html_head_element_t * lxb_html_document_head_element(lxb_html_document_t *document)
     lxb_dom_element_t * lxb_dom_document_element(lxb_dom_document_t *document)
 
     lxb_status_t lxb_html_serialize_tree_str(lxb_dom_node_t *node, lexbor_str_t *str)
@@ -244,7 +267,6 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     ctypedef struct lxb_dom_text_t:
         lxb_dom_character_data_t char_data
 
-    ctypedef uintptr_t lxb_dom_attr_id_t
     ctypedef struct lxb_dom_collection_t:
         lexbor_array_t     array
         lxb_dom_document_t *document
