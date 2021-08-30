@@ -230,7 +230,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
 
 cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     """
-    map_encoding_to_html5(str encoding, fallback_utf8=True)
+    map_encoding_to_html5(encoding, fallback_utf8=True)
 
     Map an encoding name to a subset of names allowed by the HTML5 standard.
 
