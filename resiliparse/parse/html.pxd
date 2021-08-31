@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t
+from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_attr_t
 
 cdef class Node:
     cdef lxb_dom_node_t* node
+    cpdef bint hasattr(self, str attr_name)
+    cpdef getattr(self, str attr_name, default_value=*)
+    cdef Attribute _getattr_impl(self, str attr_name)
+
+cdef class Attribute:
+    cdef lxb_dom_attr_t* attr
 
 
 # noinspection DuplicatedCode

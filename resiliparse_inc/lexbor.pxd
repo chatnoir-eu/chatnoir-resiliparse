@@ -291,11 +291,14 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     lxb_char_t * lxb_dom_element_qualified_name(lxb_dom_element_t *element, size_t *len)
     lxb_dom_node_t * lxb_dom_node_destroy(lxb_dom_node_t *node)
     lxb_dom_node_t * lxb_dom_node_destroy_deep(lxb_dom_node_t *root)
-    lxb_dom_attr_t * lxb_dom_element_first_attribute_noi(lxb_dom_element_t *element)
+    lxb_dom_attr_t * lxb_dom_element_first_attribute(lxb_dom_element_t *element)
 
-    const lxb_char_t * lxb_dom_attr_local_name_noi(lxb_dom_attr_t *attr, size_t *len);
-    const lxb_char_t * lxb_dom_attr_value_noi(lxb_dom_attr_t *attr, size_t *len)
+    const lxb_char_t * lxb_dom_attr_local_name(lxb_dom_attr_t *attr, size_t *len);
+    const lxb_char_t * lxb_dom_attr_value(lxb_dom_attr_t *attr, size_t *len)
 
+    bint lxb_dom_element_has_attributes(lxb_dom_element_t *element)
+    bint lxb_dom_element_has_attribute(lxb_dom_element_t *element,
+                                       const lxb_char_t *qualified_name, size_t qn_len);
     lxb_dom_attr_t * lxb_dom_element_set_attribute(lxb_dom_element_t *element,
                                                    const lxb_char_t *qualified_name, size_t qn_len,
                                                    const lxb_char_t *value, size_t value_len)

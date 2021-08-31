@@ -14,6 +14,8 @@
 
 # distutils: language = c++
 
+import typing as t
+
 from resiliparse_inc.lexbor cimport *
 
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
@@ -25,6 +27,62 @@ cdef inline Node _node_from_dom(lxb_dom_node_t* dom_node):
     cdef Node node = Node.__new__(Node)
     node.node = dom_node
     return node
+
+
+cdef inline Attribute _attr_from_dom(lxb_dom_attr_t* attr_node):
+    if attr_node == NULL:
+        return None
+    cdef Attribute node = Attribute.__new__(Attribute)
+    node.attr = attr_node
+    return node
+
+
+cdef class Attribute:
+    """
+    A HTML DOM attribute.
+
+    This element is only valid as long as the owning :class:``HTMLTree` and :class:`Node` are
+    alive and the DOM tree hasn't been modified. Do not access ``Node`` instances after any
+    sort of DOM tree manipulation.
+    """
+
+    def __cinit__(self):
+        self.attr = NULL
+
+    @property
+    def name(self):
+        """
+        Attribute name.
+
+        :rtype: str | None
+        """
+        if self.attr == NULL:
+            return None
+
+        cdef size_t name_len = 0
+        cdef const lxb_char_t* name = lxb_dom_attr_local_name(self.attr, &name_len)
+        if name == NULL:
+            return None
+        return bytes_to_str(name[:name_len])
+
+    @property
+    def value(self):
+        """
+        Attribute value.
+
+        :rtype: str | None
+        """
+        if self.attr == NULL:
+            return None
+        cdef size_t val_len = 0
+        cdef const lxb_char_t* val = lxb_dom_attr_value(self.attr, &val_len)
+        return bytes_to_str(val[:val_len])
+
+    def __repr__(self):
+        return f'{self.name}="{self.value}"'
+
+    def __str__(self):
+        return self.value
 
 
 cdef class Node:
@@ -42,6 +100,11 @@ cdef class Node:
         self.node = NULL
 
     def __iter__(self):
+        """
+        Iterate DOM tree from current node in pre-order.
+
+        :rtype: t.Iterable[Node]
+        """
         if self.node == NULL:
             return
 
@@ -143,16 +206,95 @@ cdef class Node:
 
     @property
     def text(self):
-        """Text contents of this DOM node and its children."""
+        """
+        Text contents of this DOM node and its children.
+
+        :rtype: str | None
+        """
         if self.node == NULL:
             return None
         cdef size_t text_len = 0
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
         return bytes_to_str(text[:text_len])
 
+    @property
+    def attrs(self):
+        """
+        List of attributes.
+
+        :rtype: List[Attribute]
+        """
+        attrs = []
+        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            return attrs
+
+        cdef lxb_dom_attr_t* attr = lxb_dom_element_first_attribute(<lxb_dom_element_t*>self.node)
+        while attr != NULL:
+            attrs.append(_attr_from_dom(attr))
+            attr = attr.next
+
+        return attrs
+
+    cpdef bint hasattr(self, str attr_name):
+        """
+        hasattr(self, attr_name)
+        
+        Check if node has attribute.
+
+        :param attr_name: attribute name
+        :rtype: bool
+        """
+        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            return False
+        cdef bytes attr_name_bytes = attr_name.encode()
+        return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
+                                                   <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
+
+    cdef Attribute _getattr_impl(self, str attr_name):
+        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            raise ValueError('Node ist not an Element node.')
+
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_by_name(<lxb_dom_element_t*>self.node,
+                                                                 <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
+        if attr == NULL:
+            raise KeyError(f'No such attribute: {attr_name_bytes}')
+
+        return _attr_from_dom(attr)
+
+    cpdef getattr(self, str attr_name, default_value=None):
+        """
+        getattr(self, attr_name, default_value=None)
+        
+        Get attribute or ``default_value``.
+
+        :param attr_name: attribute name
+        :param default_value: default value to return if attribute is unset
+        """
+        if not self.hasattr(attr_name):
+            return default_value
+
+        return self._getattr_impl(attr_name)
+
+    def __getitem__(self, str attr_name):
+        """
+        __getitem__(self, attr_name)
+
+        Get attribute.
+
+        :param attr_name: attribute name
+        :rtype: Attribute | None
+        :raises: KeyError if no such attribute exists
+        :raises: ValueError if node ist not an Element node
+        """
+        return self._getattr_impl(attr_name)
+
     def __repr__(self):
         if self.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
-            return f'<{self.tag}>'
+            attrs = ' '.join(repr(a) for a in self.attrs)
+            if attrs:
+                attrs = ' ' + attrs
+            return f'<{self.tag}{attrs}>'
         elif self.node.type == LXB_DOM_NODE_TYPE_TEXT:
             return self.text
         elif self.node.type == LXB_DOM_NODE_TYPE_DOCUMENT:
@@ -214,7 +356,11 @@ cdef class HTMLTree:
 
     @property
     def root(self):
-        """HTML document root element or ``None``."""
+        """
+        HTML document root element or ``None``.
+
+        :rtype: Node
+        """
         if self.document == NULL:
             return None
 
@@ -222,7 +368,11 @@ cdef class HTMLTree:
 
     @property
     def head(self):
-        """HTML head element or ``None``."""
+        """
+        HTML head element or ``None``.
+
+        :rtype: Node
+        """
         if self.document == NULL:
             return None
 
@@ -230,7 +380,11 @@ cdef class HTMLTree:
 
     @property
     def body(self):
-        """HTML document body element or ``None``."""
+        """
+        HTML document body element or ``None``.
+
+        :rtype: Node
+        """
         if self.document == NULL:
             return None
 
