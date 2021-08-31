@@ -166,6 +166,13 @@ cdef class WarcHeaderMap:
                         header_value.encode(self._enc, errors='ignore'))
 
     def __iter__(self):
+        """
+        __iter__(self)
+
+        Iterate all header map items.
+
+        :rtype: t.Iterable[(str, str)]
+        """
         yield from self.items()
 
     def __repr__(self):
@@ -848,6 +855,10 @@ cdef class ArchiveIterator:
 
     def __iter__(self) -> t.Iterable[WarcRecord]:
         """
+        __iter__(self)
+
+        Iterate all :class:`WarcRecord` items in the current WARC file.
+
         :rtype: t.Iterable[WarcRecord]
         """
         cdef _NextRecStatus status

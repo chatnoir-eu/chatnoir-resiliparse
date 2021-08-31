@@ -12,3 +12,4 @@ The Parsing Utilities module is a library of helper classes or functions and mod
 
    parse/encoding
    parse/http
+   parse/html
