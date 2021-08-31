@@ -14,18 +14,15 @@
 
 # distutils: language = c++
 
-from libcpp.string cimport string
 from resiliparse_inc.lexbor cimport *
 
-from resiliparse.parse.encoding cimport bytes_to_str
+from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 
 cdef class Node:
-    cdef str encoding
     cdef lxb_dom_element_t* element
 
-    def __cinit__(self, str encoding='utf-8'):
-        self.encoding = encoding
+    def __cinit__(self):
         self.element = NULL
 
     @property
@@ -34,15 +31,11 @@ cdef class Node:
             return None
         cdef size_t text_len = 0
         cdef lxb_char_t* text = lxb_dom_node_text_content(&self.element.node, &text_len)
-        return bytes_to_str(text[:text_len], self.encoding)
+        return bytes_to_str(text[:text_len])
 
 
 cdef class HTMLTree:
-    cdef lxb_html_document_t* document
-    cdef str encoding
-
-    def __cinit__(self, str encoding='utf-8'):
-        self.encoding = encoding
+    def __cinit__(self):
         self.document = lxb_html_document_create()
         if self.document == NULL:
             raise RuntimeError('Failed to allocate HTML document')
@@ -51,13 +44,14 @@ cdef class HTMLTree:
         if self.document != NULL:
             lxb_html_document_destroy(self.document)
 
-    cpdef parse(self, str document):
-        cdef string document_bytes = document.encode('utf-8')
-        self.parse_from_bytes(document_bytes)
+    cpdef void parse(self, str document):
+        self.parse_from_bytes(document.encode('utf-8'))
 
-    cpdef parse_from_bytes(self, const string& document):
-        cdef lxb_status_t status = lxb_html_document_parse(self.document,
-                                                           <const lxb_char_t*>document.data(), document.size())
+    cpdef void parse_from_bytes(self, bytes document, str encoding='utf-8', str errors='ignore'):
+        encoding = map_encoding_to_html5(encoding)
+        if encoding != 'utf-8':
+            document = bytes_to_str(document, encoding, errors).encode('utf-8')
+        status = lxb_html_document_parse(self.document, <const lxb_char_t*>document, len(document))
         if status != LXB_STATUS_OK:
             raise ValueError('Failed to parse HTML document')
 
@@ -69,7 +63,7 @@ cdef class HTMLTree:
         cdef lxb_html_head_element_t* head = lxb_html_document_head_element(self.document)
         if head == NULL:
             return None
-        cdef Node node = Node.__new__(Node, self.encoding)
+        cdef Node node = Node.__new__(Node)
         node.element = <lxb_dom_element_t*>head
         return node
 
@@ -81,6 +75,6 @@ cdef class HTMLTree:
         cdef lxb_html_body_element_t* body = lxb_html_document_body_element(self.document)
         if body == NULL:
             return None
-        cdef Node node = Node.__new__(Node, self.encoding)
+        cdef Node node = Node.__new__(Node)
         node.element = <lxb_dom_element_t*>body
         return node

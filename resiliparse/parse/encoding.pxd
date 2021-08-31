@@ -23,3 +23,4 @@ cdef class EncodingDetector:
 
 cpdef str detect_encoding(bytes data, size_t max_len=*, bint html5_compatible=*, bint from_html_meta=*)
 cpdef str bytes_to_str(bytes data, str encoding=*, str errors=*, fallback_encodings=*, bint strip_bom=*)
+cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=*)
