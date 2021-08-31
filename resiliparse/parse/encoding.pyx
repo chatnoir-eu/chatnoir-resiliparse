@@ -18,11 +18,12 @@ import atexit
 import codecs
 import typing as t
 
+from resiliparse_inc.lexbor cimport lxb_char_t, lxb_status_t, lxb_html_encoding_t, lxb_html_encoding_entry_t, \
+    lxb_html_encoding_determine, lxb_html_encoding_meta_entry, lxb_html_encoding_init, lxb_html_encoding_destroy, \
+    LXB_STATUS_OK
 from resiliparse_inc.string cimport string
 from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
     uchardet_data_end, uchardet_reset, uchardet_get_charset
-
-include 'parse_selectolax.pxi'
 
 
 # Encoding name and label map according to https://encoding.spec.whatwg.org/#names-and-labels
@@ -186,15 +187,16 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
     into the :class:`EncodingDetector`.
 
     The :class:`EncodingDetector` relies on `uchardet` as its encoding detection engine. If the
-    input string is an HTML document, you can also use the available information from the HTML meta tags
-    instead. With ``from_html_meta=True``, :func:`detect_encoding` will try to use the charset metadata
-    contained in the HTML string if available and readable with an ASCII-compatible single-byte encoding
-    or else fall back to auto-detection with `uchardet`.
+    input string is an HTML document, you can also use the available information from the HTML meta charset
+    tag instead. With ``from_html_meta=True``, :func:`detect_encoding` will try to use the charset meta
+    tag in the HTML string if one is available and ASCII-readable within the first 1024 bytes. If this fails,
+    it will fall back to auto-detection with `uchardet`.
 
-    By default, the detected encoding is remapped based on the `WHATWG encoding specification
+    By default, the detected encoding name is remapped according to the `WHATWG encoding specification
     <https://encoding.spec.whatwg.org/#names-and-labels>`_, which is primarily suitable for web content.
     To disable this behaviour, set ``html5_compatible=False``. For more information, see:
-    :func:`map_encoding_to_html5`.
+    :func:`map_encoding_to_html5`. Encodings detected from HTML meta tags are always remapped, no matter the
+    value of ``html5_compatible``, to ensure valid encoding names.
 
     If WHATWG remapping is enabled, UTF-8 is returned as a fallback encoding. Otherwise, the method returns
     ``None`` on failure to detect the encoding.
@@ -210,16 +212,24 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
     :return: detected encoding
     :rtype: str
     """
-    if max_len != 0 and <size_t> len(data) > max_len:
-        data = data[:(max_len + 1) // 2] + data[-((max_len + 1) // 2):]
-
+    cdef lxb_status_t status
+    cdef lxb_html_encoding_t html_enc
+    cdef lxb_html_encoding_entry_t* html_enc_entry
+    cdef size_t meta_peek_size = min(len(data), 1024)
     if from_html_meta:
-        encoding = __slx.myencoding_prescan_stream_to_determine_encoding(<char *> data, len(data))
-        if encoding != MyENCODING_NOT_DETERMINED:
-            encoding = __slx.myencoding_name_by_id(encoding, NULL).decode()
-            if html5_compatible:
-                encoding = map_encoding_to_html5(encoding)
-            return encoding
+        if lxb_html_encoding_init(&html_enc) == LXB_STATUS_OK and lxb_html_encoding_determine(
+                &html_enc, <lxb_char_t*>data, <lxb_char_t*>data + meta_peek_size) == LXB_STATUS_OK:
+            html_enc_entry = lxb_html_encoding_meta_entry(&html_enc, 0)
+            html_enc_name = ''
+            if html_enc_entry != NULL:
+                html_enc_name = html_enc_entry.name[:html_enc_entry.end - html_enc_entry.name].decode(errors='ignore')
+            lxb_html_encoding_destroy(&html_enc, False)
+            html_enc_name = map_encoding_to_html5(html_enc_name, fallback_utf8=False)
+            if html_enc_name:
+                return html_enc_name
+
+    if max_len != 0 and <size_t>len(data) > max_len:
+        data = data[:(max_len + 1) // 2] + data[-((max_len + 1) // 2):]
 
     global __chardet
     if __chardet is None:

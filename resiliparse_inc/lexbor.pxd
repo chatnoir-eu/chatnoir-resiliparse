@@ -1,7 +1,7 @@
 # Based on lexbor.pxd from Selectolax https://github.com/rushter/selectolax
 # Copyright (c) 2018-2020, Artem Golubin, MIT License
 
-from libc.stdint cimport uint32_t, uint8_t, uintptr_t
+from libc.stdint cimport int8_t, uint32_t, uint8_t, uintptr_t
 
 
 cdef extern from "<lexbor/core/core.h>" nogil:
@@ -9,25 +9,25 @@ cdef extern from "<lexbor/core/core.h>" nogil:
     ctypedef unsigned char lxb_char_t
     ctypedef unsigned int lxb_status_t
     ctypedef enum lexbor_status_t:
-        LXB_STATUS_OK = 0x0000
-        LXB_STATUS_ERROR = 0x0001
-        LXB_STATUS_ERROR_MEMORY_ALLOCATION
-        LXB_STATUS_ERROR_OBJECT_IS_NULL
-        LXB_STATUS_ERROR_SMALL_BUFFER
-        LXB_STATUS_ERROR_INCOMPLETE_OBJECT
-        LXB_STATUS_ERROR_NO_FREE_SLOT
-        LXB_STATUS_ERROR_TOO_SMALL_SIZE
-        LXB_STATUS_ERROR_NOT_EXISTS
-        LXB_STATUS_ERROR_WRONG_ARGS
-        LXB_STATUS_ERROR_WRONG_STAGE
-        LXB_STATUS_ERROR_UNEXPECTED_RESULT
-        LXB_STATUS_ERROR_UNEXPECTED_DATA
-        LXB_STATUS_ERROR_OVERFLOW
-        LXB_STATUS_CONTINUE
-        LXB_STATUS_SMALL_BUFFER
-        LXB_STATUS_ABORTED
-        LXB_STATUS_STOPPED
-        LXB_STATUS_NEXT
+        LXB_STATUS_OK = 0x0000,
+        LXB_STATUS_ERROR = 0x0001,
+        LXB_STATUS_ERROR_MEMORY_ALLOCATION,
+        LXB_STATUS_ERROR_OBJECT_IS_NULL,
+        LXB_STATUS_ERROR_SMALL_BUFFER,
+        LXB_STATUS_ERROR_INCOMPLETE_OBJECT,
+        LXB_STATUS_ERROR_NO_FREE_SLOT,
+        LXB_STATUS_ERROR_TOO_SMALL_SIZE,
+        LXB_STATUS_ERROR_NOT_EXISTS,
+        LXB_STATUS_ERROR_WRONG_ARGS,
+        LXB_STATUS_ERROR_WRONG_STAGE,
+        LXB_STATUS_ERROR_UNEXPECTED_RESULT,
+        LXB_STATUS_ERROR_UNEXPECTED_DATA,
+        LXB_STATUS_ERROR_OVERFLOW,
+        LXB_STATUS_CONTINUE,
+        LXB_STATUS_SMALL_BUFFER,
+        LXB_STATUS_ABORTED,
+        LXB_STATUS_STOPPED,
+        LXB_STATUS_NEXT,
         LXB_STATUS_STOP
 
     lexbor_str_t * lexbor_str_destroy(lexbor_str_t *str, lexbor_mraw_t *mraw, bint destroy_obj)
@@ -561,3 +561,138 @@ cdef extern from "<lexbor/tag/tag.h>" nogil:
 #     lxb_selectors_t * lxb_selectors_destroy(lxb_selectors_t *selectors, bint self_destroy)
 #     lxb_status_t lxb_selectors_find(lxb_selectors_t *selectors, lxb_dom_node_t *root,
 #                                     lxb_css_selector_list_t *list, lxb_selectors_cb_f cb, void *ctx)
+
+
+cdef extern from "<lexbor/encoding/encoding.h>" nogil:
+    ctypedef enum lxb_encoding_t:
+        LXB_ENCODING_DEFAULT        = 0x00,
+        LXB_ENCODING_AUTO           = 0x01,
+        LXB_ENCODING_UNDEFINED      = 0x02,
+        LXB_ENCODING_BIG5           = 0x03,
+        LXB_ENCODING_EUC_JP         = 0x04,
+        LXB_ENCODING_EUC_KR         = 0x05,
+        LXB_ENCODING_GBK            = 0x06,
+        LXB_ENCODING_IBM866         = 0x07,
+        LXB_ENCODING_ISO_2022_JP    = 0x08,
+        LXB_ENCODING_ISO_8859_10    = 0x09,
+        LXB_ENCODING_ISO_8859_13    = 0x0a,
+        LXB_ENCODING_ISO_8859_14    = 0x0b,
+        LXB_ENCODING_ISO_8859_15    = 0x0c,
+        LXB_ENCODING_ISO_8859_16    = 0x0d,
+        LXB_ENCODING_ISO_8859_2     = 0x0e,
+        LXB_ENCODING_ISO_8859_3     = 0x0f,
+        LXB_ENCODING_ISO_8859_4     = 0x10,
+        LXB_ENCODING_ISO_8859_5     = 0x11,
+        LXB_ENCODING_ISO_8859_6     = 0x12,
+        LXB_ENCODING_ISO_8859_7     = 0x13,
+        LXB_ENCODING_ISO_8859_8     = 0x14,
+        LXB_ENCODING_ISO_8859_8_I   = 0x15,
+        LXB_ENCODING_KOI8_R         = 0x16,
+        LXB_ENCODING_KOI8_U         = 0x17,
+        LXB_ENCODING_SHIFT_JIS      = 0x18,
+        LXB_ENCODING_UTF_16BE       = 0x19,
+        LXB_ENCODING_UTF_16LE       = 0x1a,
+        LXB_ENCODING_UTF_8          = 0x1b,
+        LXB_ENCODING_GB18030        = 0x1c,
+        LXB_ENCODING_MACINTOSH      = 0x1d,
+        LXB_ENCODING_REPLACEMENT    = 0x1e,
+        LXB_ENCODING_WINDOWS_1250   = 0x1f,
+        LXB_ENCODING_WINDOWS_1251   = 0x20,
+        LXB_ENCODING_WINDOWS_1252   = 0x21,
+        LXB_ENCODING_WINDOWS_1253   = 0x22,
+        LXB_ENCODING_WINDOWS_1254   = 0x23,
+        LXB_ENCODING_WINDOWS_1255   = 0x24,
+        LXB_ENCODING_WINDOWS_1256   = 0x25,
+        LXB_ENCODING_WINDOWS_1257   = 0x26,
+        LXB_ENCODING_WINDOWS_1258   = 0x27,
+        LXB_ENCODING_WINDOWS_874    = 0x28,
+        LXB_ENCODING_X_MAC_CYRILLIC = 0x29,
+        LXB_ENCODING_X_USER_DEFINED = 0x2a,
+        LXB_ENCODING_LAST_ENTRY     = 0x2b
+
+    ctypedef struct lxb_encoding_encode_t:
+        const lxb_encoding_data_t *encoding_data
+
+        lxb_char_t                *buffer_out
+        size_t                    buffer_length
+        size_t                    buffer_used
+
+        const lxb_char_t          *replace_to
+        size_t                    replace_len
+
+        unsigned                  state
+
+    ctypedef struct lxb_encoding_decode_t:
+        const lxb_encoding_data_t *encoding_data
+
+        lxb_codepoint_t           *buffer_out
+        size_t                    buffer_length
+        size_t                    buffer_used
+
+        const lxb_codepoint_t     *replace_to
+        size_t                    replace_len
+
+        lxb_codepoint_t           codepoint
+        lxb_codepoint_t           second_codepoint
+        bint                      prepend
+        bint                      have_error
+
+        lxb_status_t              status
+        unsigned                  u
+
+    ctypedef lxb_status_t (*lxb_encoding_encode_f)(lxb_encoding_encode_t *ctx, const lxb_codepoint_t **cp,
+                                                   const lxb_codepoint_t *end)
+    ctypedef lxb_status_t (*lxb_encoding_decode_f)(lxb_encoding_decode_t *ctx,
+                                                   const lxb_char_t **data, const lxb_char_t *end)
+    ctypedef int8_t (*lxb_encoding_encode_single_f)(lxb_encoding_encode_t *ctx, lxb_char_t **data,
+                                                    const lxb_char_t *end, lxb_codepoint_t cp)
+    ctypedef lxb_codepoint_t (*lxb_encoding_decode_single_f)(lxb_encoding_decode_t *ctx,
+                                                             const lxb_char_t ** data, const lxb_char_t *end)
+
+    ctypedef struct lxb_encoding_data_t:
+        lxb_encoding_t               encoding
+        lxb_encoding_encode_f        encode
+        lxb_encoding_decode_f        decode
+        lxb_encoding_encode_single_f encode_single
+        lxb_encoding_decode_single_f decode_single
+        lxb_char_t                   *name
+
+    cdef const lxb_encoding_data_t * lxb_encoding_data_by_pre_name(const lxb_char_t *name, size_t length)
+
+    cdef lxb_encoding_encode_init(lxb_encoding_encode_t *encode,
+                                  const lxb_encoding_data_t *encoding_data,
+                                  lxb_char_t *buffer_out, size_t buffer_length)
+    cdef lxb_status_t lxb_encoding_encode_init_single(lxb_encoding_encode_t *encode,
+                                                      const lxb_encoding_data_t *encoding_data)
+    cdef lxb_status_t lxb_encoding_encode_finish(lxb_encoding_encode_t *encode)
+    cdef int8_t lxb_encoding_encode_finish_single(lxb_encoding_encode_t *encode,
+                                                  lxb_char_t **data, const lxb_char_t *end)
+
+    cdef lxb_status_t lxb_encoding_decode_init(lxb_encoding_decode_t *decode,
+                                               const lxb_encoding_data_t *encoding_data,
+                                               lxb_codepoint_t *buffer_out, size_t buffer_length)
+    cdef lxb_status_t lxb_encoding_decode_init_single(lxb_encoding_decode_t *decode,
+                                                      const lxb_encoding_data_t *encoding_data)
+    cdef lxb_status_t lxb_encoding_decode_finish(lxb_encoding_decode_t *decode)
+    cdef lxb_status_t lxb_encoding_decode_finish_single(lxb_encoding_decode_t *decode)
+
+    cdef lxb_status_t lxb_encoding_decode_replace_set(lxb_encoding_decode_t *decode,
+                                                      const lxb_codepoint_t *replace, size_t length)
+
+    cdef size_t lxb_encoding_decode_buf_used(lxb_encoding_decode_t *decode)
+
+
+    cdef extern from "<lexbor/html/encoding.h>" nogil:
+        ctypedef struct lxb_html_encoding_entry_t:
+            const lxb_char_t *name
+            const lxb_char_t *end
+
+        ctypedef struct lxb_html_encoding_t:
+            lexbor_array_obj_t cache
+            lexbor_array_obj_t result
+
+        cdef lxb_status_t lxb_html_encoding_init(lxb_html_encoding_t *em)
+        cdef lxb_status_t lxb_html_encoding_determine(lxb_html_encoding_t *em,
+                                                      const lxb_char_t *data, const lxb_char_t *end)
+        cdef lxb_html_encoding_entry_t * lxb_html_encoding_meta_entry(lxb_html_encoding_t *em, size_t idx)
+        cdef lxb_html_encoding_t * lxb_html_encoding_destroy(lxb_html_encoding_t *em, bint self_destroy)

@@ -12,3 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from resiliparse_inc.lexbor cimport lxb_html_document_t
+
+
+cdef class HTMLTree:
+    cdef lxb_html_document_t* document
+    cdef str encoding
+
+    cpdef void parse(self, str document)
+    cpdef void parse_from_bytes(self, bytes document, str encoding=*, str errors=*)
