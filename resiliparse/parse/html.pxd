@@ -12,7 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from resiliparse_inc.lexbor cimport lxb_html_document_t
+from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t
+
+cdef class Node:
+    cdef lxb_dom_node_t* node
+
+
+# noinspection DuplicatedCode
+cdef enum NodeType:
+    ELEMENT = 0x01,
+    ATTRIBUTE = 0x02,
+    TEXT = 0x03,
+    CDATA_SECTION = 0x04,
+    ENTITY_REFERENCE = 0x05,
+    ENTITY = 0x06,
+    PROCESSING_INSTRUCTION = 0x07,
+    COMMENT = 0x08,
+    DOCUMENT = 0x09,
+    DOCUMENT_TYPE = 0x0A,
+    DOCUMENT_FRAGMENT = 0x0B,
+    NOTATION = 0x0C,
+    LAST_ENTRY = 0x0D
 
 
 cdef class HTMLTree:

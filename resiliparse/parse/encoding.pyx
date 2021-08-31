@@ -333,10 +333,11 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     encoding = codecs.lookup(encoding).name
 
     for i, e in enumerate((encoding, *fallback_encodings)):
-        e = codecs.lookup(e).name
-        if i > 0 and e == encoding:
-            # No need to try that again
-            continue
+        if i > 0:
+            e = codecs.lookup(e).name
+            if e == encoding:
+                # No need to try that again
+                continue
 
         try:
             return data.decode(__map_utf(e, data, strip_bom))
