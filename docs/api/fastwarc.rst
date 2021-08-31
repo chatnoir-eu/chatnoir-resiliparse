@@ -10,6 +10,7 @@ WARC
 
 .. automodule:: fastwarc.warc
    :members:
+   :special-members: __iter__
    :exclude-members: CaseInsensitiveStr, CaseInsensitiveStrDict
    :show-inheritance:
 

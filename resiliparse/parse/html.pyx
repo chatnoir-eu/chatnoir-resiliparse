@@ -41,8 +41,8 @@ cdef class Attribute:
     """
     A HTML DOM attribute.
 
-    This element is only valid as long as the owning :class:``HTMLTree` and :class:`Node` are
-    alive and the DOM tree hasn't been modified. Do not access ``Node`` instances after any
+    This element is only valid as long as the owning :class:`HTMLTree` and :class:`Node` are
+    alive and the DOM tree hasn't been modified. Do not access :class:`Attribute` instances after any
     sort of DOM tree manipulation.
     """
 
@@ -89,10 +89,10 @@ cdef class Node:
     """
     A HTML DOM node.
 
-    A DOM node and its children is iterable and will traverse the DOM tree in pre-order.
+    DOM nodes and their children are iterable and will be traversed in pre-order.
 
-    This element is only valid as long as the owning :class:``HTMLTree` is alive
-    and the DOM tree hasn't been modified. Do not access ``Node`` instances
+    This element is only valid as long as the owning :class:`HTMLTree` is alive
+    and the DOM tree hasn't been modified. Do not access :class:`Node` instances
     after any sort of DOM tree manipulation.
     """
 
@@ -101,7 +101,9 @@ cdef class Node:
 
     def __iter__(self):
         """
-        Iterate DOM tree from current node in pre-order.
+        __iter__(self)
+
+        Run a pre-order traversal of the DOM tree starting at the current node.
 
         :rtype: t.Iterable[Node]
         """
