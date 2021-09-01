@@ -15,23 +15,28 @@
 from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_attr_t, lxb_dom_collection_t
 
 cdef class DOMAttribute:
+    cdef DOMNode node
     cdef lxb_dom_attr_t* attr
 
 
 cdef class DOMNode:
+    cdef HTMLTree tree
     cdef lxb_dom_node_t* node
+
     cpdef bint hasattr(self, str attr_name)
     cpdef getattr(self, str attr_name, default_value=*)
     cdef DOMAttribute _getattr_impl(self, str attr_name)
 
     cdef lxb_dom_collection_t* _match_by_attr(self, bytes attr_name, bytes attr_value, size_t init_size=*,
                                               bint case_insensitive=*)
+    cdef lxb_dom_collection_t * _match_by_selector(self, bytes selector, size_t init_size=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
 
 
 cdef class DOMNodeCollection:
+    cdef HTMLTree tree
     cdef lxb_dom_collection_t* coll
 
     cdef inline size_t _wrap_idx(self, ssize_t idx)
