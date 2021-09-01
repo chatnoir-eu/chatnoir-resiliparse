@@ -21,27 +21,29 @@ from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 
-cdef inline Node _node_from_dom(lxb_dom_node_t* dom_node):
+cdef inline DOMNode _node_from_dom(lxb_dom_node_t* dom_node):
     if dom_node == NULL:
         return None
-    cdef Node node = Node.__new__(Node)
+    cdef DOMNode node = DOMNode.__new__(DOMNode)
     node.node = dom_node
     return node
 
 
-cdef inline Attribute _attr_from_dom(lxb_dom_attr_t* attr_node):
+cdef inline DOMAttribute _attr_from_dom(lxb_dom_attr_t* attr_node):
     if attr_node == NULL:
         return None
-    cdef Attribute node = Attribute.__new__(Attribute)
+    cdef DOMAttribute node = DOMAttribute.__new__(DOMAttribute)
     node.attr = attr_node
     return node
 
 
-cdef class Attribute:
+cdef class DOMAttribute:
     """
-    A HTML DOM attribute.
+    __init__(self)
 
-    This element is only valid as long as the owning :class:`HTMLTree` and :class:`Node` are
+    A DOM element attribute.
+
+    An attribute is only valid as long as the owning :class:`HTMLTree` and :class:`Node` are
     alive and the DOM tree hasn't been modified. Do not access :class:`Attribute` instances after any
     sort of DOM tree manipulation.
     """
@@ -85,13 +87,15 @@ cdef class Attribute:
         return self.value
 
 
-cdef class Node:
+cdef class DOMNode:
     """
-    A HTML DOM node.
+    __init__(self)
+
+    A DOM node.
 
     DOM nodes and their children are iterable and will be traversed in pre-order.
 
-    This element is only valid as long as the owning :class:`HTMLTree` is alive
+    A DOM node is only valid as long as the owning :class:`HTMLTree` is alive
     and the DOM tree hasn't been modified. Do not access :class:`Node` instances
     after any sort of DOM tree manipulation.
     """
@@ -105,7 +109,7 @@ cdef class Node:
 
         Run a pre-order traversal of the DOM tree starting at the current node.
 
-        :rtype: t.Iterable[Node]
+        :rtype: t.Iterable[DOMNode]
         """
         if self.node == NULL:
             return
@@ -140,7 +144,7 @@ cdef class Node:
         """
         DOM node tag name.
 
-        :return: str | None
+        :rtype: str | None
         """
         if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return None
@@ -156,7 +160,7 @@ cdef class Node:
         """
         First child element of this DOM node.
 
-        :rtype: Node | None
+        :rtype: DOMNode | None
         """
         if self.node == NULL:
             return None
@@ -167,7 +171,7 @@ cdef class Node:
         """
         Last child element of this DOM node.
 
-        :rtype: Node | None
+        :rtype: DOMNode | None
         """
         if self.node == NULL:
             return None
@@ -178,7 +182,7 @@ cdef class Node:
         """
         Parent of this node.
 
-        :rtype: Node | None
+        :rtype: DOMNode | None
         """
         if self.node == NULL:
             return None
@@ -189,7 +193,7 @@ cdef class Node:
         """
         Next sibling node.
 
-        :rtype: Node | None
+        :rtype: DOMNode | None
         """
         if self.node == NULL:
             return None
@@ -200,7 +204,7 @@ cdef class Node:
         """
         Previous sibling node.
 
-        :rtype: Node | None
+        :rtype: DOMNode | None
         """
         if self.node == NULL:
             return None
@@ -224,7 +228,7 @@ cdef class Node:
         """
         List of attributes.
 
-        :rtype: List[Attribute]
+        :rtype: List[DOMAttribute]
         """
         attrs = []
         if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -252,7 +256,7 @@ cdef class Node:
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
-    cdef Attribute _getattr_impl(self, str attr_name):
+    cdef DOMAttribute _getattr_impl(self, str attr_name):
         if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
 
@@ -263,6 +267,110 @@ cdef class Node:
             raise KeyError(f'No such attribute: {attr_name_bytes}')
 
         return _attr_from_dom(attr)
+
+    cdef lxb_dom_collection_t* _match_by_attr(self, bytes attr_name, bytes attr_value, size_t init_size=5,
+                                              bint case_insensitive=False):
+        """
+        Return a collection of elements matching the given attribute name and value.
+        
+        The caller must take ownership of the returned collection.
+        
+        :param attr_name: attribute name as bytes
+        :param attr_value: attribute value as bytes
+        :param init_size: initial collection size
+        :param case_insensitive: match case-insensitive
+        :return: pointer to created DOM collection or ``NULL`` if error occurred
+        """
+        cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(self.node.owner_document, 1)
+        if coll == NULL:
+            return NULL
+
+        cdef lxb_status_t status = lxb_dom_elements_by_attr(<lxb_dom_element_t*> self.node, coll,
+                                                            <lxb_char_t*>attr_name, len(attr_name),
+                                                            <lxb_char_t*>attr_value, len(attr_value),
+                                                            case_insensitive)
+        if status != LXB_STATUS_OK:
+            lxb_dom_collection_destroy(coll, True)
+            return NULL
+
+        return coll
+
+    cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
+        """
+        get_element_by_id(self, element_id, case_insensitive=False)
+        
+        Return element matching element ID ``element_id`` or ``None`` if no such element exists.
+        
+        :param element_id: element ID
+        :type element_id: str
+        :param case_insensitive: match ID case-insensitively
+        :type case_insensitive: bool
+        :return: matching :class:`Node` or `None`
+        :rtype: DOMNode | None
+        """
+        if self.node == NULL:
+            return None
+
+        cdef lxb_dom_collection_t* coll = self._match_by_attr(b'id', element_id.encode(), 5, case_insensitive)
+        if coll == NULL:
+            raise RuntimeError('Failed to match element by ID')
+
+        cdef DOMNode return_node = None
+        if lxb_dom_collection_length(coll) > 0:
+            return_node = _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(coll, 0))
+        lxb_dom_collection_destroy(coll, True)
+        return return_node
+
+    cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=False):
+        """
+        get_elements_by_class_name(self, element_class, case_insensitive=False)
+        
+        Get a :class:`NodeCollection` with all DOM elements matching the class attribute ``element_class``.
+        
+        :param element_class: element class
+        :type element_class: str
+        :param case_insensitive: match class name case-insensitively
+        :type case_insensitive: bool
+        :return: matching :class:`Node` or `None`
+        :rtype: DOMNode | None
+        """
+        if self.node == NULL:
+            return None
+
+        cdef lxb_dom_collection_t * coll = self._match_by_attr(b'class', element_class.encode(), 5, case_insensitive)
+        if coll == NULL:
+            raise RuntimeError('Failed to match element by class name')
+
+        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+        result_coll.coll = coll
+        return result_coll
+
+    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name):
+        """
+        get_elements_by_tag_name(self, tag_name)
+        
+        Get a :class:`NodeCollection` with all DOM elements matching the tag name ``tag_name``.
+        
+        :param tag_name: tag name for matching elements
+        :type tag_name: str
+        :return: :class:`NodeCollection` of matching elements
+        :rtype: DOMNodeCollection
+        """
+        if self.node == NULL:
+            return None
+
+        cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(self.node.owner_document, 5)
+        if coll == NULL:
+            raise RuntimeError('Failed to create DOM collection')
+
+        cdef bytes tag_bytes = tag_name.encode()
+        cdef lxb_status_t status = lxb_dom_elements_by_tag_name(<lxb_dom_element_t*>self.node,
+                                                                coll, <lxb_char_t*>tag_bytes, len(tag_bytes))
+        if status != LXB_STATUS_OK:
+            raise RuntimeError('Failed to match elements')
+        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+        result_coll.coll = coll
+        return result_coll
 
     cpdef getattr(self, str attr_name, default_value=None):
         """
@@ -285,9 +393,9 @@ cdef class Node:
         Get attribute.
 
         :param attr_name: attribute name
-        :rtype: Attribute | None
-        :raises: KeyError if no such attribute exists
-        :raises: ValueError if node ist not an Element node
+        :rtype: DOMAttribute | None
+        :raises KeyError: if no such attribute exists
+        :raises ValueError: if node ist not an Element node
         """
         return self._getattr_impl(attr_name)
 
@@ -303,10 +411,117 @@ cdef class Node:
             return '[HTML Document]'
         elif self.node.type == LXB_DOM_NODE_TYPE_DOCUMENT_TYPE:
             return '<!DOCTYPE html>'
-        elif self.node.type == LXB_DOM_NODE_TYPE_DOCUMENT_TYPE:
-            return '<!DOCTYPE html>'
 
         return f'<{self.__class__.__name__} Element>'
+
+    def __str__(self):
+        return self.__repr__()
+
+
+cdef class DOMNodeCollection:
+    """
+    __init__(self)
+
+    Collection of DOM nodes that are a the result set of an element match operation.
+
+    A node collection is only valid as long as the owning :class:`HTMLTree` is alive
+    and the DOM tree hasn't been modified. Do not access :class:`NodeCollection` instances
+    after any sort of DOM tree manipulation.
+    """
+
+    def __cinit__(self):
+        self.coll = NULL
+
+    def __dealloc__(self):
+        if self.coll != NULL:
+            lxb_dom_collection_destroy(self.coll, True)
+            self.coll = NULL
+
+    cdef inline size_t _wrap_idx(self, ssize_t idx):
+        if idx >= 0:
+            return idx
+        return idx % <ssize_t>lxb_dom_collection_length(self.coll)
+
+    def __iter__(self):
+        """
+        __iter__(self)
+
+        Iterate DOM node collection.
+
+        :rtype: t.Iterable[DOMNode]
+        """
+        if self.coll == NULL:
+            return
+
+        cdef size_t i = 0
+        for i in range(lxb_dom_collection_length(self.coll)):
+            yield _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(self.coll, i))
+
+    def __len__(self):
+        """
+        __len__(self)
+
+        Collection length.
+
+        :rtype: int
+        """
+        if self.coll == NULL:
+            return 0
+        return lxb_dom_collection_length(self.coll)
+
+    def __getitem__(self, key):
+        """
+        __getitem__(self, key)
+
+        Return the :class:`Node` at the given index in this collection or another :class:`NodeCollection`
+        if ``key`` is a slice object. Negative indexing is supported.
+
+        :param key: index or slice
+        :rtype: DOMNode | DOMNodeCollection
+        :raises IndexError: if ``key`` is out of range
+        :raises TypeError: if ``key`` is not an ``int`` or ``slice``
+        """
+        if self.coll == NULL:
+            raise IndexError('Trying to get item of uninitialized collection')
+
+        cdef size_t coll_len = lxb_dom_collection_length(self.coll)
+
+        cdef DOMNodeCollection slice_coll
+        cdef lxb_dom_collection_t* dom_coll
+        if isinstance(key, slice):
+            start = key.start
+            stop = key.stop
+            step = key.step if key.step is not None else 1
+
+            if start is None:
+                start = coll_len - 1 if step < 0 else 0
+            else:
+                start = self._wrap_idx(min(start, coll_len - 1))
+
+            if stop is None:
+                stop = -1 if step < 0 else coll_len
+            else:
+                stop = self._wrap_idx(min(stop, coll_len))
+
+            dom_coll = lxb_dom_collection_make(self.coll.document,
+                                               min(coll_len, abs((stop - start) // step) + 1))
+            for i in range(start, stop, step):
+                lxb_dom_collection_append(dom_coll, lxb_dom_collection_element(self.coll, i))
+
+            slice_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+            slice_coll.coll = dom_coll
+            return slice_coll
+
+        if type(key) is not int:
+            raise TypeError(f'Invalid key type: {type(key)}')
+
+        if key >= coll_len:
+            raise IndexError('Index out of range')
+
+        return _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(self.coll, self._wrap_idx(key)))
+
+    def __repr__(self):
+        return f'{{{", ".join(str(n) for n in self)}}}'
 
     def __str__(self):
         return self.__repr__()
@@ -352,16 +567,16 @@ cdef class HTMLTree:
         encoding = map_encoding_to_html5(encoding)
         if encoding != 'utf-8':
             document = bytes_to_str(document, encoding, errors).encode('utf-8')
-        status = lxb_html_document_parse(self.document, <const lxb_char_t*>document, len(document))
+        cdef lxb_status_t status = lxb_html_document_parse(self.document, <const lxb_char_t*>document, len(document))
         if status != LXB_STATUS_OK:
             raise ValueError('Failed to parse HTML document')
 
     @property
     def root(self):
         """
-        HTML document root element or ``None``.
+        Document root element.
 
-        :rtype: Node
+        :rtype: DOMNode | None
         """
         if self.document == NULL:
             return None
@@ -371,9 +586,9 @@ cdef class HTMLTree:
     @property
     def head(self):
         """
-        HTML head element or ``None``.
+        HTML head element or ``None`` if document has no head.
 
-        :rtype: Node
+        :rtype: DOMNode | None
         """
         if self.document == NULL:
             return None
@@ -383,9 +598,9 @@ cdef class HTMLTree:
     @property
     def body(self):
         """
-        HTML document body element or ``None``.
+        HTML body element or ``None`` if document has no body.
 
-        :rtype: Node
+        :rtype: DOMNode | None
         """
         if self.document == NULL:
             return None
