@@ -60,8 +60,6 @@ if 'sdist' in sys.argv:
 
 if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
     resiliparse_extensions = [
-        Extension('resiliparse.parse.content',
-                  sources=[f'resiliparse/parse/content.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
         Extension('resiliparse.parse.encoding',
                   sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
         Extension('resiliparse.parse.html',
