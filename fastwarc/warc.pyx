@@ -205,7 +205,7 @@ cdef class WarcHeaderMap:
         s = self._status_line.split(b' ', 2)
         if len(s) != 3 or not s[1].isdigit():
             return None
-        return int(s)
+        return int(s[1])
 
     def append(self, str key not None, str value not None):
         """
