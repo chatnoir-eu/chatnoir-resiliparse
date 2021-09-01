@@ -566,6 +566,7 @@ cdef extern from "<lexbor/selectors/selectors.h>" nogil:
     void lxb_css_parser_selectors_set(lxb_css_parser_t *parser, lxb_css_selectors_t *selectors)
     lxb_css_selector_list_t * lxb_css_selectors_parse(lxb_css_parser_t *parser, const lxb_char_t *data, size_t length)
     lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint with_memory, bint self_destroy)
+    void lxb_css_selector_list_destroy_memory(lxb_css_selector_list_t *list)
 
     lxb_selectors_t * lxb_selectors_create()
     lxb_status_t lxb_selectors_init(lxb_selectors_t *selectors)
