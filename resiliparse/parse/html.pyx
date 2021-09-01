@@ -21,20 +21,24 @@ from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 
-cdef inline DOMNode _node_from_dom(lxb_dom_node_t* dom_node):
+cdef inline DOMNode _node_from_dom(HTMLTree tree, lxb_dom_node_t* dom_node):
     if dom_node == NULL:
         return None
-    cdef DOMNode node = DOMNode.__new__(DOMNode)
+    cdef DOMNode node = DOMNode.__new__(DOMNode, tree)
     node.node = dom_node
     return node
 
 
-cdef inline DOMAttribute _attr_from_dom(lxb_dom_attr_t* attr_node):
+cdef inline DOMAttribute _attr_from_dom(DOMNode parent_node, lxb_dom_attr_t* attr_node):
     if attr_node == NULL:
         return None
-    cdef DOMAttribute node = DOMAttribute.__new__(DOMAttribute)
+    cdef DOMAttribute node = DOMAttribute.__new__(DOMAttribute, parent_node)
     node.attr = attr_node
     return node
+
+
+cdef inline bint check_node(DOMNode node):
+    return node is not None and node.tree is not None and node.node != NULL
 
 
 cdef class DOMAttribute:
@@ -48,7 +52,8 @@ cdef class DOMAttribute:
     sort of DOM tree manipulation.
     """
 
-    def __cinit__(self):
+    def __cinit__(self, DOMNode node):
+        self.node = node
         self.attr = NULL
 
     @property
@@ -58,7 +63,7 @@ cdef class DOMAttribute:
 
         :rtype: str or None
         """
-        if self.attr == NULL:
+        if self.attr == NULL or not check_node(self.node):
             return None
 
         cdef size_t name_len = 0
@@ -74,8 +79,9 @@ cdef class DOMAttribute:
 
         :rtype: str or None
         """
-        if self.attr == NULL:
+        if self.attr == NULL or not check_node(self.node):
             return None
+
         cdef size_t val_len = 0
         cdef const lxb_char_t* val = lxb_dom_attr_value(self.attr, &val_len)
         return bytes_to_str(val[:val_len])
@@ -100,7 +106,8 @@ cdef class DOMNode:
     after any sort of DOM tree manipulation.
     """
 
-    def __cinit__(self):
+    def __cinit__(self, HTMLTree tree):
+        self.tree = tree
         self.node = NULL
 
     def __iter__(self):
@@ -111,7 +118,7 @@ cdef class DOMNode:
 
         :rtype: t.Iterable[DOMNode]
         """
-        if self.node == NULL:
+        if not check_node(self):
             return
 
         yield self
@@ -126,7 +133,7 @@ cdef class DOMNode:
                     return
                 node = node.next
 
-            yield _node_from_dom(node)
+            yield _node_from_dom(self.tree, node)
 
     @property
     def type(self):
@@ -135,7 +142,7 @@ cdef class DOMNode:
 
         :rtype: NodeType or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
         return <NodeType>self.node.type
 
@@ -146,7 +153,7 @@ cdef class DOMNode:
 
         :rtype: str or None
         """
-        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return None
         cdef size_t name_len = 0
         cdef unsigned char* name = <unsigned char*>lxb_dom_element_qualified_name(
@@ -162,9 +169,9 @@ cdef class DOMNode:
 
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
-        return _node_from_dom(self.node.first_child)
+        return _node_from_dom(self.tree, self.node.first_child)
 
     @property
     def last_child(self):
@@ -173,9 +180,9 @@ cdef class DOMNode:
 
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
-        return _node_from_dom(self.node.last_child)
+        return _node_from_dom(self.tree, self.node.last_child)
 
     @property
     def parent(self):
@@ -184,9 +191,9 @@ cdef class DOMNode:
 
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
-        return _node_from_dom(self.node.parent)
+        return _node_from_dom(self.tree, self.node.parent)
 
     @property
     def next(self):
@@ -195,9 +202,9 @@ cdef class DOMNode:
 
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
-        return _node_from_dom(self.node.next)
+        return _node_from_dom(self.tree, self.node.next)
 
     @property
     def prev(self):
@@ -206,9 +213,9 @@ cdef class DOMNode:
 
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
-        return _node_from_dom(self.node.prev)
+        return _node_from_dom(self.tree, self.node.prev)
 
     @property
     def text(self):
@@ -217,7 +224,7 @@ cdef class DOMNode:
 
         :rtype: str or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
         cdef size_t text_len = 0
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
@@ -231,12 +238,12 @@ cdef class DOMNode:
         :rtype: List[DOMAttribute]
         """
         attrs = []
-        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return attrs
 
         cdef lxb_dom_attr_t* attr = lxb_dom_element_first_attribute(<lxb_dom_element_t*>self.node)
         while attr != NULL:
-            attrs.append(_attr_from_dom(attr))
+            attrs.append(_attr_from_dom(self, attr))
             attr = attr.next
 
         return attrs
@@ -250,14 +257,14 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :rtype: bool
         """
-        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return False
         cdef bytes attr_name_bytes = attr_name.encode()
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
     cdef DOMAttribute _getattr_impl(self, str attr_name):
-        if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
 
         cdef bytes attr_name_bytes = attr_name.encode()
@@ -266,7 +273,7 @@ cdef class DOMNode:
         if attr == NULL:
             raise KeyError(f'No such attribute: {attr_name_bytes}')
 
-        return _attr_from_dom(attr)
+        return _attr_from_dom(self, attr)
 
     cdef lxb_dom_collection_t* _match_by_attr(self, bytes attr_name, bytes attr_value, size_t init_size=5,
                                               bint case_insensitive=False):
@@ -295,6 +302,18 @@ cdef class DOMNode:
 
         return coll
 
+    cdef lxb_dom_collection_t* _match_by_selector(self, bytes selector, size_t init_size=5):
+        """
+        Return a collection of elements matching the given CSS selector.
+        
+        The caller must take ownership of the returned collection.
+        
+        :param selector: CSS selector
+        :param init_size: initial collection size
+        :return: pointer to created DOM collection or ``NULL`` if error occurred
+        """
+        cdef lxb_css_parser_t* parser = lxb_css_parser_create()
+
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
         """
         get_element_by_id(self, element_id, case_insensitive=False)
@@ -308,7 +327,7 @@ cdef class DOMNode:
         :return: matching element or ``None`` if no such element exists
         :rtype: DOMNode or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
 
         cdef lxb_dom_collection_t* coll = self._match_by_attr(b'id', element_id.encode(), 5, case_insensitive)
@@ -317,7 +336,7 @@ cdef class DOMNode:
 
         cdef DOMNode return_node = None
         if lxb_dom_collection_length(coll) > 0:
-            return_node = _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(coll, 0))
+            return_node = _node_from_dom(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(coll, 0))
         lxb_dom_collection_destroy(coll, True)
         return return_node
 
@@ -334,14 +353,14 @@ cdef class DOMNode:
         :return: collection of matching elements
         :rtype: DOMNodeCollection or None
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
 
         cdef lxb_dom_collection_t * coll = self._match_by_attr(b'class', element_class.encode(), 5, case_insensitive)
         if coll == NULL:
             raise RuntimeError('Failed to match element by class name')
 
-        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
         result_coll.coll = coll
         return result_coll
 
@@ -356,7 +375,7 @@ cdef class DOMNode:
         :return: collection of matching elements
         :rtype: DOMNodeCollection
         """
-        if self.node == NULL:
+        if not check_node(self):
             return None
 
         cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(self.node.owner_document, 5)
@@ -368,7 +387,7 @@ cdef class DOMNode:
                                                                 coll, <lxb_char_t*>tag_bytes, len(tag_bytes))
         if status != LXB_STATUS_OK:
             raise RuntimeError('Failed to match elements')
-        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
         result_coll.coll = coll
         return result_coll
 
@@ -381,6 +400,9 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :param default_value: default value to return if attribute is unset
         """
+        if not check_node(self):
+            return None
+
         if not self.hasattr(attr_name):
             return default_value
 
@@ -397,9 +419,15 @@ cdef class DOMNode:
         :raises KeyError: if no such attribute exists
         :raises ValueError: if node ist not an Element node
         """
+        if not check_node(self):
+            return None
+
         return self._getattr_impl(attr_name)
 
     def __repr__(self):
+        if not check_node(self):
+            return None
+
         if self.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
             attrs = ' '.join(repr(a) for a in self.attrs)
             if attrs:
@@ -429,7 +457,8 @@ cdef class DOMNodeCollection:
     after any sort of DOM tree manipulation.
     """
 
-    def __cinit__(self):
+    def __cinit__(self, HTMLTree tree):
+        self.tree = tree
         self.coll = NULL
 
     def __dealloc__(self):
@@ -450,12 +479,12 @@ cdef class DOMNodeCollection:
 
         :rtype: t.Iterable[DOMNode]
         """
-        if self.coll == NULL:
+        if self.tree is None or self.coll == NULL:
             return
 
         cdef size_t i = 0
         for i in range(lxb_dom_collection_length(self.coll)):
-            yield _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(self.coll, i))
+            yield _node_from_dom(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(self.coll, i))
 
     def __len__(self):
         """
@@ -465,7 +494,7 @@ cdef class DOMNodeCollection:
 
         :rtype: int
         """
-        if self.coll == NULL:
+        if self.tree is None or self.coll == NULL:
             return 0
         return lxb_dom_collection_length(self.coll)
 
@@ -481,7 +510,7 @@ cdef class DOMNodeCollection:
         :raises IndexError: if ``key`` is out of range
         :raises TypeError: if ``key`` is not an ``int`` or ``slice``
         """
-        if self.coll == NULL:
+        if self.tree is None or self.coll == NULL:
             raise IndexError('Trying to get item of uninitialized collection')
 
         cdef size_t coll_len = lxb_dom_collection_length(self.coll)
@@ -508,7 +537,7 @@ cdef class DOMNodeCollection:
             for i in range(start, stop, step):
                 lxb_dom_collection_append(dom_coll, lxb_dom_collection_element(self.coll, i))
 
-            slice_coll = DOMNodeCollection.__new__(DOMNodeCollection)
+            slice_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
             slice_coll.coll = dom_coll
             return slice_coll
 
@@ -518,7 +547,7 @@ cdef class DOMNodeCollection:
         if key >= coll_len:
             raise IndexError('Index out of range')
 
-        return _node_from_dom(<lxb_dom_node_t*>lxb_dom_collection_element(self.coll, self._wrap_idx(key)))
+        return _node_from_dom(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(self.coll, self._wrap_idx(key)))
 
     def __repr__(self):
         return f'{{{", ".join(str(n) for n in self)}}}'
@@ -581,7 +610,7 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(<lxb_dom_node_t*>&self.document.dom_document.node)
+        return _node_from_dom(self, <lxb_dom_node_t*>&self.document.dom_document.node)
 
     @property
     def head(self):
@@ -593,7 +622,7 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(<lxb_dom_node_t*>lxb_html_document_head_element(self.document))
+        return _node_from_dom(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.document))
 
     @property
     def body(self):
@@ -605,4 +634,4 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(<lxb_dom_node_t*>lxb_html_document_body_element(self.document))
+        return _node_from_dom(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.document))
