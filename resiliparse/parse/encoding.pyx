@@ -142,7 +142,7 @@ cdef class EncodingDetector:
         :param html5_compatible: Remap encoding names according to WHATWG
         :type html5_compatible: bool
         :return: detected encoding or ``None`` on failure
-        :rtype: str | None
+        :rtype: str or None
         """
         uchardet_data_end(self.d)
         cdef str enc = uchardet_get_charset(self.d).decode()
@@ -277,7 +277,7 @@ cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     :param fallback_utf8: Whether to fall back to UTF-8 or return ``None`` for unknown encodings
     :type fallback_utf8: bool
     :return: mapped output encoding name
-    :rtype: str | None
+    :rtype: str or None
     """
     return __enc_html5_map.get(encoding.strip().casefold(), 'utf-8' if fallback_utf8 else None)
 

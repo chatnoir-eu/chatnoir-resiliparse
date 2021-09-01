@@ -205,7 +205,7 @@ cdef class WarcHeaderMap:
         """
         HTTP status code (unset if header block is not an HTTP header block).
 
-        :rtype: int | None
+        :rtype: int or None
         """
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
@@ -457,7 +457,7 @@ cdef class WarcRecord:
         """
         HTTP headers if record is an HTTP record and HTTP headers have been parsed yet.
 
-        :rtype: WarcHeaderMap | None
+        :rtype: WarcHeaderMap or None
         """
         return self._http_headers
 
@@ -466,7 +466,7 @@ cdef class WarcRecord:
         """
         Plain HTTP Content-Type without additional fields such as ``charset=``.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if not self._http_parsed:
             return None
@@ -484,7 +484,7 @@ cdef class WarcRecord:
         HTTP charset/encoding as returned by the server or ``None`` if no valid charset is set.
         A returned string is guaranteed to be a valid Python encoding name.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if not self._http_parsed or self._http_charset == <char*>b'_':
             return None

@@ -54,7 +54,7 @@ def exc_loop(it):
     :param it: original iterator
     :type it: t.Iterable[t.Any]
     :return: iterator of items and ``None`` or ``None`` and exception instance
-    :rtype: t.Iterable[(t.Any | None, BaseException | None)]
+    :rtype: t.Iterable[(t.Any or None, BaseException or None)]
     """
     i = iter(it)
     while True:
@@ -99,11 +99,11 @@ def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
     :param archive_iterator: input WARC iterator
     :type archive_iterator: fastwarc.warc.ArchiveIterator
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
-    :type stream_factory: t.Callable[[], t.Any] | t.Callable[[int], t.Any]
+    :type stream_factory: t.Callable[[], t.Any] or t.Callable[[int], t.Any]
     :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
     :type retry_count: int
     :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
-    :type seek: bool | None
+    :type seek: bool or None
     :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
     :rtype: t.Iterable[fastwarc.warc.WarcRecord]
     """

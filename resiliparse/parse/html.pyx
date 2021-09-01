@@ -44,7 +44,7 @@ cdef class DOMAttribute:
     A DOM element attribute.
 
     An attribute is only valid as long as the owning :class:`HTMLTree` and :class:`Node` are
-    alive and the DOM tree hasn't been modified. Do not access :class:`Attribute` instances after any
+    alive and the DOM tree hasn't been modified. Do not access :class:`DOMAttribute` instances after any
     sort of DOM tree manipulation.
     """
 
@@ -56,7 +56,7 @@ cdef class DOMAttribute:
         """
         Attribute name.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if self.attr == NULL:
             return None
@@ -72,7 +72,7 @@ cdef class DOMAttribute:
         """
         Attribute value.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if self.attr == NULL:
             return None
@@ -96,7 +96,7 @@ cdef class DOMNode:
     DOM nodes and their children are iterable and will be traversed in pre-order.
 
     A DOM node is only valid as long as the owning :class:`HTMLTree` is alive
-    and the DOM tree hasn't been modified. Do not access :class:`Node` instances
+    and the DOM tree hasn't been modified. Do not access :class:`DOMNode` instances
     after any sort of DOM tree manipulation.
     """
 
@@ -133,7 +133,7 @@ cdef class DOMNode:
         """
         DOM node type.
 
-        :rtype: NodeType | None
+        :rtype: NodeType or None
         """
         if self.node == NULL:
             return None
@@ -144,7 +144,7 @@ cdef class DOMNode:
         """
         DOM node tag name.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if self.node == NULL or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return None
@@ -160,7 +160,7 @@ cdef class DOMNode:
         """
         First child element of this DOM node.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -171,7 +171,7 @@ cdef class DOMNode:
         """
         Last child element of this DOM node.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -182,7 +182,7 @@ cdef class DOMNode:
         """
         Parent of this node.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -193,7 +193,7 @@ cdef class DOMNode:
         """
         Next sibling node.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -204,7 +204,7 @@ cdef class DOMNode:
         """
         Previous sibling node.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -215,7 +215,7 @@ cdef class DOMNode:
         """
         Text contents of this DOM node and its children.
 
-        :rtype: str | None
+        :rtype: str or None
         """
         if self.node == NULL:
             return None
@@ -305,8 +305,8 @@ cdef class DOMNode:
         :type element_id: str
         :param case_insensitive: match ID case-insensitively
         :type case_insensitive: bool
-        :return: matching :class:`Node` or `None`
-        :rtype: DOMNode | None
+        :return: matching element or ``None`` if no such element exists
+        :rtype: DOMNode or None
         """
         if self.node == NULL:
             return None
@@ -331,8 +331,8 @@ cdef class DOMNode:
         :type element_class: str
         :param case_insensitive: match class name case-insensitively
         :type case_insensitive: bool
-        :return: matching :class:`Node` or `None`
-        :rtype: DOMNode | None
+        :return: collection of matching elements
+        :rtype: DOMNodeCollection or None
         """
         if self.node == NULL:
             return None
@@ -353,7 +353,7 @@ cdef class DOMNode:
         
         :param tag_name: tag name for matching elements
         :type tag_name: str
-        :return: :class:`NodeCollection` of matching elements
+        :return: collection of matching elements
         :rtype: DOMNodeCollection
         """
         if self.node == NULL:
@@ -393,7 +393,7 @@ cdef class DOMNode:
         Get attribute.
 
         :param attr_name: attribute name
-        :rtype: DOMAttribute | None
+        :rtype: DOMAttribute or None
         :raises KeyError: if no such attribute exists
         :raises ValueError: if node ist not an Element node
         """
@@ -425,7 +425,7 @@ cdef class DOMNodeCollection:
     Collection of DOM nodes that are a the result set of an element match operation.
 
     A node collection is only valid as long as the owning :class:`HTMLTree` is alive
-    and the DOM tree hasn't been modified. Do not access :class:`NodeCollection` instances
+    and the DOM tree hasn't been modified. Do not access :class:`DOMNodeCollection` instances
     after any sort of DOM tree manipulation.
     """
 
@@ -477,7 +477,7 @@ cdef class DOMNodeCollection:
         if ``key`` is a slice object. Negative indexing is supported.
 
         :param key: index or slice
-        :rtype: DOMNode | DOMNodeCollection
+        :rtype: DOMNode or DOMNodeCollection
         :raises IndexError: if ``key`` is out of range
         :raises TypeError: if ``key`` is not an ``int`` or ``slice``
         """
@@ -576,7 +576,7 @@ cdef class HTMLTree:
         """
         Document root element.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.document == NULL:
             return None
@@ -588,7 +588,7 @@ cdef class HTMLTree:
         """
         HTML head element or ``None`` if document has no head.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.document == NULL:
             return None
@@ -600,7 +600,7 @@ cdef class HTMLTree:
         """
         HTML body element or ``None`` if document has no body.
 
-        :rtype: DOMNode | None
+        :rtype: DOMNode or None
         """
         if self.document == NULL:
             return None
