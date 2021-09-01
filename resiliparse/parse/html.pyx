@@ -41,6 +41,19 @@ cdef inline bint check_node(DOMNode node):
     return node is not None and node.tree is not None and node.node != NULL
 
 
+cdef lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec, void* ctx) nogil:
+    cdef lxb_dom_collection_t* coll = <lxb_dom_collection_t*>ctx
+    if node != NULL:
+        lxb_dom_collection_append(coll, node)
+    return LXB_STATUS_OK
+
+
+cdef lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec, void* ctx) nogil:
+    cdef bint* matches = <bint*>ctx
+    matches[0] |= node != NULL
+    return LXB_STATUS_OK
+
+
 cdef class DOMAttribute:
     """
     __init__(self)
@@ -255,6 +268,7 @@ cdef class DOMNode:
         Check if node has attribute.
 
         :param attr_name: attribute name
+        :type attr_name: str
         :rtype: bool
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -302,7 +316,7 @@ cdef class DOMNode:
 
         return coll
 
-    cdef lxb_dom_collection_t* _match_by_selector(self, bytes selector, size_t init_size=5):
+    cdef lxb_dom_collection_t* _match_by_selector(self, bytes selector, size_t init_size=32):
         """
         Return a collection of elements matching the given CSS selector.
         
@@ -312,7 +326,75 @@ cdef class DOMNode:
         :param init_size: initial collection size
         :return: pointer to created DOM collection or ``NULL`` if error occurred
         """
-        cdef lxb_css_parser_t* parser = lxb_css_parser_create()
+        self.tree.init_css_parser()
+
+        cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(self.tree.css_parser,
+                                                                         <lxb_char_t*>selector, len(selector))
+        cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(self.node.owner_document, init_size)
+        if lxb_selectors_find(self.tree.selectors, self.node, sel_list, <lxb_selectors_cb_f>css_select_callback,
+                              <void*>coll) != LXB_STATUS_OK:
+            return NULL
+
+        return coll
+
+    cpdef DOMNode query_selector(self, str selector):
+        """
+        query_selector(self, selector)
+         
+        Return the first element matching the given CSS selector.
+
+        :param selector: CSS selector
+        :type selector: str
+        :return: matching element or ``None``
+        :rtype: DOMNode or None
+        """
+        cdef DOMNodeCollection coll = self.query_selector_all(selector)
+        if len(coll) == 0:
+            return None
+        return coll[0]
+
+    cpdef DOMNodeCollection query_selector_all(self, str selector):
+        """
+        query_selector_all(self, selector)
+        
+        Return a collection of elements matching the given CSS selector.
+
+        :param selector: CSS selector
+        :type selector: str
+        :return: collection of matching elements
+        :rtype: DOMNodeCollection
+        """
+        cdef lxb_dom_collection_t* coll = self._match_by_selector(selector.encode())
+        if coll == NULL:
+            raise RuntimeError('Failed to match elements by CSS selector')
+
+        cdef DOMNodeCollection return_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
+        return_coll.coll = coll
+        return return_coll
+
+    cpdef bint matches_any(self, str selector):
+        """
+        matches_any(self, selector)
+        
+        Check whether any element in the DOM tree matches the given CSS selector.
+
+        :param selector: CSS selector
+        :type selector: str
+        :return: boolean value indicating whether a matching element exists
+        :rtype: bool
+        """
+        self.tree.init_css_parser()
+
+        cdef bytes selector_bytes = selector.encode()
+        cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(self.tree.css_parser,
+                                                                         <lxb_char_t*>selector_bytes,
+                                                                         len(selector_bytes))
+        cdef bint matches = False
+        if lxb_selectors_find(self.tree.selectors, self.node, sel_list, <lxb_selectors_cb_f>css_match_callback,
+                              <void*>&matches) != LXB_STATUS_OK:
+            return False
+
+        return matches
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
         """
@@ -398,6 +480,7 @@ cdef class DOMNode:
         Get attribute or ``default_value``.
 
         :param attr_name: attribute name
+        :type attr_name: str
         :param default_value: default value to return if attribute is unset
         """
         if not check_node(self):
@@ -566,10 +649,39 @@ cdef class HTMLTree:
         self.document = lxb_html_document_create()
         if self.document == NULL:
             raise RuntimeError('Failed to allocate HTML document')
+        self.css_parser = NULL
+        self.css_selectors = NULL
+        self.selectors = NULL
 
     def __dealloc__(self):
         if self.document != NULL:
             lxb_html_document_destroy(self.document)
+            self.document = NULL
+
+        if self.selectors != NULL:
+            lxb_selectors_destroy(self.selectors, True)
+        if self.css_parser != NULL:
+            lxb_css_parser_destroy(self.css_parser, True)
+            self.css_parser = NULL
+        if self.css_selectors != NULL:
+            lxb_css_selectors_destroy(self.css_selectors, True, True)
+            self.css_selectors = NULL
+
+    # noinspection PyAttributeOutsideInit
+    cdef void init_css_parser(self):
+        """
+        Initialize CSS selector if not already initialized.
+        """
+        if self.css_parser == NULL:
+            self.css_parser = lxb_css_parser_create()
+            lxb_css_parser_init(self.css_parser, NULL, NULL)
+
+            self.css_selectors = lxb_css_selectors_create()
+            lxb_css_selectors_init(self.css_selectors, 32)
+            lxb_css_parser_selectors_set(self.css_parser, self.css_selectors)
+
+            self.selectors = lxb_selectors_create()
+            lxb_selectors_init(self.selectors)
 
     cpdef void parse(self, str document):
         """
