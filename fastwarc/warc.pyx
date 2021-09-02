@@ -186,7 +186,7 @@ cdef class WarcHeaderMap:
         """
         Header status line.
 
-        :rtype: str
+        :type: str
         """
         return self._status_line.decode(self._enc, errors='ignore')
 
@@ -205,7 +205,7 @@ cdef class WarcHeaderMap:
         """
         HTTP status code (unset if header block is not an HTTP header block).
 
-        :rtype: int or None
+        :type: int or None
         """
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
@@ -399,7 +399,7 @@ cdef class WarcRecord:
         """
         Record ID (same as ``headers['WARC-Record'ID']``.
 
-        :rtype: str
+        :type: str
         """
         return self._headers['WARC-Record-ID']
 
@@ -408,7 +408,7 @@ cdef class WarcRecord:
         """
         Record type (same as ``headers['WARC-Type']``.
 
-        :rtype: WarcRecordType
+        :type: WarcRecordType
         """
         return self._record_type
 
@@ -430,7 +430,7 @@ cdef class WarcRecord:
         """
         WARC record headers.
 
-        :rtype: WarcHeaderMap
+        :type: WarcHeaderMap
         """
         return self._headers
 
@@ -439,7 +439,7 @@ cdef class WarcRecord:
         """
         Whether record is an HTTP record.
 
-        :rtype: bool
+        :type: bool
         """
         return self._is_http
 
@@ -448,7 +448,7 @@ cdef class WarcRecord:
         """
         Whether HTTP headers have been parsed.
 
-        :rtype: bool
+        :type: bool
         """
         return self._http_parsed
 
@@ -457,7 +457,7 @@ cdef class WarcRecord:
         """
         HTTP headers if record is an HTTP record and HTTP headers have been parsed yet.
 
-        :rtype: WarcHeaderMap or None
+        :type: WarcHeaderMap or None
         """
         return self._http_headers
 
@@ -466,7 +466,7 @@ cdef class WarcRecord:
         """
         Plain HTTP Content-Type without additional fields such as ``charset=``.
 
-        :rtype: str or None
+        :type: str or None
         """
         if not self._http_parsed:
             return None
@@ -484,7 +484,7 @@ cdef class WarcRecord:
         HTTP charset/encoding as returned by the server or ``None`` if no valid charset is set.
         A returned string is guaranteed to be a valid Python encoding name.
 
-        :rtype: str or None
+        :type: str or None
         """
         if not self._http_parsed or self._http_charset == <char*>b'_':
             return None
@@ -516,7 +516,7 @@ cdef class WarcRecord:
         """
         Remaining WARC length in bytes (not necessarily the same as the ``Content-Length`` header).
 
-        :rtype: int
+        :type: int
         """
         return self._content_length
 
@@ -525,7 +525,7 @@ cdef class WarcRecord:
         """
         Reader for the remaining WARC record content.
 
-        :rtype: BufferedReader
+        :type: BufferedReader
         """
         return self._reader
 
@@ -534,7 +534,7 @@ cdef class WarcRecord:
         """
         WARC record start offset in the original (uncompressed) stream.
 
-        :rtype: int
+        :type: int
         """
         return self._stream_pos
 

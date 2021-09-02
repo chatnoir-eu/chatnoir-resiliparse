@@ -74,7 +74,7 @@ cdef class DOMAttribute:
         """
         Attribute name.
 
-        :rtype: str or None
+        :type: str or None
         """
         if self.attr == NULL or not check_node(self.node):
             return None
@@ -90,7 +90,7 @@ cdef class DOMAttribute:
         """
         Attribute value.
 
-        :rtype: str or None
+        :type: str or None
         """
         if self.attr == NULL or not check_node(self.node):
             return None
@@ -158,7 +158,7 @@ cdef class DOMNode:
         """
         DOM node type.
 
-        :rtype: NodeType
+        :type: NodeType
         """
         if not check_node(self):
             return None
@@ -169,7 +169,7 @@ cdef class DOMNode:
         """
         DOM node tag name if node is an Element node.
 
-        :rtype: str or None
+        :type: str or None
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return None
@@ -185,7 +185,7 @@ cdef class DOMNode:
         """
         First child element of this DOM node.
 
-        :rtype: DOMNode
+        :type: DOMNode
         """
         if not check_node(self):
             return None
@@ -196,7 +196,7 @@ cdef class DOMNode:
         """
         Last child element of this DOM node.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if not check_node(self):
             return None
@@ -207,7 +207,7 @@ cdef class DOMNode:
         """
         Parent of this node.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if not check_node(self):
             return None
@@ -218,7 +218,7 @@ cdef class DOMNode:
         """
         Next sibling node.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if not check_node(self):
             return None
@@ -229,7 +229,7 @@ cdef class DOMNode:
         """
         Previous sibling node.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if not check_node(self):
             return None
@@ -242,7 +242,7 @@ cdef class DOMNode:
 
         The DOM node's inner text can be modified by assigning to this property.
 
-        :rtype: str
+        :type: str
         """
         if not check_node(self):
             return None
@@ -267,7 +267,7 @@ cdef class DOMNode:
 
         The DOM node's inner HTML can be modified by assigning to this property.
 
-        :rtype: str
+        :type: str
         """
         if not check_node(self):
             return None
@@ -291,7 +291,7 @@ cdef class DOMNode:
         """
         List of attributes.
 
-        :rtype: List[DOMAttribute]
+        :type: List[DOMAttribute]
         """
         attrs = []
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -581,7 +581,7 @@ cdef class DOMNode:
         """
         decompose(self)
         
-        Remove the current node and all its children from the DOM tree and delete them.
+        Delete the current node and all its children.
         """
         if not check_node(self):
             raise RuntimeError('Decompose operation on uninitialized node')
@@ -827,7 +827,7 @@ cdef class HTMLTree:
         """
         Document root element.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if self.document == NULL:
             return None
@@ -839,7 +839,7 @@ cdef class HTMLTree:
         """
         HTML head element or ``None`` if document has no head.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if self.document == NULL:
             return None
@@ -851,7 +851,7 @@ cdef class HTMLTree:
         """
         HTML body element or ``None`` if document has no body.
 
-        :rtype: DOMNode or None
+        :type: DOMNode or None
         """
         if self.document == NULL:
             return None
