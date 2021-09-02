@@ -123,6 +123,11 @@ cdef class DOMNode:
         self.tree = tree
         self.node = NULL
 
+    def __dealloc__(self):
+        if self.node != NULL and self.node.parent == NULL:
+            lxb_dom_node_destroy_deep(self.node)
+            self.node = NULL
+
     def __iter__(self):
         """
         __iter__(self)
