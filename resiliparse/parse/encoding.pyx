@@ -282,7 +282,7 @@ cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=True):
     return __enc_html5_map.get(encoding.strip().casefold(), 'utf-8' if fallback_utf8 else None)
 
 
-cdef str __map_utf(str enc, bytes data, bint strip):
+cdef inline str __map_utf(str enc, bytes data, bint strip):
     if not strip:
         return enc
 
