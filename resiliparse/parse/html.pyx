@@ -451,7 +451,7 @@ cdef class DOMNode:
         """
         get_element_by_id(self, element_id, case_insensitive=False)
         
-        Return element matching element ID ``element_id`` or ``None`` if no such element exists.
+        Return the element matching with ID attribute ``element_id`` or ``None`` if no such element exists.
         
         :param element_id: element ID
         :type element_id: str
@@ -463,7 +463,7 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t* coll = self._match_by_attr(b'id', element_id.encode(), 5, case_insensitive)
+        cdef lxb_dom_collection_t* coll = self._match_by_attr(b'id', element_id.encode(), 1, case_insensitive)
         if coll == NULL:
             raise RuntimeError('Failed to match element by ID')
 
@@ -477,7 +477,7 @@ cdef class DOMNode:
         """
         get_elements_by_class_name(self, element_class, case_insensitive=False)
         
-        Get a :class:`NodeCollection` with all DOM elements matching the class attribute ``element_class``.
+        Return a :class:`DOMNodeCollection` with all DOM elements matching the class attribute ``element_class``.
         
         :param element_class: element class
         :type element_class: str
@@ -491,7 +491,35 @@ cdef class DOMNode:
 
         cdef lxb_dom_collection_t * coll = self._match_by_attr(b'class', element_class.encode(), 5, case_insensitive)
         if coll == NULL:
-            raise RuntimeError('Failed to match element by class name')
+            raise RuntimeError('Failed to match elements by class name')
+
+        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
+        result_coll.coll = coll
+        return result_coll
+
+    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
+        """
+        get_elements_by_attr(self, attr_name, attr_value, case_insensitive=False)
+        
+        Return a :class:`DOMNodeCollection` with all DOM elements matching the arbitrary attribute
+        ``attr_name`` with value ``attr_value``.
+        
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param attr_value: attribute value
+        :type attr_name: str
+        :param case_insensitive: match attribute names and values case-insensitively
+        :type case_insensitive: bool
+        :return: collection of matching elements
+        :rtype: DOMNodeCollection or None
+        """
+        if not check_node(self):
+            return None
+
+        cdef lxb_dom_collection_t* coll = self._match_by_attr(attr_name.encode(), attr_value.encode(),
+                                                              10, case_insensitive)
+        if coll == NULL:
+            raise RuntimeError('Failed to match elements by attribute')
 
         cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
         result_coll.coll = coll
@@ -501,7 +529,7 @@ cdef class DOMNode:
         """
         get_elements_by_tag_name(self, tag_name)
         
-        Get a :class:`NodeCollection` with all DOM elements matching the tag name ``tag_name``.
+        Return a :class:`DOMNodeCollection` with all DOM elements matching the tag name ``tag_name``.
         
         :param tag_name: tag name for matching elements
         :type tag_name: str
@@ -519,7 +547,7 @@ cdef class DOMNode:
         cdef lxb_status_t status = lxb_dom_elements_by_tag_name(<lxb_dom_element_t*>self.node,
                                                                 coll, <lxb_char_t*>tag_bytes, len(tag_bytes))
         if status != LXB_STATUS_OK:
-            raise RuntimeError('Failed to match elements')
+            raise RuntimeError('Failed to match elements by tag name')
         cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
         result_coll.coll = coll
         return result_coll
@@ -731,7 +759,7 @@ cdef class DOMNodeCollection:
         """
         __getitem__(self, key)
 
-        Return the :class:`Node` at the given index in this collection or another :class:`NodeCollection`
+        Return the :class:`DOMNode` at the given index in this collection or another :class:`DOMNodeCollection`
         if ``key`` is a slice object. Negative indexing is supported.
 
         :param key: index or slice

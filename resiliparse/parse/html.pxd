@@ -28,6 +28,7 @@ cdef class DOMNode:
                                               bint case_insensitive=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=*)
+    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
 
     cdef lxb_dom_collection_t * _match_by_selector(self, bytes selector, size_t init_size=*)
