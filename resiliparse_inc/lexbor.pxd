@@ -317,7 +317,11 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     void lxb_dom_node_insert_child(lxb_dom_node_t *to, lxb_dom_node_t *node)
     void lxb_dom_node_insert_before(lxb_dom_node_t *to, lxb_dom_node_t *node)
     void lxb_dom_node_insert_after(lxb_dom_node_t *to, lxb_dom_node_t *node)
+    void lxb_dom_node_remove(lxb_dom_node_t *node)
 
+    lxb_dom_element_t * lxb_dom_document_create_element(lxb_dom_document_t *document,
+                                                        const lxb_char_t *local_name, size_t lname_len,
+                                                        void *reserved_for_opt)
     lxb_dom_text_t * lxb_dom_document_create_text_node(lxb_dom_document_t *document, const lxb_char_t *data, size_t len)
     void lxb_dom_node_simple_walk(lxb_dom_node_t *root, lxb_dom_node_simple_walker_f walker_cb, void *ctx)
 

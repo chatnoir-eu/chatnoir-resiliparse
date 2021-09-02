@@ -39,6 +39,10 @@ cdef class DOMNode:
     cpdef DOMNodeCollection query_selector_all(self, str selector)
     cpdef bint matches_any(self, str selector)
 
+    cpdef DOMNode append_child(self, DOMNode node)
+    cpdef DOMNode remove_child(self, DOMNode node)
+    cpdef void decompose(self)
+
 
 cdef class DOMNodeCollection:
     cdef HTMLTree tree
@@ -73,5 +77,8 @@ cdef class HTMLTree:
 
     cpdef void parse(self, str document)
     cpdef void parse_from_bytes(self, bytes document, str encoding=*, str errors=*)
+
+    cpdef create_element(self, str tag_name)
+    cpdef create_text_node(self, str text)
 
     cdef void init_css_parser(self)

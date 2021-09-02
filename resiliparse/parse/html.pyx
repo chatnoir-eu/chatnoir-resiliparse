@@ -534,6 +534,62 @@ cdef class DOMNode:
 
         return self._getattr_impl(attr_name)
 
+    cpdef DOMNode append_child(self, DOMNode node):
+        """
+        append_child(self, node)
+        
+        Append a new child node to this DOM node.
+        
+        :param node: DOM node to append as new child node
+        :type node: DOMNode
+        :return: the appended child node
+        :rtype: DOMNode
+        :raises ValueError: if trying to append node to itself
+        """
+        if not check_node(self) or not check_node(node):
+            raise RuntimeError('Append operation on uninitialized node')
+
+        if node.node == self.node:
+            raise ValueError('Trying to append child to itself')
+
+        lxb_dom_node_insert_child(self.node, node.node)
+        return node
+
+    cpdef DOMNode remove_child(self, DOMNode node):
+        """
+        remove_child(self, node)
+        
+        Remove and return the child node ``node``.
+        
+        :param node: DOM node to remove
+        :type node: DOMNode
+        :return: the removed child node
+        :rtype: DOMNode
+        :raises ValueError: if ``node`` is not actually a child of this node
+        """
+        if not check_node(self) or not check_node(node):
+            raise RuntimeError('Remove operation on uninitialized node')
+
+        if node.node.parent != self.node:
+            raise ValueError('Node is not a child of the current node')
+
+        lxb_dom_node_remove(node.node)
+        return node
+
+    # noinspection PyAttributeOutsideInit
+    cpdef void decompose(self):
+        """
+        decompose(self)
+        
+        Remove the current node and all its children from the DOM tree and delete them.
+        """
+        if not check_node(self):
+            raise RuntimeError('Decompose operation on uninitialized node')
+
+        lxb_dom_node_destroy_deep(self.node)
+        self.node = NULL
+        self.tree = None
+
     def __getitem__(self, str attr_name):
         """
         __getitem__(self, attr_name)
@@ -552,7 +608,7 @@ cdef class DOMNode:
 
     def __repr__(self):
         if not check_node(self):
-            return None
+            return '<INVALID ELEMENT>'
 
         if self.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
             attrs = ' '.join(repr(a) for a in self.attrs)
@@ -570,6 +626,17 @@ cdef class DOMNode:
 
     def __str__(self):
         return self.__repr__()
+
+    def __eq__(self, other):
+        if not check_node(self) or not isinstance(other, DOMNode):
+            return False
+        cdef DOMNode other_dom = <DOMNode>other
+        return other_dom.node == self.node
+
+    def __hash__(self):
+        if not check_node(self):
+            return 0
+        return <size_t>self.node
 
 
 cdef class DOMNodeCollection:
@@ -790,3 +857,41 @@ cdef class HTMLTree:
             return None
 
         return _node_from_dom(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.document))
+
+    cpdef create_element(self, str tag_name):
+        """
+        create_element(self, tag_name)
+        
+        Create a new DOM Element node.
+        
+        :param tag_name: element tag name
+        :type tag_name: str
+        :return: new Element node
+        :rtype: DOMNode
+        """
+        if self.document == NULL:
+            raise RuntimeError('Trying to create element in uninitialized document.')
+
+        cdef bytes tag_name_bytes = tag_name.encode()
+        cdef lxb_dom_element_t* element = lxb_dom_document_create_element(
+            <lxb_dom_document_t*>self.document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
+        return _node_from_dom(self, <lxb_dom_node_t*>element)
+
+    cpdef create_text_node(self, str text):
+        """
+        create_text_node(self, text)
+
+        Create a new DOM Element node.
+
+        :param text: string contents of the new text element
+        :type text: str
+        :return: new text node
+        :rtype: DOMNode
+        """
+        if self.document == NULL:
+            raise RuntimeError('Trying to create text node in uninitialized document.')
+
+        cdef bytes text_bytes = text.encode()
+        cdef lxb_dom_text_t* node = lxb_dom_document_create_text_node(
+            <lxb_dom_document_t*>self.document, <lxb_char_t*>text_bytes, len(text_bytes))
+        return _node_from_dom(self, <lxb_dom_node_t*>node)
