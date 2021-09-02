@@ -28,8 +28,8 @@ cdef class DOMNode:
                                                           bint case_insensitive=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=*)
-    cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, str tag_name)
+    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=*)
+    cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, bytes tag_name)
     cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
 
     cdef lxb_dom_collection_t* _query_selector_impl(self, bytes selector, size_t init_size=*)
@@ -49,7 +49,15 @@ cdef class DOMNodeCollection:
     cdef lxb_dom_collection_t* coll
 
     cdef inline size_t _wrap_idx(self, ssize_t idx)
+    cdef _forward_element_match(self, bytes func, attrs, bint single)
 
+    cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
+    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive= *)
+    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive= *)
+    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
+
+    cpdef DOMNode query_selector(self, str selector)
+    cpdef DOMNodeCollection query_selector_all(self, str selector)
 
 # noinspection DuplicatedCode
 cpdef enum NodeType:
