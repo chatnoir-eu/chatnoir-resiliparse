@@ -552,7 +552,39 @@ cdef class DOMNode:
         if node.node == self.node:
             raise ValueError('Trying to append child to itself')
 
+        if node.node.parent != NULL:
+            lxb_dom_node_remove(node.node)
         lxb_dom_node_insert_child(self.node, node.node)
+        return node
+
+    cpdef DOMNode insert_before(self, DOMNode node, DOMNode reference):
+        """
+        insert_before(self, node, reference)
+        
+        Insert ``node`` before ``reference`` as a new child node. The reference node must be
+        a child of this node or ``None``. If ``reference`` is ``None``, the new node
+        will be appended as the new last child. 
+        
+        :param node: DOM node to insert as new child node
+        :type node: DOMNode
+        :param reference: child node before which to insert the new node or ``None``
+        :type reference: DOMNode
+        :return: the inserted child node
+        :rtype: DOMNode
+        :raises ValueError: if trying to add node as its own child or if ``reference`` is not a child
+        """
+        if not check_node(self) or not check_node(node) or not check_node(reference):
+            raise RuntimeError('Insert operation on uninitialized node')
+
+        if node.node == self.node:
+            raise ValueError('Trying to insert node as its own child')
+
+        if reference.node.parent != self.node:
+            raise ValueError('Reference node must be a child node')
+
+        if node.node.parent != NULL:
+            lxb_dom_node_remove(node.node)
+        lxb_dom_node_insert_before(reference.node, node.node)
         return node
 
     cpdef DOMNode remove_child(self, DOMNode node):
