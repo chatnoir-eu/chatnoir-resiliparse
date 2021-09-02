@@ -286,6 +286,7 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     lxb_dom_collection_t * lxb_dom_collection_make(lxb_dom_document_t *document, size_t start_list_size)
     size_t lxb_dom_collection_length(lxb_dom_collection_t *col)
     lxb_dom_element_t * lxb_dom_collection_element(lxb_dom_collection_t * col, size_t idx)
+    lxb_dom_node_t * lxb_dom_collection_node(lxb_dom_collection_t * col, size_t idx)
     lxb_status_t lxb_dom_collection_append(lxb_dom_collection_t * col, void * value)
     lxb_char_t * lxb_dom_node_text_content(lxb_dom_node_t *node, size_t *len)
     lxb_status_t lxb_dom_node_text_content_set(lxb_dom_node_t *node,
