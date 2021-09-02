@@ -24,14 +24,15 @@ cdef class DOMNode:
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef str _getattr_impl(self, str attr_name)
 
-    cdef lxb_dom_collection_t* _match_by_attr(self, bytes attr_name, bytes attr_value, size_t init_size=*,
-                                              bint case_insensitive=*)
+    cdef lxb_dom_collection_t* _get_elements_by_attr_impl(self, bytes attr_name, bytes attr_value, size_t init_size=*,
+                                                          bint case_insensitive=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=*)
     cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
+    cpdef DOMNodeCollection get_elements_by_class_name(self, str element_class, bint case_insensitive=*)
+    cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, str tag_name)
     cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
 
-    cdef lxb_dom_collection_t * _match_by_selector(self, bytes selector, size_t init_size=*)
+    cdef lxb_dom_collection_t* _query_selector_impl(self, bytes selector, size_t init_size=*)
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMNodeCollection query_selector_all(self, str selector)
     cpdef bint matches_any(self, str selector)
