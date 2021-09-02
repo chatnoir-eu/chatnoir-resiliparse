@@ -40,6 +40,7 @@ cdef class DOMNode:
     cpdef bint matches_any(self, str selector)
 
     cpdef DOMNode append_child(self, DOMNode node)
+    cpdef DOMNode insert_before(self, DOMNode node, DOMNode reference)
     cpdef DOMNode remove_child(self, DOMNode node)
     cpdef void decompose(self)
 
