@@ -142,6 +142,21 @@ cdef class DOMNode:
         return _node_from_dom(self.tree, self.node.last_child)
 
     @property
+    def child_nodes(self):
+        """
+        Iterable of child nodes.
+
+        :type: t.Iterable[DOMNode]
+        """
+        if not check_node(self):
+            return
+
+        cdef lxb_dom_node_t* child = self.node.first_child
+        while child != NULL:
+            yield _node_from_dom(self.tree, child)
+            child = child.next
+
+    @property
     def parent(self):
         """
         Parent of this node.
@@ -251,7 +266,7 @@ cdef class DOMNode:
         """
         hasattr(self, attr_name)
         
-        Check if node has attribute.
+        Check if node has an attribute with the given name.
 
         :param attr_name: attribute name
         :type attr_name: str
@@ -269,7 +284,7 @@ cdef class DOMNode:
         """
         getattr(self, attr_name, default_value=None)
 
-        Get attribute value or ``default_value`` if attribute does not exist.
+        Get attribute value of attribute ``attr_name`` or ``default_value`` if attribute does not exist.
 
         :param attr_name: attribute name
         :type attr_name: str
@@ -664,7 +679,7 @@ cdef class DOMNodeCollection:
     """
     __init__(self)
 
-    Collection of DOM nodes that are a the result set of an element match operation.
+    Collection of DOM nodes that are the result set of an element match operation.
 
     A node collection is only valid as long as the owning :class:`HTMLTree` is alive
     and the DOM tree hasn't been modified. Do not access :class:`DOMNodeCollection` instances
