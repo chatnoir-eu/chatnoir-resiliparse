@@ -289,6 +289,8 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     lxb_dom_element_t * lxb_dom_collection_element(lxb_dom_collection_t * col, size_t idx)
     lxb_status_t lxb_dom_collection_append(lxb_dom_collection_t * col, void * value)
     lxb_char_t * lxb_dom_node_text_content(lxb_dom_node_t *node, size_t *len)
+    lxb_status_t lxb_dom_node_text_content_set(lxb_dom_node_t *node,
+                                               const lxb_char_t *content, size_t len)
     void * lxb_dom_document_destroy_text(lxb_dom_document_t *document, lxb_char_t *text)
     lxb_dom_node_t *  lxb_dom_document_root(lxb_dom_document_t *document)
     lxb_char_t * lxb_dom_element_qualified_name(lxb_dom_element_t *element, size_t *len)
@@ -322,13 +324,17 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
 
 
 cdef extern from "<lexbor/dom/interfaces/element.h>" nogil:
+    ctypedef struct lxb_html_element_t
+
     lxb_status_t lxb_dom_elements_by_tag_name(lxb_dom_element_t *root, lxb_dom_collection_t *collection,
                                               const lxb_char_t *qualified_name, size_t len)
     lxb_status_t lxb_dom_elements_by_attr(lxb_dom_element_t *root,
                                           lxb_dom_collection_t *collection,
                                           const lxb_char_t *qualified_name, size_t qname_len,
                                           const lxb_char_t *value, size_t value_len,
-                                          bint case_insensitive);
+                                          bint case_insensitive)
+    lxb_html_element_t* lxb_html_element_inner_html_set(lxb_html_element_t *element,
+                                                        const lxb_char_t *html, size_t size)
 
 
 cdef extern from "lexbor/dom/interfaces/document.h" nogil:

@@ -235,6 +235,8 @@ cdef class DOMNode:
         """
         Text contents of this DOM node and its children.
 
+        The DOM node's inner text can be modified by assigning to this property.
+
         :rtype: str
         """
         if not check_node(self):
@@ -245,10 +247,20 @@ cdef class DOMNode:
         lxb_dom_document_destroy_text(self.node.owner_document, text)
         return py_text
 
+    @text.setter
+    def text(self, str text):
+        if not check_node(self):
+            raise RuntimeError('Trying to set text contents of destroyed DOM node')
+
+        cdef bytes text_bytes = text.encode()
+        lxb_dom_node_text_content_set(self.node, <lxb_char_t*>text_bytes, len(text_bytes))
+
     @property
     def html(self):
         """
         HTML contents of this DOM node and its children.
+
+        The DOM node's inner HTML can be modified by assigning to this property.
 
         :rtype: str
         """
@@ -259,6 +271,15 @@ cdef class DOMNode:
         cdef str py_text = bytes_to_str(html_str.data[:html_str.length])
         lexbor_str_destroy(html_str, self.node.owner_document.text, True)
         return py_text
+
+    @html.setter
+    def html(self, str html):
+        if not check_node(self):
+            raise RuntimeError('Trying to set HTML contents of destroyed DOM node')
+
+        cdef bytes html_bytes = html.encode()
+        cdef lxb_html_element_t* element = lxb_html_element_inner_html_set(
+            <lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
 
     @property
     def attrs(self):
