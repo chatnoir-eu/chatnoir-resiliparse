@@ -29,11 +29,12 @@ cdef extern from "<lexbor/core/core.h>" nogil:
         LXB_STATUS_STOPPED,
         LXB_STATUS_NEXT,
         LXB_STATUS_STOP
+    ctypedef struct lexbor_mraw_t
+    ctypedef struct lexbor_hash_t
 
     lexbor_str_t * lexbor_str_destroy(lexbor_str_t *str, lexbor_mraw_t *mraw, bint destroy_obj)
     lexbor_str_t * lexbor_str_create()
     lxb_char_t * lexbor_str_data_noi(lexbor_str_t *str)
-
 
 cdef extern from "<lexbor/html/html.h>" nogil:
     ctypedef unsigned int lxb_html_document_opt_t
@@ -42,8 +43,6 @@ cdef extern from "<lexbor/html/html.h>" nogil:
     ctypedef struct lxb_html_form_element_t
     ctypedef struct lxb_html_head_element_t
     ctypedef struct lxb_html_body_element_t
-    ctypedef struct lexbor_mraw_t
-    ctypedef struct lexbor_hash_t
     ctypedef struct lxb_dom_document_type_t
     ctypedef void lxb_dom_interface_t
     ctypedef uintptr_t lxb_tag_id_t
