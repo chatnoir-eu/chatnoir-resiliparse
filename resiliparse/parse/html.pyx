@@ -153,7 +153,7 @@ cdef class DOMNode:
         """
         DOM node type.
 
-        :rtype: NodeType or None
+        :rtype: NodeType
         """
         if not check_node(self):
             return None
@@ -162,7 +162,7 @@ cdef class DOMNode:
     @property
     def tag(self):
         """
-        DOM node tag name.
+        DOM node tag name if node is an Element node.
 
         :rtype: str or None
         """
@@ -180,7 +180,7 @@ cdef class DOMNode:
         """
         First child element of this DOM node.
 
-        :rtype: DOMNode or None
+        :rtype: DOMNode
         """
         if not check_node(self):
             return None
@@ -235,7 +235,7 @@ cdef class DOMNode:
         """
         Text contents of this DOM node and its children.
 
-        :rtype: str or None
+        :rtype: str
         """
         if not check_node(self):
             return None
@@ -243,6 +243,21 @@ cdef class DOMNode:
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
         cdef str py_text = bytes_to_str(text[:text_len])
         lxb_dom_document_destroy_text(self.node.owner_document, text)
+        return py_text
+
+    @property
+    def html(self):
+        """
+        HTML contents of this DOM node and its children.
+
+        :rtype: str
+        """
+        if not check_node(self):
+            return None
+        cdef lexbor_str_t* html_str = lexbor_str_create()
+        lxb_html_serialize_tree_str(self.node, html_str)
+        cdef str py_text = bytes_to_str(html_str.data[:html_str.length])
+        lexbor_str_destroy(html_str, self.node.owner_document.text, True)
         return py_text
 
     @property
