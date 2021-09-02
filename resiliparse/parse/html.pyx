@@ -675,7 +675,7 @@ cdef class DOMNode:
             return '<INVALID ELEMENT>'
 
         if self.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
-            attrs = ' '.join(repr(a) for a in self.attrs)
+            attrs = ' '.join(f'{a}="{self[a]}"' for a in self.attrs)
             if attrs:
                 attrs = ' ' + attrs
             return f'<{self.tag}{attrs}>'
@@ -689,7 +689,7 @@ cdef class DOMNode:
         return f'<{self.__class__.__name__} Element>'
 
     def __str__(self):
-        return self.__repr__()
+        return self.html
 
     def __eq__(self, other):
         if not check_node(self) or not isinstance(other, DOMNode):
@@ -807,7 +807,7 @@ cdef class DOMNodeCollection:
         return _node_from_dom(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(self.coll, self._wrap_idx(key)))
 
     def __repr__(self):
-        return f'{{{", ".join(str(n) for n in self)}}}'
+        return f'{{{", ".join(repr(n) for n in self)}}}'
 
     def __str__(self):
         return self.__repr__()
