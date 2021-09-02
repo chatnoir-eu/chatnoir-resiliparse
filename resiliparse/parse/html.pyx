@@ -241,7 +241,9 @@ cdef class DOMNode:
             return None
         cdef size_t text_len = 0
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
-        return bytes_to_str(text[:text_len])
+        cdef str py_text = bytes_to_str(text[:text_len])
+        lxb_dom_document_destroy_text(self.node.owner_document, text)
+        return py_text
 
     @property
     def attrs(self):
