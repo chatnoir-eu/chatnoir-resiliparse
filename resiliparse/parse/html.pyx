@@ -562,6 +562,36 @@ cdef class DOMNode:
         lxb_dom_node_insert_before(reference.node, node.node)
         return node
 
+    cpdef DOMNode replace_child(self, DOMNode new_child, DOMNode old_child):
+        """
+        replace_child(self, new_child, old_child)
+        
+        Replace the child node ``old_child`` with ``new_child``.
+        
+        :param new_child: new child node to insert
+        :type new_child: DOMNode
+        :param old_child: old child node to replace
+        :type old_child: DOMNode
+        :return: the old child node
+        :rtype: DOMNode
+        :raises ValueError: if ``old_child`` is not a child of this node
+        """
+        if not check_node(self) or not check_node(new_child) or not check_node(old_child):
+            raise RuntimeError('Replace operation on uninitialized node')
+
+        if old_child.node.parent != self.node:
+            raise ValueError('Node is not a child of the current node')
+
+        if new_child.node == old_child.node:
+            return old_child
+
+        if new_child.node.parent != NULL:
+            lxb_dom_node_remove(new_child.node)
+        lxb_dom_node_insert_after(old_child.node, new_child.node)
+        lxb_dom_node_remove(old_child.node)
+
+        return old_child
+
     cpdef DOMNode remove_child(self, DOMNode node):
         """
         remove_child(self, node)
@@ -572,7 +602,7 @@ cdef class DOMNode:
         :type node: DOMNode
         :return: the removed child node
         :rtype: DOMNode
-        :raises ValueError: if ``node`` is not actually a child of this node
+        :raises ValueError: if ``node`` is not a child of this node
         """
         if not check_node(self) or not check_node(node):
             raise RuntimeError('Remove operation on uninitialized node')

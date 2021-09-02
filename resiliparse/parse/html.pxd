@@ -37,6 +37,7 @@ cdef class DOMNode:
 
     cpdef DOMNode append_child(self, DOMNode node)
     cpdef DOMNode insert_before(self, DOMNode node, DOMNode reference)
+    cpdef DOMNode replace_child(self, DOMNode new_child, DOMNode old_child)
     cpdef DOMNode remove_child(self, DOMNode node)
     cpdef void decompose(self)
 
