@@ -29,14 +29,6 @@ cdef inline DOMNode _node_from_dom(HTMLTree tree, lxb_dom_node_t* dom_node):
     return node
 
 
-cdef inline DOMAttribute _attr_from_dom(DOMNode parent_node, lxb_dom_attr_t* attr_node):
-    if attr_node == NULL:
-        return None
-    cdef DOMAttribute node = DOMAttribute.__new__(DOMAttribute, parent_node)
-    node.attr = attr_node
-    return node
-
-
 cdef inline bint check_node(DOMNode node):
     return node is not None and node.tree is not None and node.node != NULL
 
@@ -52,58 +44,6 @@ cdef lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_spec
     cdef bint* matches = <bint*>ctx
     matches[0] |= node != NULL
     return LXB_STATUS_OK
-
-
-cdef class DOMAttribute:
-    """
-    __init__(self)
-
-    A DOM element attribute.
-
-    An attribute is only valid as long as the owning :class:`HTMLTree` and :class:`Node` are
-    alive and the DOM tree hasn't been modified. Do not access :class:`DOMAttribute` instances after any
-    sort of DOM tree manipulation.
-    """
-
-    def __cinit__(self, DOMNode node):
-        self.node = node
-        self.attr = NULL
-
-    @property
-    def name(self):
-        """
-        Attribute name.
-
-        :type: str or None
-        """
-        if self.attr == NULL or not check_node(self.node):
-            return None
-
-        cdef size_t name_len = 0
-        cdef const lxb_char_t* name = lxb_dom_attr_local_name(self.attr, &name_len)
-        if name == NULL:
-            return None
-        return bytes_to_str(name[:name_len])
-
-    @property
-    def value(self):
-        """
-        Attribute value.
-
-        :type: str or None
-        """
-        if self.attr == NULL or not check_node(self.node):
-            return None
-
-        cdef size_t val_len = 0
-        cdef const lxb_char_t* val = lxb_dom_attr_value(self.attr, &val_len)
-        return bytes_to_str(val[:val_len])
-
-    def __repr__(self):
-        return f'{self.name}="{self.value}"'
-
-    def __str__(self):
-        return self.value
 
 
 cdef class DOMNode:
@@ -174,8 +114,7 @@ cdef class DOMNode:
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             return None
         cdef size_t name_len = 0
-        cdef unsigned char* name = <unsigned char*>lxb_dom_element_qualified_name(
-            <lxb_dom_element_t*>self.node, &name_len)
+        cdef const lxb_char_t* name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>self.node, &name_len)
         if name == NULL:
             return None
         return bytes_to_str(name[:name_len])
@@ -255,7 +194,7 @@ cdef class DOMNode:
     @text.setter
     def text(self, str text):
         if not check_node(self):
-            raise RuntimeError('Trying to set text contents of destroyed DOM node')
+            raise RuntimeError('Trying to set text contents of uninitialized DOM node')
 
         cdef bytes text_bytes = text.encode()
         lxb_dom_node_text_content_set(self.node, <lxb_char_t*>text_bytes, len(text_bytes))
@@ -280,7 +219,7 @@ cdef class DOMNode:
     @html.setter
     def html(self, str html):
         if not check_node(self):
-            raise RuntimeError('Trying to set HTML contents of destroyed DOM node')
+            raise RuntimeError('Trying to set HTML contents of uninitialized DOM node')
 
         cdef bytes html_bytes = html.encode()
         cdef lxb_html_element_t* element = lxb_html_element_inner_html_set(
@@ -289,17 +228,21 @@ cdef class DOMNode:
     @property
     def attrs(self):
         """
-        List of attributes.
+        List of attribute names if node is an Element node.
 
-        :type: List[DOMAttribute]
+        :type: t.List[str] or None
         """
-        attrs = []
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            return attrs
+            return None
 
         cdef lxb_dom_attr_t* attr = lxb_dom_element_first_attribute(<lxb_dom_element_t*>self.node)
+        cdef const lxb_char_t* local_name
+        cdef size_t local_name_len = 0
+
+        attrs = []
         while attr != NULL:
-            attrs.append(_attr_from_dom(self, attr))
+            local_name = lxb_dom_attr_local_name(attr, &local_name_len)
+            attrs.append(bytes_to_str(local_name[:local_name_len]))
             attr = attr.next
 
         return attrs
@@ -313,24 +256,74 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :type attr_name: str
         :rtype: bool
+        :raises ValueError: if node ist not an Element node
         """
-        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            return False
-        cdef bytes attr_name_bytes = attr_name.encode()
-        return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
-                                                   <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
-
-    cdef DOMAttribute _getattr_impl(self, str attr_name):
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
 
         cdef bytes attr_name_bytes = attr_name.encode()
-        cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_by_name(<lxb_dom_element_t*>self.node,
-                                                                 <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
-        if attr == NULL:
-            raise KeyError(f'No such attribute: {attr_name_bytes}')
+        return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
+                                                   <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
-        return _attr_from_dom(self, attr)
+    cpdef str getattr(self, str attr_name, str default_value=None):
+        """
+        getattr(self, attr_name, default_value=None)
+
+        Get attribute value or ``default_value`` if attribute does not exist.
+
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param default_value: default value to return if attribute is unset
+        :type default_value: str
+        :return: attribute value
+        :rtype: str
+        :raises ValueError: if node ist not an Element node
+        """
+        if not check_node(self):
+            return None
+
+        cdef str value = self._getattr_impl(attr_name)
+        if value is None:
+            return default_value
+        return value
+
+    def __getitem__(self, str attr_name):
+        """
+        __getitem__(self, attr_name)
+
+        Get attribute value.
+
+        :param attr_name: attribute name
+        :rtype: str
+        :raises KeyError: if no such attribute exists
+        :raises ValueError: if node ist not an Element node
+        """
+        if not check_node(self):
+            return None
+
+        cdef str value = self._getattr_impl(attr_name)
+        if value is None:
+            raise KeyError(f'No such attribute: {attr_name}')
+        return value
+
+    cdef str _getattr_impl(self, str attr_name):
+        """
+        Get attribute value as string.
+        
+        :param attr_name: 
+        :return: attribute value or None
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            raise ValueError('Node ist not an Element node.')
+
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef size_t value_len = 0
+        cdef const lxb_char_t* value = lxb_dom_element_get_attribute(<lxb_dom_element_t*>self.node,
+                                                                     <lxb_char_t*>attr_name_bytes, len(attr_name_bytes),
+                                                                     &value_len)
+        if value == NULL:
+            return None
+        return bytes_to_str(value[:value_len])
 
     cdef lxb_dom_collection_t* _match_by_attr(self, bytes attr_name, bytes attr_value, size_t init_size=5,
                                               bint case_insensitive=False):
@@ -516,24 +509,6 @@ cdef class DOMNode:
         result_coll.coll = coll
         return result_coll
 
-    cpdef getattr(self, str attr_name, default_value=None):
-        """
-        getattr(self, attr_name, default_value=None)
-        
-        Get attribute or ``default_value``.
-
-        :param attr_name: attribute name
-        :type attr_name: str
-        :param default_value: default value to return if attribute is unset
-        """
-        if not check_node(self):
-            return None
-
-        if not self.hasattr(attr_name):
-            return default_value
-
-        return self._getattr_impl(attr_name)
-
     cpdef DOMNode append_child(self, DOMNode node):
         """
         append_child(self, node)
@@ -621,22 +596,6 @@ cdef class DOMNode:
         lxb_dom_node_destroy_deep(self.node)
         self.node = NULL
         self.tree = None
-
-    def __getitem__(self, str attr_name):
-        """
-        __getitem__(self, attr_name)
-
-        Get attribute.
-
-        :param attr_name: attribute name
-        :rtype: DOMAttribute or None
-        :raises KeyError: if no such attribute exists
-        :raises ValueError: if node ist not an Element node
-        """
-        if not check_node(self):
-            return None
-
-        return self._getattr_impl(attr_name)
 
     def __repr__(self):
         if not check_node(self):

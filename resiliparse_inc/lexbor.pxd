@@ -299,6 +299,9 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
 
     const lxb_char_t * lxb_dom_attr_local_name(lxb_dom_attr_t *attr, size_t *len);
     const lxb_char_t * lxb_dom_attr_value(lxb_dom_attr_t *attr, size_t *len)
+    const lxb_char_t * lxb_dom_element_get_attribute(lxb_dom_element_t *element,
+                                                     const lxb_char_t *qualified_name, size_t qn_len,
+                                                     size_t *value_len);
 
     bint lxb_dom_element_has_attributes(lxb_dom_element_t *element)
     bint lxb_dom_element_has_attribute(lxb_dom_element_t *element,
