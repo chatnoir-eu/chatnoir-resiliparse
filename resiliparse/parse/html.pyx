@@ -1121,6 +1121,8 @@ cdef class HTMLTree:
         
         The decoding routine uses :func:`~.parse.encoding.bytes_to_str` to take care of decoding errors,
         so it is sufficient if ``encoding`` is just a best guess of what the actual input encoding is.
+        The encoding name will be remapped according to the WHATWG specification by calling
+        :func:`~.parse.encoding.map_encoding_to_html5` before trying to decode the byte string with it.
         
         :param document: input byte string
         :param encoding: encoding for decoding byte string
