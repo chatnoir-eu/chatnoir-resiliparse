@@ -147,7 +147,7 @@ cdef class DOMNode:
     def __dealloc__(self):
         if self.node != NULL:
             self.node.user = NULL
-            if self.node.parent == NULL:
+            if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
                 lxb_dom_node_destroy_deep(self.node)
                 self.node = NULL
 
