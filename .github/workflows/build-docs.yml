@@ -6,10 +6,14 @@ on:
     types:
       - completed
 
+  push:
+    branches:
+      - develop
+
 jobs:
-  on-success:
+  trigger-build:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.ref == 'refs/heads/develop' }}
     steps:
       - name: Trigger RTDs Build
         uses: dfm/rtds-action@v1
