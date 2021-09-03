@@ -1095,6 +1095,19 @@ cdef class HTMLTree:
 
         return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.dom_document))
 
+    @property
+    def title(self):
+        """
+        The HTML document title.
+
+        :type: str or None
+        """
+        cdef size_t title_len = 0
+        cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
+        if title == NULL:
+            return None
+        return bytes_to_str(title[:title_len])
+
     cpdef create_element(self, str tag_name):
         """
         create_element(self, tag_name)
