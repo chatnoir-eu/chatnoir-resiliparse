@@ -90,7 +90,7 @@ cdef class HTMLTree:
     cpdef void parse(self, str document)
     cpdef void parse_from_bytes(self, bytes document, str encoding=*, str errors=*)
 
-    cpdef create_element(self, str tag_name)
-    cpdef create_text_node(self, str text)
+    cpdef DOMNode create_element(self, str tag_name)
+    cpdef DOMNode create_text_node(self, str text)
 
     cdef void init_css_parser(self)
