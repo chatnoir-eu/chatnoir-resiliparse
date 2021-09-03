@@ -3,10 +3,19 @@ name: Build Wheels
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
+    branches:
+      - develop
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - develop
 
 jobs:
-  deploy:
+  build-wheels:
     runs-on: ubuntu-latest
     container:
       image: quay.io/pypa/manylinux2014_x86_64:latest
@@ -39,17 +48,3 @@ jobs:
           done
 
           find dist -type f -name '*-linux*.whl' -exec auditwheel repair -w dist --plat manylinux2014_x86_64 {} \;
-
-      - name: Publish FastWARC
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
-        run: |
-          $PYTHON -m twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
-
-      - name: Publish Resiliparse
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
-        run: |
-          $PYTHON -m twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz

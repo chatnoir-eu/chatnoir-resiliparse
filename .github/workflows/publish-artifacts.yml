@@ -1,0 +1,31 @@
+name: Publish Artifacts
+
+on:
+  workflow_run:
+    workflows: ["Build Wheels"]
+    types:
+      - completed
+
+jobs:
+  publish-artifacts:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.ref, 'refs/tags/v') }}
+    container:
+      image: quay.io/pypa/manylinux2014_x86_64:latest
+    env:
+      PYTHON: python3.9
+
+    steps:
+      - name: Publish FastWARC
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
+        run: |
+          $PYTHON -m twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
+
+      - name: Publish Resiliparse
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
+        run: |
+          $PYTHON -m twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz

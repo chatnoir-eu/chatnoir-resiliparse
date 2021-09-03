@@ -2,7 +2,7 @@ name: Build Docs
 
 on:
   workflow_run:
-    workflows: ["Build Wheels"]
+    workflows: ["Publish Artifacts"]
     types:
       - completed
 
@@ -11,7 +11,7 @@ on:
       - develop
 
 jobs:
-  trigger-build:
+  build-docs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.ref == 'refs/heads/develop' }}
     steps:
