@@ -79,7 +79,7 @@ cpdef enum NodeType:
 
 
 cdef class HTMLTree:
-    cdef lxb_html_document_t* document
+    cdef lxb_html_document_t* dom_document
     cdef str encoding
     cdef lxb_css_parser_t* css_parser
     cdef lxb_selectors_t* selectors
