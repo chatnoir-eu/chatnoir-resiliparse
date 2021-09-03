@@ -12,9 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_attr_t, lxb_dom_collection_t, \
+from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
     lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t
 
+cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
+                                                     size_t init_size=*, bint case_insensitive=*)
+cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name)
+cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
+                                               size_t init_size=*)
 
 cdef class DOMNode:
     cdef HTMLTree tree
@@ -24,15 +29,11 @@ cdef class DOMNode:
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef str _getattr_impl(self, str attr_name)
 
-    cdef lxb_dom_collection_t* _get_elements_by_attr_impl(self, bytes attr_name, bytes attr_value, size_t init_size=*,
-                                                          bint case_insensitive=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
     cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=*)
-    cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, bytes tag_name)
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name)
 
-    cdef lxb_dom_collection_t* _query_selector_impl(self, bytes selector, size_t init_size=*)
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
     cpdef bint matches_any(self, str selector)
@@ -52,12 +53,13 @@ cdef class DOMCollection:
     cdef _forward_element_match(self, bytes func, attrs, bint single)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
-    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive= *)
-    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive= *)
+    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
+    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=*)
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name)
 
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
+
 
 # noinspection DuplicatedCode
 cpdef enum NodeType:
