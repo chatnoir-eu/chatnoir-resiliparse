@@ -989,17 +989,17 @@ cdef class HTMLTree:
     HTML DOM tree parser.
     """
     def __cinit__(self):
-        self.document = lxb_html_document_create()
-        if self.document == NULL:
+        self.dom_document = lxb_html_document_create()
+        if self.dom_document == NULL:
             raise RuntimeError('Failed to allocate HTML document')
         self.css_parser = NULL
         self.css_selectors = NULL
         self.selectors = NULL
 
     def __dealloc__(self):
-        if self.document != NULL:
-            lxb_html_document_destroy(self.document)
-            self.document = NULL
+        if self.dom_document != NULL:
+            lxb_html_document_destroy(self.dom_document)
+            self.dom_document = NULL
 
         if self.selectors != NULL:
             lxb_selectors_destroy(self.selectors, True)
@@ -1054,21 +1054,22 @@ cdef class HTMLTree:
         encoding = map_encoding_to_html5(encoding)
         if encoding != 'utf-8':
             document = bytes_to_str(document, encoding, errors).encode('utf-8')
-        cdef lxb_status_t status = lxb_html_document_parse(self.document, <const lxb_char_t*>document, len(document))
+        cdef lxb_status_t status = lxb_html_document_parse(self.dom_document,
+                                                           <const lxb_char_t*>document, len(document))
         if status != LXB_STATUS_OK:
             raise ValueError('Failed to parse HTML document')
 
     @property
-    def root(self):
+    def document(self):
         """
-        Document root element.
+        Document root node.
 
         :type: DOMNode or None
         """
-        if self.document == NULL:
+        if self.dom_document == NULL:
             return None
 
-        return _create_dom_node(self, <lxb_dom_node_t*>&self.document.dom_document.node)
+        return _create_dom_node(self, <lxb_dom_node_t*>&self.dom_document.dom_document)
 
     @property
     def head(self):
@@ -1077,10 +1078,10 @@ cdef class HTMLTree:
 
         :type: DOMNode or None
         """
-        if self.document == NULL:
+        if self.dom_document == NULL:
             return None
 
-        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.document))
+        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.dom_document))
 
     @property
     def body(self):
@@ -1089,10 +1090,10 @@ cdef class HTMLTree:
 
         :type: DOMNode or None
         """
-        if self.document == NULL:
+        if self.dom_document == NULL:
             return None
 
-        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.document))
+        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.dom_document))
 
     cpdef create_element(self, str tag_name):
         """
@@ -1105,12 +1106,12 @@ cdef class HTMLTree:
         :return: new Element node
         :rtype: DOMNode
         """
-        if self.document == NULL:
+        if self.dom_document == NULL:
             raise RuntimeError('Trying to create element in uninitialized document.')
 
         cdef bytes tag_name_bytes = tag_name.encode()
         cdef lxb_dom_element_t* element = lxb_dom_document_create_element(
-            <lxb_dom_document_t*>self.document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
+            <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
         return _create_dom_node(self, <lxb_dom_node_t*>element)
 
     cpdef create_text_node(self, str text):
@@ -1124,10 +1125,10 @@ cdef class HTMLTree:
         :return: new text node
         :rtype: DOMNode
         """
-        if self.document == NULL:
+        if self.dom_document == NULL:
             raise RuntimeError('Trying to create text node in uninitialized document.')
 
         cdef bytes text_bytes = text.encode()
         cdef lxb_dom_text_t* node = lxb_dom_document_create_text_node(
-            <lxb_dom_document_t*>self.document, <lxb_char_t*>text_bytes, len(text_bytes))
+            <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>text_bytes, len(text_bytes))
         return _create_dom_node(self, <lxb_dom_node_t*>node)
