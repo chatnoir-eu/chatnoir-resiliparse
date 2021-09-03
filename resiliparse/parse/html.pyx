@@ -575,7 +575,7 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t * coll = get_elements_by_attr_impl(self.node, b'class', class_name.encode(),
+        cdef lxb_dom_collection_t* coll = get_elements_by_attr_impl(self.node, b'class', class_name.encode(),
                                                                       20, case_insensitive)
         if coll == NULL:
             raise RuntimeError('Failed to match elements by class name')
@@ -1100,8 +1100,11 @@ cdef class HTMLTree:
         """
         encoding = map_encoding_to_html5(encoding)
         document = bytes_to_str(document, encoding, errors).encode()
-        cdef lxb_status_t status = lxb_html_document_parse(self.dom_document,
-                                                           <const lxb_char_t*>document, len(document))
+        cdef lxb_status_t status
+        cdef const lxb_char_t* html = <const lxb_char_t*>document
+        cdef size_t html_len = len(document)
+        with nogil:
+            status = lxb_html_document_parse(self.dom_document, html, html_len)
         if status != LXB_STATUS_OK:
             raise ValueError('Failed to parse HTML document')
 
