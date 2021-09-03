@@ -1140,7 +1140,7 @@ cdef class HTMLTree:
             return None
         return bytes_to_str(title[:title_len])
 
-    cpdef create_element(self, str tag_name):
+    cpdef DOMNode create_element(self, str tag_name):
         """
         create_element(self, tag_name)
         
@@ -1159,7 +1159,7 @@ cdef class HTMLTree:
             <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
         return _create_dom_node(self, <lxb_dom_node_t*>element)
 
-    cpdef create_text_node(self, str text):
+    cpdef DOMNode create_text_node(self, str text):
         """
         create_text_node(self, text)
 
