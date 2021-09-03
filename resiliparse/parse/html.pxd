@@ -80,15 +80,14 @@ cpdef enum NodeType:
     LAST_ENTRY = 0x0D
 
 
+cdef HTMLTree create_html_tree(bytes document, bint reencode=*, str encoding=*, str errors=*)
+
 cdef class HTMLTree:
     cdef lxb_html_document_t* dom_document
     cdef str encoding
     cdef lxb_css_parser_t* css_parser
     cdef lxb_selectors_t* selectors
     cdef lxb_css_selectors_t* css_selectors
-
-    cpdef void parse(self, str document)
-    cpdef void parse_from_bytes(self, bytes document, str encoding=*, str errors=*)
 
     cpdef DOMNode create_element(self, str tag_name)
     cpdef DOMNode create_text_node(self, str text)
