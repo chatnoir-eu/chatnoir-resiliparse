@@ -1174,6 +1174,9 @@ cdef class HTMLTree:
 
         :type: str or None
         """
+        if self.dom_document == NULL:
+            return None
+
         cdef size_t title_len = 0
         cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
         if title == NULL:
