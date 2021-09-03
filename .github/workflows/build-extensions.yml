@@ -1,0 +1,82 @@
+name: Build Extensions
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - develop
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - develop
+
+jobs:
+  build-extensions:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux2014_x86_64:latest
+    env:
+      PYTHON: python3.9
+      PY_TARGETS: cp37-cp37m,cp38-cp38,cp39-cp39,cp310-cp310
+      WHL_INSTALL: cp39-cp39
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Dependencies
+        run: |
+          set -e
+
+          yum install -y zlib-devel lz4-devel uchardet-devel
+          $PYTHON -m pip install --upgrade pip
+          $PYTHON -m pip install cython twine $(grep -vE "fastwarc|resiliparse" docs/requirements.txt)
+
+      - name: Build Wheels
+        run: |
+          set -e
+
+          for pkg in resiliparse fastwarc; do
+            BUILD_PACKAGES=${pkg} $PYTHON setup.py sdist
+
+            for py in $(eval ls -d "/opt/python/{$PY_TARGETS}/bin/python"); do
+              BUILD_PACKAGES=${pkg} ${py} setup.py bdist_wheel
+              rm -rf build
+            done
+          done
+
+          find dist -type f -name '*-linux*.whl' -exec auditwheel repair -w dist --plat manylinux2014_x86_64 {} \;
+
+      - name: Build Documentation
+        run: |
+          set -e
+
+          $PYTHON -m pip install dist/*${WHL_INSTALL}-linux*.whl
+
+          cd docs
+          SPHINXBUILD="$PYTHON -m sphinx.cmd.build" make html
+
+      - name: Publish Wheels
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD1: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
+          TWINE_PASSWORD2: ${{ secrets.PYPI_RESILIPARSE_API_TOKEN }}
+        run: |
+          set -e
+          TWINE_PASSWORD="$TWINE_PASSWORD1" $PYTHON -m twine upload dist/FastWARC-*-manylinux*.whl dist/FastWARC-*.tar.gz
+          TWINE_PASSWORD="$TWINE_PASSWORD2" $PYTHON -m twine upload dist/Resiliparse-*-manylinux*.whl dist/Resiliparse-*.tar.gz
+
+  trigger-rtd-build:
+    runs-on: ubuntu-latest
+    needs: build-extensions
+    if: ${{ github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - name: Trigger RTDs Build
+        uses: dfm/rtds-action@v1
+        with:
+          webhook_url: ${{ secrets.RTDS_WEBHOOK_URL }}
+          webhook_token: ${{ secrets.RTDS_WEBHOOK_TOKEN }}
+          commit_ref: ${{ github.ref }}
