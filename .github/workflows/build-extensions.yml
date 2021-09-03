@@ -30,7 +30,16 @@ jobs:
         run: |
           set -e
 
-          yum install -y zlib-devel lz4-devel uchardet-devel
+          cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
+          [lexbor]
+          name=lexbor repo
+          baseurl=https://packages.lexbor.com/centos/$releasever/$basearch/
+          gpgcheck=0
+          enabled=1
+          EOF
+
+          yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel
+
           $PYTHON -m pip install --upgrade pip
           $PYTHON -m pip install cython twine $(grep -vE "fastwarc|resiliparse" docs/requirements.txt)
 
