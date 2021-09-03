@@ -760,7 +760,7 @@ cdef class WarcRecord:
 
 
 # noinspection PyProtectedMember
-cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False):
+cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False) except -1:
     """
     parse_header_block(reader, target, has_status_line=False)
     
