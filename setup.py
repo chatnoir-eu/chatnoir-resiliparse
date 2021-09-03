@@ -96,6 +96,9 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
             **inc_module_data
         },
         install_requires=[
+            'click'
+            'fastwarc',
+            'tqdm'
         ],
         setup_requires=[
             'setuptools>=18.0'
