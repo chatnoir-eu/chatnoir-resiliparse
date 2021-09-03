@@ -16,17 +16,27 @@
 
 import typing as t
 
-from resiliparse_inc.lexbor cimport *
+from cpython.ref cimport PyObject
 
+from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 
-cdef inline DOMNode _node_from_dom(HTMLTree tree, lxb_dom_node_t* dom_node):
+cdef inline DOMNode _create_dom_node(HTMLTree tree, lxb_dom_node_t* dom_node):
     if dom_node == NULL:
         return None
+    if dom_node.user != NULL:
+        return <DOMNode>dom_node.user
     cdef DOMNode node = DOMNode.__new__(DOMNode, tree)
     node.node = dom_node
+    node.node.user = <PyObject*>node
     return node
+
+
+cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collection_t* coll):
+    cdef DOMCollection return_coll = DOMCollection.__new__(DOMCollection, tree)
+    return_coll.coll = coll
+    return return_coll
 
 
 cdef inline bint check_node(DOMNode node):
@@ -64,9 +74,11 @@ cdef class DOMNode:
         self.node = NULL
 
     def __dealloc__(self):
-        if self.node != NULL and self.node.parent == NULL:
-            lxb_dom_node_destroy_deep(self.node)
-            self.node = NULL
+        if self.node != NULL:
+            self.node.user = NULL
+            if self.node.parent == NULL:
+                lxb_dom_node_destroy_deep(self.node)
+                self.node = NULL
 
     def __iter__(self):
         """
@@ -91,7 +103,7 @@ cdef class DOMNode:
                     return
                 node = node.next
 
-            yield _node_from_dom(self.tree, node)
+            yield _create_dom_node(self.tree, node)
 
     @property
     def type(self):
@@ -128,7 +140,7 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        return _node_from_dom(self.tree, self.node.first_child)
+        return _create_dom_node(self.tree, self.node.first_child)
 
     @property
     def last_child(self):
@@ -139,7 +151,7 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        return _node_from_dom(self.tree, self.node.last_child)
+        return _create_dom_node(self.tree, self.node.last_child)
 
     @property
     def child_nodes(self):
@@ -153,7 +165,7 @@ cdef class DOMNode:
 
         cdef lxb_dom_node_t* child = self.node.first_child
         while child != NULL:
-            yield _node_from_dom(self.tree, child)
+            yield _create_dom_node(self.tree, child)
             child = child.next
 
     @property
@@ -165,7 +177,7 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        return _node_from_dom(self.tree, self.node.parent)
+        return _create_dom_node(self.tree, self.node.parent)
 
     @property
     def next(self):
@@ -176,7 +188,7 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        return _node_from_dom(self.tree, self.node.next)
+        return _create_dom_node(self.tree, self.node.next)
 
     @property
     def prev(self):
@@ -187,7 +199,7 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        return _node_from_dom(self.tree, self.node.prev)
+        return _create_dom_node(self.tree, self.node.prev)
 
     @property
     def text(self):
@@ -372,12 +384,12 @@ cdef class DOMNode:
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
-        cdef DOMNodeCollection coll = self.query_selector_all(selector)
+        cdef DOMCollection coll = self.query_selector_all(selector)
         if len(coll) == 0:
             return None
         return coll[0]
 
-    cpdef DOMNodeCollection query_selector_all(self, str selector):
+    cpdef DOMCollection query_selector_all(self, str selector):
         """
         query_selector_all(self, selector)
         
@@ -386,15 +398,13 @@ cdef class DOMNode:
         :param selector: CSS selector
         :type selector: str
         :return: collection of matching elements
-        :rtype: DOMNodeCollection
+        :rtype: DOMCollection
         """
         cdef lxb_dom_collection_t* coll = self._query_selector_impl(selector.encode())
         if coll == NULL:
             raise RuntimeError('Failed to match elements by CSS selector')
 
-        cdef DOMNodeCollection return_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
-        return_coll.coll = coll
-        return return_coll
+        return _create_dom_collection(self.tree, coll)
 
     cpdef bint matches_any(self, str selector):
         """
@@ -448,11 +458,11 @@ cdef class DOMNode:
 
         return coll
 
-    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
+    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
         """
         get_elements_by_attr(self, attr_name, attr_value, case_insensitive=False)
         
-        Return a :class:`DOMNodeCollection` with all DOM elements matching the arbitrary attribute
+        Return a :class:`DOMCollection` with all DOM elements matching the arbitrary attribute
         ``attr_name`` with value ``attr_value``.
         
         :param attr_name: attribute name
@@ -462,7 +472,7 @@ cdef class DOMNode:
         :param case_insensitive: match attribute names and values case-insensitively
         :type case_insensitive: bool
         :return: collection of matching elements
-        :rtype: DOMNodeCollection or None
+        :rtype: DOMCollection or None
         """
         if not check_node(self):
             return None
@@ -472,9 +482,7 @@ cdef class DOMNode:
         if coll == NULL:
             raise RuntimeError('Failed to match elements by attribute')
 
-        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
-        result_coll.coll = coll
-        return result_coll
+        return _create_dom_collection(self.tree, coll)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
         """
@@ -499,22 +507,22 @@ cdef class DOMNode:
 
         cdef DOMNode return_node = None
         if lxb_dom_collection_length(coll) > 0:
-            return_node = _node_from_dom(self.tree, lxb_dom_collection_node(coll, 0))
+            return_node = _create_dom_node(self.tree, lxb_dom_collection_node(coll, 0))
         lxb_dom_collection_destroy(coll, True)
         return return_node
 
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
+    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
         """
         get_elements_by_class_name(self, element_class, case_insensitive=False)
         
-        Return a :class:`DOMNodeCollection` with all DOM elements matching the class attribute ``element_class``.
+        Return a :class:`DOMCollection` with all DOM elements matching the class attribute ``element_class``.
         
         :param class_name: element class
         :type class_name: str
         :param case_insensitive: match class name case-insensitively
         :type case_insensitive: bool
         :return: collection of matching elements
-        :rtype: DOMNodeCollection or None
+        :rtype: DOMCollection or None
         """
         if not check_node(self):
             return None
@@ -524,9 +532,7 @@ cdef class DOMNode:
         if coll == NULL:
             raise RuntimeError('Failed to match elements by class name')
 
-        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
-        result_coll.coll = coll
-        return result_coll
+        return _create_dom_collection(self.tree, coll)
 
     cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, bytes tag_name):
         """
@@ -542,23 +548,21 @@ cdef class DOMNode:
                                                                 coll, <lxb_char_t*>tag_name, len(tag_name))
         return coll
 
-    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name):
+    cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         """
         get_elements_by_tag_name(self, tag_name)
         
-        Return a :class:`DOMNodeCollection` with all DOM elements matching the tag name ``tag_name``.
+        Return a :class:`DOMCollection` with all DOM elements matching the tag name ``tag_name``.
         
         :param tag_name: tag name for matching elements
         :type tag_name: str
         :return: collection of matching elements
-        :rtype: DOMNodeCollection
+        :rtype: DOMCollection
         """
         if not check_node(self):
             return None
 
-        cdef DOMNodeCollection result_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
-        result_coll.coll = self._get_elements_by_tag_name_impl(tag_name.encode())
-        return result_coll
+        return _create_dom_collection(self.tree, self._get_elements_by_tag_name_impl(tag_name.encode()))
 
     cpdef DOMNode append_child(self, DOMNode node):
         """
@@ -713,7 +717,7 @@ cdef class DOMNode:
 
 cdef inline void _join_collections(lxb_dom_collection_t* target, lxb_dom_collection_t* source):
     """
-    Append elements from ``source` to ``target`` and destroy ``source``.
+    Append elements from ``source` to ``target``.
     
     :param target: target collection to append to
     :param source: source collection to append from
@@ -722,17 +726,16 @@ cdef inline void _join_collections(lxb_dom_collection_t* target, lxb_dom_collect
     cdef size_t i = 0
     for i in range(lxb_dom_collection_length(source)):
         lxb_dom_collection_append(target, lxb_dom_collection_element(source, i))
-    lxb_dom_collection_destroy(source, True)
 
 
-cdef class DOMNodeCollection:
+cdef class DOMCollection:
     """
     __init__(self)
 
     Collection of DOM nodes that are the result set of an element match operation.
 
     A node collection is only valid as long as the owning :class:`HTMLTree` is alive
-    and the DOM tree hasn't been modified. Do not access :class:`DOMNodeCollection` instances
+    and the DOM tree hasn't been modified. Do not access :class:`DOMCollection` instances
     after any sort of DOM tree manipulation.
     """
 
@@ -758,11 +761,9 @@ cdef class DOMNodeCollection:
         cdef lxb_dom_collection_t* joined_coll = lxb_dom_collection_make(self.coll.document,
                                                                          lxb_dom_collection_length(self.coll) * 2)
 
-        cdef size_t i = 0
-        cdef lxb_dom_collection_t* matches
         cdef DOMNode tmp_node = DOMNode.__new__(DOMNode, self.tree)
-
-        cdef size_t x = 0
+        cdef lxb_dom_collection_t* matches
+        cdef size_t i = 0
         for i in range(lxb_dom_collection_length(self.coll)):
             tmp_node.node = lxb_dom_collection_node(self.coll, i)
             if func == b'by_attr':
@@ -771,46 +772,41 @@ cdef class DOMNodeCollection:
                 matches = tmp_node._get_elements_by_tag_name_impl(attrs[0])
             elif func == b'selector':
                 matches = tmp_node._query_selector_impl(attrs[0], attrs[1])
+            tmp_node.node = NULL
 
             if single:
                 if lxb_dom_collection_length(matches) > 0:
-                    tmp_node.node = <lxb_dom_node_t*>lxb_dom_collection_element(matches, 0)
+                    new_node = _create_dom_node(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(matches, 0))
                     lxb_dom_collection_destroy(matches, True)
-                    return tmp_node
+                    return new_node
                 lxb_dom_collection_destroy(matches, True)
-                matches = NULL
-
-            if matches != NULL:
+            elif matches != NULL:
                 _join_collections(joined_coll, matches)
+                lxb_dom_collection_destroy(matches, True)
 
         if single:
-            # Didn't match anything, if we're single-matching and made it to this point
+            # Didn't match anything if we made it to this point
             return None
 
-        tmp_node.node = NULL
-
-        cdef DOMNodeCollection return_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
-        return_coll.coll = joined_coll
-        return return_coll
-
+        return _create_dom_collection(self.tree, joined_coll)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
         return self._forward_element_match(b'by_attr', (b'id', element_id.encode(), 1, case_insensitive), True)
 
-    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
+    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
         return self._forward_element_match(b'by_attr',
                                            (attr_name.encode(), attr_value.encode(),  10, case_insensitive), False)
 
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
+    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
         return self._forward_element_match(b'by_attr', (b'class', class_name.encode(), 10, case_insensitive), False)
 
-    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name):
+    cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         return self._forward_element_match(b'by_tag', (tag_name.encode(),), False)
 
     cpdef DOMNode query_selector(self, str selector):
         return self._forward_element_match(b'selector', (selector.encode(), 1), True)
 
-    cpdef DOMNodeCollection query_selector_all(self, str selector):
+    cpdef DOMCollection query_selector_all(self, str selector):
         return self._forward_element_match(b'selector', (selector.encode(), 10), False)
 
     def __iter__(self):
@@ -826,7 +822,7 @@ cdef class DOMNodeCollection:
 
         cdef size_t i = 0
         for i in range(lxb_dom_collection_length(self.coll)):
-            yield _node_from_dom(self.tree, lxb_dom_collection_node(self.coll, i))
+            yield _create_dom_node(self.tree, lxb_dom_collection_node(self.coll, i))
 
     def __len__(self):
         """
@@ -844,11 +840,11 @@ cdef class DOMNodeCollection:
         """
         __getitem__(self, key)
 
-        Return the :class:`DOMNode` at the given index in this collection or another :class:`DOMNodeCollection`
+        Return the :class:`DOMNode` at the given index in this collection or another :class:`DOMCollection`
         if ``key`` is a slice object. Negative indexing is supported.
 
         :param key: index or slice
-        :rtype: DOMNode or DOMNodeCollection
+        :rtype: DOMNode or DOMCollection
         :raises IndexError: if ``key`` is out of range
         :raises TypeError: if ``key`` is not an ``int`` or ``slice``
         """
@@ -857,7 +853,7 @@ cdef class DOMNodeCollection:
 
         cdef size_t coll_len = lxb_dom_collection_length(self.coll)
 
-        cdef DOMNodeCollection slice_coll
+        cdef DOMCollection slice_coll
         cdef lxb_dom_collection_t* dom_coll
         if isinstance(key, slice):
             start = key.start
@@ -879,7 +875,7 @@ cdef class DOMNodeCollection:
             for i in range(start, stop, step):
                 lxb_dom_collection_append(dom_coll, lxb_dom_collection_element(self.coll, i))
 
-            slice_coll = DOMNodeCollection.__new__(DOMNodeCollection, self.tree)
+            slice_coll = DOMCollection.__new__(DOMCollection, self.tree)
             slice_coll.coll = dom_coll
             return slice_coll
 
@@ -889,7 +885,7 @@ cdef class DOMNodeCollection:
         if key >= coll_len:
             raise IndexError('Index out of range')
 
-        return _node_from_dom(self.tree, lxb_dom_collection_node(self.coll, self._wrap_idx(key)))
+        return _create_dom_node(self.tree, lxb_dom_collection_node(self.coll, self._wrap_idx(key)))
 
     def __repr__(self):
         return f'{{{", ".join(repr(n) for n in self)}}}'
@@ -981,7 +977,7 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(self, <lxb_dom_node_t*>&self.document.dom_document.node)
+        return _create_dom_node(self, <lxb_dom_node_t*>&self.document.dom_document.node)
 
     @property
     def head(self):
@@ -993,7 +989,7 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.document))
+        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.document))
 
     @property
     def body(self):
@@ -1005,7 +1001,7 @@ cdef class HTMLTree:
         if self.document == NULL:
             return None
 
-        return _node_from_dom(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.document))
+        return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.document))
 
     cpdef create_element(self, str tag_name):
         """
@@ -1024,7 +1020,7 @@ cdef class HTMLTree:
         cdef bytes tag_name_bytes = tag_name.encode()
         cdef lxb_dom_element_t* element = lxb_dom_document_create_element(
             <lxb_dom_document_t*>self.document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
-        return _node_from_dom(self, <lxb_dom_node_t*>element)
+        return _create_dom_node(self, <lxb_dom_node_t*>element)
 
     cpdef create_text_node(self, str text):
         """
@@ -1043,4 +1039,4 @@ cdef class HTMLTree:
         cdef bytes text_bytes = text.encode()
         cdef lxb_dom_text_t* node = lxb_dom_document_create_text_node(
             <lxb_dom_document_t*>self.document, <lxb_char_t*>text_bytes, len(text_bytes))
-        return _node_from_dom(self, <lxb_dom_node_t*>node)
+        return _create_dom_node(self, <lxb_dom_node_t*>node)
