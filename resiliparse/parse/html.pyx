@@ -1029,6 +1029,30 @@ cdef class DOMCollection:
         return self.__repr__()
 
 
+cdef HTMLTree create_html_tree(bytes document, bint reencode=True, str encoding='utf-8', str errors='ignore'):
+    """
+    Create :class:`HTMLTree` instance from bytes content.
+    
+    :param document: input document bytes
+    :param reencode: whether to reencode the bytes to erase encoding errors
+    :param encoding: input encoding (best guess)
+    :param errors: decoding error policy
+    :return: :class:`HTMLTree` instance
+    """
+    encoding = map_encoding_to_html5(encoding)
+    if reencode:
+        document = bytes_to_str(document, encoding, errors).encode()
+    cdef lxb_status_t status
+    cdef const lxb_char_t* html = <const lxb_char_t*>document
+    cdef size_t html_len = len(document)
+    cdef HTMLTree tree = HTMLTree.__new__(HTMLTree)
+    with nogil:
+        status = lxb_html_document_parse(tree.dom_document, html, html_len)
+    if status != LXB_STATUS_OK:
+        raise ValueError('Failed to parse HTML document')
+    return tree
+
+
 cdef class HTMLTree:
     """
     __init__(self)
@@ -1073,18 +1097,23 @@ cdef class HTMLTree:
             self.selectors = lxb_selectors_create()
             lxb_selectors_init(self.selectors)
 
-    cpdef void parse(self, str document):
+
+    @classmethod
+    def parse(cls, str document):
         """
         parse(self, document)
         
         Parse HTML from a Unicode string into a DOM tree.
         
         :param document: input HTML document
+        :return: HTML DOM tree
+        :rtype: HTMLTree
         :raises ValueError: if HTML parsing fails for unknown reasons
         """
-        self.parse_from_bytes(document.encode())
+        return create_html_tree(document.encode(), reencode=False)
 
-    cpdef void parse_from_bytes(self, bytes document, str encoding='utf-8', str errors='ignore'):
+    @classmethod
+    def parse_from_bytes(cls, bytes document, str encoding='utf-8', str errors='ignore'):
         """
         parse_from_bytes(self, document, encoding='utf-8', errors='ignore')
         
@@ -1096,17 +1125,11 @@ cdef class HTMLTree:
         :param document: input byte string
         :param encoding: encoding for decoding byte string
         :param errors: decoding error policy (same as ``str.decode()``)
+        :return: HTML DOM tree
+        :rtype: HTMLTree
         :raises ValueError: if HTML parsing fails for unknown reasons
         """
-        encoding = map_encoding_to_html5(encoding)
-        document = bytes_to_str(document, encoding, errors).encode()
-        cdef lxb_status_t status
-        cdef const lxb_char_t* html = <const lxb_char_t*>document
-        cdef size_t html_len = len(document)
-        with nogil:
-            status = lxb_html_document_parse(self.dom_document, html, html_len)
-        if status != LXB_STATUS_OK:
-            raise ValueError('Failed to parse HTML document')
+        return create_html_tree(document, True, encoding, errors)
 
     @property
     def document(self):
