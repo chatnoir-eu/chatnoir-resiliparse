@@ -60,9 +60,7 @@ cdef class DOMNode:
     """
     __init__(self)
 
-    A DOM node.
-
-    DOM nodes and their children are iterable and will be traversed in pre-order.
+    DOM node.
 
     A DOM node is only valid as long as the owning :class:`HTMLTree` is alive
     and the DOM tree hasn't been modified. Do not access :class:`DOMNode` instances
@@ -84,7 +82,7 @@ cdef class DOMNode:
         """
         __iter__(self)
 
-        Run a pre-order traversal of the DOM tree starting at the current node.
+        Traverse the DOM tree in pre-order starting at the current node.
 
         :rtype: t.Iterable[DOMNode]
         """
@@ -296,7 +294,7 @@ cdef class DOMNode:
         """
         getattr(self, attr_name, default_value=None)
 
-        Get attribute value of attribute ``attr_name`` or ``default_value`` if attribute does not exist.
+        Get the value of the attribute ``attr_name`` or ``default_value`` if the element has no such attribute.
 
         :param attr_name: attribute name
         :type attr_name: str
@@ -318,7 +316,7 @@ cdef class DOMNode:
         """
         __getitem__(self, attr_name)
 
-        Get attribute value.
+        Get the value of the an attribute.
 
         :param attr_name: attribute name
         :rtype: str
@@ -335,7 +333,7 @@ cdef class DOMNode:
 
     cdef str _getattr_impl(self, str attr_name):
         """
-        Get attribute value as string.
+        Get an attribute value as string.
         
         :param attr_name: 
         :return: attribute value or None
@@ -377,7 +375,7 @@ cdef class DOMNode:
         """
         query_selector(self, selector)
          
-        Return the first element matching the given CSS selector.
+        Find and return the first element matching the given CSS selector.
 
         :param selector: CSS selector
         :type selector: str
@@ -393,7 +391,7 @@ cdef class DOMNode:
         """
         query_selector_all(self, selector)
         
-        Return a collection of elements matching the given CSS selector.
+        Find all elements matching the given CSS selector and return a :class:`DOMCollection` with the results.
 
         :param selector: CSS selector
         :type selector: str
@@ -462,14 +460,14 @@ cdef class DOMNode:
         """
         get_elements_by_attr(self, attr_name, attr_value, case_insensitive=False)
         
-        Return a :class:`DOMCollection` with all DOM elements matching the arbitrary attribute
-        ``attr_name`` with value ``attr_value``.
+        Find all elements matching the given arbitrary attribute name and value and return a
+        :class:`DOMCollection` with the results.
         
         :param attr_name: attribute name
         :type attr_name: str
         :param attr_value: attribute value
         :type attr_name: str
-        :param case_insensitive: match attribute names and values case-insensitively
+        :param case_insensitive: match attribute value case-insensitively
         :type case_insensitive: bool
         :return: collection of matching elements
         :rtype: DOMCollection or None
@@ -488,7 +486,7 @@ cdef class DOMNode:
         """
         get_element_by_id(self, element_id, case_insensitive=False)
         
-        Return the element matching with ID attribute ``element_id`` or ``None`` if no such element exists.
+        Find and return the element whose ID attribute matches ``element_id``.
         
         :param element_id: element ID
         :type element_id: str
@@ -515,7 +513,7 @@ cdef class DOMNode:
         """
         get_elements_by_class_name(self, element_class, case_insensitive=False)
         
-        Return a :class:`DOMCollection` with all DOM elements matching the class attribute ``element_class``.
+        Find all elements matching the given class name and return a :class:`DOMCollection` with the results.
         
         :param class_name: element class
         :type class_name: str
@@ -552,7 +550,7 @@ cdef class DOMNode:
         """
         get_elements_by_tag_name(self, tag_name)
         
-        Return a :class:`DOMCollection` with all DOM elements matching the tag name ``tag_name``.
+        Find all elements with the given tag name and return a :class:`DOMCollection` with the results.
         
         :param tag_name: tag name for matching elements
         :type tag_name: str
@@ -593,7 +591,7 @@ cdef class DOMNode:
         
         Insert ``node`` before ``reference`` as a new child node. The reference node must be
         a child of this node or ``None``. If ``reference`` is ``None``, the new node
-        will be appended as the new last child. 
+        will be appended after the last child node.
         
         :param node: DOM node to insert as new child node
         :type node: DOMNode
@@ -651,7 +649,7 @@ cdef class DOMNode:
         """
         remove_child(self, node)
         
-        Remove and return the child node ``node``.
+        Remove the child node ``node`` from the DOM tree and return it.
         
         :param node: DOM node to remove
         :type node: DOMNode
@@ -732,9 +730,9 @@ cdef class DOMCollection:
     """
     __init__(self)
 
-    Collection of DOM nodes that are the result set of an element match operation.
+    Collection of DOM nodes that are the result set of an element matching operation.
 
-    A node collection is only valid as long as the owning :class:`HTMLTree` is alive
+    A node collection is only valid for as long as the owning :class:`HTMLTree` is alive
     and the DOM tree hasn't been modified. Do not access :class:`DOMCollection` instances
     after any sort of DOM tree manipulation.
     """
@@ -755,6 +753,14 @@ cdef class DOMCollection:
 
     # noinspection PyProtectedMember
     cdef _forward_element_match(self, bytes func, attrs, bint single):
+        """
+        Forward DOM element match to all items in the collection and aggregate the results.
+        
+        :param func: internal matching function as bytes (b'by_attr', b'by_tag', or b'selector')
+        :param attrs: tuple of attributes to pass to the matching function
+        :param single: return first match only or entire collection
+        :return: aggregated collection or single element
+        """
         if self.tree is None or self.coll == NULL:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
@@ -791,29 +797,103 @@ cdef class DOMCollection:
         return _create_dom_collection(self.tree, joined_coll)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
+        """
+        get_element_by_id(self, element_id, case_insensitive=False)
+
+        Within all elements in this collection, find and return the element whose ID
+        attribute matches ``element_id``.
+
+        :param element_id: element ID
+        :type element_id: str
+        :param case_insensitive: match ID case-insensitively
+        :type case_insensitive: bool
+        :return: matching element or ``None`` if no such element exists
+        :rtype: DOMNode or None
+        """
         return self._forward_element_match(b'by_attr', (b'id', element_id.encode(), 1, case_insensitive), True)
 
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
+        """
+        get_elements_by_attr(self, attr_name, attr_value, case_insensitive=False)
+
+        Within all elements in this collection, find the elements matching the given arbitrary attribute
+        name and value and return a :class:`DOMCollection` with the aggregated results.
+
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param attr_value: attribute value
+        :type attr_name: str
+        :param case_insensitive: match attribute value case-insensitively
+        :type case_insensitive: bool
+        :return: collection of matching elements
+        :rtype: DOMCollection or None
+        """
         return self._forward_element_match(b'by_attr',
                                            (attr_name.encode(), attr_value.encode(),  10, case_insensitive), False)
 
     cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
+        """
+        get_elements_by_class_name(self, element_class, case_insensitive=False)
+
+        Within all elements in this collection, find the elements matching the given class name
+        and return a :class:`DOMCollection` with the aggregated results.
+
+        :param class_name: element class
+        :type class_name: str
+        :param case_insensitive: match class name case-insensitively
+        :type case_insensitive: bool
+        :return: collection of matching elements
+        :rtype: DOMCollection or None
+        """
         return self._forward_element_match(b'by_attr', (b'class', class_name.encode(), 10, case_insensitive), False)
 
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
+        """
+        get_elements_by_tag_name(self, tag_name)
+
+        Within all elements in this collection, find the elements with the given tag name and return
+        a :class:`DOMCollection` with the aggregated results.
+
+        :param tag_name: tag name for matching elements
+        :type tag_name: str
+        :return: collection of matching elements
+        :rtype: DOMCollection
+        """
         return self._forward_element_match(b'by_tag', (tag_name.encode(),), False)
 
     cpdef DOMNode query_selector(self, str selector):
+        """
+        query_selector(self, selector)
+
+        Within all elements in this collection, find and return the first element matching
+        the given CSS selector.
+
+        :param selector: CSS selector
+        :type selector: str
+        :return: matching element or ``None``
+        :rtype: DOMNode or None
+        """
         return self._forward_element_match(b'selector', (selector.encode(), 1), True)
 
     cpdef DOMCollection query_selector_all(self, str selector):
+        """
+        query_selector_all(self, selector)
+
+        Within all elements in this collection, find the elements matching the given CSS selector
+        and return a :class:`DOMCollection` with the aggregated results.
+
+        :param selector: CSS selector
+        :type selector: str
+        :return: collection of matching elements
+        :rtype: DOMCollection
+        """
         return self._forward_element_match(b'selector', (selector.encode(), 10), False)
 
     def __iter__(self):
         """
         __iter__(self)
 
-        Iterate DOM node collection.
+        Iterate the DOM node collection.
 
         :rtype: t.Iterable[DOMNode]
         """
@@ -828,7 +908,7 @@ cdef class DOMCollection:
         """
         __len__(self)
 
-        Collection length.
+        Get the number of items in this collection.
 
         :rtype: int
         """
@@ -954,6 +1034,9 @@ cdef class HTMLTree:
         parse_from_bytes(self, document, encoding='utf-8', errors='ignore')
         
         Decode a raw HTML byte string and parse it into a DOM tree.
+        
+        The decoding routine uses :func:`~.parse.encoding.bytes_to_str` to take care of decoding errors,
+        so it is sufficient if ``encoding`` is just a best guess of what the actual input encoding is.
         
         :param document: input byte string
         :param encoding: encoding for decoding byte string
