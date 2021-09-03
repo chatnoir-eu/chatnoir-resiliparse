@@ -229,7 +229,7 @@ cdef class DOMNode:
         cdef const lxb_char_t* name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>self.node, &name_len)
         if name == NULL:
             return None
-        return bytes_to_str(name[:name_len])
+        return name[:name_len].decode()
 
     @property
     def first_child(self):
@@ -316,7 +316,7 @@ cdef class DOMNode:
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
         if text == NULL:
             return ''
-        cdef str py_text = bytes_to_str(text[:text_len])
+        cdef str py_text = text[:text_len].decode()
         lxb_dom_document_destroy_text(self.node.owner_document, text)
         return py_text
 
@@ -346,7 +346,7 @@ cdef class DOMNode:
 
         cdef lexbor_str_t* html_str = lexbor_str_create()
         lxb_html_serialize_tree_str(self.node, html_str)
-        cdef str py_text = bytes_to_str(html_str.data[:html_str.length])
+        cdef str py_text = html_str.data[:html_str.length].decode()
         lexbor_str_destroy(html_str, self.node.owner_document.text, True)
         return py_text
 
@@ -376,7 +376,7 @@ cdef class DOMNode:
         attrs = []
         while attr != NULL:
             local_name = lxb_dom_attr_local_name(attr, &local_name_len)
-            attrs.append(bytes_to_str(local_name[:local_name_len]))
+            attrs.append(local_name[:local_name_len].decode())
             attr = attr.next
 
         return attrs
@@ -457,7 +457,7 @@ cdef class DOMNode:
                                                                      &value_len)
         if value == NULL:
             return None
-        return bytes_to_str(value[:value_len])
+        return value[:value_len].decode()
 
     cpdef DOMNode query_selector(self, str selector):
         """
@@ -1082,7 +1082,7 @@ cdef class HTMLTree:
         :param document: input HTML document
         :raises ValueError: if HTML parsing fails for unknown reasons
         """
-        self.parse_from_bytes(document.encode('utf-8'))
+        self.parse_from_bytes(document.encode())
 
     cpdef void parse_from_bytes(self, bytes document, str encoding='utf-8', str errors='ignore'):
         """
@@ -1099,8 +1099,7 @@ cdef class HTMLTree:
         :raises ValueError: if HTML parsing fails for unknown reasons
         """
         encoding = map_encoding_to_html5(encoding)
-        if encoding != 'utf-8':
-            document = bytes_to_str(document, encoding, errors).encode('utf-8')
+        document = bytes_to_str(document, encoding, errors).encode()
         cdef lxb_status_t status = lxb_html_document_parse(self.dom_document,
                                                            <const lxb_char_t*>document, len(document))
         if status != LXB_STATUS_OK:
@@ -1153,7 +1152,7 @@ cdef class HTMLTree:
         cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
         if title == NULL:
             return None
-        return bytes_to_str(title[:title_len])
+        return title[:title_len].decode()
 
     cpdef DOMNode create_element(self, str tag_name):
         """
