@@ -306,6 +306,8 @@ cdef class DOMNode:
             return None
         cdef size_t text_len = 0
         cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
+        if text == NULL:
+            return ''
         cdef str py_text = bytes_to_str(text[:text_len])
         lxb_dom_document_destroy_text(self.node.owner_document, text)
         return py_text
@@ -329,6 +331,11 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
+
+        if self.node.parent == NULL and self.node.type == LXB_DOM_NODE_TYPE_TEXT:
+            # Special case where Lexbor's tree serialization function doesn't work properly
+            return self.text
+
         cdef lexbor_str_t* html_str = lexbor_str_create()
         lxb_html_serialize_tree_str(self.node, html_str)
         cdef str py_text = bytes_to_str(html_str.data[:html_str.length])
