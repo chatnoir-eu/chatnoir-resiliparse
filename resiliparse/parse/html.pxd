@@ -27,14 +27,14 @@ cdef class DOMNode:
     cdef lxb_dom_collection_t* _get_elements_by_attr_impl(self, bytes attr_name, bytes attr_value, size_t init_size=*,
                                                           bint case_insensitive=*)
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
-    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=*)
+    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
+    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=*)
     cdef lxb_dom_collection_t* _get_elements_by_tag_name_impl(self, bytes tag_name)
-    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
+    cpdef DOMCollection get_elements_by_tag_name(self, str tag_name)
 
     cdef lxb_dom_collection_t* _query_selector_impl(self, bytes selector, size_t init_size=*)
     cpdef DOMNode query_selector(self, str selector)
-    cpdef DOMNodeCollection query_selector_all(self, str selector)
+    cpdef DOMCollection query_selector_all(self, str selector)
     cpdef bint matches_any(self, str selector)
 
     cpdef DOMNode append_child(self, DOMNode node)
@@ -44,7 +44,7 @@ cdef class DOMNode:
     cpdef void decompose(self)
 
 
-cdef class DOMNodeCollection:
+cdef class DOMCollection:
     cdef HTMLTree tree
     cdef lxb_dom_collection_t* coll
 
@@ -52,12 +52,12 @@ cdef class DOMNodeCollection:
     cdef _forward_element_match(self, bytes func, attrs, bint single)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
-    cpdef DOMNodeCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive= *)
-    cpdef DOMNodeCollection get_elements_by_class_name(self, str class_name, bint case_insensitive= *)
-    cpdef DOMNodeCollection get_elements_by_tag_name(self, str tag_name)
+    cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive= *)
+    cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive= *)
+    cpdef DOMCollection get_elements_by_tag_name(self, str tag_name)
 
     cpdef DOMNode query_selector(self, str selector)
-    cpdef DOMNodeCollection query_selector_all(self, str selector)
+    cpdef DOMCollection query_selector_all(self, str selector)
 
 # noinspection DuplicatedCode
 cpdef enum NodeType:
