@@ -53,7 +53,7 @@ Here are the results of extracting the titles from all web pages in an compresse
 
 .. code-block:: bash
 
-  $ python3 -m resiliparse.parse.html_benchmark warcfile.warc
+  $ python3 -m resiliparse.parse.cli benchmark-html warcfile.warc
   HTML parser benchmark <title> extraction:
   =========================================
   Resiliparse (Lexbor):  42015 documents in 36.55s (1149.56 documents/s)
