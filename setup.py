@@ -18,9 +18,10 @@ from setuptools import setup, Extension
 import warnings
 import sys
 
-VERSION = '0.3.15'
+VERSION = '0.4.0'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
+
 try:
     from Cython.Build import cythonize
     import Cython.Compiler.Options
@@ -30,14 +31,18 @@ try:
     cython_args = dict(annotate=Cython.Compiler.Options.annotate,
                        language_level='3')
 
-except ModuleNotFoundError:
+except ModuleNotFoundError as e:
     USE_CYTHON = False
     ext = 'cpp'
     cython_args = {}
 
 cpp_args = dict(
     extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
-                        '-Wno-unreachable-code', '-Wno-unused-function'],
+                        '-Wno-unreachable-code', '-Wno-unused-function',
+
+                        # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
+                        # https://github.com/lexbor/lexbor/pull/135 are released
+                        '-fpermissive', '-Wno-c++11-narrowing'],
     extra_link_args=['-std=c++17'])
 
 BUILD_PACKAGES = ['fastwarc', 'resiliparse']
@@ -89,14 +94,17 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
         author='Janek Bevendorff',
         url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
         license='Apache License 2.0',
-        packages=['resiliparse', *inc_module],
+        packages=[
+            'resiliparse',
+            'resiliparse.parse',
+            *inc_module],
         package_data={
             'resiliparse': data_ext,
             'resiliparse.parse': data_ext,
             **inc_module_data
         },
         install_requires=[
-            'click'
+            'click',
             'fastwarc',
             'tqdm'
         ],
