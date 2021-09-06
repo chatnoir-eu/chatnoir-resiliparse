@@ -1,0 +1,106 @@
+name: Build Wheels
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - develop
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - develop
+
+jobs:
+  build-wheels:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        #os: [ ubuntu-latest, windows-latest, macOS-latest ]
+    env:
+      CIBW_BUILD: "cp3*-*"
+      CIBW_SKIP: "cp35-*"
+      CIBW_ARCHS: native
+      CIBW_BUILD_FRONTEND: build
+      CIBW_PRERELEASE_PYTHONS: True
+      CIBW_BEFORE_BUILD_LINUX: |
+        cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
+        [lexbor]
+        name=lexbor repo
+        baseurl=https://packages.lexbor.com/centos/$releasever/$basearch/
+        gpgcheck=0
+        enabled=1
+        EOF
+
+        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel
+      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+      CIBW_ARCHS_MACOS: x86_64 universal2
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Resiliparse
+        uses: pypa/cibuildwheel@v1.12.0
+        env:
+          CIBW_ENVIRONMENT: "BUILD_PACKAGES=resiliparse"
+
+      - name: Build FastWARC
+        uses: pypa/cibuildwheel@v1.12.0
+        env:
+          CIBW_ENVIRONMENT: "BUILD_PACKAGES=fastwarc"
+
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: ./wheelhouse/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Source Dist
+        run: |
+          python3 -m pip install build
+          for pkg in resiliparse fastwarc; do
+            BUILD_PACKAGES=${pkg} python3 -m build --sdist .
+            rm -rf build *.egg-info
+          done
+
+      - name: Upload Source Dist
+        uses: actions/upload-artifact@v2
+        with:
+          name: sdist
+          path: ./dist/*.tar.gz
+
+  build-documentation:
+    runs-on: ubuntu-latest
+    needs: build-wheels
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Build Documentation
+        run: |
+          set -e
+
+          PYTHON_ABI="$(python3 -c "from platform import python_version; print('cp' + ''.join(python_version().split('.')[:2]))")"
+          python3 -m pip install twine
+          grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python3 -m pip install
+          python3 -m pip install wheelhouse/*${PYTHON_ABI}-${PYTHON_ABI}*-manylinux*.whl
+
+          cd docs
+          make html
