@@ -2,8 +2,10 @@ cdef extern from "<lz4frame.h>" nogil:
     const int LZ4F_VERSION
     const int LZ4F_HEADER_SIZE_MAX
 
-    ctypedef struct LZ4F_cctx
-    ctypedef struct LZ4F_dctx
+    ctypedef struct LZ4F_cctx_s
+    ctypedef LZ4F_cctx_s LZ4F_cctx
+    ctypedef struct LZ4F_dctx_s
+    ctypedef LZ4F_dctx_s LZ4F_dctx
     ctypedef struct LZ4F_compressOptions_t
     ctypedef struct LZ4F_decompressOptions_t
     ctypedef struct LZ4F_preferences_t:
