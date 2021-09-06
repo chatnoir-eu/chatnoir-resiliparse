@@ -19,14 +19,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
-        #os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        os: [ ubuntu-latest, macOS-latest ]
     env:
       CIBW_BUILD: "cp3*-*"
-      CIBW_SKIP: "cp35-*"
+      CIBW_SKIP: "cp35-* cp36-*"
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
-      CIBW_PRERELEASE_PYTHONS: True
+
       CIBW_BEFORE_BUILD_LINUX: |
         cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
         [lexbor]
@@ -38,21 +37,58 @@ jobs:
 
         yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel
       CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-      CIBW_ARCHS_MACOS: x86_64 universal2
+
+#      CIBW_ARCHS_MACOS: universal2
       MACOSX_DEPLOYMENT_TARGET: "10.14"
+      CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""   # Buggy DYLIB path prevents RPATH resolution
+
+      CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
+      LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Build Resiliparse
-        uses: pypa/cibuildwheel@v1.12.0
-        env:
-          CIBW_ENVIRONMENT: "BUILD_PACKAGES=resiliparse"
+      - name: Cache Vcpkg
+        uses: actions/cache@v2
+        id: cache-vcpkg
+        if: matrix.os == 'macOS-latest'
+        with:
+          path: /usr/local/share/vcpkg/installed
+          key: ${{ runner.os }}-vcpkg
+
+      - name: Install Vcpkg Dependencies
+        if: runner.os == 'macOS' && steps.cache-vcpkg.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -e
+          cp -r .vcpkg/ports/* /usr/local/share/vcpkg/ports
+          vcpkg install lz4 lexbor uchardet
 
       - name: Build FastWARC
-        uses: pypa/cibuildwheel@v1.12.0
+        uses: pypa/cibuildwheel@v2.1.1
         env:
-          CIBW_ENVIRONMENT: "BUILD_PACKAGES=fastwarc"
+          CIBW_ENVIRONMENT: BUILD_PACKAGES=fastwarc
+
+      - name: Cleanup Build
+        shell: bash
+        run: |
+          rm -rf build
+
+      - name: Build Resiliparse
+        uses: pypa/cibuildwheel@v2.1.1
+        env:
+          CIBW_ENVIRONMENT: BUILD_PACKAGES=resiliparse
+
+      # Fixup macOS dylibs in extra step, because DYLD_LIBRARY_PATH is always empty in cibuildwheel
+      - name: Delocate Wheels
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+
+          python3 -m pip install delocate
+          for w in ./wheelhouse/*-macosx*.whl; do
+            DYLD_LIBRARY_PATH="$LIBRARY_PATH" python3 -m delocate.cmd.delocate_wheel -v "$w"
+          done
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2

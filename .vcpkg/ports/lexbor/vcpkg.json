@@ -1,0 +1,10 @@
+{
+  "name": "lexbor",
+  "version-string": "2.1.0",
+  "homepage": "https://lexbor.com/",
+  "description": "A lightweight and fast browser engine without dependencies.",
+  "dependencies": [],
+
+  "default-features": [],
+  "features": []
+}
