@@ -232,7 +232,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
                 return html_enc_name
 
     if max_len != 0 and <size_t>len(data) > max_len:
-        data = data[:(max_len + 1) // 2] + data[-((max_len + 1) // 2):]
+        data = data[:(max_len + 1) // 2] + data[-((<ssize_t>max_len + 1) // 2):]
 
     global __chardet
     if __chardet is None:

@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from libc.stdio cimport FILE
-from libcpp.utility cimport move
 
 from resiliparse_inc.zlib cimport *
 from resiliparse_inc.lz4hc cimport *
 from resiliparse_inc.lz4frame cimport *
 from resiliparse_inc.string cimport string
 from resiliparse_inc.string_view cimport string_view
+from resiliparse_inc.utility cimport move
 
 
 cdef class IOStream:
