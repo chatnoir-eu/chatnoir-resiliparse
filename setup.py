@@ -14,13 +14,17 @@
 
 import os
 import platform
-from setuptools import setup, Extension
 import warnings
 import sys
+
+import distutils.ccompiler
+from setuptools import setup, Extension
 
 VERSION = '0.4.0'
 THIS_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 USE_CYTHON = True
+
+CXX = distutils.ccompiler.get_default_compiler()
 
 try:
     from Cython.Build import cythonize
@@ -36,25 +40,32 @@ except ModuleNotFoundError as e:
     ext = 'cpp'
     cython_args = {}
 
-cpp_args = dict(
-    extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
-                        '-Wno-unreachable-code', '-Wno-unused-function',
-
-                        # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
-                        # https://github.com/lexbor/lexbor/pull/135 are released
-                        '-fpermissive', '-Wno-c++11-narrowing'],
-    extra_link_args=['-std=c++17'])
+cpp_args = {}
+if CXX == 'unix':
+    cpp_args = dict(
+        extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
+                            '-Wno-unreachable-code', '-Wno-unused-function',
+                            # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
+                            # https://github.com/lexbor/lexbor/pull/135 are released
+                            '-fpermissive', '-Wno-c++11-narrowing'],
+        extra_link_args=['-std=c++17']
+    )
+elif CXX == 'msvc':
+    cpp_args = dict(
+        extra_compile_args=['/std:c++latest'],
+        extra_link_args=[]
+    )
 
 BUILD_PACKAGES = ['fastwarc', 'resiliparse']
 if os.environ.get('BUILD_PACKAGES'):
     BUILD_PACKAGES = os.environ.get('BUILD_PACKAGES').split(' ')
 
-data_ext = ['*.pxd', '*.md']
+data_ext = ['*.md']
 inc_module = []
 inc_module_data = {}
 if 'sdist' in sys.argv:
     # Include resiliparse_inc module and *.pyx only in source distribution
-    data_ext.extend(['*.pyx', '*.pxi'])
+    data_ext.extend(['*.pxd', '*.pyx', '*.pxi'])
     inc_module.append('resiliparse_inc')
     inc_module_data['resiliparse_inc'] = data_ext
 
@@ -122,7 +133,8 @@ if 'resiliparse' in BUILD_PACKAGES and os.path.isdir('resiliparse'):
 if 'fastwarc' in BUILD_PACKAGES and os.path.isdir('fastwarc'):
     fastwarc_extensions = [
         Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'], libraries=['z', 'lz4'], **cpp_args),
+        Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'],
+                  libraries=['zlib' if CXX == 'msvc' else 'z', 'lz4'], **cpp_args),
         Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
     ]
     if USE_CYTHON:
