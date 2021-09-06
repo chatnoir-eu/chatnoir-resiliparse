@@ -1,6 +1,6 @@
 # ChatNoir Resiliparse
 
-[![Build Extensions](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-extensions.yml/badge.svg)](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-extensions.yml)
+[![Build Wheels](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-wheels.yml/badge.svg)](https://github.com/chatnoir-eu/chatnoir-resiliparse/actions/workflows/build-wheels.yml)
 [![Documentation Status](https://readthedocs.org/projects/chatnoir-resiliparse/badge/?version=latest)](https://resiliparse.chatnoir.eu/en/latest/?badge=latest)
 
 A collection of robust and fast processing tools for parsing and analyzing web archive data.
