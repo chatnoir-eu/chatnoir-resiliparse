@@ -19,7 +19,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macOS-latest ]
+        os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_BUILD: "cp3*-*"
       CIBW_SKIP: "cp35-* cp36-*"
@@ -42,8 +42,13 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "10.14"
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""   # Buggy DYLIB path prevents RPATH resolution
 
+#      CIBW_BEFORE_BUILD_WINDOWS: "pip install delvewheel"
+#      CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair --add-path C:\\vcpkg\\installed\\x64-windows\\lib -w {dest_dir} {wheel}"
+
       CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
       LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
+      INCLUDE: C:\vcpkg\installed\x64-windows\include
+      LIB: C:\vcpkg\installed\x64-windows\lib
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -51,18 +56,28 @@ jobs:
       - name: Cache Vcpkg
         uses: actions/cache@v2
         id: cache-vcpkg
-        if: matrix.os == 'macOS-latest'
+        if: runner.os == 'macOS' || runner.os == 'Windows'
         with:
-          path: /usr/local/share/vcpkg/installed
+          path: |
+            /usr/local/share/vcpkg/installed
+            C:\vcpkg\installed
           key: ${{ runner.os }}-vcpkg
 
       - name: Install Vcpkg Dependencies
-        if: runner.os == 'macOS' && steps.cache-vcpkg.outputs.cache-hit != 'true'
+        if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -e
-          cp -r .vcpkg/ports/* /usr/local/share/vcpkg/ports
-          vcpkg install lz4 lexbor uchardet
+          if [ -d /usr/local/share/vcpkg/ports ]; then
+            cp -rv .vcpkg/ports/* /usr/local/share/vcpkg/ports
+          elif [ -d /c/vcpkg ]; then
+            cp -rv .vcpkg/ports/* /c/vcpkg/ports
+            export VCPKG_DEFAULT_TRIPLET=x64-windows
+          else
+            exit 1
+          fi
+
+          vcpkg install lz4 lexbor uchardet zlib
 
       - name: Build FastWARC
         uses: pypa/cibuildwheel@v2.1.1
@@ -80,7 +95,7 @@ jobs:
           CIBW_ENVIRONMENT: BUILD_PACKAGES=resiliparse
 
       # Fixup macOS dylibs in extra step, because DYLD_LIBRARY_PATH is always empty in cibuildwheel
-      - name: Delocate Wheels
+      - name: Delocate Wheels (macOS)
         if: runner.os == 'macOS'
         run: |
           set -e
