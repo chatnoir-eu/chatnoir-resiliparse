@@ -28,9 +28,9 @@ This is the full table of contents for this documentation:
    :maxdepth: 3
    :caption: API Documentation
 
+   api/parse
    api/process-guard
    api/itertools
-   api/parse
    api/fastwarc
 
 
