@@ -154,7 +154,7 @@ cdef lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_spec
     return LXB_STATUS_OK
 
 
-cdef bint matches_any_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
     """
     Check whether any element in the DOM subtree matches the given CSS selector.
 
@@ -620,9 +620,9 @@ cdef class DOMNode:
 
         return _create_dom_collection(self.tree, coll)
 
-    cpdef bint matches_any(self, str selector):
+    cpdef bint matches(self, str selector):
         """
-        matches_any(self, selector)
+        matches(self, selector)
         
         Check whether any element in the DOM tree matches the given CSS selector.
 
@@ -632,7 +632,7 @@ cdef class DOMNode:
         :rtype: bool
         """
         self.tree.init_css_parser()
-        return matches_any_impl(self.node, self.tree, selector.encode())
+        return matches_impl(self.node, self.tree, selector.encode())
 
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
         """
@@ -952,7 +952,7 @@ cdef class DOMCollection:
             elif func == b'selector':
                 matches = query_selector_impl(node, self.tree, attrs[0])
             elif func == b'matches':
-                if matches_any_impl(node, self.tree, attrs[0]):
+                if matches_impl(node, self.tree, attrs[0]):
                     return True
                 continue
 
@@ -1067,9 +1067,9 @@ cdef class DOMCollection:
         """
         return self._forward_element_match(b'selector', (selector.encode(),), False)
 
-    cpdef bint matches_any(self, str selector):
+    cpdef bint matches(self, str selector):
         """
-        matches_any(self, selector)
+        matches(self, selector)
 
         Within all elements in this collection, check whether any element in the DOM tree
         matches the given CSS selector.

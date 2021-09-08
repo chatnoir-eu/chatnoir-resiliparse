@@ -21,7 +21,7 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name)
 cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
                                                size_t init_size=*)
-cdef bint matches_any_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
 
 cdef class DOMNode:
     cdef HTMLTree tree
@@ -42,7 +42,7 @@ cdef class DOMNode:
 
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
-    cpdef bint matches_any(self, str selector)
+    cpdef bint matches(self, str selector)
 
     cpdef DOMNode append_child(self, DOMNode node)
     cpdef DOMNode insert_before(self, DOMNode node, DOMNode reference)
@@ -65,7 +65,7 @@ cdef class DOMCollection:
 
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
-    cpdef bint matches_any(self, str selector)
+    cpdef bint matches(self, str selector)
 
 
 # noinspection DuplicatedCode
