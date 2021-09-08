@@ -63,28 +63,28 @@ The document root element node can be accessed with the :attr:`.HTMLTree.documen
 .. code-block:: python
 
   # Match single node by ID:
-  # <main id="foo">
   print(repr(tree.body.get_element_by_id('foo')))
+  # >>> <main id="foo">
 
   # Match multiple nodes by tag name:
-  # {<meta charset="utf-8">}
   print(repr(tree.head.get_elements_by_tag_name('meta')))
+  # >>> {<meta charset="utf-8">}
 
   # Match multiple nodes by class name:
-  # {<span class="bar">, <span class="bar baz">}
   print(repr(tree.body.get_elements_by_class_name('bar')))
+  # >>> {<span class="bar">, <span class="bar baz">}
 
   # Match single node by CSS selector:
-  # <p id="b" class="dom">
   print(repr(tree.document.query_selector('body > main p:last-child')))
+  # >>> <p id="b" class="dom">
 
   # Match multiple nodes by CSS selector:
-  # {<p id="a">, <span class="bar">, <p id="b" class="dom">, <span class="bar baz">}
   print(repr(tree.body.query_selector_all('main *')))
+  # >>> {<p id="a">, <span class="bar">, <p id="b" class="dom">, <span class="bar baz">}
 
   # Check whether there is any element matching this CSS selector:
-  # True
   print(tree.body.matches('.bar'))
+  # >>> True
 
 :class:`.DOMCollection` objects are iterable, indexable, and slicable. The size of a collection can be checked with ``len()``. If a slice is requested, the returned object will be another :class:`.DOMCollection`:
 
@@ -93,16 +93,16 @@ The document root element node can be accessed with the :attr:`.HTMLTree.documen
   coll = tree.body.query_selector_all('main *')
 
   # First element
-  # <p id="a">
   print(repr(coll[0]))
+  # >>> <p id="a">
 
   # Last element
-  # <span class="bar">
   print(repr(coll[-1]))
+  # >>> <span class="bar">
 
   # First two elements
-  # {<p id="a">, <span class="bar">}
   print(repr(coll[:2]))
+  # >>> {<p id="a">, <span class="bar">}
 
 :class:`.DOMCollection` objects have the same DOM methods for selecting objects as :class:`.DOMNode` objects. This can be used for efficiently matching elements in the subtree(s) of the previously selected elements. The selection methods behave just like their :class:`.DOMNode` counterparts and return either a single :class:`.DOMNode` or another :class:`.DOMCollection`:
 
@@ -111,8 +111,8 @@ The document root element node can be accessed with the :attr:`.HTMLTree.documen
   coll = tree.body.get_elements_by_class_name('dom')
 
   # Only matches within the subtrees of elements in `coll`:
-  # {<span class="bar baz">}
   print(repr(coll.get_elements_by_class_name('bar')))
+  # >>> {<span class="bar baz">}
 
 
 .. _parse-html-attributes:
@@ -126,11 +126,12 @@ Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` 
 
   meta = tree.head.query_selector('meta[charset]')
   if meta is not None:
-    # utf-8
     print(meta.getattr('charset'))
+    # >>> utf-8
 
     # Or:
     print(meta['charset'])
+    # >>> utf-8
 
 The dict access method will raise a :exc:`KeyError` exception if the attribute does not exist.
 
@@ -138,9 +139,28 @@ A list of existing attributes on an element is provided by its :attr:`~.DOMNode.
 
 .. code-block:: python
 
-  # ['id']
   print(tree.body.query_selector('main').attrs)
+  # >>> ['id']
 
+The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` properties. If multiple class names are set (separated by spaces), they can be accessed and modified individually via :attr:`~.DOMNode.class_list`:
+
+.. code-block:: python
+
+    tree.body.id = 'foobar'
+    print(repr(tree.body))
+    # >>> <body id="foobar">
+
+    tree.body.class_name = 'class-a'
+    print(tree.body.class_name)
+    # >>> class-a
+
+    tree.body.class_list.add('class-b')
+    print(tree.body.class_list)
+    # >>> ['class-a', 'class-b']
+
+    tree.body.class_list.remove('class-a')
+    print(tree.body.class_name)
+    # >>> class-b
 
 .. _parse-html-text-serialization:
 
@@ -151,22 +171,18 @@ All :class:`.DOMNode` objects have a :attr:`~.DOMNode.text` and :attr:`~.DOMNode
 
 .. code-block:: python
 
-  # Hello world!
   print(tree.body.get_element_by_id('a').text)
+  # >>> Hello world!
 
-  # <p id="a">Hello <span class="bar">world</span>!</p>
   print(tree.body.get_element_by_id('a').html)
+  # >>> <p id="a">Hello <span class="bar">world</span>!</p>
 
 Alternatively, you can also simply cast a :class:`.DOMNode` to ``str``, which is equivalent to :attr:`.DOMNode.html`:
 
 .. code-block:: python
 
-  # <p id="a">Hello <span class="bar">world</span>!</p>
   print(tree.body.get_element_by_id('a'))
-
-  # <!DOCTYPE html><html lang="en"><head> ...
-  # Equivalent to print(tree.document)
-  print(tree)
+  # >>> <p id="a">Hello <span class="bar">world</span>!</p>
 
 For extracting specifically the text contents of the document's ``<title>`` element, there is also the :attr:`.HTMLTree.title` property:
 
@@ -192,21 +208,21 @@ The DOM subtree of any node can be traversed in pre-order by iterating over a :c
   tag_names = [e.tag for e in root]
   tag_names_elements_only = [e.tag for e in root if e.type == NodeType.ELEMENT]
 
-  # ['p', '#text', 'span', '#text', '#text']
   print(tag_names)
+  # >>> ['p', '#text', 'span', '#text', '#text']
 
-  # ['p', 'span']
   print(tag_names_elements_only)
+  # >>> ['p', 'span']
 
 To iterate only the immediate children of a node, loop over its :attr:`~.DOMNode.child_nodes` property instead of the node itself:
 
 .. code-block:: python
 
-  # Hello world!
-  # Hello DOM!
   for e in tree.body.get_element_by_id('foo').child_nodes:
     if e.type == NodeType.ELEMENT:
       print(e.text)
+  # >>> Hello DOM!
+  # >>> Hello world!
 
 In addition, any :class:`.DOMNode` object also has the following properties:
 
@@ -247,11 +263,11 @@ In the following is an example of how you can create new DOM elements and text n
   main_element.append_child(new_element)
   new_element.append_child(new_text)
 
-  # <main id="foo">
-  #    <p id="a">Hello <span class="bar">world</span>!</p>
-  #    <p id="b" class="dom">Hello <span class="bar baz">DOM</span>!</p>
-  #   <p>Hello Resiliparse!</div></p>
   print(main_element)
+  # >>> <main id="foo">
+  # >>>   <p id="a">Hello <span class="bar">world</span>!</p>
+  # >>>   <p id="b" class="dom">Hello <span class="bar baz">DOM</span>!</p>
+  # >>>  <p>Hello Resiliparse!</div></p>
 
 In addition to :meth:`~.DOMNode.append_child`, nodes also provide :meth:`~.DOMNode.insert_before` for inserting a child node before another child instead of appending it at the end, and :meth:`~.DOMNode.replace_child` for replacing an existing child node in the tree with another.
 
@@ -277,8 +293,8 @@ Attributes can be added or modified via :meth:`~.DOMNode.setattr` or by assignin
   new_element['id'] = 'c'
   new_element.setattr('class', 'foobar')
 
-  # <p id="c" class="foobar">Hello Resiliparse!</p>
   print(new_element)
+  # >>> <p id="c" class="foobar">Hello Resiliparse!</p>
 
 
 Inner HTML and Inner Text
@@ -288,12 +304,12 @@ An easier, but less efficient way of manipulating the DOM is to assign a string 
 .. code-block:: python
 
   main_element.html = '<p>New inner HTML content</p>'
-  # <main id="foo"><p>New HTML content</p></main>
   print(main_element)
+  # >>> <main id="foo"><p>New HTML content</p></main>
 
   main_element.text = '<p>New inner text content</p>'
-  # <main id="foo">&lt;p&gt;New inner text content&lt;/p&gt;</main>
   print(main_element)
+  # >>> <main id="foo">&lt;p&gt;New inner text content&lt;/p&gt;</main>
 
 
 .. _parse-html-benchmark:

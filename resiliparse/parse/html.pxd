@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
-    lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t
+    lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t, lxb_char_t
 
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
                                                      size_t init_size=*, bint case_insensitive=*)
@@ -23,9 +23,20 @@ cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tr
                                                size_t init_size=*)
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
 
+
+cdef class DOMElementClassList:
+    cdef DOMNode node
+
+    cdef list _create_list(self)
+    cdef inline bytes _class_name_bytes(self)
+    cpdef void add(self, str class_name)
+    cpdef void remove(self, str class_name)
+
+
 cdef class DOMNode:
     cdef HTMLTree tree
     cdef lxb_dom_node_t* node
+    cdef DOMElementClassList class_list_singleton
 
     cpdef bint hasattr(self, str attr_name)
     cdef str _getattr_impl(self, bytes attr_name)

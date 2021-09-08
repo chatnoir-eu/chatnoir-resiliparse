@@ -175,6 +175,128 @@ cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
     return matches
 
 
+cdef inline bint is_whitespace(const char c):
+    return c == b' ' or c == b'\t' or c == b'\n' or c == b'\f' or c == b'\r'
+
+
+cdef class DOMElementClassList:
+    """Class name list of an Element DOM node."""
+
+    def __cinit__(self, DOMNode node):
+        self.node = node
+
+    cdef list _create_list(self):
+        if self.node is None or self.node.node == NULL:
+            return []
+
+        cdef size_t class_name_len = 0
+        cdef const lxb_char_t* class_name = lxb_dom_element_class(<lxb_dom_element_t*>self.node.node, &class_name_len)
+        if class_name == NULL:
+            return []
+
+        cdef list class_list = []
+        cdef start = 0, end = 0
+        cdef size_t i
+        for i in range(class_name_len):
+
+            if is_whitespace(class_name[start]):
+                start = i + 1
+                continue
+
+            if is_whitespace(class_name[i]) or i == class_name_len - 1:
+                end = i if i < class_name_len - 1 else i + 1
+                if start < end:
+                    class_list.append(class_name[start:end].decode())
+                    start = i + 1
+
+        return class_list
+
+    cdef inline bytes _class_name_bytes(self):
+        cdef size_t class_name_len = 0
+        cdef const lxb_char_t* class_name = lxb_dom_element_class(<lxb_dom_element_t*>self.node.node, &class_name_len)
+        if class_name == NULL:
+            return b''
+        return class_name[:class_name_len]
+
+    cpdef void add(self, str class_name):
+        """
+        add(self, class_name)
+        
+        Add new class name to Element node if not already present.
+        
+        :param class_name: new class name
+        :type class_name: str
+        """
+        if self.node is None or self.node.node == NULL:
+            return
+
+        cdef list l = self._create_list()
+        if class_name in l:
+            return
+
+        cdef bytes new_class_name = self._class_name_bytes()
+        if not is_whitespace(new_class_name[-1]):
+            class_name = ' ' + class_name
+        new_class_name = new_class_name + class_name.encode()
+        # noinspection PyProtectedMember
+        self.node._setattr_impl(b'class', new_class_name)
+
+    cpdef void remove(self, str class_name):
+        """
+        remove(self, class_name)
+        
+        Remove a class name from this Element node.
+        
+        :param class_name: new class name
+        :type class_name: str
+        """
+        if self.node is None or self.node.node == NULL:
+            return
+
+        cdef list l = [c for c in self._create_list() if c != class_name]
+        # noinspection PyProtectedMember
+        self.node._setattr_impl(b'class', b' '.join([c.encode() for c in l]))
+
+    def __contains__(self, str item):
+        """
+        __contains__(self, item):
+        """
+        return item in self._create_list()
+
+    def __getitem__(self, ssize_t item):
+        """
+        __contains__(self, item)
+        """
+        return self._create_list()[item]
+
+    def __eq__(self, other):
+        """
+        __eq__(self, other)
+        """
+        if not isinstance(other, DOMElementClassList):
+            return False
+        # noinspection PyProtectedMember
+        return (<DOMElementClassList>other)._create_list() == self._create_list()
+
+    def __iter__(self):
+        """
+        __iter__(self)
+        """
+        return iter(self._create_list())
+
+    def __repr__(self):
+        """
+        __repr__(self)
+        """
+        return repr(self._create_list())
+
+    def __str__(self):
+        """
+        __str__(self)
+        """
+        return str(self._create_list())
+
+
 cdef class DOMNode:
     """
     __init__(self)
@@ -189,6 +311,7 @@ cdef class DOMNode:
     def __cinit__(self, HTMLTree tree):
         self.tree = tree
         self.node = NULL
+        self.class_list_singleton = None
 
     def __dealloc__(self):
         if self.node != NULL:
@@ -387,7 +510,7 @@ cdef class DOMNode:
     @property
     def id(self):
         """
-        ID attribute of this Element node.
+        ID attribute of this Element node (empty string if unset).
 
         :type: str
         """
@@ -407,7 +530,7 @@ cdef class DOMNode:
     @property
     def class_name(self):
         """
-        Class name attribute of this Element node.
+        Class name attribute of this Element node (empty string if unset).
 
         :type: str
         """
@@ -423,6 +546,21 @@ cdef class DOMNode:
     @class_name.setter
     def class_name(self, str class_name):
         self._setattr_impl(b'class', class_name.encode())
+
+    @property
+    def class_list(self):
+        """
+        List of class names set on this Element node.
+
+        :type: DOMElementClassList
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            return None
+
+        if self.class_list_singleton is None:
+            # noinspection PyAttributeOutsideInit
+            self.class_list_singleton = DOMElementClassList.__new__(DOMElementClassList, self)
+        return self.class_list_singleton
 
     @property
     def attrs(self):
