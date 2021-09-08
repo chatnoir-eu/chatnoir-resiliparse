@@ -415,7 +415,7 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :type attr_name: str
         :rtype: bool
-        :raises ValueError: if node ist not an Element node
+        :raises ValueError: if node is not an Element node
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
@@ -423,6 +423,24 @@ cdef class DOMNode:
         cdef bytes attr_name_bytes = attr_name.encode()
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
+
+    cdef str _getattr_impl(self, bytes attr_name):
+        """
+        Get an attribute value as string.
+        
+        :param attr_name: 
+        :return: attribute value or None
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            raise ValueError('Node ist not an Element node.')
+
+        cdef size_t value_len = 0
+        cdef const lxb_char_t* value = lxb_dom_element_get_attribute(<lxb_dom_element_t*>self.node,
+                                                                     <lxb_char_t*>attr_name, len(attr_name),
+                                                                     &value_len)
+        if value == NULL:
+            return None
+        return value[:value_len].decode()
 
     cpdef str getattr(self, str attr_name, str default_value=None):
         """
@@ -436,12 +454,12 @@ cdef class DOMNode:
         :type default_value: str
         :return: attribute value
         :rtype: str
-        :raises ValueError: if node ist not an Element node
+        :raises ValueError: if node is not an Element node
         """
         if not check_node(self):
             return None
 
-        cdef str value = self._getattr_impl(attr_name)
+        cdef str value = self._getattr_impl(attr_name.encode())
         if value is None:
             return default_value
         return value
@@ -455,34 +473,119 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :rtype: str
         :raises KeyError: if no such attribute exists
-        :raises ValueError: if node ist not an Element node
+        :raises ValueError: if node is not an Element node
         """
         if not check_node(self):
             return None
 
-        cdef str value = self._getattr_impl(attr_name)
+        cdef str value = self._getattr_impl(attr_name.encode())
         if value is None:
             raise KeyError(f'No such attribute: {attr_name}')
         return value
 
-    cdef str _getattr_impl(self, str attr_name):
+    cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value) except -1:
         """
-        Get an attribute value as string.
+        Insert or update an attribute with the given value.
         
-        :param attr_name: 
+        :param attr_name: attribute value
+        :param attr_value: attribute name
         :return: attribute value or None
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
 
-        cdef bytes attr_name_bytes = attr_name.encode()
-        cdef size_t value_len = 0
-        cdef const lxb_char_t* value = lxb_dom_element_get_attribute(<lxb_dom_element_t*>self.node,
-                                                                     <lxb_char_t*>attr_name_bytes, len(attr_name_bytes),
-                                                                     &value_len)
-        if value == NULL:
-            return None
-        return value[:value_len].decode()
+        # Lexbor's check of existing attributes is buggy
+        cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
+                                                                  <lxb_char_t*>attr_name, len(attr_name))
+
+        if attr != NULL:
+            lxb_dom_attr_set_value(attr, <lxb_char_t*>attr_value, len(attr_value))
+            return True
+
+        lxb_dom_element_set_attribute(<lxb_dom_element_t*>self.node,
+                                      <lxb_char_t*>attr_name, len(attr_name),
+                                      <lxb_char_t*>attr_value, len(attr_value))
+        return True
+
+    cpdef void setattr(self, str attr_name, str attr_value):
+        """
+        setattr(self, attr_name, attr_value)
+        
+        Insert or update an attribute with the given name to the given value.
+
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param attr_value: attribute value
+        :type attr_value: str
+        :return: attribute value
+        :raises ValueError: if node is not an Element node
+        """
+        if not check_node(self):
+            return
+
+        self._setattr_impl(attr_name.encode(), attr_value.encode())
+
+    def __setitem__(self, str attr_name, str attr_value):
+        """
+        __setitem__(self, attr_name, attr_value)
+
+        Insert or update an attribute with the given name to the given value.
+
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param attr_value: attribute value
+        :type attr_value: str
+        :return: attribute value
+        :raises ValueError: if node is not an Element node
+        """
+        if not check_node(self):
+            return
+
+        self._setattr_impl(attr_name.encode(), attr_value.encode())
+
+    cdef bint _delattr_impl(self, bytes attr_name) except -1:
+        """
+        Remove the given attribute.
+
+        :param attr_name: attribute to remove
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            raise ValueError('Node ist not an Element node.')
+
+        cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
+                                                                  <lxb_char_t*>attr_name, len(attr_name))
+        if attr == NULL:
+            return False
+
+        lxb_dom_element_attr_remove(<lxb_dom_element_t*>self.node, attr)
+        return True
+
+    cpdef void delattr(self, str attr_name):
+        """
+        delattr(self, attr_name)
+        
+        Remove the given attribute if it exists.
+
+        :param attr_name: attribute to remove
+        :type attr_name: str
+        :raises ValueError: if node is not an Element node
+        """
+        self._delattr_impl(attr_name.encode())
+
+    def __delitem__(self, str attr_name):
+        """
+        __delitem__(self, attr_name)
+
+        Remove the given attribute.
+
+        :param attr_name: attribute to remove
+        :type attr_name: str
+        :raises ValueError: if node is not an Element node
+        :raises KeyError: if node 
+        """
+        cdef bint ret = self._delattr_impl(attr_name.encode())
+        if not ret:
+            raise KeyError(f'No such attribute: {attr_name}')
 
     cpdef DOMNode query_selector(self, str selector):
         """

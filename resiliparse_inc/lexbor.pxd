@@ -297,16 +297,23 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     lxb_dom_node_t * lxb_dom_node_destroy(lxb_dom_node_t *node)
     lxb_dom_node_t * lxb_dom_node_destroy_deep(lxb_dom_node_t *root)
     lxb_dom_attr_t * lxb_dom_element_first_attribute(lxb_dom_element_t *element)
+    lxb_dom_attr_t * lxb_dom_element_id_attribute(lxb_dom_element_t *element)
+    lxb_dom_attr_t * lxb_dom_element_class_attribute(lxb_dom_element_t *element)
 
     const lxb_char_t * lxb_dom_attr_local_name(lxb_dom_attr_t *attr, size_t *len);
     const lxb_char_t * lxb_dom_attr_value(lxb_dom_attr_t *attr, size_t *len)
+    lxb_status_t lxb_dom_attr_set_value(lxb_dom_attr_t *attr,
+                                        const lxb_char_t *value, size_t value_len)
     const lxb_char_t * lxb_dom_element_get_attribute(lxb_dom_element_t *element,
                                                      const lxb_char_t *qualified_name, size_t qn_len,
-                                                     size_t *value_len);
+                                                     size_t *value_len)
+    lxb_status_t lxb_dom_element_attr_remove(lxb_dom_element_t *element, lxb_dom_attr_t *attr)
 
     bint lxb_dom_element_has_attributes(lxb_dom_element_t *element)
     bint lxb_dom_element_has_attribute(lxb_dom_element_t *element,
                                        const lxb_char_t *qualified_name, size_t qn_len);
+    lxb_status_t lxb_dom_element_remove_attribute(lxb_dom_element_t *element,
+                                                  const lxb_char_t *qualified_name, size_t qn_len)
     lxb_dom_attr_t * lxb_dom_element_set_attribute(lxb_dom_element_t *element,
                                                    const lxb_char_t *qualified_name, size_t qn_len,
                                                    const lxb_char_t *value, size_t value_len)
@@ -314,6 +321,8 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
                                                   const lxb_char_t *qualified_name, size_t qn_len)
     lxb_dom_attr_t * lxb_dom_element_attr_by_name(lxb_dom_element_t *element,
                                                   const lxb_char_t *qualified_name, size_t length)
+    lxb_dom_attr_t * lxb_dom_element_attr_is_exist(lxb_dom_element_t *element,
+                                                   const lxb_char_t *qualified_name, size_t length)
     lxb_tag_id_t lxb_dom_node_tag_id_noi(lxb_dom_node_t *node)
     lxb_dom_node_t * lxb_dom_document_import_node(lxb_dom_document_t *doc, lxb_dom_node_t *node, bint deep)
     void lxb_dom_node_insert_after(lxb_dom_node_t *to, lxb_dom_node_t *node)
