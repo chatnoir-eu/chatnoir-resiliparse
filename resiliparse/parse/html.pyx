@@ -385,6 +385,46 @@ cdef class DOMNode:
             <lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
 
     @property
+    def id(self):
+        """
+        ID attribute of this Element node.
+
+        :type: str
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            return None
+
+        cdef size_t value_len = 0
+        cdef const lxb_char_t* value = lxb_dom_element_id(<lxb_dom_element_t*>self.node, &value_len)
+        if value == NULL:
+            return ''
+        return value[:value_len].decode()
+
+    @id.setter
+    def id(self, str class_name):
+        self._setattr_impl(b'id', class_name.encode())
+
+    @property
+    def class_name(self):
+        """
+        Class name attribute of this Element node.
+
+        :type: str
+        """
+        if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            return None
+
+        cdef size_t value_len = 0
+        cdef const lxb_char_t* value = lxb_dom_element_class(<lxb_dom_element_t*>self.node, &value_len)
+        if value == NULL:
+            return ''
+        return value[:value_len].decode()
+
+    @class_name.setter
+    def class_name(self, str class_name):
+        self._setattr_impl(b'class', class_name.encode())
+
+    @property
     def attrs(self):
         """
         List of attribute names if node is an Element node.

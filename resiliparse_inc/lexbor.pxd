@@ -297,8 +297,11 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     lxb_dom_node_t * lxb_dom_node_destroy(lxb_dom_node_t *node)
     lxb_dom_node_t * lxb_dom_node_destroy_deep(lxb_dom_node_t *root)
     lxb_dom_attr_t * lxb_dom_element_first_attribute(lxb_dom_element_t *element)
+
     lxb_dom_attr_t * lxb_dom_element_id_attribute(lxb_dom_element_t *element)
     lxb_dom_attr_t * lxb_dom_element_class_attribute(lxb_dom_element_t *element)
+    const lxb_char_t * lxb_dom_element_id(lxb_dom_element_t *element, size_t *len)
+    const lxb_char_t * lxb_dom_element_class(lxb_dom_element_t *element, size_t *len)
 
     const lxb_char_t * lxb_dom_attr_local_name(lxb_dom_attr_t *attr, size_t *len);
     const lxb_char_t * lxb_dom_attr_value(lxb_dom_attr_t *attr, size_t *len)
@@ -308,6 +311,7 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
                                                      const lxb_char_t *qualified_name, size_t qn_len,
                                                      size_t *value_len)
     lxb_status_t lxb_dom_element_attr_remove(lxb_dom_element_t *element, lxb_dom_attr_t *attr)
+
 
     bint lxb_dom_element_has_attributes(lxb_dom_element_t *element)
     bint lxb_dom_element_has_attribute(lxb_dom_element_t *element,
