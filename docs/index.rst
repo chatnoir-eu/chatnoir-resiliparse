@@ -17,9 +17,9 @@ This is the full table of contents for this documentation:
    :caption: User Manual
 
    man/installation
+   man/parse
    man/process-guard
    man/itertools
-   man/parse
    man/fastwarc
    man/fastwarc-cli
 
