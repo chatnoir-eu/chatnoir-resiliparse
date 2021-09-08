@@ -43,6 +43,31 @@ cdef inline bint check_node(DOMNode node):
     return node is not None and node.tree is not None and node.node != NULL
 
 
+cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=5):
+    """
+    Return a collection of elements matching the given attribute name and value.
+
+    The caller must take ownership of the returned collection.
+
+    :param node: anchor node
+    :param class_name: class name as UTF-8 bytes
+    :param init_size: initial collection size
+    :return: pointer to created DOM collection or ``NULL`` if error occurred
+    """
+    cdef lxb_dom_collection_t * coll = lxb_dom_collection_make(node.owner_document, init_size)
+    if coll == NULL:
+        return NULL
+
+    cdef lxb_status_t status = lxb_dom_elements_by_class_name(<lxb_dom_element_t*>node, coll,
+                                                              <lxb_char_t*>class_name, len(class_name))
+
+    if status != LXB_STATUS_OK:
+        lxb_dom_collection_destroy(coll, True)
+        return NULL
+
+    return coll
+
+
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
                                                      size_t init_size=5, bint case_insensitive=False):
     """
@@ -575,8 +600,7 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t* coll = get_elements_by_attr_impl(self.node, b'class', class_name.encode(),
-                                                                      20, case_insensitive)
+        cdef lxb_dom_collection_t* coll = get_elements_by_class_name_impl(self.node, class_name.encode(), 10)
         if coll == NULL:
             raise RuntimeError('Failed to match elements by class name')
 
@@ -791,7 +815,8 @@ cdef class DOMCollection:
         """
         Forward DOM element match operation to all items in the collection and aggregate the results.
         
-        :param func: internal matching function as bytes (b'by_attr', b'by_tag', b'selector', or b'matches')
+        :param func: internal matching function as bytes (b'by_attr', b'by_class', b'by_tag',
+                     b'selector', or b'matches')
         :param attrs: tuple of attributes to pass to the matching function
         :param single: return first match only or entire collection
         :return: aggregated collection or single element
@@ -810,6 +835,8 @@ cdef class DOMCollection:
             node = lxb_dom_collection_node(self.coll, i)
             if func == b'by_attr':
                 matches = get_elements_by_attr_impl(node, attrs[0], attrs[1], attrs[2], attrs[3])
+            if func == b'by_class':
+                matches = get_elements_by_class_name_impl(node, attrs[0], attrs[1])
             elif func == b'by_tag':
                 matches = get_elements_by_tag_name_impl(node, attrs[0])
             elif func == b'selector':
@@ -886,7 +913,7 @@ cdef class DOMCollection:
         :return: collection of matching elements
         :rtype: DOMCollection or None
         """
-        return self._forward_element_match(b'by_attr', (b'class', class_name.encode(), 10, case_insensitive), False)
+        return self._forward_element_match(b'by_class', (class_name.encode(), 10), False)
 
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         """

@@ -17,6 +17,7 @@ from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom
 
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
                                                      size_t init_size=*, bint case_insensitive=*)
+cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=*)
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name)
 cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
                                                size_t init_size=*)

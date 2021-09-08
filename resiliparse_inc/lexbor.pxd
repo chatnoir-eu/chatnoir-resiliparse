@@ -340,6 +340,9 @@ cdef extern from "<lexbor/dom/interfaces/element.h>" nogil:
                                           const lxb_char_t *qualified_name, size_t qname_len,
                                           const lxb_char_t *value, size_t value_len,
                                           bint case_insensitive)
+    lxb_status_t lxb_dom_elements_by_class_name(lxb_dom_element_t *root,
+                                                lxb_dom_collection_t *collection,
+                                                const lxb_char_t *class_name, size_t len)
     lxb_html_element_t* lxb_html_element_inner_html_set(lxb_html_element_t *element,
                                                         const lxb_char_t *html, size_t size)
 
