@@ -1232,3 +1232,9 @@ cdef class HTMLTree:
         cdef lxb_dom_text_t* node = lxb_dom_document_create_text_node(
             <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>text_bytes, len(text_bytes))
         return _create_dom_node(self, <lxb_dom_node_t*>node)
+
+    def __str__(self):
+        cdef DOMNode doc = self.document
+        if doc is not None:
+            return doc.html
+        return ''
