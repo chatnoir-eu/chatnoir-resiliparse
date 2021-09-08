@@ -927,6 +927,13 @@ cdef class DOMCollection:
         if self.tree is None or self.coll == NULL:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
+        if lxb_dom_collection_length(self.coll) == 0:
+            if func == b'matches':
+                return False
+            if single:
+                return None
+            return self
+
         cdef lxb_dom_collection_t* joined_coll = NULL
         if func != b'matches':
             joined_coll = lxb_dom_collection_make(self.coll.document, lxb_dom_collection_length(self.coll) * 2)
