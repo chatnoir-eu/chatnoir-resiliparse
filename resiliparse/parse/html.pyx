@@ -406,17 +406,19 @@ cdef class DOMNode:
     @property
     def child_nodes(self):
         """
-        Iterable of child nodes.
+        List of child nodes.
 
-        :type: t.Iterable[DOMNode]
+        :type: t.List[DOMNode]
         """
         if not check_node(self):
             return
 
         cdef lxb_dom_node_t* child = self.node.first_child
+        child_nodes = []
         while child != NULL:
-            yield _create_dom_node(self.tree, child)
+            child_nodes.append(_create_dom_node(self.tree, child))
             child = child.next
+        return child_nodes
 
     @property
     def parent(self):
