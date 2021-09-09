@@ -314,11 +314,13 @@ cdef class DOMNode:
         self.class_list_singleton = None
 
     def __dealloc__(self):
-        if self.node != NULL:
-            self.node.user = NULL
-            if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
-                lxb_dom_node_destroy_deep(self.node)
-                self.node = NULL
+        if self.node == NULL or self.tree is None:
+            return
+
+        self.node.user = NULL
+        if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
+            lxb_dom_node_destroy_deep(self.node)
+            self.node = NULL
 
     def __iter__(self):
         """
