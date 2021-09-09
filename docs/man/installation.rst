@@ -16,7 +16,7 @@ Pre-built Resiliparse binaries can be installed from `PyPi <https://pypi.org/pro
 Building Resiliparse From Source
 --------------------------------
 
-You can compile Resiliparse either from the `PyPi <https://pypi.org/project/FastWARC/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
+You can compile Resiliparse either from the `PyPi <https://pypi.org/project/Resiliparse/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
 
 .. code-block:: bash
 
