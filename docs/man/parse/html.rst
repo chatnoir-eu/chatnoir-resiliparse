@@ -135,32 +135,34 @@ Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` 
 
 The dict access method will raise a :exc:`KeyError` exception if the attribute does not exist.
 
+The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list` properties:
+
+.. code-block:: python
+
+  p = tree.body.get_element_by_id('b')
+  print(p.id)
+  # >>> b
+
+  span = p.query_selector('span')
+  print(span.class_name)
+  # >>> bar baz
+
+  print(span.class_list)
+  # >>> ['bar', 'baz']
+
 A list of existing attributes on an element is provided by its :attr:`~.DOMNode.attrs` property:
 
 .. code-block:: python
 
-  print(tree.body.query_selector('main').attrs)
-  # >>> ['id']
+  a = tree.create_element('div')
 
-The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` properties. If multiple class names are set (separated by spaces), they can be accessed and modified individually via :attr:`~.DOMNode.class_list`:
+  a.id = 'a-id'
+  a.class_name = 'a-class'
+  a['href'] = 'https://example.com'
 
-.. code-block:: python
+  print(a.attrs)
+  # >>> ['id', 'class', 'href']
 
-    tree.body.id = 'foobar'
-    print(repr(tree.body))
-    # >>> <body id="foobar">
-
-    tree.body.class_name = 'class-a'
-    print(tree.body.class_name)
-    # >>> class-a
-
-    tree.body.class_list.add('class-b')
-    print(tree.body.class_list)
-    # >>> ['class-a', 'class-b']
-
-    tree.body.class_list.remove('class-a')
-    print(tree.body.class_name)
-    # >>> class-b
 
 .. _parse-html-text-serialization:
 
@@ -290,11 +292,32 @@ Attributes can be added or modified via :meth:`~.DOMNode.setattr` or by assignin
 
 .. code-block:: python
 
-  new_element['id'] = 'c'
-  new_element.setattr('class', 'foobar')
+  element = tree.create_element('img')
+  element['src'] = 'https://example.com/foo.png'
+  element.setattr('alt', 'Foo')
 
-  print(new_element)
-  # >>> <p id="c" class="foobar">Hello Resiliparse!</p>
+  print(element)
+  # >>> <img src="https://example.com/foo.png" alt="Foo">
+
+For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list`:
+
+.. code-block:: python
+
+  element = tree.create_element('div')
+
+  element.id = 'my-id'
+  element.class_name = 'class-a'
+  element.class_list.add('class-b')
+
+  print(element)
+  # >>> <div id="my-id" class="class-a class-b"></div>
+
+  print(element.class_list)
+  # >>> ['class-a', 'class-b']
+
+  element.class_list.remove('class-a')
+  print(element)
+  # >>> <div id="my-id" class="class-b"></div>
 
 
 Inner HTML and Inner Text
