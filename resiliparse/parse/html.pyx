@@ -97,9 +97,7 @@ cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* c
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=False):
     """
-    Return a collection of elements matching the given attribute name and value.
-
-    The caller must take ownership of the returned collection.
+    Return a pointer to the first element matching the given ID or NULL.
 
     :param node: anchor node
     :param id_value: ID value as UTF-8 bytes
@@ -910,12 +908,9 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t* coll = get_elements_by_attr_impl(self.node, attr_name.encode(), attr_value.encode(),
-                                                                     10, case_insensitive)
-        if coll == NULL:
-            raise RuntimeError('Failed to match elements by attribute')
-
-        return _create_dom_collection(self.tree, coll)
+        return _create_dom_collection(self.tree,
+                                      get_elements_by_attr_impl(self.node, attr_name.encode(), attr_value.encode(),
+                                                                10, case_insensitive))
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
         """
@@ -954,11 +949,7 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t* coll = get_elements_by_class_name_impl(self.node, class_name.encode(), 10)
-        if coll == NULL:
-            raise RuntimeError('Failed to match elements by class name')
-
-        return _create_dom_collection(self.tree, coll)
+        return _create_dom_collection(self.tree, get_elements_by_class_name_impl(self.node, class_name.encode(), 10))
 
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         """
@@ -1216,6 +1207,8 @@ cdef class DOMCollection:
         :return: matching element or ``None`` if no such element exists
         :rtype: DOMNode or None
         """
+        if self.tree is None or self.coll == NULL:
+            raise RuntimeError('Trying to select items from uninitialized collection')
 
         cdef lxb_dom_node_t* node
         cdef size_t i = 0
@@ -1289,6 +1282,9 @@ cdef class DOMCollection:
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
+        if self.tree is None or self.coll == NULL:
+            raise RuntimeError('Trying to select items from uninitialized collection')
+
         cdef lxb_dom_node_t* node
         cdef size_t i = 0
         cdef bytes selector_bytes = selector.encode()
@@ -1326,6 +1322,9 @@ cdef class DOMCollection:
         :return: boolean value indicating whether a matching element exists
         :rtype: bool
         """
+        if self.tree is None or self.coll == NULL:
+            raise RuntimeError('Trying to select items from uninitialized collection')
+
         cdef size_t i = 0
         cdef bytes selector_bytes = selector.encode()
         for i in range(lxb_dom_collection_length(self.coll)):

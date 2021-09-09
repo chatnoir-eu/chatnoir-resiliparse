@@ -41,10 +41,14 @@ It is sufficient if the encoding name is a "best guess", since the name will be 
 
 .. _parse-html-select-elements:
 
-DOM Element Selection
----------------------
+DOM Selection
+-------------
 
-Resiliparse provides the standard basic DOM functions for selecting element nodes in the DOM tree. Supported functions are:
+Resiliparse provides a basic set of standard DOM functions for selecting element nodes and attributes in the DOM tree.
+
+Elements
+^^^^^^^^
+The document root element node can be accessed through the :attr:`.HTMLTree.document` property. The properties :attr:`.HTMLTree.body` and :attr:`.HTMLTree.head` also exist for conveniently accessing a document's ``<head>`` or ``<body>`` elements (if they exist). These anchors and all other element nodes are represented by :class:`.DOMNode` objects, which support the following standard DOM selectors for matching further elements either by attributes or CSS selectors:
 
 * :meth:`~.DOMNode.get_element_by_id`
 * :meth:`~.DOMNode.get_elements_by_tag_name`
@@ -53,12 +57,13 @@ Resiliparse provides the standard basic DOM functions for selecting element node
 * :meth:`~.DOMNode.query_selector_all`
 * :meth:`~.DOMNode.matches`
 
-which behave just like you would expect from other languages or libraries. Each of these returns either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` containing all matching :class:`.DOMNode` objects. The only exception is :meth:`~.DOMNode.matches`, which returns a boolean value indicating whether a matching element exists in the subtree. In addition, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for matching by arbitrary attribute names and values.
+These element selectors behave just like you would expect from other languages or libraries and return either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The only exception is :meth:`~.DOMNode.matches`, which returns a boolean value indicating whether the subtree contains any element matching the given CSS selector. In addition to these standard DOM functions, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names and values.
 
-Elements
-^^^^^^^^
+.. note::
 
-The document root element node can be accessed with the :attr:`.HTMLTree.document` property. The properties :attr:`.HTMLTree.body` and :attr:`.HTMLTree.head` also exist for directly accessing a document's ``<head>`` or ``<body>`` elements (if they exist).
+  If you want to match only a single element, always use the dedicated single-match selectors (e.g., use :meth:`~.DOMNode.query_selector` instead of :meth:`~.DOMNode.query_selector_all` etc.). These functions have built-in early stopping optimizations and are therefore more efficient than matching all elements in the tree and discarding unwanted elements in the resulting collection.
+
+Here are a few examples of how to match elements by ID, tag name, class name, or CSS selector:
 
 .. code-block:: python
 
