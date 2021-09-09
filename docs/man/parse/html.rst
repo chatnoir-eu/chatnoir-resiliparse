@@ -131,12 +131,12 @@ Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` 
 
   meta = tree.head.query_selector('meta[charset]')
   if meta is not None:
-    print(meta.getattr('charset'))
-    # >>> utf-8
+      print(meta.getattr('charset'))
+      # >>> utf-8
 
-    # Or:
-    print(meta['charset'])
-    # >>> utf-8
+      # Or:
+      print(meta['charset'])
+      # >>> utf-8
 
 The dict access method will raise a :exc:`KeyError` exception if the attribute does not exist.
 
@@ -226,8 +226,8 @@ To iterate only the immediate children of a node, loop over its :attr:`~.DOMNode
 .. code-block:: python
 
   for e in tree.body.get_element_by_id('foo').child_nodes:
-    if e.type == NodeType.ELEMENT:
-      print(e.text)
+      if e.type == NodeType.ELEMENT:
+          print(e.text)
   # >>> Hello DOM!
   # >>> Hello world!
 
