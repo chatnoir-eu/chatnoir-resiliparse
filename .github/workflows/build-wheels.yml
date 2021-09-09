@@ -107,10 +107,10 @@ jobs:
         run: python3 -m pip install build
 
       - name: Build FastWARC Source Dist
-        run: python3 -m build --sdist fastwarc
+        run: python3 -m build --sdist --outdir dist fastwarc
 
       - name: Build Resiliparse Source Dist
-        run: python3 -m build --sdist resiliparse
+        run: python3 -m build --sdist --outdir dist resiliparse
 
       - name: Upload Source Dists
         uses: actions/upload-artifact@v2
