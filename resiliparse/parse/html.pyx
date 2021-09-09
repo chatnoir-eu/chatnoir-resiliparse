@@ -273,10 +273,7 @@ cdef class DOMElementClassList:
         """
         __eq__(self, other)
         """
-        if not isinstance(other, DOMElementClassList):
-            return False
-        # noinspection PyProtectedMember
-        return (<DOMElementClassList>other)._create_list() == self._create_list()
+        return other == self._create_list()
 
     def __len__(self):
         """
