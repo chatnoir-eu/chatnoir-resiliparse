@@ -19,36 +19,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        os: [ macOS-latest ]
     env:
-      CIBW_BUILD: "cp3*-*"
-      CIBW_SKIP: "cp35-* cp36-*"
+      CIBW_BUILD: "cp310*-*"
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
-
-      CIBW_BEFORE_BUILD_LINUX: |
-        cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
-        [lexbor]
-        name=lexbor repo
-        baseurl=https://packages.lexbor.com/centos/$releasever/$basearch/
-        gpgcheck=0
-        enabled=1
-        EOF
-
-        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel
-      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-
-#      CIBW_ARCHS_MACOS: universal2
       MACOSX_DEPLOYMENT_TARGET: "10.14"
-      CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""   # Buggy DYLIB path prevents RPATH resolution
+#      CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
-#      CIBW_BEFORE_BUILD_WINDOWS: "pip install delvewheel"
-#      CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair --add-path C:\\vcpkg\\installed\\x64-windows\\lib -w {dest_dir} {wheel}"
-
-      CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
-      LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
-      INCLUDE: C:\vcpkg\installed\x64-windows\include
-      LIB: C:\vcpkg\installed\x64-windows\lib
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -56,110 +34,31 @@ jobs:
       - name: Cache Vcpkg
         uses: actions/cache@v2
         id: cache-vcpkg
-        if: runner.os == 'macOS' || runner.os == 'Windows'
         with:
-          path: |
-            /usr/local/share/vcpkg/installed
-            C:\vcpkg\installed
+          path: /usr/local/share/vcpkg/installed
           key: ${{ runner.os }}-vcpkg
 
       - name: Install Vcpkg Dependencies
-        if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
+        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -e
-          if [ -d /usr/local/share/vcpkg/ports ]; then
-            cp -rv .vcpkg/ports/* /usr/local/share/vcpkg/ports
-          elif [ -d /c/vcpkg ]; then
-            cp -rv .vcpkg/ports/* /c/vcpkg/ports
-            export VCPKG_DEFAULT_TRIPLET=x64-windows
-          else
-            exit 1
-          fi
-
+          cp -rv .vcpkg/ports/* /usr/local/share/vcpkg/ports
           vcpkg install lz4 lexbor uchardet zlib
-
-      - name: Build FastWARC
-        uses: pypa/cibuildwheel@v2.1.1
-        env:
-          CIBW_ENVIRONMENT: BUILD_PACKAGES=fastwarc
-
-      - name: Cleanup Build
-        shell: bash
-        run: |
-          rm -rf build
 
       - name: Build Resiliparse
         uses: pypa/cibuildwheel@v2.1.1
         env:
-          CIBW_ENVIRONMENT: BUILD_PACKAGES=resiliparse
+          CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
+          LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
 
-      # Fixup macOS dylibs in extra step, because DYLD_LIBRARY_PATH is always empty in cibuildwheel
-      - name: Delocate Wheels (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -e
+          # This has no effect
+          DYLD_LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
 
-          python3 -m pip install delocate
-          for w in ./wheelhouse/*-macosx*.whl; do
-            DYLD_LIBRARY_PATH="$LIBRARY_PATH" python3 -m delocate.cmd.delocate_wheel -v "$w"
-          done
+          # But this doesn't work either...
+          CIBW_ENVIRONMENT: >-
+            BUILD_PACKAGES=resiliparse
+            DYLD_LIBRARY_PATH=/usr/local/share/vcpkg/installed/x64-osx/lib
 
-      - name: Upload Wheels
-        uses: actions/upload-artifact@v2
-        with:
-          name: wheels
-          path: ./wheelhouse/*.whl
-
-  build-sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Build Source Dist
-        run: |
-          python3 -m pip install build
-          for pkg in resiliparse fastwarc; do
-            BUILD_PACKAGES=${pkg} python3 -m build --sdist .
-            rm -rf build *.egg-info
-          done
-
-      - name: Upload Source Dist
-        uses: actions/upload-artifact@v2
-        with:
-          name: sdist
-          path: ./dist/*.tar.gz
-
-  build-documentation:
-    runs-on: ubuntu-latest
-    needs: build-wheels
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: wheels
-          path: wheelhouse
-
-      - name: Build Documentation
-        run: |
-          set -e
-
-          PYTHON_ABI="$(python3 -c "from platform import python_version; print('cp' + ''.join(python_version().split('.')[:2]))")"
-          python3 -m pip install twine
-          grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python3 -m pip install
-          python3 -m pip install wheelhouse/*${PYTHON_ABI}-${PYTHON_ABI}*-manylinux*.whl
-
-          cd docs
-          make html
-
-      - name: Trigger Readthedocs Build
-        if: github.ref == 'refs/heads/develop'
-        uses: dfm/rtds-action@v1
-        with:
-          webhook_url: ${{ secrets.RTDS_WEBHOOK_URL }}
-          webhook_token: ${{ secrets.RTDS_WEBHOOK_TOKEN }}
-          commit_ref: ${{ github.ref }}
+          # ...as we can show here
+          CIBW_BEFORE_BUILD: "env | grep LIBRARY"
