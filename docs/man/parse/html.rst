@@ -98,7 +98,7 @@ The document root element node can be accessed with the :attr:`.HTMLTree.documen
 
   # Last element
   print(repr(coll[-1]))
-  # >>> <span class="bar">
+  # >>> <span class="bar baz">
 
   # First two elements
   print(repr(coll[:2]))
