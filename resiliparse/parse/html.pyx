@@ -257,13 +257,13 @@ cdef class DOMElementClassList:
         # noinspection PyProtectedMember
         self.node._setattr_impl(b'class', b' '.join([c.encode() for c in l]))
 
-    def __contains__(self, str item):
+    def __contains__(self, item):
         """
         __contains__(self, item):
         """
         return item in self._create_list()
 
-    def __getitem__(self, ssize_t item):
+    def __getitem__(self, item):
         """
         __contains__(self, item)
         """
