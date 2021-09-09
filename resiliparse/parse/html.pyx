@@ -68,6 +68,50 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
     return coll
 
 
+cdef struct element_by_id_match_ctx:
+    const lxb_char_t* id_val
+    size_t id_val_len
+    lxb_dom_node_t* result_node
+
+ctypedef element_by_id_match_ctx element_by_id_match_ctx_t
+
+
+cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* ctx) nogil:
+    if node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        return LEXBOR_ACTION_OK
+
+    cdef element_by_id_match_ctx_t* match_ctx = <element_by_id_match_ctx_t*>ctx
+    cdef const lxb_char_t* id_val
+    cdef size_t id_val_len = 0
+
+    id_val = lxb_dom_element_id(<lxb_dom_element_t*>node, &id_val_len)
+    if id_val == NULL or id_val_len != match_ctx.id_val_len:
+        return LEXBOR_ACTION_OK
+
+    if lexbor_str_data_ncmp(id_val, match_ctx.id_val, id_val_len):
+        match_ctx.result_node = node
+        return LEXBOR_ACTION_STOP
+
+    return LEXBOR_ACTION_OK
+
+
+cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=False):
+    """
+    Return a collection of elements matching the given attribute name and value.
+
+    The caller must take ownership of the returned collection.
+
+    :param node: anchor node
+    :param id_value: ID value as UTF-8 bytes
+    :param case_insensitive: match case-insensitive
+    :return: pointer to created DOM collection or ``NULL`` if error occurred
+    """
+
+    cdef element_by_id_match_ctx ctx = [<const lxb_char_t*>id_value, len(id_value), NULL]
+    lxb_dom_node_simple_walk(node, <lxb_dom_node_simple_walker_f>element_by_id_callback, &ctx)
+    return ctx.result_node
+
+
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
                                                      size_t init_size=5, bint case_insensitive=False):
     """
@@ -116,15 +160,41 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, b
     return coll
 
 
-cdef lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec, void* ctx) nogil:
-    cdef lxb_dom_collection_t* coll = <lxb_dom_collection_t*>ctx
-    if node != NULL:
-        lxb_dom_collection_append(coll, node)
+cdef inline lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+                                             void* ctx) nogil:
+    lxb_dom_collection_append(<lxb_dom_collection_t*>ctx, node)
     return LXB_STATUS_OK
 
 
-cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
-                                               size_t init_size=32):
+cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+                                                    void* ctx) nogil:
+    (<lxb_dom_node_t**>ctx)[0] = node
+    return LXB_STATUS_STOP
+
+
+cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
+    """
+    Return a pointer to the first element matching the given CSS selector.
+
+    :param node: anchor node
+    :param tree: owning HTML tree
+    :param selector: CSS selector as UTF-8 bytes
+    :return: pointer to created DOM collection or ``NULL`` if error occurred
+    """
+    tree.init_css_parser()
+
+    cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(tree.css_parser,
+                                                                     <lxb_char_t*>selector, len(selector))
+    cdef lxb_dom_node_t* result_node = NULL
+    if lxb_selectors_find(tree.selectors, node, sel_list,
+                          <lxb_selectors_cb_f>css_select_callback_single, &result_node) != LXB_STATUS_OK:
+        return NULL
+
+    return result_node
+
+
+cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
+                                                   size_t init_size=32):
     """
     Return a collection of elements matching the given CSS selector.
 
@@ -148,10 +218,10 @@ cdef lxb_dom_collection_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tr
     return coll
 
 
-cdef lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec, void* ctx) nogil:
-    cdef bint* matches = <bint*>ctx
-    matches[0] |= node != NULL
-    return LXB_STATUS_OK
+cdef inline lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+                                            void* ctx) nogil:
+    (<bint*>ctx)[0] = True
+    return LXB_STATUS_STOP
 
 
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
@@ -776,17 +846,18 @@ cdef class DOMNode:
         """
         query_selector(self, selector)
          
-        Find and return the first element matching the given CSS selector.
+        Find and return the first element matching the given CSS selector. This is more efficient
+        than matching with :meth:`query_selector_all` and discarding additional elements.
 
         :param selector: CSS selector
         :type selector: str
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
-        cdef DOMCollection coll = self.query_selector_all(selector)
-        if len(coll) == 0:
+        cdef lxb_dom_node_t* node = query_selector_impl(self.node, self.tree, selector.encode())
+        if node == NULL:
             return None
-        return coll[0]
+        return _create_dom_node(self.tree, node)
 
     cpdef DOMCollection query_selector_all(self, str selector):
         """
@@ -799,7 +870,7 @@ cdef class DOMNode:
         :return: collection of matching elements
         :rtype: DOMCollection
         """
-        cdef lxb_dom_collection_t* coll = query_selector_impl(self.node, self.tree, selector.encode())
+        cdef lxb_dom_collection_t* coll = query_selector_all_impl(self.node, self.tree, selector.encode())
         if coll == NULL:
             raise RuntimeError('Failed to match elements by CSS selector')
 
@@ -809,7 +880,8 @@ cdef class DOMNode:
         """
         matches(self, selector)
         
-        Check whether any element in the DOM tree matches the given CSS selector.
+        Check whether any element in the DOM tree matches the given CSS selector. This is more efficient
+        than matching with :meth:`query_selector_all` and checking the size of the returned collection.
 
         :param selector: CSS selector
         :type selector: str
@@ -861,16 +933,10 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_collection_t* coll = get_elements_by_attr_impl(self.node, b'id', element_id.encode(),
-                                                                     1, case_insensitive)
-        if coll == NULL:
-            raise RuntimeError('Failed to match element by ID')
-
-        cdef DOMNode return_node = None
-        if lxb_dom_collection_length(coll) > 0:
-            return_node = _create_dom_node(self.tree, lxb_dom_collection_node(coll, 0))
-        lxb_dom_collection_destroy(coll, True)
-        return return_node
+        cdef lxb_dom_node_t* result_node = get_element_by_id_impl(self.node, element_id.encode(), case_insensitive)
+        if result_node == NULL:
+            return None
+        return _create_dom_node(self.tree, result_node)
 
     cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
         """
@@ -1099,32 +1165,25 @@ cdef class DOMCollection:
             return idx
         return idx % <ssize_t>lxb_dom_collection_length(self.coll)
 
-    cdef _forward_element_match(self, bytes func, attrs, bint single):
+    cdef DOMCollection _forward_collection_match(self, bytes func, attrs):
         """
-        Forward DOM element match operation to all items in the collection and aggregate the results.
+        Forward DOM multi-element match operations to all items in the collection and aggregate the results.
         
-        :param func: internal matching function as bytes (b'by_attr', b'by_class', b'by_tag',
-                     b'selector', or b'matches')
+        :param func: internal matching function as bytes (b'by_attr', b'by_class', b'by_tag', or b'selector_all')
         :param attrs: tuple of attributes to pass to the matching function
-        :param single: return first match only or entire collection
         :return: aggregated collection or single element
         """
         if self.tree is None or self.coll == NULL:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
         if lxb_dom_collection_length(self.coll) == 0:
-            if func == b'matches':
-                return False
-            if single:
-                return None
             return self
 
-        cdef lxb_dom_collection_t* joined_coll = NULL
-        if func != b'matches':
-            joined_coll = lxb_dom_collection_make(self.coll.document, lxb_dom_collection_length(self.coll) * 2)
+        cdef lxb_dom_collection_t* joined_coll = lxb_dom_collection_make(self.coll.document,
+                                                                         lxb_dom_collection_length(self.coll) * 2)
 
-        cdef lxb_dom_collection_t* matches
         cdef lxb_dom_node_t* node = NULL
+        cdef lxb_dom_collection_t* matches = NULL
         cdef size_t i = 0
         for i in range(lxb_dom_collection_length(self.coll)):
             node = lxb_dom_collection_node(self.coll, i)
@@ -1134,28 +1193,12 @@ cdef class DOMCollection:
                 matches = get_elements_by_class_name_impl(node, attrs[0], attrs[1])
             elif func == b'by_tag':
                 matches = get_elements_by_tag_name_impl(node, attrs[0])
-            elif func == b'selector':
-                matches = query_selector_impl(node, self.tree, attrs[0])
-            elif func == b'matches':
-                if matches_impl(node, self.tree, attrs[0]):
-                    return True
-                continue
+            elif func == b'selector_all':
+                matches = query_selector_all_impl(node, self.tree, attrs[0])
 
-            if single:
-                if lxb_dom_collection_length(matches) > 0:
-                    new_node = _create_dom_node(self.tree, <lxb_dom_node_t*>lxb_dom_collection_element(matches, 0))
-                    lxb_dom_collection_destroy(matches, True)
-                    return new_node
-                lxb_dom_collection_destroy(matches, True)
-            elif matches != NULL:
+            if matches != NULL:
                 _join_collections(joined_coll, matches)
                 lxb_dom_collection_destroy(matches, True)
-
-        # Didn't match anything if we are single-matching and made it to this point
-        if func == b'matches':
-            return False
-        if single:
-            return None
 
         return _create_dom_collection(self.tree, joined_coll)
 
@@ -1173,7 +1216,16 @@ cdef class DOMCollection:
         :return: matching element or ``None`` if no such element exists
         :rtype: DOMNode or None
         """
-        return self._forward_element_match(b'by_attr', (b'id', element_id.encode(), 1, case_insensitive), True)
+
+        cdef lxb_dom_node_t* node
+        cdef size_t i = 0
+        cdef bytes id_bytes = element_id.encode()
+        for i in range(lxb_dom_collection_length(self.coll)):
+            node = get_element_by_id_impl(lxb_dom_collection_node(self.coll, i), id_bytes, case_insensitive)
+            if node != NULL:
+                return _create_dom_node(self.tree, node)
+
+        return None
 
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
         """
@@ -1191,8 +1243,8 @@ cdef class DOMCollection:
         :return: collection of matching elements
         :rtype: DOMCollection or None
         """
-        return self._forward_element_match(b'by_attr',
-                                           (attr_name.encode(), attr_value.encode(),  10, case_insensitive), False)
+        return self._forward_collection_match(b'by_attr',
+                                              (attr_name.encode(), attr_value.encode(),  10, case_insensitive))
 
     cpdef DOMCollection get_elements_by_class_name(self, str class_name, bint case_insensitive=False):
         """
@@ -1208,7 +1260,7 @@ cdef class DOMCollection:
         :return: collection of matching elements
         :rtype: DOMCollection or None
         """
-        return self._forward_element_match(b'by_class', (class_name.encode(), 10), False)
+        return self._forward_collection_match(b'by_class', (class_name.encode(), 10))
 
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         """
@@ -1222,21 +1274,30 @@ cdef class DOMCollection:
         :return: collection of matching elements
         :rtype: DOMCollection
         """
-        return self._forward_element_match(b'by_tag', (tag_name.encode(),), False)
+        return self._forward_collection_match(b'by_tag', (tag_name.encode(),))
 
     cpdef DOMNode query_selector(self, str selector):
         """
         query_selector(self, selector)
 
         Within all elements in this collection, find and return the first element matching
-        the given CSS selector.
+        the given CSS selector.This is more efficient than matching with :meth:`query_selector_all`
+        and discarding additional elements.
 
         :param selector: CSS selector
         :type selector: str
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
-        return self._forward_element_match(b'selector', (selector.encode(),), True)
+        cdef lxb_dom_node_t* node
+        cdef size_t i = 0
+        cdef bytes selector_bytes = selector.encode()
+        for i in range(lxb_dom_collection_length(self.coll)):
+            node = query_selector_impl(lxb_dom_collection_node(self.coll, i), self.tree, selector_bytes)
+            if node != NULL:
+                return _create_dom_node(self.tree, node)
+
+        return None
 
     cpdef DOMCollection query_selector_all(self, str selector):
         """
@@ -1250,21 +1311,28 @@ cdef class DOMCollection:
         :return: collection of matching elements
         :rtype: DOMCollection
         """
-        return self._forward_element_match(b'selector', (selector.encode(),), False)
+        return self._forward_collection_match(b'selector_all', (selector.encode(),))
 
     cpdef bint matches(self, str selector):
         """
         matches(self, selector)
 
         Within all elements in this collection, check whether any element in the DOM tree
-        matches the given CSS selector.
+        matches the given CSS selector. This is more efficient than matching with
+        :meth:`query_selector_all` and checking the size of the returned collection.
 
         :param selector: CSS selector
         :type selector: str
         :return: boolean value indicating whether a matching element exists
         :rtype: bool
         """
-        return self._forward_element_match(b'matches', (selector.encode(),), True)
+        cdef size_t i = 0
+        cdef bytes selector_bytes = selector.encode()
+        for i in range(lxb_dom_collection_length(self.coll)):
+            if matches_impl(lxb_dom_collection_node(self.coll, i), self.tree, selector_bytes):
+                return True
+
+        return False
 
     def __iter__(self):
         """

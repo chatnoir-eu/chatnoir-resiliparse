@@ -29,12 +29,21 @@ cdef extern from "<lexbor/core/core.h>" nogil:
         LXB_STATUS_STOPPED,
         LXB_STATUS_NEXT,
         LXB_STATUS_STOP
+    ctypedef enum lexbor_action_t:
+        LEXBOR_ACTION_OK    = 0x00,
+        LEXBOR_ACTION_STOP  = 0x01,
+        LEXBOR_ACTION_NEXT  = 0x02
+
     ctypedef struct lexbor_mraw_t
     ctypedef struct lexbor_hash_t
 
     lexbor_str_t * lexbor_str_destroy(lexbor_str_t *str, lexbor_mraw_t *mraw, bint destroy_obj)
     lexbor_str_t * lexbor_str_create()
     lxb_char_t * lexbor_str_data_noi(lexbor_str_t *str)
+
+    bint lexbor_str_data_ncmp(const lxb_char_t *first, const lxb_char_t *sec, size_t size)
+    bint lexbor_str_data_cmp(const lxb_char_t *first, const lxb_char_t *sec)
+
 
 cdef extern from "<lexbor/html/html.h>" nogil:
     ctypedef unsigned int lxb_html_document_opt_t
@@ -252,11 +261,6 @@ cdef extern from "<lexbor/html/html.h>" nogil:
 
 
 cdef extern from "<lexbor/dom/dom.h>" nogil:
-    ctypedef enum lexbor_action_t:
-        LEXBOR_ACTION_OK = 0x00
-        LEXBOR_ACTION_STOP = 0x01
-        LEXBOR_ACTION_NEXT = 0x02
-
     ctypedef lexbor_action_t (*lxb_dom_node_simple_walker_f)(lxb_dom_node_t *node, void *ctx)
 
     ctypedef struct lxb_dom_character_data_t:
