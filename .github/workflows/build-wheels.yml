@@ -103,15 +103,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Build Source Dist
-        run: |
-          python3 -m pip install build
-          for pkg in resiliparse fastwarc; do
-            BUILD_PACKAGES=${pkg} python3 -m build --sdist .
-            rm -rf build *.egg-info
-          done
+      - name: Install Build Module
+        run: python3 -m pip install build
 
-      - name: Upload Source Dist
+      - name: Build FastWARC Source Dist
+        run: python3 -m build --sdist fastwarc
+
+      - name: Build Resiliparse Source Dist
+        run: python3 -m build --sdist resiliparse
+
+      - name: Upload Source Dists
         uses: actions/upload-artifact@v2
         with:
           name: sdist
