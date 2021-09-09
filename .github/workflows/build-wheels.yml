@@ -21,6 +21,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
+      CIBW_BUILD: cp3*
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
 
