@@ -278,6 +278,12 @@ cdef class DOMElementClassList:
         # noinspection PyProtectedMember
         return (<DOMElementClassList>other)._create_list() == self._create_list()
 
+    def __len__(self):
+        """
+        __len__(self)
+        """
+        return len(self._create_list())
+
     def __iter__(self):
         """
         __iter__(self)
