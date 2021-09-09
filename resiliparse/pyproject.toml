@@ -1,0 +1,9 @@
+[project]
+requires-python = ">=3.7"
+
+[build-system]
+requires = [
+    "setuptools>=18.0",
+    "Cython"
+]
+build-backend = "setuptools.build_meta"

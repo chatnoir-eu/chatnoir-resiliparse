@@ -10,23 +10,33 @@ Pre-built Resiliparse binaries can be installed from PyPi:
 pip install resiliparse
 ```
 
-## Building Resiliparse
-To build Resiliparse from sources, you can either compile it from the PyPi source package or directly from this repository. To build Resiliparse from PyPi, run:
+## Building Resiliparse From Source
+You can compile Resiliparse either from the PyPi source package or directly from this repository, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
+```bash
+# Add Lexbor repository
+curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
+    sudo tee /etc/apt/sources.list.d/lexbor.list
+
+# Install build dependencies
+sudo apt update
+sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev
+```
+To build and install Resiliparse from PyPi, run
 ```bash
 pip install --no-binary resiliparse resiliparse
 ```
-If you prefer to build directly from this repository instead, run:
+That's it. If you prefer to build and install directly from this repository instead, run:
 ```bash
-# Create venv (recommended, but not required)
-python3 -m venv venv && source venv/bin/activate
+pip install -e resiliparse
+```
+To build the wheels without installing them, run:
+```bash
+pip wheel -e resiliparse
 
-# Install build dependencies
-sudo apt install libuchardet-dev
-pip install cython setuptools
-
-# Build and install
-BUILD_PACKAGES=resiliparse python setup.py install
+# Or:
+pip install build && python -m build --wheel resiliparse
 ```
 
 ## Usage Instructions
-For detailed usage instructions, please consult the [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/latest/index.html).
+For detailed usage instructions, please consult the [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/stable/).

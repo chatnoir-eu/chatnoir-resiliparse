@@ -13,13 +13,29 @@ Pre-built Resiliparse binaries can be installed from `PyPi <https://pypi.org/pro
 
   pip install resiliparse
 
-To build Resiliparse from sources, you can either compile it from the PyPi source package or directly from this repository. To build Resiliparse from PyPi, run:
+Building Resiliparse From Source
+--------------------------------
+
+You can compile Resiliparse either from the `PyPi <https://pypi.org/project/FastWARC/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
+
+.. code-block:: bash
+
+  # Add Lexbor repository
+  curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+  echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
+      sudo tee /etc/apt/sources.list.d/lexbor.list
+
+  # Install build dependencies
+  sudo apt update
+  sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev
+
+To build and install Resiliparse from PyPi, run
 
 .. code-block:: bash
 
   pip install --no-binary resiliparse resiliparse
 
-If you prefer to build directly from the `GitHub repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_ instead, run:
+That's it. If you prefer to build directly from the GitHub repository instead, run:
 
 .. code-block:: bash
 
@@ -27,12 +43,16 @@ If you prefer to build directly from the `GitHub repository <https://github.com/
   git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
   cd chatnoir-resiliparse
 
-  # Create venv (recommended, but not required)
+  # Optional: Create a fresh venv
   python3 -m venv venv && source venv/bin/activate
 
-  # Install build dependencies
-  sudo apt install libuchardet-dev
-  pip install cython setuptools
+  pip install -e resiliparse
 
-  # Build and install
-  BUILD_PACKAGES=resiliparse python setup.py install
+To build the wheels without installing them, run:
+
+.. code-block:: bash
+
+  pip wheel -e resiliparse
+
+  # Or:
+  pip install build && python -m build --wheel resiliparse

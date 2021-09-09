@@ -5,34 +5,32 @@ FastWARC is a high-performance WARC parsing library for Python written in C++/Cy
 FastWARC belongs to the [ChatNoir Resiliparse toolkit](https://github.com/chatnoir-eu/chatnoir-resiliparse/) for fast and robust web data processing.
 
 ## Installing FastWARC
-
 Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
 ```bash
 pip install fastwarc
 ```
-**However:** these binaries are provided *solely for your convenience*. Since they are built on the very old `manylinux` base system for better compatibility, their performance isn't optimal (though still better than WARCIO). For best performance, see the next section on how to build FastWARC yourself.
+**However:** the Linux binaries are provided *solely for your convenience*. Since they are built on the very old `manylinux` base system for better compatibility, their performance isn't optimal (though still better than WARCIO). For best performance, see the next section on how to build FastWARC yourself.
 
-## Building FastWARC
-
-You can compile FastWARC either from the PyPi source package or directly from this repository, though in any case, you need to install all build-time dependencies first. For Debian / Ubuntu, this is done with:
+## Building FastWARC From Source
+You can compile FastWARC either from the PyPi source package or directly from this repository, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
 ```bash
 sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
 ```
-Then to build FastWARC from PyPi, run
+To build and install FastWARC from PyPi, run
 ```bash
 pip install --no-binary fastwarc fastwarc
 ```
-That's it. If you prefer to build directly from this repository instead, run:
+That's it. If you prefer to build and install directly from this repository instead, run:
 ```bash
-# Create venv (recommended, but not required)
-python3 -m venv venv && source venv/bin/activate
+pip install -e fastwarc
+```
+To build the wheels without installing them, run:
+```bash
+pip wheel -e fastwarc
 
-# Install additional build dependencies
-pip install cython setuptools
-
-# Build and install:
-BUILD_PACKAGES=fastwarc python setup.py install
+# Or:
+pip install build && python -m build --wheel fastwarc
 ```
 
 ## Usage Instructions
-For detailed usage instructions, please consult the [FastWARC User Manual](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html).
+For detailed usage instructions, please consult the [FastWARC User Manual](https://resiliparse.chatnoir.eu/en/stable/man/fastwarc.html).

@@ -18,7 +18,7 @@ FastWARC's design goals are high speed, a low and fixed memory footprint, and si
 
 Installing FastWARC
 -------------------
-Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
+Pre-built FastWARC binaries can be installed from PyPi:
 
 .. code-block:: bash
 
@@ -26,19 +26,20 @@ Pre-built FastWARC binaries for most Linux platforms can be installed from PyPi:
 
 .. attention::
 
-  These binaries are provided **solely for your convenience**. Since they are built on the very old *manylinux* base system for better compatibility, their performance isn't optimal (though still better than WARCIO).
+  The Linux binaries are provided **solely for your convenience**. Since they are built on the very old *manylinux* base system for better compatibility, their performance isn't optimal (though still better than WARCIO).
 
   *For best performance, see the next section on how to build FastWARC yourself.*
 
-Building FastWARC
------------------
-You can compile FastWARC either from the `PyPi <https://pypi.org/project/FastWARC/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all build-time dependencies first. For Debian / Ubuntu, this is done with:
+Building FastWARC From Source
+-----------------------------
+
+You can compile FastWARC either from the `PyPi <https://pypi.org/project/FastWARC/>`_ source package or directly from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
 
 .. code-block:: bash
 
   sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev
 
-Then to build FastWARC from PyPi, run
+To build and install FastWARC from PyPi, run
 
 .. code-block:: bash
 
@@ -52,14 +53,20 @@ That's it. If you prefer to build directly from the GitHub repository instead, r
   git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
   cd chatnoir-resiliparse
 
-  # Create venv (recommended, but not required)
+  # Optional: Create a fresh venv
   python3 -m venv venv && source venv/bin/activate
 
-  # Install additional build dependencies
-  pip install cython setuptools
+  pip install -e fastwarc
 
-  # Build and install:
-  BUILD_PACKAGES=fastwarc python setup.py install
+To build the wheels without installing them, run:
+
+.. code-block:: bash
+
+  pip wheel -e fastwarc
+
+  # Or:
+  pip install build && python -m build --wheel fastwarc
+
 
 Iterating WARC Files
 --------------------

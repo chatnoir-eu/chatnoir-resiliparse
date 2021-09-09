@@ -13,17 +13,19 @@
 import os
 import re
 import sys
-import sphinx_rtd_theme
 
 src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(src_dir)
+sys.path.extend([
+    os.path.join(src_dir, 'resiliparse'),
+    os.path.join(src_dir, 'fastwarc')
+])
 
 # -- Project information -----------------------------------------------------
 
 project = 'ChatNoir Resiliparse'
 copyright = '2021, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$", open(os.path.join(src_dir, 'setup.py')).read(), re.M).group(1)
+release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$", open(os.path.join(src_dir, 'setup_base.py')).read(), re.M).group(1)
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------

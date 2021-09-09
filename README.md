@@ -51,34 +51,46 @@ FastWARC is a high-performance WARC parsing library for Python written in C++/Cy
 
 For more information, see the [FastWARC documentation](docs/man/fastwarc.rst)
 
-## Building and Installing Resiliparse
+## Installation
 The main Resiliparse package can be installed from PyPi as follows:
 ```bash
 pip install resiliparse
 ```
-
-You can also build Resiliparse directly from this repository with all or just some of its modules:
+FastWARC is being distributed as its own package and can be installed like so:
 ```bash
-# Create venv (recommended, but not required)
-python3 -m venv venv && source venv/bin/activate
+pip install fastwarc
+```
+For optimal performance, however, it is recommended to build FastWARC from sources instead of relying on the pre-built binaries. See below for more information.
+
+## Building From Source
+To build Resiliparse or FastWARC from sources, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
+```bash
+# Add Lexbor repository
+curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
+    sudo tee /etc/apt/sources.list.d/lexbor.list
 
 # Install build dependencies
-sudo apt install build-essential python3-dev zlib1g-dev liblz4-dev libuchardet-dev
-pip install cython setuptools
-
-# Build only FastWARC
-BUILD_PACKAGES=fastwarc python setup.py install
-
-# Build all modules
-python setup.py install
+sudo apt update
+sudo apt install build-essential python3-dev zlib1g-dev \
+    liblz4-dev libuchardet-dev liblexbor-dev
 ```
-
-FastWARC is being distributed as its own package that has to be installed separately. For optimal performance, it is recommended to build FastWARC from sources instead of relying on the pre-built binaries.
+Then, to build the actual packages, run:
 ```bash
-# Option 1: Install pre-built binaries:
-pip install fastwarc
+# Optional: Create a fresh venv first
+python3 -m venv venv && source venv/bin/activate
 
-# Option 2: Install from sources (requires build-time dependencies to be installed,
-#           but is recommended for better performance, see FastWARC docs):
+# Build and install Resiliparse
+pip install -e resiliparse
+
+# Build and install FastWARC
+pip install -e fastwarc
+```
+Instead of building the packages from this repository, you can also build them from the PyPi source packages:
+```bash
+# Build Resiliparse from PyPi
+pip install --no-binary resiliparse resiliparse
+
+# Build FastWARC from PyPi
 pip install --no-binary fastwarc fastwarc
 ```
