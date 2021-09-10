@@ -397,9 +397,10 @@ cdef class GZipStream(CompressingStream):
         cdef size_t written_so_far = self.zst.total_out
         with nogil:
             while self.zst.avail_in > 0 and status == Z_OK:
-                status = deflate(&self.zst, Z_NO_FLUSH)
+                status = deflate(&self.zst, Z_SYNC_FLUSH)
                 if self.zst.avail_in > 0 and self.zst.avail_out == 0:
                     # Out buffer fully filled, but in buffer still holding data
+                    prev_buf_size = self.working_buf.size()
                     self.working_buf.append(4096u, <char>0)
                     self.zst.next_out = <Bytef*>&self.working_buf.back() - 4096u
                     self.zst.avail_out = 4096u
