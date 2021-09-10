@@ -690,7 +690,8 @@ cdef class WarcRecord:
             if data.empty():
                 break
             bytes_written += out_stream_wrapped.write(data.data(), data.size())
-        bytes_written += out_stream_wrapped.write(b'\r\n', 2)
+
+        bytes_written += out_stream_wrapped.write(b'\r\n\r\n', 4)
 
         if compress_member_started:
             bytes_written += (<CompressingStream> out_stream_wrapped).end_member()
