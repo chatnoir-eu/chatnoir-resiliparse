@@ -43,7 +43,7 @@ cdef class WarcHeaderMap:
     cdef dict _dict_cache
     cdef bint _dict_cache_stale
 
-    cdef size_t write(self, IOStream stream)
+    cdef size_t write(self, IOStream stream) except -1
     cdef inline void clear(self)
     cdef inline void set_status_line(self, const string& status_line)
     cdef string find_header(self, const string& header_key, const string& default)
@@ -73,12 +73,12 @@ cdef class WarcRecord:
     cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
     cpdef void parse_http(self)
-    cpdef size_t write(self, stream, bint checksum_data=*, size_t chunk_size=*)
+    cpdef size_t write(self, stream, bint checksum_data=*, size_t chunk_size=*) except -1
     cpdef bint verify_block_digest(self, bint consume=*)
     cpdef bint verify_payload_digest(self, bint consume=*)
 
     cdef bint _verify_digest(self, const string& base32_digest, bint consume)
-    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size)
+    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size) except -1
 
 
 cdef class ArchiveIterator:

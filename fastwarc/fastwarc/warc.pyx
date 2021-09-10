@@ -311,7 +311,7 @@ cdef class WarcHeaderMap:
                 for h in self._headers]
 
 
-    cdef size_t write(self, IOStream stream):
+    cdef size_t write(self, IOStream stream) except -1:
         """Write header block into stream."""
         cdef size_t bytes_written = 0
         if not self._status_line.empty():
@@ -595,7 +595,7 @@ cdef class WarcRecord:
         self._http_parsed = True
 
     # noinspection PyTypeChecker
-    cpdef size_t write(self, stream, bint checksum_data=False, size_t chunk_size=16384):
+    cpdef size_t write(self, stream, bint checksum_data=False, size_t chunk_size=16384) except -1:
         """
         write(self, stream, checksum_data=False, chunk_size=16384)
         
@@ -647,7 +647,7 @@ cdef class WarcRecord:
         block_buf.seek(0)
         return self._write_impl(block_buf, stream, False, chunk_size)
 
-    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size):
+    cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size) except -1:
         cdef IOStream out_stream_wrapped
         cdef size_t bytes_written = 0
         cdef bint compress_member_started = False
@@ -662,8 +662,18 @@ cdef class WarcRecord:
         elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
             out_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, out_stream)
         else:
-            warnings.warn(f"Object of type '{type(out_stream).__name__}' is not a valid stream.", RuntimeWarning)
-            return 0
+            raise TypeError(f"Object of type '{type(out_stream).__name__}' is not a valid stream.")
+
+        cdef BufferedReader in_reader_wrapped = None
+        cdef IOStream in_stream_wrapped = None
+        if isinstance(in_stream, BufferedReader):
+            in_reader_wrapped = <BufferedReader>in_stream
+        elif isinstance(in_stream, IOStream):
+            in_stream_wrapped = <IOStream>in_stream
+        elif isinstance(in_stream, object) and hasattr(in_stream, 'read'):
+            in_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, in_stream)
+        else:
+            raise TypeError(f"Object of type '{type(in_stream).__name__}' is not a valid stream.")
 
         bytes_written += self._headers.write(out_stream_wrapped)
         bytes_written += out_stream_wrapped.write(b'\r\n', 2)
@@ -672,9 +682,11 @@ cdef class WarcRecord:
             bytes_written += self._http_headers.write(out_stream_wrapped)
             bytes_written += out_stream_wrapped.write(b'\r\n', 2)
 
-        cdef string data
         while True:
-            data = in_reader.read(chunk_size)
+            if in_reader_wrapped is not None:
+                data = in_reader_wrapped.read(chunk_size)
+            else:
+                in_stream_wrapped.read(data, chunk_size)
             if data.empty():
                 break
             bytes_written += out_stream_wrapped.write(data.data(), data.size())
