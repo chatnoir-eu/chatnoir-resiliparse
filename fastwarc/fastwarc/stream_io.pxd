@@ -100,6 +100,7 @@ cdef class LZ4Stream(CompressingStream):
     cdef LZ4F_dctx* dctx
     cdef LZ4F_preferences_t prefs
     cdef string working_buf
+    cdef size_t working_buf_read
     cdef bint frame_started
     cdef size_t stream_pos
 

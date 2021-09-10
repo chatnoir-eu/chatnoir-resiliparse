@@ -476,6 +476,7 @@ cdef class LZ4Stream(CompressingStream):
         self.cctx = NULL
         self.dctx = NULL
         self.working_buf = string()
+        self.working_buf_read = 0
         self.frame_started = False
         self.prefs.compressionLevel = compression_level
         self.prefs.favorDecSpeed = favor_dec_speed
@@ -503,37 +504,36 @@ cdef class LZ4Stream(CompressingStream):
         if self.cctx != NULL:
             raise StreamError('Compression in progress.')
 
-        self.raw_stream.read(self.working_buf, size)
-        if self.working_buf.empty():
-            if self.working_buf.empty():
-                # EOF
-                self._free_ctx()
-                return 0
+        cdef size_t ret
+        cdef size_t bytes_read = 0, bytes_written = 0
+        cdef size_t out_buf_written = 0
+        out.resize(max(4096u, size // 4))
 
-        out.resize(size)
-        cdef size_t ret, bytes_read, bytes_written
         with nogil:
-            bytes_read = self.working_buf.size()
-            bytes_written = out.size()
-
             if self.dctx == NULL:
                 LZ4F_createDecompressionContext(&self.dctx, LZ4F_VERSION)
 
-            ret = LZ4F_decompress(self.dctx, out.data(), &bytes_written,
-                                  self.working_buf.data(), &bytes_read, NULL)
-            while ret != 0 and bytes_written == 0 and not LZ4F_isError(ret):
-                with gil:
-                    self.working_buf.erase(0, bytes_read)
-                    self.raw_stream.read(self.working_buf, size)
+            while True:
+                if self.working_buf.empty() or self.working_buf_read == self.working_buf.size():
+                    with gil:
+                        self.raw_stream.read(self.working_buf, size)
+                    self.working_buf_read = 0
+
                 if self.working_buf.empty():
                     # EOF
                     self._free_ctx()
                     out.clear()
                     return 0
-                bytes_read = self.working_buf.size()
-                bytes_written = out.size()
-                ret = LZ4F_decompress(self.dctx, out.data(), &bytes_written,
-                                      self.working_buf.data(), &bytes_read, NULL)
+
+                bytes_read = self.working_buf.size() - self.working_buf_read
+                bytes_written = out.size() - out_buf_written
+                ret = LZ4F_decompress(self.dctx, out.data() + out_buf_written, &bytes_written,
+                                      self.working_buf.data() + self.working_buf_read, &bytes_read, NULL)
+                self.working_buf_read += bytes_read
+                out_buf_written += bytes_written
+
+                if ret == 0 or out_buf_written == out.size() or LZ4F_isError(ret):
+                    break
 
             if ret == 0:
                 # Frame end
@@ -542,8 +542,7 @@ cdef class LZ4Stream(CompressingStream):
             elif LZ4F_isError(ret):
                 self._free_ctx()
                 with gil:
-                    raise StreamError('Not a valid LZ4 stream')
-            self.working_buf.erase(0, bytes_read)
+                    raise StreamError(f'Not a valid LZ4 stream: {LZ4F_getErrorName(ret).decode()}')
 
             if out.size() != bytes_written:
                 out.resize(bytes_written)

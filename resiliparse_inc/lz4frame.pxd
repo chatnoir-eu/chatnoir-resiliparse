@@ -14,6 +14,7 @@ cdef extern from "<lz4frame.h>" nogil:
         unsigned favorDecSpeed
 
     bint LZ4F_isError(size_t code)
+    const char* LZ4F_getErrorName(size_t code)
 
     size_t LZ4F_createCompressionContext(LZ4F_cctx** cctxPtr, unsigned version)
     size_t LZ4F_freeCompressionContext(LZ4F_cctx* dctx)
