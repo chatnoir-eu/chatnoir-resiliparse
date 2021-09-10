@@ -50,6 +50,12 @@ As of version |release|, the Resiliparse collection encompasses the following tw
 --------------
 The Resiliparse main module comes with the following subcomponents:
 
+Parsing Utilities
+^^^^^^^^^^^^^^^^^
+The Resiliparse Parsing Utilities are the largest submodule and provide an extensive (and growing) collection of efficient tools for dealing with encodings and raw protocol payloads, parsing HTML web pages, and preparing them for further processing by extracting structural or semantic information.
+
+Main documentation: :ref:`parse-manual`.
+
 Process Guard
 ^^^^^^^^^^^^^
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.

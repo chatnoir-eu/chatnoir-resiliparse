@@ -34,22 +34,22 @@ The Resiliparse main module with the following subcomponents:
 #### Parsing Utilities
 The Resiliparse Parsing Utilities are the largest submodule and provide an extensive (and growing) collection of efficient tools for dealing with encodings and raw protocol payloads, parsing HTML web pages, and preparing them for further processing by extracting structural or semantic information.
 
-For more information, see [Resiliparse Parsing Tools](docs/man/parse.rst)
+Main documentation: [Resiliparse Parsing Utilities](https://resiliparse.chatnoir.eu/en/latest/man/parse.html)
 
 #### Process Guards
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
-For more information, see [Resiliparse Process Guards](docs/man/process-guard.rst)
+Main documentation: [Resiliparse Process Guards](https://resiliparse.chatnoir.eu/en/latest/man/process-guard.html)
 
 #### Itertools
 Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
 
-For more information, see [Resiliparse Itertools](docs/man/itertools.rst)
+Main documentation: [Resiliparse Itertools](https://resiliparse.chatnoir.eu/en/latest/man/itertools.html)
 
 ### 2. FastWARC
 FastWARC is a high-performance WARC parsing library for Python written in C++/Cython. The API is inspired in large parts by [WARCIO](https://github.com/webrecorder/warcio), but does not aim at being a drop-in replacement.  FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are GZip and LZ4.
 
-For more information, see the [FastWARC documentation](docs/man/fastwarc.rst)
+Main documentation: [FastWARC](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html) and [FastWARC CLI](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc-cli.html)
 
 ## Installation
 The main Resiliparse package can be installed from PyPi as follows:

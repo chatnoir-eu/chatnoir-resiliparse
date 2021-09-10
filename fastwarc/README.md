@@ -33,4 +33,4 @@ pip install build && python -m build --wheel fastwarc
 ```
 
 ## Usage Instructions
-For detailed usage instructions, please consult the [FastWARC User Manual](https://resiliparse.chatnoir.eu/en/stable/man/fastwarc.html).
+For detailed usage instructions, please consult the [FastWARC User Manual](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html).

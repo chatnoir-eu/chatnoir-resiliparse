@@ -39,4 +39,4 @@ pip install build && python -m build --wheel resiliparse
 ```
 
 ## Usage Instructions
-For detailed usage instructions, please consult the [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/stable/).
+For detailed usage instructions, please consult the [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/latest/).
