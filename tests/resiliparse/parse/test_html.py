@@ -1,7 +1,7 @@
 import pytest
 import html as pyhtml
 
-from resiliparse.parse.html import HTMLTree, NodeType, DOMNode, DOMCollection
+from resiliparse.parse.html import *
 
 
 html = """<!doctype html>
