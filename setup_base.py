@@ -45,7 +45,7 @@ except ModuleNotFoundError as e:
 
 cpp_args = {}
 if DEBUG:
-    cpp_args.update(dict(define_macros=[('CYTHON_TRACE', '1')]))
+    cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
 
 if CXX == 'unix':
     cpp_args.update(dict(
