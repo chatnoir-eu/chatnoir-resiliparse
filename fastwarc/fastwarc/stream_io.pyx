@@ -439,8 +439,6 @@ cdef class GZipStream(CompressingStream):
     cdef void close(self) except *:
         self.end_member()
         self._free_z_stream()
-        if self.raw_stream is not None:
-            self.raw_stream.close()
 
 
 # noinspection PyAttributeOutsideInit
@@ -604,8 +602,6 @@ cdef class LZ4Stream(CompressingStream):
             self.end_member()
 
         self._free_ctx()
-        if self.raw_stream is not None:
-            self.raw_stream.close()
 
     cdef void _free_ctx(self) nogil:
         if self.cctx != NULL:

@@ -24,7 +24,7 @@ def iterate_warc(stream):
 
 def test_archive_iterator():
     iterate_warc(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')))
-    # iterate_warc(GZipStream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.gz'))))
+    iterate_warc(GZipStream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.gz'))))
     iterate_warc(LZ4Stream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.lz4'))))
     iterate_warc(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb'))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()))
@@ -42,6 +42,30 @@ def test_stream_type_auto_detection():
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc.gz'), 'rb').read()))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc.lz4'), 'rb').read()))
+
+
+def iterate_with_offsets(stream):
+    offsets = []
+    rec_ids = []
+    for i, rec in enumerate(ArchiveIterator(stream, parse_http=False)):
+        assert rec.stream_pos >= 0
+        offsets.append(rec.stream_pos)
+        assert rec.record_id
+        rec_ids.append(rec.record_id)
+
+    for i, offset in enumerate(offsets):
+        stream.seek(offset)
+        for rec in ArchiveIterator(stream, parse_http=False):
+            assert rec.record_id == rec_ids[i]
+            break
+        else:
+            assert False
+
+
+def test_record_offsets():
+    iterate_with_offsets(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb'))
+    iterate_with_offsets(open(os.path.join(DATA_DIR, 'warcfile.warc.gz'), 'rb'))
+    # iterate_with_offsets(open(os.path.join(DATA_DIR, 'warcfile.warc.lz4'), 'rb'))
 
 
 def test_record_types():
