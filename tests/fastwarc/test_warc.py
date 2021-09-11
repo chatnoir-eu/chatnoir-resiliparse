@@ -205,21 +205,19 @@ def test_warc_writer_compression():
     for rec in ArchiveIterator(io.BytesIO(source_bytes), parse_http=False):
         rec.write(com_buf)
 
-    # Final LZ4 stream flush is buggy
-    # raw_buf.seek(0)
-    # compressed = raw_buf.getvalue()
-    # decompressed = bytearray()
-    # read = 0
-    # i = 0
-    # while True:
-    #     b, n = lz4.frame.decompress(compressed[read:], return_bytearray=True, return_bytes_read=True)
-    #     decompressed.extend(b)
-    #     if n == 0:
-    #         break
-    #     read += n
-    #
-    # assert md5(decompressed).hexdigest() == src_md5
-    # check_warc_integrity(raw_buf)
+    raw_buf.seek(0)
+    compressed = raw_buf.getvalue()
+    decompressed = bytearray()
+    read = 0
+    while True:
+        b, n = lz4.frame.decompress(compressed[read:], return_bytearray=True, return_bytes_read=True)
+        decompressed.extend(b)
+        read += n
+        if read >= len(compressed):
+            break
+
+    assert md5(decompressed).hexdigest() == src_md5
+    check_warc_integrity(raw_buf)
 
 
 def test_clipped_warc_gz():
