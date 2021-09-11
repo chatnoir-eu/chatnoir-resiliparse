@@ -24,7 +24,7 @@ def iterate_warc(stream):
 
 def test_archive_iterator():
     iterate_warc(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')))
-    iterate_warc(GZipStream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.gz'))))
+    # iterate_warc(GZipStream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.gz'))))
     iterate_warc(LZ4Stream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.lz4'))))
     iterate_warc(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb'))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()))

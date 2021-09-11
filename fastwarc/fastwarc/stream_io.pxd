@@ -13,17 +13,17 @@
 # limitations under the License.
 
 from libc.stdio cimport FILE
+from libc.string cimport memcpy
 
 from resiliparse_inc.zlib cimport *
 from resiliparse_inc.lz4hc cimport *
 from resiliparse_inc.lz4frame cimport *
 from resiliparse_inc.string cimport string
 from resiliparse_inc.string_view cimport string_view
-from resiliparse_inc.utility cimport move
 
 
 cdef class IOStream:
-    cdef size_t read(self, string& out, size_t size) except -1
+    cdef size_t read(self, char* out, size_t size) except -1
     cdef size_t write(self, const char* data, size_t size) except -1
     cdef size_t tell(self) except -1
     cdef void flush(self)  except *
@@ -34,10 +34,11 @@ cdef class IOStream:
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
-    cdef inline size_t read(self, string& out, size_t size) except -1:
-        cdef string data = self.py_stream.read(size)[:size]
-        out.assign(move(data))
-        return out.size()
+    cdef inline size_t read(self, char* out, size_t size) except -1:
+        cdef bytes data = self.py_stream.read(size)
+        size = min(<size_t>len(data), size)
+        memcpy(out, <char*>data, size * sizeof(char))
+        return size
 
     cdef inline size_t write(self, const char* data, size_t size) except -1:
         return self.py_stream.write(data[:size])
@@ -82,7 +83,6 @@ cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
     cdef string working_buf
     cdef z_stream zst
-    cdef int stream_read_status
     cdef char initialized
     cdef size_t stream_pos
     cdef bint member_started

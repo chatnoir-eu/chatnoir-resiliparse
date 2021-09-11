@@ -682,19 +682,24 @@ cdef class WarcRecord:
             bytes_written += self._http_headers.write(out_stream_wrapped)
             bytes_written += out_stream_wrapped.write(b'\r\n', 2)
 
+        cdef string buffer
+        cdef size_t bytes_read = 0
         while True:
             if in_reader_wrapped is not None:
-                data = in_reader_wrapped.read(chunk_size)
+                buffer = in_reader_wrapped.read(chunk_size)
+                bytes_read = buffer.size()
             else:
-                in_stream_wrapped.read(data, chunk_size)
-            if data.empty():
+                if buffer.size() < chunk_size:
+                    buffer.resize(chunk_size)
+                bytes_read = in_stream_wrapped.read(buffer.data(), chunk_size)
+            if bytes_read == 0:
                 break
-            bytes_written += out_stream_wrapped.write(data.data(), data.size())
+            bytes_written += out_stream_wrapped.write(buffer.data(), bytes_read)
 
         bytes_written += out_stream_wrapped.write(b'\r\n\r\n', 4)
 
         if compress_member_started:
-            bytes_written += (<CompressingStream> out_stream_wrapped).end_member()
+            bytes_written += (<CompressingStream>out_stream_wrapped).end_member()
 
         return bytes_written
 
