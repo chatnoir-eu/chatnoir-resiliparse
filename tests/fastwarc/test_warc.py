@@ -220,3 +220,25 @@ def test_warc_writer_compression():
     #
     # assert md5(decompressed).hexdigest() == src_md5
     # check_warc_integrity(raw_buf)
+
+
+def test_clipped_warc_gz():
+    file = os.path.join(DATA_DIR, 'clipped.warc.gz')
+
+    rec_count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=False):
+        content = rec.reader.read()
+        assert content[:5] == b'HTTP/'
+        assert len(content) < rec.content_length
+        assert not rec.verify_block_digest()
+        rec_count += 1
+    assert rec_count > 0
+
+    rec_count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=True):
+        content = rec.reader.read()
+        assert rec.http_headers
+        assert len(content) < rec.content_length
+        assert not rec.verify_payload_digest()
+        rec_count += 1
+    assert rec_count > 0

@@ -46,7 +46,10 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=['pytest'],
+    tests_require=[
+        'pytest',
+        'lz4'
+    ],
     entry_points={
         'console_scripts': ['fastwarc=fastwarc.cli:main']
     }
