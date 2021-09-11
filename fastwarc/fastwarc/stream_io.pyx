@@ -162,8 +162,8 @@ cdef class FileStream(IOStream):
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
-        if errno:
-            raise StreamError(strerror(errno).decode())
+        if ferror(self.fp):
+            raise StreamError('Error writing file')
         return w
 
     cdef void flush(self) except *:
