@@ -22,34 +22,45 @@ VERSION = '0.4.0'
 ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
-USE_CYTHON = True
+DEBUG = bool(os.getenv('DEBUG'))
+USE_CYTHON = False
+ext = 'cpp'
+cython_args = {}
 try:
     from Cython.Build import cythonize
     import Cython.Compiler.Options
 
     ext = 'pyx'
-    Cython.Compiler.Options.annotate = bool(os.getenv('DEBUG'))
-    cython_args = dict(annotate=Cython.Compiler.Options.annotate, language_level='3')
+    Cython.Compiler.Options.annotate = DEBUG
+    cython_args = dict(
+        annotate=Cython.Compiler.Options.annotate,
+        language_level='3',
+        compiler_directives=dict(
+            linetrace=DEBUG
+        )
+    )
+    USE_CYTHON = True
 except ModuleNotFoundError as e:
-    USE_CYTHON = False
-    ext = 'cpp'
-    cython_args = {}
+    pass
 
 cpp_args = {}
+if DEBUG:
+    cpp_args.update(dict(define_macros=[('CYTHON_TRACE', '1')]))
+
 if CXX == 'unix':
-    cpp_args = dict(
+    cpp_args.update(dict(
         extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
                             '-Wno-unreachable-code', '-Wno-unused-function',
                             # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
                             # https://github.com/lexbor/lexbor/pull/135 are released
                             '-fpermissive', '-Wno-c++11-narrowing'],
         extra_link_args=['-std=c++17']
-    )
+    ))
 elif CXX == 'msvc':
-    cpp_args = dict(
+    cpp_args.update(dict(
         extra_compile_args=['/std:c++latest'],
         extra_link_args=[]
-    )
+    ))
 
 data_ext = []
 inc_package = []
