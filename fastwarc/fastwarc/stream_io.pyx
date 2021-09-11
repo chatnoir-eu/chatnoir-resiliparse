@@ -529,7 +529,7 @@ cdef class LZ4Stream(CompressingStream):
             if ret == 0:
                 # Frame end
                 with gil:
-                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + bytes_in
+                    self.stream_pos = self.raw_stream.tell() - self.working_buf.size() + self.working_buf_read
             elif LZ4F_isError(ret):
                 self._free_ctx()
                 with gil:
