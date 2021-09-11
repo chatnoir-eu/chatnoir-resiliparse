@@ -18,7 +18,7 @@ cimport cython
 
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
-from resiliparse_inc.stdio cimport fclose, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
+from resiliparse_inc.stdio cimport fclose, ferror, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
 from resiliparse_inc.string cimport npos as strnpos, string
 
 
@@ -150,14 +150,14 @@ cdef class FileStream(IOStream):
     cdef size_t read(self, string& out, size_t size) except -1:
         cdef size_t c
         with nogil:
-            if out.size() < size:
+            if out.size() != size:
                 out.resize(size)
             c = fread(out.data(), sizeof(char), size, self.fp)
-            if errno:
-                out.clear()
-                with gil:
-                    raise StreamError(strerror(errno).decode())
-            out.resize(c)
+            if c < size:
+                out.resize(c)
+                if ferror(self.fp):
+                    with gil:
+                        raise StreamError('Error reading file')
             return out.size()
 
     cdef size_t write(self, const char* data, size_t size) except -1:
