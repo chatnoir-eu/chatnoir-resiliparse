@@ -57,4 +57,4 @@ if 'sdist' in sys.argv:
     # Include resiliparse_inc module and Cython files only in source distribution
     data_ext.extend(['*.pxd', '*.pyx', '*.pxi'])
     inc_package.append('resiliparse_inc')
-    copy_tree(os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), 'resiliparse_inc', update=1)
+copy_tree(os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), 'resiliparse_inc', update=1)
