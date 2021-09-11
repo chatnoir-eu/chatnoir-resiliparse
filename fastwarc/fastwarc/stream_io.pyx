@@ -343,7 +343,7 @@ cdef class GZipStream(CompressingStream):
             while True:
                 stream_read_status = inflate(&self.zst, Z_NO_FLUSH)
 
-                if self.zst.avail_out == 0 or stream_read_status != Z_OK:
+                if self.zst.avail_out == 0 or (stream_read_status != Z_OK and stream_read_status != Z_BUF_ERROR):
                     break
                 if self.zst.avail_in == 0 and not self._refill_working_buf(size):
                     break
