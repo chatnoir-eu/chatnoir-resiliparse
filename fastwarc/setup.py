@@ -48,6 +48,7 @@ setup(
     setup_requires=['setuptools>=18.0'],
     tests_require=[
         'pytest',
+        'pytest-cov',
         'lz4'
     ],
     entry_points={
