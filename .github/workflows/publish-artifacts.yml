@@ -6,7 +6,7 @@ on:
     types:
       - completed
     tags:
-      - 'v*'
+      - '*'
 
 jobs:
   publish-wheels:
