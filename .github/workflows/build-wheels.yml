@@ -167,7 +167,7 @@ jobs:
         with:
           name: sdist
 
-      - name: Publish Wheels
+      - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD1: ${{ secrets.PYPI_FASTWARC_API_TOKEN }}
