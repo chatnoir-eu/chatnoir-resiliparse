@@ -25,7 +25,8 @@ sys.path.extend([
 project = 'ChatNoir Resiliparse'
 copyright = '2021, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$", open(os.path.join(src_dir, 'setup_base.py')).read(), re.M).group(1)
+release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$",
+                    open(os.path.join(src_dir, 'resiliparse', 'setup.py')).read(), re.M).group(1)
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------
