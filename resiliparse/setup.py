@@ -68,15 +68,17 @@ elif CXX == 'msvc':
         extra_link_args=[]
     ))
 
+if os.path.isdir(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc')):
+    copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc'),
+              os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), update=1)
+
 data_ext = []
 inc_package = []
 if 'sdist' in sys.argv:
     # Include resiliparse_inc module and Cython files only in source distribution
     data_ext.extend(['*.pxd', '*.pyx', '*.pxi'])
     inc_package.append('resiliparse_inc')
-if os.path.isdir(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc')):
-    copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc'),
-              os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), update=1)
+    inc_package.extend([f.path.replace('/', '.') for f in os.scandir('resiliparse_inc') if f.is_dir()])
 
 
 # 2. RESILIPARSE SETUP -------------------------------------------------------
