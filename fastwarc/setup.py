@@ -15,10 +15,69 @@
 import os
 import sys
 
+import distutils.ccompiler
+from distutils.dir_util import copy_tree
 from setuptools import find_packages, setup, Extension
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from setup_base import *
+
+# 1. BOILERPLATE -------------------------------------------------------
+
+VERSION = '0.4.1'
+ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
+CXX = distutils.ccompiler.get_default_compiler()
+
+DEBUG = bool(os.getenv('DEBUG'))
+USE_CYTHON = False
+ext = 'cpp'
+cython_args = {}
+try:
+    from Cython.Build import cythonize
+    import Cython.Compiler.Options
+
+    ext = 'pyx'
+    Cython.Compiler.Options.annotate = DEBUG
+    cython_args = dict(
+        annotate=Cython.Compiler.Options.annotate,
+        language_level='3',
+        compiler_directives=dict(
+            linetrace=DEBUG
+        )
+    )
+    USE_CYTHON = True
+except ModuleNotFoundError as e:
+    pass
+
+cpp_args = {}
+if DEBUG:
+    cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
+
+if CXX == 'unix':
+    cpp_args.update(dict(
+        extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
+                            '-Wno-unreachable-code', '-Wno-unused-function',
+                            # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
+                            # https://github.com/lexbor/lexbor/pull/135 are released
+                            '-fpermissive', '-Wno-c++11-narrowing'],
+        extra_link_args=['-std=c++17']
+    ))
+elif CXX == 'msvc':
+    cpp_args.update(dict(
+        extra_compile_args=['/std:c++latest'],
+        extra_link_args=[]
+    ))
+
+data_ext = []
+inc_package = []
+if 'sdist' in sys.argv:
+    # Include resiliparse_inc module and Cython files only in source distribution
+    data_ext.extend(['*.pxd', '*.pyx', '*.pxi'])
+    inc_package.append('resiliparse_inc')
+if os.path.isdir(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc')):
+    copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc'),
+              os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), update=1)
+
+
+# 2. FASTWARC SETUP -------------------------------------------------------
 
 fastwarc_extensions = [
     Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
@@ -33,7 +92,7 @@ setup(
     name='FastWARC',
     version=VERSION,
     description='A high-performance WARC parsing library for Python written in C++/Cython.',
-    long_description=open(os.path.join(ROOT_DIRECTORY, 'fastwarc/README.md')).read(),
+    long_description=open(os.path.join(ROOT_DIRECTORY, 'README.md')).read(),
     long_description_content_type='text/markdown',
     author='Janek Bevendorff',
     url='https://github.com/chatnoir-eu/chatnoir-resiliparse',
