@@ -49,6 +49,9 @@ cdef class IOStream:
     cdef size_t write(self, const char* data, size_t size) except -1:
         pass
 
+    cdef void seek(self, size_t offset) except *:
+        pass
+
     cdef size_t tell(self) except -1:
         pass
 
@@ -57,6 +60,63 @@ cdef class IOStream:
 
     cdef void close(self) except *:
         pass
+
+
+def _io_stream_py_test_read(IOStream stream, size_t size):
+    """
+    io_stream_py_test_read(stream, size)
+
+    Test interface for :meth:`IOStream.read`.
+    """
+    cdef bytearray buf = bytearray(size)
+    size = stream.read(<char*>buf, size)
+    return buf[:size], size
+
+
+def _io_stream_py_test_write(IOStream stream, bytes data):
+    """
+    io_stream_py_test_write(stream, data)
+
+    Test interface for :meth:`IOStream.write`.
+    """
+    size = stream.write(<const char*>data, len(data))
+    return size
+
+
+def _io_stream_py_test_tell(IOStream stream):
+    """
+    io_stream_py_test_tell(stream)
+
+    Test interface for :meth:`IOStream.tell`.
+    """
+    return stream.tell()
+
+
+def _io_stream_py_test_seek(IOStream stream, size_t offset):
+    """
+    io_stream_py_test_seek(stream, offset)
+
+    Test interface for :meth:`IOStream.seek`.
+    """
+    stream.seek(offset)
+
+
+def _io_stream_py_test_flush(IOStream stream):
+    """
+    io_stream_py_test_flush(stream)
+
+    Test interface for :meth:`IOStream.flush`.
+    """
+    stream.flush()
+
+
+def _io_stream_py_test_close(IOStream stream):
+    """
+    io_stream_py_test_close(stream)
+
+    Test interface for :meth:`IOStream.close`.
+    """
+    stream.close()
 
 
 # noinspection PyAttributeOutsideInit
@@ -78,13 +138,19 @@ cdef class BytesIOStream(IOStream):
         if initial_data is not None:
             self.buffer = initial_data
 
-    cdef inline size_t tell(self) except -1:
+    cdef size_t tell(self) except -1:
+        if self.pos == strnpos:
+            raise ValueError('Trying I/O on closed file.')
         return self.pos
 
-    cdef inline void seek(self, size_t offset) except *:
+    cdef void seek(self, size_t offset) except *:
+        if self.pos == strnpos:
+            raise ValueError('Trying I/O on closed file.')
         self.pos = min(self.buffer.size(), offset)
 
     cdef size_t read(self, char* out, size_t size) except -1:
+        if self.pos == strnpos:
+            raise ValueError('Trying I/O on closed file.')
         if self.pos >= self.buffer.size():
             return 0
         if self.pos + size > self.buffer.size():
@@ -94,14 +160,17 @@ cdef class BytesIOStream(IOStream):
         return size
 
     cdef size_t write(self, const char* data, size_t size) except -1:
+        if self.pos == strnpos:
+            raise ValueError('Trying I/O on closed file.')
         if self.pos + size > self.buffer.size():
             self.buffer.resize(self.pos + size)
         memcpy(self.buffer.data() + self.pos, data, size)
         self.pos += size
         return size
 
-    cdef inline void close(self) except *:
+    cdef void close(self) except *:
         self.buffer.clear()
+        self.pos = strnpos
 
     cdef inline string getvalue(self):
         return self.buffer
@@ -141,12 +210,18 @@ cdef class FileStream(IOStream):
             raise StreamError(strerror(errno).decode())
 
     cdef void seek(self, size_t offset) except *:
+        if self.fp == NULL:
+            raise ValueError('Trying I/O on closed file.')
         fseek(self.fp, offset, SEEK_SET)
 
     cdef size_t tell(self) except -1:
+        if self.fp == NULL:
+            raise ValueError('Trying I/O on closed file.')
         return ftell(self.fp)
 
     cdef size_t read(self, char* out, size_t size) except -1:
+        if self.fp == NULL:
+            raise ValueError('Trying I/O on closed file.')
         cdef size_t bytes_read
         with nogil:
             bytes_read = fread(out, sizeof(char), size, self.fp)
@@ -156,12 +231,16 @@ cdef class FileStream(IOStream):
             return bytes_read
 
     cdef size_t write(self, const char* data, size_t size) except -1:
+        if self.fp == NULL:
+            raise ValueError('Trying I/O on closed file.')
         cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
         if ferror(self.fp):
             raise StreamError('Error writing file')
         return w
 
     cdef void flush(self) except *:
+        if self.fp == NULL:
+            raise ValueError('Trying I/O on closed file.')
         fflush(self.fp)
 
     cdef void close(self) except *:
@@ -883,3 +962,31 @@ cdef class BufferedReader:
         """
         if self.stream is not None:
             self.stream.close()
+
+
+
+def _buf_reader_py_test_detect_stream_type(BufferedReader buf):
+    """
+    _buf_reader_py_test_detect_stream_type(buf):
+
+    Test interface for :meth:`BufferedReader.detect_stream_type`
+    """
+    buf.detect_stream_type()
+
+
+def _buf_reader_py_test_set_limit(BufferedReader buf, size_t limit):
+    """
+    _buf_reader_py_test_detect_set_limit(buf, limit):
+
+    Test interface for :meth:`BufferedReader.set_limit`
+    """
+    buf.set_limit(limit)
+
+
+def _buf_reader_py_test_reset_limit(BufferedReader buf):
+    """
+    _buf_reader_py_test_reset_limit(buf, limit):
+
+    Test interface for :meth:`BufferedReader.reset_limit`
+    """
+    buf.reset_limit()

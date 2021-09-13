@@ -26,6 +26,7 @@ cdef class IOStream:
     cdef size_t read(self, char* out, size_t size) except -1
     cdef size_t write(self, const char* data, size_t size) except -1
     cdef size_t tell(self) except -1
+    cdef void seek(self, size_t offset) except *
     cdef void flush(self)  except *
     cdef void close(self) except *
 
@@ -46,6 +47,9 @@ cdef class PythonIOStreamAdapter(IOStream):
     cdef inline size_t tell(self) except -1:
         return self.py_stream.tell()
 
+    cdef inline void seek(self, size_t offset) except *:
+        self.py_stream.seek(offset)
+
     cdef inline void flush(self) except *:
         self.py_stream.flush()
 
@@ -63,7 +67,6 @@ cdef class BytesIOStream(IOStream):
     cdef string buffer
     cdef size_t pos
 
-    cdef void seek(self, size_t offset) except *
     cdef string getvalue(self)
 
 
@@ -71,7 +74,6 @@ cdef class FileStream(IOStream):
     cdef FILE* fp
 
     cdef void open(self, const char* path, char* mode=*) except *
-    cdef void seek(self, size_t offset) except *
 
 
 cdef class CompressingStream(IOStream):
