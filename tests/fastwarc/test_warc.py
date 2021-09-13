@@ -66,6 +66,9 @@ def iterate_with_offsets(stream):
         for j, rec in enumerate(ArchiveIterator(stream, parse_http=False)):
             if j == 0:
                 assert rec.record_id == rec_ids[i]
+                if rec.record_type == response:
+                    assert rec.verify_block_digest()
+
             count += 1
         assert count == expected_records
 

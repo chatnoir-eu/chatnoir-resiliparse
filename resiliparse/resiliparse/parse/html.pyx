@@ -532,6 +532,7 @@ cdef class DOMNode:
         The DOM node's inner text can be modified by assigning to this property.
 
         :type: str
+        :raises ValueError: if trying to set text on a node whose type is neither Element nor Text
         """
         if not check_node(self):
             return None
@@ -548,6 +549,9 @@ cdef class DOMNode:
         if not check_node(self):
             raise RuntimeError('Trying to set text contents of uninitialized DOM node')
 
+        if self.node.type != LXB_DOM_NODE_TYPE_ELEMENT and self.node.type != LXB_DOM_NODE_TYPE_TEXT:
+            raise ValueError('Node is neither Element nor Text node')
+
         cdef bytes text_bytes = text.encode()
         lxb_dom_node_text_content_set(self.node, <lxb_char_t*>text_bytes, len(text_bytes))
 
@@ -559,13 +563,10 @@ cdef class DOMNode:
         The DOM node's inner HTML can be modified by assigning to this property.
 
         :type: str
+        :raises ValueError: if trying to set HTML of a non-Element node
         """
         if not check_node(self):
             return None
-
-        if self.node.parent == NULL and self.node.type == LXB_DOM_NODE_TYPE_TEXT:
-            # Special case where Lexbor's tree serialization function doesn't work properly
-            return self.text
 
         cdef lexbor_str_t* html_str = lexbor_str_create()
         lxb_html_serialize_tree_str(self.node, html_str)
@@ -578,9 +579,11 @@ cdef class DOMNode:
         if not check_node(self):
             raise RuntimeError('Trying to set HTML contents of uninitialized DOM node')
 
+        if self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            raise ValueError('Node is not an Element node')
+
         cdef bytes html_bytes = html.encode()
-        cdef lxb_html_element_t* element = lxb_html_element_inner_html_set(
-            <lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
+        lxb_html_element_inner_html_set(<lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
 
     @property
     def id(self):
@@ -1568,21 +1571,11 @@ cdef class HTMLTree:
         if self.dom_document == NULL:
             return None
 
-        # lxb_html_document_title can crash, see: https://github.com/lexbor/lexbor/issues/134
-        # cdef size_t title_len = 0
-        # cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
-        # if title == NULL:
-        #     return ''
-        # return title[:title_len].decode()
-
-        # Temporary workaround:
-        cdef DOMNode head = self.head
-        if head is None:
+        cdef size_t title_len = 0
+        cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
+        if title == NULL:
             return ''
-        cdef DOMCollection titles = head.get_elements_by_tag_name('title')
-        if len(titles) == 0:
-            return ''
-        return titles[0].text
+        return title[:title_len].decode()
 
     cpdef DOMNode create_element(self, str tag_name):
         """
