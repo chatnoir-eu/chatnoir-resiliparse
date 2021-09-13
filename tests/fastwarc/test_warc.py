@@ -419,7 +419,9 @@ def test_warc_headers():
 
 new_record_bytes_content = b"""HTTP/1.1 200 OK\r\n\
 Content-Type: text/html; charset=utf-8\r\n\
-Content-Length: 69\r\n\r\n\
+Content-Length: 69\r\n\
+X-Multiline-Header: Hello\r\n\
+  World\r\n\r\n\
 <!doctype html>\n\
 <meta charset="utf-8">\n\
 <title>Test</title>\n\n\
@@ -441,6 +443,8 @@ def test_create_new_warc_record():
     assert 'Content-Length' in new_record.headers
     assert new_record.headers['Content-Length'] == str(len(new_record_bytes_content))
     new_record.headers['Content-Type'] = 'application/http; msgtype=response'
+    new_record.headers['X-Multiline-Header'] = 'Hello\r\nWorld'
+    assert new_record.headers['X-Multiline-Header'] == 'Hello World'
 
     # Set content
     new_record.set_bytes_content(new_record_bytes_content)
@@ -453,11 +457,13 @@ def test_create_new_warc_record():
     count = 0
     for rec in ArchiveIterator(stream, parse_http=True):
         assert rec.headers.status_line == new_record.headers.status_line
+        assert rec.headers['X-Multiline-Header'] == 'Hello World'
         assert rec.record_id == new_record.record_id
         assert rec.record_type == new_record.record_type
         assert rec.is_http
         assert rec.http_headers.status_code == 200
         assert rec.http_content_type == 'text/html'
         assert rec.http_charset == 'utf-8'
+        assert rec.http_headers['X-Multiline-Header'] == 'Hello World'
         count += 1
     assert count == 1

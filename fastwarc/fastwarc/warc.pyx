@@ -163,6 +163,8 @@ cdef class WarcHeaderMap:
         return self.asdict()[header_key]
 
     def __setitem__(self, header_key, header_value):
+        header_key = header_key.strip()
+        header_value = header_value.replace('\r\n', ' ').replace('\n', ' ').strip()
         self.set_header(header_key.encode(self._enc, errors='ignore'),
                         header_value.encode(self._enc, errors='ignore'))
 
@@ -226,6 +228,8 @@ cdef class WarcHeaderMap:
         :param value: header value
         :type value: str
         """
+        key = key.strip()
+        value = value.replace('\r\n', ' ').replace('\n', ' ').strip()
         self.append_header(key.encode(self._enc), value.encode(self._enc))
 
     def get(self, str key not None, str default=None) -> str:
