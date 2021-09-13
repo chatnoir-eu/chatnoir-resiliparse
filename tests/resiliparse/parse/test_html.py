@@ -1,8 +1,14 @@
+import os
 import pytest
 import html as pyhtml
 
+from fastwarc.warc import ArchiveIterator, WarcRecordType
+from fastwarc.stream_io import FileStream
+from resiliparse.parse.encoding import detect_encoding
 from resiliparse.parse.html import *
 
+
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
 
 html = """<!doctype html>
 <html lang="en">
@@ -31,14 +37,14 @@ def test_parse():
 
 def test_document():
     assert type(tree.document) is DOMNode
-    assert tree.document.type == NodeType.DOCUMENT
+    assert tree.document.type == DOCUMENT
 
     assert type(tree.head) is DOMNode
-    assert tree.head.type == NodeType.ELEMENT
+    assert tree.head.type == ELEMENT
     assert tree.head.tag == 'head'
 
     assert type(tree.body) is DOMNode
-    assert tree.body.type == NodeType.ELEMENT
+    assert tree.body.type == ELEMENT
     assert tree.body.tag == 'body'
 
     assert tree.title == 'Example page'
@@ -59,6 +65,7 @@ html_no_title_svg = """<!doctype html><svg xmlns="http://www.w3.org/2000/svg"><t
 html_unclosed_head = """<!doctype html><head><title>Title</title><span></span>"""
 
 
+# noinspection DuplicatedCode
 def test_parse_quirks():
     tree_quirk = HTMLTree.parse(html_no_head)
     assert tree_quirk.head is not None
@@ -79,6 +86,11 @@ def test_parse_quirks():
     assert tree_quirk.title == ''
     assert tree_quirk.body is not None
     assert len(tree_quirk.body.child_nodes) == 0
+
+    tree_quirk = HTMLTree.parse(html_no_title_svg)
+    assert tree_quirk.head is not None
+    assert tree_quirk.title == ''
+    assert tree_quirk.body is not None
 
     tree_quirk = HTMLTree.parse(html_unclosed_head)
     assert tree_quirk.head is not None
@@ -149,13 +161,14 @@ def test_attributes():
     assert span.getattr('id', 'default') == 'default'
     assert span.id == ''
     span.id = 'abc'
-    # assert span.id == 'abc'
-    # assert span['id'] == 'abc'
-    # assert span.getattr('id') == 'abc'
+    assert span.id == 'abc'
+    assert span['id'] == 'abc'
+    assert span.getattr('id') == 'abc'
 
-    with pytest.raises(KeyError) as exc:
+    with pytest.raises(KeyError):
+        # noinspection PyStatementEffect
         span['lang']
-    assert exc
+
     assert span.getattr('lang') is None
     span['lang'] = 'en'
     assert span['lang'] == 'en'
@@ -186,7 +199,7 @@ def test_traversal():
     root = tree.body.get_element_by_id('a')
 
     tag_names = [e.tag for e in root]
-    tag_names_elements_only = [e.tag for e in root if e.type == NodeType.ELEMENT]
+    tag_names_elements_only = [e.tag for e in root if e.type == ELEMENT]
 
     assert tag_names == ['p', '#text', 'span', '#text', '#text']
     assert tag_names_elements_only == ['p', 'span']
@@ -195,7 +208,7 @@ def test_traversal():
     assert child_node_tags == ['#text', 'p', '#text', 'p', '#text']
 
     child_node_types = [e.type for e in tree.body.get_element_by_id('foo').child_nodes]
-    assert child_node_types == [NodeType.TEXT, NodeType.ELEMENT, NodeType.TEXT, NodeType.ELEMENT, NodeType.TEXT]
+    assert child_node_types == [TEXT, ELEMENT, TEXT, ELEMENT, TEXT]
 
 
 def test_children():
@@ -205,30 +218,30 @@ def test_children():
     assert element.last_child.parent is element
     assert element.first_child.next is element.last_child.prev
 
-    assert element.first_child.type == NodeType.TEXT
+    assert element.first_child.type == TEXT
     assert element.first_child.text == 'Hello '
-    assert element.last_child.type == NodeType.TEXT
+    assert element.last_child.type == TEXT
     assert element.last_child.text == '!'
 
-    assert element.first_child.next.type == NodeType.ELEMENT
+    assert element.first_child.next.type == ELEMENT
     assert element.first_child.next.tag == 'span'
     assert element.first_child.next.class_name == 'bar'
 
-    assert element.last_child.prev.type == NodeType.ELEMENT
+    assert element.last_child.prev.type == ELEMENT
     assert element.last_child.prev.tag == 'span'
     assert element.last_child.prev.class_name == 'bar'
 
 
 def test_dom_manipulation():
     new_element = tree.create_element('p')
-    assert new_element.type == NodeType.ELEMENT
+    assert new_element.type == ELEMENT
     assert new_element.tag == 'p'
     assert new_element.parent is None
     assert len(new_element.child_nodes) == 0
 
     # Create a new text node
     new_text = tree.create_text_node('Hello Resiliparse!')
-    assert new_text.type == NodeType.TEXT
+    assert new_text.type == TEXT
     assert new_text.text == 'Hello Resiliparse!'
 
     new_element.append_child(new_text)
@@ -273,6 +286,29 @@ def test_inner_html_and_text():
     element.html = new_content
     assert element.html == f'<div>{new_content}</div>'
 
-    # element.text = new_content
-    # assert element.text == new_content
-    # assert element.html == f'<div>{pyhtml.escape(new_content)}</div>'
+    element.text = new_content
+    assert element.text == new_content
+    assert element.html == f'<div>{pyhtml.escape(new_content)}</div>'
+
+    text = tree.create_text_node('xyz')
+    assert text.text == 'xyz'
+    text.text = 'abc'
+    assert text.text == 'abc'
+
+
+def test_real_world_data():
+    count = 0
+    for rec in ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+                               parse_http=True, record_types=WarcRecordType.response):
+        content = rec.reader.read()
+        tree = HTMLTree.parse_from_bytes(content, rec.http_charset or detect_encoding(content))
+        assert tree.document
+        assert tree.head
+        assert tree.body
+        assert tree.title
+        assert tree.head.query_selector('style, link')
+        assert tree.body.query_selector('div')
+
+        count += 1
+
+    assert count == 16
