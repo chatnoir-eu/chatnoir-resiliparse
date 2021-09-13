@@ -19,7 +19,7 @@ html = """<!doctype html>
   <body>
     <main id="foo">
       <p id="a">Hello <span class="bar">world</span>!</p>
-      <p id="b" class="dom">Hello <span class="bar baz">DOM</span>!</p>
+      <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
      </main>
   </body>
 </html>"""
@@ -28,34 +28,49 @@ html = """<!doctype html>
 tree = None
 
 
-def test_parse():
-    global tree
-
-    tree = HTMLTree.parse(html)
+def validate_document():
     assert tree is not None
 
-
-def test_document():
     assert type(tree.document) is DOMNode
     assert tree.document.type == DOCUMENT
+    assert tree.document.tag == '#document'
+    assert repr(tree.document) == '[HTML Document]'
+    assert tree.document.first_child.type == DOCUMENT_TYPE
+    assert repr(tree.document.first_child) == '<!DOCTYPE html>'
+    assert str(tree) == tree.document.html
 
     assert type(tree.head) is DOMNode
     assert tree.head.type == ELEMENT
     assert tree.head.tag == 'head'
+    assert repr(tree.head) == '<head>'
+    assert str(tree.head) == tree.head.html
+    assert str(tree.head).startswith('<head>')
+    assert str(tree.head).endswith('</head>')
 
     assert type(tree.body) is DOMNode
     assert tree.body.type == ELEMENT
     assert tree.body.tag == 'body'
+    assert repr(tree.body) == '<body>'
+    assert str(tree.body) == tree.body.html
+    assert str(tree.body).startswith('<body>')
+    assert str(tree.body).endswith('</body>')
 
     assert tree.title == 'Example page'
+
+
+def test_parse():
+    global tree
+    tree = HTMLTree.parse(html)
+    assert tree is not None
+
+    validate_document()
 
 
 def test_parse_from_bytes():
     global tree
     tree = HTMLTree.parse_from_bytes(html.encode('utf-16'), 'utf-16')
     assert tree is not None
-
-    test_document()
+    validate_document()
 
 
 html_no_head = """<!doctype html><body><span></span></body>"""
@@ -100,6 +115,32 @@ def test_parse_quirks():
     assert len(tree_quirk.body.child_nodes) == 1
 
 
+def test_node_equality():
+    assert tree.body is not tree.head
+    assert tree.body != tree.head
+    assert tree.body is tree.body
+    assert tree.body == tree.body
+
+    a1 = tree.body.query_selector('#a')
+    a2 = tree.body.query_selector('#a')
+    b1 = tree.body.query_selector('#b')
+    b2 = tree.body.query_selector('#b')
+
+    assert a1 is not b1
+    assert a1 != b1
+
+    assert a2 is not b2
+    assert a2 != b2
+
+    assert a1 is a2
+    assert a1 == a2
+    assert hash(a1) == hash(a2)
+
+    assert b2 is b2
+    assert b2 == b2
+    assert hash(b1) == hash(b2)
+
+
 def test_selection():
     assert tree.body.get_element_by_id('foo').tag == 'main'
 
@@ -112,7 +153,13 @@ def test_selection():
     assert type(bar_class) is DOMCollection
     assert len(bar_class) == 2
     assert bar_class[0].tag == 'span'
-    assert bar_class[1].tag == 'span'
+    assert bar_class[1].tag == 'a'
+
+    lang_en = tree.document.get_elements_by_attr('lang', 'en')
+    assert (type(lang_en)) is DOMCollection
+    assert len(lang_en) == 1
+    assert lang_en[0].hasattr('lang')
+    assert lang_en[0].tag == 'html'
 
     match_css = tree.document.query_selector('body > main p:last-child')
     assert type(match_css) is DOMNode
@@ -124,7 +171,7 @@ def test_selection():
     assert match_css_all[0].tag == 'p'
     assert match_css_all[1].tag == 'span'
     assert match_css_all[2].tag == 'p'
-    assert match_css_all[3].tag == 'span'
+    assert match_css_all[3].tag == 'a'
 
     # Check whether there is any element matching this CSS selector:
     assert tree.body.matches('.bar')
@@ -134,51 +181,72 @@ def test_selection():
 def test_collection():
     coll = tree.body.query_selector_all('main *')
 
+    # Basic element attributes
     assert coll[0].id == 'a'
     assert coll[-1].class_name == 'bar baz'
-
     assert len(coll[:2]) == 2
     assert coll[:2][0].id == 'a'
     assert coll[:2][1].class_name == 'bar'
 
-    coll = tree.body.get_elements_by_class_name('dom')
-    assert len(coll.get_elements_by_class_name('bar')) == 1
-    assert coll.get_elements_by_class_name('bar')[0].class_name == 'bar baz'
+    # Iteration
+    count = 0
+    for el in coll:
+        assert el.tag
+        count += 1
+    assert count == len(coll)
+
+    # Collection match forwarding
+    coll = tree.body.query_selector_all('p')
+
+    assert coll.get_element_by_id('abc') is None
+    assert coll.get_elements_by_class_name('bar')[0] is coll.query_selector('.bar')
+    assert len(coll.get_elements_by_attr('href', 'https://example.com')) == 1
+    assert len(coll.get_elements_by_tag_name('span')) == 1
+
+    assert coll.query_selector('.bar').tag == 'span'
+    assert len(coll.query_selector_all('span, a')) == 2
+
+    assert coll.matches('.bar.baz')
+    assert not coll.matches('.foo.bar.baz')
 
 
 def test_attributes():
-    span = tree.body.query_selector('#b span')
-    assert span.class_name == 'bar baz'
-    assert len(span.class_list) == 2
-    assert span.class_list == ['bar', 'baz']
+    a = tree.body.query_selector('#b a')
+    assert a.hasattr('class')
+    assert a.class_name == 'bar baz'
+    assert len(a.class_list) == 2
+    assert a.class_list == ['bar', 'baz']
 
-    span.class_list.add('abc')
-    assert len(span.class_list) == 3
-    assert span.class_list == ['bar', 'baz', 'abc']
-    assert span.class_name == 'bar baz abc'
+    a.class_list.add('abc')
+    assert len(a.class_list) == 3
+    assert a.class_list == ['bar', 'baz', 'abc']
+    assert a.class_name == 'bar baz abc'
+    a.class_list.remove('baz')
+    assert a.class_list == ['bar', 'abc']
+    assert a.class_name == 'bar abc'
 
-    assert span.getattr('id') is None
-    assert span.getattr('id', 'default') == 'default'
-    assert span.id == ''
-    span.id = 'abc'
-    assert span.id == 'abc'
-    assert span['id'] == 'abc'
-    assert span.getattr('id') == 'abc'
+    assert a.getattr('id') is None
+    assert a.getattr('id', 'default') == 'default'
+    assert a.id == ''
+    a.id = 'abc'
+    assert a.id == 'abc'
+    assert a['id'] == 'abc'
+    assert a.getattr('id') == 'abc'
 
     with pytest.raises(KeyError):
         # noinspection PyStatementEffect
-        span['lang']
+        a['lang']
 
-    assert span.getattr('lang') is None
-    span['lang'] = 'en'
-    assert span['lang'] == 'en'
-    assert span.getattr('lang') == 'en'
+    assert a.getattr('lang') is None
+    a['lang'] = 'en'
+    assert a['lang'] == 'en'
+    assert a.getattr('lang') == 'en'
 
-    assert len(span.attrs) == 3
-    assert span.attrs == ['class', 'id', 'lang']
+    assert len(a.attrs) == 4
+    assert a.attrs == ['href', 'class', 'id', 'lang']
 
-    del span['lang']
-    assert span.getattr('lang') is None
+    del a['lang']
+    assert a.getattr('lang') is None
 
 
 def test_serialization():
@@ -193,6 +261,10 @@ def test_serialization():
     assert str(tree.body) == tree.body.html
     assert repr(tree.body) == '<body>'
     assert repr(tree.body.query_selector('main')) == '<main id="foo">'
+
+    text = tree.body.query_selector('#b').first_child
+    assert text.type == TEXT
+    assert repr(text) == str(text) == text.text
 
 
 def test_traversal():

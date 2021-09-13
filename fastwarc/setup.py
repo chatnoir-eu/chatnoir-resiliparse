@@ -35,14 +35,14 @@ try:
     import Cython.Compiler.Options
 
     ext = 'pyx'
-    Cython.Compiler.Options.annotate = DEBUG
     cython_args = dict(
-        annotate=Cython.Compiler.Options.annotate,
+        annotate=DEBUG,
         language_level='3',
         compiler_directives=dict(
             linetrace=DEBUG
         )
     )
+
     USE_CYTHON = True
 except ModuleNotFoundError as e:
     pass
