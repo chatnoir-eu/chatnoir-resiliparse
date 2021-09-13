@@ -16,6 +16,7 @@
 
 import typing as t
 
+from fastwarc.warc cimport ArchiveIterator
 from resiliparse.process_guard cimport progress
 
 
@@ -66,7 +67,7 @@ def exc_loop(it):
             yield None, e
 
 
-def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
+def warc_retry(ArchiveIterator archive_iterator, stream_factory, retry_count=3, seek=True):
     """
     warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True)
 
@@ -94,8 +95,6 @@ def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
 
     Exceptions raised inside ``stream_factory()`` will be caught and count towards ``retry_count``.
 
-    Requires FastWARC to be installed.
-
     :param archive_iterator: input WARC iterator
     :type archive_iterator: fastwarc.warc.ArchiveIterator
     :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
@@ -109,18 +108,15 @@ def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
     """
 
     cdef size_t retries = 0
-    cdef size_t last_pos = 0
+    cdef size_t pos = 0
     cdef bint skip_next = False
     it = archive_iterator.__iter__()
 
     while True:
         try:
-            if skip_next:
-                next(it)
-                skip_next = False
             next_rec = next(it)
-            last_pos = next_rec.stream_pos
             yield next_rec
+            pos = next_rec.stream_pos
         except StopIteration as e:
             raise e
         except BaseException as e:
@@ -132,16 +128,16 @@ def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
                 try:
                     if seek is True:
                         stream = stream_factory()
-                        stream.seek(last_pos)
+                        stream.seek(pos)
                         break
                     elif seek is False:
-                        stream = stream_factory(last_pos)
+                        stream = stream_factory(pos)
                         break
                     elif seek is None:
                         consumed = 0
                         stream = stream_factory()
-                        while consumed < last_pos:
-                            n = len(stream.read(min(16384, last_pos - consumed)))
+                        while consumed < pos:
+                            n = len(stream.read(min(16384, pos - consumed)))
                             if n == 0:
                                 return  # Unexpected EOF
                             consumed += n
@@ -155,4 +151,3 @@ def warc_retry(archive_iterator, stream_factory, retry_count=3, seek=True):
             # noinspection PyProtectedMember
             archive_iterator._set_stream(stream)
             it = archive_iterator.__iter__()
-            skip_next = True

@@ -969,7 +969,7 @@ cdef class ArchiveIterator:
 
         return has_next
 
-    cpdef bint _set_stream(self, stream) except 0:
+    cdef bint _set_stream(self, stream) except 0:
         """
         _set_stream(self, stream)
         
