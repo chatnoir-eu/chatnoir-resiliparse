@@ -108,12 +108,16 @@ def warc_retry(ArchiveIterator archive_iterator, stream_factory, retry_count=3, 
     """
 
     cdef size_t retries = 0
-    cdef size_t pos = 0
+    cdef size_t pos = archive_iterator.reader.tell()
+    cdef size_t first_pos = pos
     cdef bint skip_next = False
     it = archive_iterator.__iter__()
 
     while True:
         try:
+            if skip_next:
+                next(it)
+                skip_next = False
             next_rec = next(it)
             yield next_rec
             pos = next_rec.stream_pos
@@ -151,3 +155,4 @@ def warc_retry(ArchiveIterator archive_iterator, stream_factory, retry_count=3, 
             # noinspection PyProtectedMember
             archive_iterator._set_stream(stream)
             it = archive_iterator.__iter__()
+            skip_next = pos > first_pos
