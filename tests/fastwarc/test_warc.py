@@ -1,8 +1,11 @@
+import codecs
 from gzip import GzipFile
 from hashlib import md5
 import lz4.frame
 import io
 import os
+
+import pytest
 
 from fastwarc.stream_io import *
 from fastwarc.warc import *
@@ -18,6 +21,7 @@ def iterate_warc(stream):
     for rec in ArchiveIterator(stream, parse_http=False):
         assert rec.record_id.startswith('<urn:')
         assert rec.record_id not in rec_ids
+        assert rec.record_type in [warcinfo, response, request, metadata]
         rec_ids.add(rec.record_id)
     assert len(rec_ids) == NUM_RECORDS
 
@@ -112,6 +116,45 @@ def test_record_types():
             assert rec.record_type == response
 
 
+def test_record_func_filters():
+    file = os.path.join(DATA_DIR, 'warcfile.warc')
+
+    count = 0
+    for _ in ArchiveIterator(FileStream(file), parse_http=False, func_filter=is_warc_10):
+        count += 1
+    assert count == NUM_RECORDS
+
+    count = 0
+    for _ in ArchiveIterator(FileStream(file), parse_http=False, func_filter=is_warc_11):
+        count += 1
+    assert count == 0
+
+    count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=False, func_filter=has_block_digest):
+        assert rec.verify_block_digest()
+        count += 1
+    assert count == NUM_RECORDS_OF_TYPE
+
+    count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=True, func_filter=has_payload_digest):
+        assert rec.verify_payload_digest()
+        count += 1
+    assert count == NUM_RECORDS_OF_TYPE
+
+    count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=False, func_filter=is_http):
+        assert rec.is_http
+        assert rec.record_type in [request, response]
+        count += 1
+    assert count == NUM_RECORDS_OF_TYPE * 2 + 1
+
+    count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=False, func_filter=is_concurrent):
+        assert rec.record_type in [response, metadata]
+        count += 1
+    assert count == NUM_RECORDS_OF_TYPE * 2
+
+
 def test_verify_digests():
     file = os.path.join(DATA_DIR, 'warcfile.warc')
 
@@ -136,16 +179,38 @@ def test_record_http_parsing():
     file = os.path.join(DATA_DIR, 'warcfile.warc')
 
     for rec in ArchiveIterator(FileStream(file), parse_http=True, record_types=response):
+        # General
         assert rec.is_http
         assert rec.is_http_parsed
         assert rec.http_headers
+
+        # Headers
+        assert not rec.headers.status_code
+        assert rec.http_headers.status_code
+        assert str(rec.http_headers.status_code) in rec.http_headers.status_line
+        assert len(rec.http_headers.asdict()) <= len(rec.http_headers.astuples())
+        assert rec.http_content_type.startswith('text/')
+
+        assert 'Content-Type' in rec.http_headers
+        if 'charset=' in rec.http_headers.get('Content-Type'):
+            charset = rec.http_headers['Content-Type'].split('charset=')[1].lower()
+            try:
+                codecs.lookup(charset)
+                assert rec.http_charset == charset
+            except LookupError:
+                assert rec.http_charset is None
+
+        # Content
         assert rec.reader.read(5) != b'HTTP/'
 
     for rec in ArchiveIterator(FileStream(file), parse_http=False, record_types=response):
         assert rec.is_http
         assert not rec.is_http_parsed
         assert not rec.http_headers
+        assert rec.http_content_type is None
+        assert rec.http_charset is None
         assert rec.reader.read(5) == b'HTTP/'
+        assert not rec.headers.status_code
 
 
 def test_record_content_reader():
@@ -275,3 +340,124 @@ def test_clipped_warc_gz():
         assert not rec.verify_payload_digest()
         rec_count += 1
     assert rec_count > 0
+
+
+def test_warc_headers():
+    new_record = WarcRecord()
+    headers = new_record.headers
+    with pytest.raises(KeyError):
+        # noinspection PyStatementEffect
+        new_record.record_id
+
+    # Set various headers
+    headers['WARC-Record-ID'] = 'abc'
+    assert new_record.record_id == 'abc'
+    headers.status_line = 'WARC/1.0'
+    assert headers.status_line == 'WARC/1.0'
+    headers['WARC-Target-URI'] = 'https://examle.com'
+    assert 'WARC-Target-URI' in headers
+    assert 'WARC-IP-Address' not in headers
+
+    # Test case-insensitive matching
+    assert 'warc-record-id' in headers
+    assert 'Warc-Record-Id' in headers
+    headers['X-FooBaR'] = 'abc'
+    assert 'x-foobar' in headers
+    assert 'X-FOOBAR' in headers
+    assert headers.get('x-foobar') == 'abc'
+
+    # Set duplicate headers
+    dict_len = len(headers.asdict())
+    headers.append('X-Custom-Header', 'Foobar')
+    assert 'X-Custom-Header' in headers
+    headers.append('X-Custom-Header', 'Foobarbaz')
+    assert headers['X-Custom-Header'] == 'Foobarbaz'
+    assert len(headers.asdict()) == dict_len + 1
+    assert ('X-Custom-Header', 'Foobar') in headers.astuples()
+    assert ('X-Custom-Header', 'Foobarbaz') in headers.astuples()
+
+    # Case-insensitive set vs. append
+    tuple_len = len(headers.astuples())
+    headers['X-FOOBAR'] = 'xyz'
+    assert headers['x-foobar'] == 'xyz'
+    assert len(headers.astuples()) == tuple_len
+    headers.append('X-FOOBAR', 'aaa')
+    assert len(headers.astuples()) == tuple_len + 1
+
+    # Iterate headers
+    dict_copy = {}
+    for k, v in headers:
+        dict_copy[k] = v
+    assert dict_copy == headers.asdict()
+
+    dict_copy = {}
+    for k, v in zip(headers.keys(), headers.values()):
+        dict_copy[k] = v
+    assert dict_copy == headers.asdict()
+
+    # Test record types
+    type_mapping = dict(
+        warcinfo=warcinfo,
+        response=response,
+        resource=resource,
+        request=request,
+        metadata=metadata,
+        revisit=revisit,
+        conversion=conversion,
+        continuation=continuation,
+        unknown=unknown
+    )
+    for str_type, enum_type in type_mapping.items():
+        new_record.record_type = enum_type
+        assert new_record.record_type == enum_type
+        assert headers['WARC-Type'] == str_type
+
+        headers['WARC-Type'] = str_type
+        assert new_record.record_type == enum_type
+        assert headers['WARC-Type'] == str_type
+
+
+new_record_bytes_content = b"""HTTP/1.1 200 OK\r\n\
+Content-Type: text/html; charset=utf-8\r\n\
+Content-Length: 69\r\n\r\n\
+<!doctype html>\n\
+<meta charset="utf-8">\n\
+<title>Test</title>\n\n\
+Barbaz\n"""
+
+
+def test_create_new_warc_record():
+    # Init basic record
+    new_record = WarcRecord()
+    new_record.init_headers(len(new_record_bytes_content), response)
+    assert new_record.headers.status_line == 'WARC/1.1'
+    assert new_record.record_id.startswith('<urn:')
+    assert new_record.record_type == response
+    assert new_record.content_length == 0
+    assert 'WARC-Type' in new_record.headers
+    assert 'WARC-Date' in new_record.headers
+    assert 'WARC-Record-ID' in new_record.headers
+    assert new_record.headers['WARC-Record-ID'] == new_record.record_id
+    assert 'Content-Length' in new_record.headers
+    assert new_record.headers['Content-Length'] == str(len(new_record_bytes_content))
+    new_record.headers['Content-Type'] = 'application/http; msgtype=response'
+
+    # Set content
+    new_record.set_bytes_content(new_record_bytes_content)
+
+    # Write and read back
+    stream = io.BytesIO()
+    new_record.write(stream)
+    stream.seek(0)
+
+    count = 0
+    for rec in ArchiveIterator(stream, parse_http=True):
+        assert rec.headers.status_line == new_record.headers.status_line
+        assert rec.record_id == new_record.record_id
+        assert rec.record_type == new_record.record_type
+        assert rec.is_http
+        assert rec.http_headers.status_code == 200
+        assert rec.http_content_type == 'text/html'
+        assert rec.http_charset == 'utf-8'
+        count += 1
+    assert count == 1

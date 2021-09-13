@@ -19,6 +19,7 @@ from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdint cimport uint16_t
 from libcpp.vector cimport vector
 
+import codecs
 import base64
 import datetime
 import hashlib
@@ -423,7 +424,7 @@ cdef class WarcRecord:
         :type record_type: WarcRecordType
         """
         self._record_type = record_type
-        self._headers['WARC-Type'] = _enum_record_type_to_str(record_type)
+        self._headers.set_header(<char*>b'WARC-Type', _enum_record_type_to_str(record_type))
 
     @property
     def headers(self) -> WarcHeaderMap:
@@ -504,12 +505,12 @@ cdef class WarcRecord:
 
         self._http_charset = str_to_lower(strip_str(content_type.substr(pos, pos_end)))
         try:
-            ''.encode(encoding=self._http_charset.decode())
+            codecs.lookup(self._http_charset.decode())
         except LookupError:
             self._http_charset = <char*>b'_'
             return None
 
-        return self._http_charset.decode(self._http_headers._enc, errors='ignore')
+        return self._http_charset.decode()
 
     @property
     def content_length(self) -> int:
@@ -558,7 +559,7 @@ cdef class WarcRecord:
             record_type = self.record_type
         if record_type == any_type or record_type == no_type:
             record_type = unknown
-        self.record_type = record_type
+        self._record_type = record_type
 
         self._headers.clear()
         self._headers.set_status_line(<char*>b'WARC/1.1')
