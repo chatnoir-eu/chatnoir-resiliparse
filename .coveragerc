@@ -1,3 +1,4 @@
 [run]
 plugins = Cython.Coverage
-
+omit =
+    */cli.py
