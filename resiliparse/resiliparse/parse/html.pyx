@@ -389,9 +389,12 @@ cdef class DOMNode:
             return
 
         self.node.user = NULL
-        if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
-            lxb_dom_node_destroy_deep(self.node)
-            self.node = NULL
+
+        # Cannot be done until https://github.com/lexbor/lexbor/issues/132 is fixed
+        # If you create lots of unparented DOMNodes, we may leak memory
+        # if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
+        #     lxb_dom_node_destroy_deep(self.node)
+        self.node = NULL
 
     def __iter__(self):
         """
@@ -532,7 +535,6 @@ cdef class DOMNode:
         The DOM node's inner text can be modified by assigning to this property.
 
         :type: str
-        :raises ValueError: if trying to set text on a node whose type is neither Element nor Text
         """
         if not check_node(self):
             return None
@@ -549,9 +551,6 @@ cdef class DOMNode:
         if not check_node(self):
             raise RuntimeError('Trying to set text contents of uninitialized DOM node')
 
-        if self.node.type != LXB_DOM_NODE_TYPE_ELEMENT and self.node.type != LXB_DOM_NODE_TYPE_TEXT:
-            raise ValueError('Node is neither Element nor Text node')
-
         cdef bytes text_bytes = text.encode()
         lxb_dom_node_text_content_set(self.node, <lxb_char_t*>text_bytes, len(text_bytes))
 
@@ -563,7 +562,6 @@ cdef class DOMNode:
         The DOM node's inner HTML can be modified by assigning to this property.
 
         :type: str
-        :raises ValueError: if trying to set HTML of a non-Element node
         """
         if not check_node(self):
             return None
@@ -578,9 +576,6 @@ cdef class DOMNode:
     def html(self, str html):
         if not check_node(self):
             raise RuntimeError('Trying to set HTML contents of uninitialized DOM node')
-
-        if self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            raise ValueError('Node is not an Element node')
 
         cdef bytes html_bytes = html.encode()
         lxb_html_element_inner_html_set(<lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
