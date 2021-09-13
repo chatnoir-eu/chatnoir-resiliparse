@@ -8,15 +8,21 @@ def test_encoding_detection():
     assert det.encoding() == 'utf-16-le'
     det.update(b'\xff\xfeH\x00e\x00l\x00l\x00o\x00 \x00W\x00o\x00r\x00l\x00d\x00')
     assert det.encoding(html5_compatible=False) == 'utf-16'
-
     det.update(b'Autres temps, autres m\x9curs.')
     assert det.encoding() == 'cp1252'
 
     assert detect_encoding(b'\xc3\xa4\xc3\xb6\xc3\xbc') == 'utf-8'
     assert detect_encoding(b'Hello World') == 'cp1252'
     assert detect_encoding(b'Hello World', html5_compatible=False) == 'ascii'
-
     assert detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.') == 'iso8859-2'
+
+    html = b"""<!doctype html><meta charset="iso-8859-1"><title>Foo</title><body></body>"""
+    assert detect_encoding(html, html5_compatible=True) == 'cp1252'
+    assert detect_encoding(html, html5_compatible=False) == 'ascii'
+
+    html = b"""<!doctype html><meta charset="iso-8859-1"><title>\xc3\xa4\xc3\xb6\xc3\xbc</title><body></body>"""
+    assert detect_encoding(html, from_html_meta=False) == 'utf-8'
+    assert detect_encoding(html, from_html_meta=True) == 'cp1252'
 
 
 def test_whatwg_encoding_mapping():
