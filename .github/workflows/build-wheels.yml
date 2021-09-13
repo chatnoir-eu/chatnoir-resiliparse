@@ -50,6 +50,8 @@ jobs:
       LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
       INCLUDE: C:\vcpkg\installed\x64-windows\include
       LIB: C:\vcpkg\installed\x64-windows\lib
+      PYTHONPATH: ../resiliparse:../fastwarc
+      CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
     steps:
       - name: Checkout
         uses: actions/checkout@v2

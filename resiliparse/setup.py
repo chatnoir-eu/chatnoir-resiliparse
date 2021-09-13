@@ -82,6 +82,10 @@ if 'sdist' in sys.argv:
 
 # 2. RESILIPARSE SETUP -------------------------------------------------------
 
+fast_warc_src = os.path.abspath(os.path.join(ROOT_DIRECTORY, '..', 'fastwarc'))
+if os.path.isdir(fast_warc_src):
+    sys.path.insert(0, fast_warc_src)
+
 resiliparse_extensions = [
     Extension('resiliparse.parse.encoding',
               sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
