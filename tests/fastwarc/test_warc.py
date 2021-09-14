@@ -405,6 +405,7 @@ def test_warc_headers():
     # Iterate headers
     header_copy1 = WarcHeaderMap()
     header_copy2 = WarcHeaderMap()
+
     for k, v in headers:
         header_copy1.append(k, v)
         header_copy2[k] = v
@@ -481,38 +482,49 @@ Barbaz\n"""
 
 def test_create_new_warc_record():
     # Init basic record
-    new_record = WarcRecord()
-    new_record.init_headers(len(new_record_bytes_content), response)
-    assert new_record.headers.status_line == 'WARC/1.1'
-    assert new_record.record_id.startswith('<urn:')
-    assert new_record.record_type == response
-    assert new_record.content_length == 0
-    assert 'WARC-Type' in new_record.headers
-    assert 'WARC-Date' in new_record.headers
-    assert 'WARC-Record-ID' in new_record.headers
-    assert new_record.headers['WARC-Record-ID'] == new_record.record_id
-    assert 'Content-Length' in new_record.headers
-    assert new_record.headers['Content-Length'] == str(len(new_record_bytes_content))
-    new_record.headers['Content-Type'] = 'application/http; msgtype=response'
-    new_record.headers['X-Multiline-Header'] = 'Hello\r\nWorld'
-    assert new_record.headers['X-Multiline-Header'] == 'Hello World'
+    src_record = WarcRecord()
+    src_record.init_headers(len(new_record_bytes_content), unknown)
+    assert src_record.headers.status_line == 'WARC/1.1'
+    assert src_record.record_id.startswith('<urn:')
+    assert src_record.record_type == unknown
+    assert src_record.content_length == 0
+    assert 'WARC-Type' in src_record.headers
+    assert 'WARC-Date' in src_record.headers
+    assert 'WARC-Record-ID' in src_record.headers
+    assert src_record.headers['WARC-Record-ID'] == src_record.record_id
+    assert 'Content-Length' in src_record.headers
+    assert src_record.headers['Content-Length'] == str(len(new_record_bytes_content))
+    src_record.headers['X-Multiline-Header'] = 'Hello\r\nWorld'
+    assert src_record.headers['X-Multiline-Header'] == 'Hello World'
 
     # Set content
-    new_record.set_bytes_content(new_record_bytes_content)
+    src_record.set_bytes_content(new_record_bytes_content)
+
+    # Make this an HTTP record and test different record types
+    src_record.is_http = True
+    assert src_record.headers['Content-Type'] == 'application/http'
+    src_record.record_type = request
+    src_record.is_http = True
+    assert src_record.headers['Content-Type'] == 'application/http; msgtype=request'
+    src_record.record_type = response
+    src_record.is_http = True
+    assert src_record.headers['Content-Type'] == 'application/http; msgtype=response'
 
     # Write and read back
     stream = io.BytesIO()
     payload_digest = sha1()
     payload_digest.update(new_record_bytes_content[new_record_bytes_content.find(b'\r\n\r\n') + 4:])
-    new_record.write(stream, checksum_data=True, payload_digest=payload_digest.digest())
+    src_record.write(stream, checksum_data=True, payload_digest=payload_digest.digest())
     stream.seek(0)
 
     count = 0
     for rec in ArchiveIterator(stream, parse_http=False):
-        assert rec.headers.status_line == new_record.headers.status_line
+        assert rec.headers.status_line == src_record.headers.status_line
         assert rec.headers['X-Multiline-Header'] == 'Hello World'
-        assert rec.record_id == new_record.record_id
-        assert rec.record_type == new_record.record_type
+        assert src_record.headers['Content-Type'] == 'application/http; msgtype=response'
+        assert rec.headers == src_record.headers
+        assert rec.record_id == src_record.record_id
+        assert rec.record_type == src_record.record_type
         assert rec.verify_block_digest()
 
         assert rec.is_http

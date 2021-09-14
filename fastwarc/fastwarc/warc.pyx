@@ -482,9 +482,22 @@ cdef class WarcRecord:
         """
         Whether record is an HTTP record.
 
+        Modifying this property will also affect the ``Content-Type`` of this record.
+
         :type: bool
         """
         return self._is_http
+
+    @is_http.setter
+    def is_http(self, bint is_http):
+        self._is_http = is_http
+        if self._is_http:
+            if self._record_type == WarcRecordType.request:
+                self._headers.set_header(<char *> b'Content-Type', <char *> b'application/http; msgtype=request')
+            elif self._record_type == WarcRecordType.response:
+                self._headers.set_header(<char*>b'Content-Type', <char*>b'application/http; msgtype=response')
+            else:
+                self._headers.set_header(<char*>b'Content-Type', <char*>b'application/http')
 
     @property
     def is_http_parsed(self) -> bool:
