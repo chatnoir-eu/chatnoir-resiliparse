@@ -203,10 +203,13 @@ cdef class WarcHeaderMap:
     def __contains__(self, item):
         return item in self.asdict()
 
+    # noinspection PyProtectedMember
     def __eq__(self, other):
         if not isinstance(other, WarcHeaderMap):
             return False
-        for (k1, v1), (k2, v2) in zip(self, other):
+        if self._status_line != (<WarcHeaderMap>other)._status_line:
+            return False
+        for (k1, v1), (k2, v2) in zip(self.__iter__(), other.__iter__()):
             if k1 != k2 or v1 != v2:
                 return False
         return True

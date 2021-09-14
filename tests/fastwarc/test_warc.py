@@ -404,7 +404,9 @@ def test_warc_headers():
 
     # Iterate headers
     header_copy1 = WarcHeaderMap()
+    header_copy1.status_line = headers.status_line
     header_copy2 = WarcHeaderMap()
+    header_copy2.status_line = headers.status_line
 
     for k, v in headers:
         header_copy1.append(k, v)
