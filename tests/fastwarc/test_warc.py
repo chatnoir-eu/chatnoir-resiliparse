@@ -358,21 +358,39 @@ def test_warc_headers():
     assert 'WARC-Target-URI' in headers
     assert 'WARC-IP-Address' not in headers
 
-    # Test case-insensitive matching
+    # Direct dict manipulation
+    d = headers.asdict()
+    d['X-Abc'] = '123'
+    d.update({'X-Xyz': '456'})
+    assert headers['X-Abc'] == '123'
+    assert headers['X-Xyz'] == '456'
+    headers['X-Abc'] = '789'
+    assert headers['X-Abc'] == '789'
+    assert headers['X-Xyz'] == '456'
+    assert d['X-Abc'] == '789'
+    assert d['X-Xyz'] == '456'
+    assert 'X-Abc' in headers.asdict()
+    assert 'X-Xyz' in headers.asdict()
+
+    # Case-insensitive matching
     assert 'warc-record-id' in headers
     assert 'Warc-Record-Id' in headers
     headers['X-FooBaR'] = 'abc'
     assert 'x-foobar' in headers
     assert 'X-FOOBAR' in headers
+    assert 'x-foobar' in headers.asdict()
+    assert 'X-FOOBAR' in headers.asdict()
     assert headers.get('x-foobar') == 'abc'
 
-    # Set duplicate headers
+    # Duplicate headers
     dict_len = len(headers.asdict())
+    tuple_len = len(headers.astuples())
     headers.append('X-Custom-Header', 'Foobar')
-    assert 'X-Custom-Header' in headers
+    assert headers['X-Custom-Header'] == 'Foobar'
     headers.append('X-Custom-Header', 'Foobarbaz')
-    assert headers['X-Custom-Header'] == 'Foobarbaz'
     assert len(headers.asdict()) == dict_len + 1
+    assert len(headers.astuples()) == tuple_len + 2
+    assert headers['X-Custom-Header'] == 'Foobarbaz'
     assert ('X-Custom-Header', 'Foobar') in headers.astuples()
     assert ('X-Custom-Header', 'Foobarbaz') in headers.astuples()
 
@@ -385,15 +403,21 @@ def test_warc_headers():
     assert len(headers.astuples()) == tuple_len + 1
 
     # Iterate headers
-    dict_copy = {}
+    header_copy1 = WarcHeaderMap()
+    header_copy2 = WarcHeaderMap()
     for k, v in headers:
-        dict_copy[k] = v
-    assert dict_copy == headers.asdict()
+        header_copy1.append(k, v)
+        header_copy2[k] = v
+    assert header_copy1 == headers
+    assert header_copy2 != headers
+    assert header_copy2.asdict() == headers.asdict()
 
-    dict_copy = {}
+    header_copy = WarcHeaderMap()
     for k, v in zip(headers.keys(), headers.values()):
-        dict_copy[k] = v
-    assert dict_copy == headers.asdict()
+        header_copy[k] = v
+    assert header_copy.asdict() == headers.asdict()
+
+    assert tuple(headers) == headers.astuples()
 
     # Test record types
     type_mapping = dict(
@@ -415,6 +439,33 @@ def test_warc_headers():
         headers['WARC-Type'] = str_type
         assert new_record.record_type == enum_type
         assert headers['WARC-Type'] == str_type
+
+    # Multiline headers
+    headers['X-Bar1'] = 'abc\ndef'
+    assert headers['X-Bar1'] == 'abc def'
+    headers['X-Bar2'] = 'abc\r\ndef'
+    assert headers['X-Bar2'] == 'abc def'
+
+    # Clear headers
+    headers.clear()
+    assert len(headers) == 0
+    assert len(headers.astuples()) == 0
+    assert len(headers.asdict()) == 0
+    assert headers.status_line == ''
+
+    headers['X-Abc'] = 'Foo'
+    headers.status_line = 'WARC/1.0'
+    assert len(headers) == 1
+    assert len(headers.astuples()) == 1
+    assert len(headers.asdict()) == 1
+    assert headers.status_line == 'WARC/1.0'
+
+    # Clear headers dict
+    headers.asdict().clear()
+    assert len(headers) == 0
+    assert len(headers.astuples()) == 0
+    assert len(headers.asdict()) == 0
+    assert headers.status_line == ''
 
 
 new_record_bytes_content = b"""HTTP/1.1 200 OK\r\n\

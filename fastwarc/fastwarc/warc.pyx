@@ -32,7 +32,6 @@ from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.string cimport npos as strnpos, string, to_string
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
-from fastwarc.stream_io import StreamError
 
 
 cdef string strip_str(const string& s) nogil:
@@ -112,11 +111,17 @@ class CaseInsensitiveStr(str):
 class CaseInsensitiveStrDict(dict):
     """Case-insensitive str dict."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._header_obj = None
+
     def __getitem__(self, str key not None):
         return super().__getitem__(CaseInsensitiveStr(key))
 
     def __setitem__(self, str key not None, str value not None):
         super().__setitem__(CaseInsensitiveStr(key), value)
+        if self._header_obj is not None:
+            self._header_obj[key] = value
 
     def __contains__(self, str key not None):
         return super().__contains__(CaseInsensitiveStr(key))
@@ -135,9 +140,15 @@ class CaseInsensitiveStrDict(dict):
             it = it.items()
         if it is not None:
             for k, v in it:
-                super().__setitem__(CaseInsensitiveStr(k), v)
+                self.__setitem__(k, v)
         for k, v in kwargs.items():
-            super().__setitem__(CaseInsensitiveStr(k), v)
+            self.__setitem__(k, v)
+
+    def clear(self) -> None:
+        if self._header_obj is not None:
+            self._header_obj.clear()
+        else:
+            super().clear()
 
 
 # noinspection PyAttributeOutsideInit
@@ -176,13 +187,29 @@ cdef class WarcHeaderMap:
 
         :rtype: t.Iterable[(str, str)]
         """
-        yield from self.items()
+        cdef str_pair h
+        yield from ((h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
+                    for h in self._headers)
 
     def __repr__(self):
-        return str(self.asdict())
+        return repr(self.astuples())
+
+    def __str__(self):
+        return str(self.astuples())
+
+    def __len__(self):
+        return len(self.astuples())
 
     def __contains__(self, item):
         return item in self.asdict()
+
+    def __eq__(self, other):
+        if not isinstance(other, WarcHeaderMap):
+            return False
+        for (k1, v1), (k2, v2) in zip(self, other):
+            if k1 != k2 or v1 != v2:
+                return False
+        return True
 
     @property
     def status_line(self) -> str:
@@ -296,25 +323,41 @@ cdef class WarcHeaderMap:
         """
         cdef str_pair h
         if self._dict_cache_stale:
-            self._dict_cache = <dict>CaseInsensitiveStrDict({
-                CaseInsensitiveStr(h[0].decode(self._enc, errors='ignore')): h[1].decode(self._enc, errors='ignore')
+            if self._dict_cache is None:
+                self._dict_cache = <dict>CaseInsensitiveStrDict()
+            self._dict_cache._header_obj = None
+            self._dict_cache.clear()
+            self._dict_cache.update({
+                h[0].decode(self._enc, errors='ignore'): h[1].decode(self._enc, errors='ignore')
                 for h in self._headers})
             self._dict_cache_stale = False
+            self._dict_cache._header_obj = self
         return self._dict_cache
 
-    def astuples(self) -> t.List[t.Tuple[str, str]]:
+    def astuples(self) -> t.Tuple[t.Tuple[str, str]]:
         """
         astuples(self)
 
-        Headers as list of tuples, including multiple headers with the same key.
-        Use this over :meth:`items` if header keys are not necessarily unique.
+        Headers as a series of tuples, including multiple headers with the same key.
+        Use this over :meth:`asdict` if header keys are not necessarily unique.
 
-        :rtype: list[(str, str)]
+        :rtype: ((str, str),)
         """
-        cdef str_pair h
-        return [(h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
-                for h in self._headers]
+        return tuple(self.__iter__())
 
+    cpdef void clear(self):
+        """
+        clear(self)
+
+        Clear all headers.
+        """
+        if self._dict_cache is not None:
+            self._dict_cache._header_obj = None
+            self._dict_cache.clear()
+            self._dict_cache._header_obj = self
+        self._headers.clear()
+        self._status_line.clear()
+        self._dict_cache_stale = True
 
     cdef size_t write(self, IOStream stream) except -1:
         """Write header block into stream."""
@@ -332,11 +375,6 @@ cdef class WarcHeaderMap:
             bytes_written += stream.write(<char*>b'\r\n', 2)
             inc(it)
         return bytes_written
-
-    cdef inline void clear(self):
-        """Clear headers."""
-        self._headers.clear()
-        self._dict_cache_stale = True
 
     cdef inline void set_status_line(self, const string& status_line):
         """Set status line string."""

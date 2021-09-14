@@ -44,7 +44,7 @@ cdef class WarcHeaderMap:
     cdef bint _dict_cache_stale
 
     cdef size_t write(self, IOStream stream) except -1
-    cdef inline void clear(self)
+    cpdef void clear(self)
     cdef inline void set_status_line(self, const string& status_line)
     cdef string find_header(self, const string& header_key, const string& default)
     cdef void set_header(self, const string& header_key, const string& header_value)
