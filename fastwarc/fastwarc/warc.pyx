@@ -940,7 +940,7 @@ cdef class ArchiveIterator:
         """
         __iter__(self)
 
-        Iterate all :class:`WarcRecord` items in the current WARC file.
+        Iterate all :class:`WarcRecord` items in the current WARC stream.
 
         :rtype: t.Iterable[WarcRecord]
         """
@@ -953,7 +953,7 @@ cdef class ArchiveIterator:
             elif status == eof:
                 return
 
-    def __next__(self):
+    def __next__(self) -> t.Iterator[WarcRecord]:
         """
         __next__(self)
 
