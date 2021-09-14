@@ -1,3 +1,4 @@
+import os
 import signal
 import sys
 from time import sleep, monotonic
@@ -7,6 +8,9 @@ import pytest
 from resiliparse.process_guard import InterruptType, ExecutionTimeout, MemoryLimitExceeded, \
     mem_guard, time_guard, progress
 from resiliparse.itertools import progress_loop
+
+
+skip_long = pytest.mark.skipif(os.environ.get('SKIP_LONG'), reason="Skipping long tests")
 
 
 signal_sent = None
@@ -57,6 +61,7 @@ def wait_func_exc_progress():
         sleep(0.001)
 
 
+@skip_long
 def test_time_guard():
     with pytest.raises(ExecutionTimeout):
         wait_func_exc()
@@ -143,6 +148,7 @@ def fill_mem_signal_term():
         l.extend([1] * 50)
 
 
+@skip_long
 def test_mem_guard():
     if sys.platform != 'linux':
         # Memory reporting is unreliable on other platforms
