@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cpython.ref cimport PyObject
 from resiliparse_inc.atomic cimport atomic_size_t, atomic_bool
 from resiliparse_inc.pthread cimport pthread_t
 
 
-cdef struct _GuardContext:
+cdef struct GuardContext:
     atomic_size_t epoch_counter
     atomic_bool ended
 
@@ -28,13 +29,14 @@ cpdef enum InterruptType:
 
 
 cdef class _ResiliparseGuard:
-    cdef _GuardContext gctx
+    cdef GuardContext gctx
     cdef size_t check_interval
     cdef bint send_kill
     cdef InterruptType interrupt_type
     cdef type exc_type
 
-    cdef void finish(self)
+    cdef inline void reset(self)
+    cdef inline void finish(self)
     cdef void exec_before(self)
     cdef void exec_after(self)
     cdef type get_exception_type(self)

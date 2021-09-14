@@ -47,23 +47,27 @@ cdef class _ResiliparseGuard:
     """Resiliparse context guard base class."""
 
     def __cinit__(self, *args, **kwargs):
-        self.gctx.epoch_counter.store(0)
-        self.gctx.ended.store(False)
+        self.reset()
 
     def __dealloc__(self):
         self.finish()
 
-    cdef void finish(self):
-        if not self.gctx.ended.load():
-            self.gctx.ended.store(True)
+    cdef inline void finish(self):
+        self.gctx.ended.store(True)
+
+    cdef inline void reset(self):
+        self.gctx.epoch_counter.store(0)
+        self.gctx.ended.store(False)
 
     def __call__(self, func):
         def guard_wrapper(*args, **kwargs):
+            self.reset()
             self.exec_before()
-            ret = func(*args, **kwargs)
-            self.exec_after()
-            self.finish()
-            return ret
+            try:
+                return func(*args, **kwargs)
+            finally:
+                self.finish()
+                self.exec_after()
 
         # Retain self, but do not bind via __get__() or else func will belong to this class
         guard_wrapper._guard_self = self
