@@ -1,6 +1,6 @@
 import codecs
 from gzip import GzipFile
-from hashlib import md5
+from hashlib import md5, sha1
 import lz4.frame
 import io
 import os
@@ -502,19 +502,25 @@ def test_create_new_warc_record():
 
     # Write and read back
     stream = io.BytesIO()
-    new_record.write(stream)
+    payload_digest = sha1()
+    payload_digest.update(new_record_bytes_content[new_record_bytes_content.find(b'\r\n\r\n') + 4:])
+    new_record.write(stream, checksum_data=True, payload_digest=payload_digest.digest())
     stream.seek(0)
 
     count = 0
-    for rec in ArchiveIterator(stream, parse_http=True):
+    for rec in ArchiveIterator(stream, parse_http=False):
         assert rec.headers.status_line == new_record.headers.status_line
         assert rec.headers['X-Multiline-Header'] == 'Hello World'
         assert rec.record_id == new_record.record_id
         assert rec.record_type == new_record.record_type
+        assert rec.verify_block_digest()
+
         assert rec.is_http
+        rec.parse_http()
         assert rec.http_headers.status_code == 200
         assert rec.http_content_type == 'text/html'
         assert rec.http_charset == 'utf-8'
         assert rec.http_headers['X-Multiline-Header'] == 'Hello World'
+        assert rec.verify_payload_digest()
         count += 1
     assert count == 1

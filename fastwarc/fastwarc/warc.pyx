@@ -638,7 +638,8 @@ cdef class WarcRecord:
         self._http_parsed = True
 
     # noinspection PyTypeChecker
-    cpdef size_t write(self, stream, bint checksum_data=False, size_t chunk_size=16384) except -1:
+    cpdef size_t write(self, stream, bint checksum_data=False, bytes payload_digest=None,
+                       size_t chunk_size=16384) except -1:
         """
         write(self, stream, checksum_data=False, chunk_size=16384)
         
@@ -647,6 +648,8 @@ cdef class WarcRecord:
         :param stream: output stream
         :param checksum_data: add block and payload digest headers
         :type checksum_data: bool
+        :param payload_digest: optional SHA-1 payload digest as bytes
+        :type payload_digest: bytes
         :param chunk_size: write block size
         :type chunk_size: int
         :return: number of bytes written
@@ -659,15 +662,15 @@ cdef class WarcRecord:
         # Otherwise read everything into memory for content-length correction and checksumming
         cdef BytesIOStream block_buf = BytesIOStream()
 
-        block_digest = hashlib.sha1() if checksum_data else None
-        payload_digest = hashlib.sha1() if checksum_data and self._http_parsed else None
+        block_hash = hashlib.sha1() if checksum_data else None
+        payload_hash = hashlib.sha1() if checksum_data and not payload_digest and self._http_parsed else None
 
         if self._http_parsed:
             self._http_headers.write(block_buf)
             block_buf.write(<char*>b'\r\n', 2)
 
             if checksum_data:
-                block_digest.update(block_buf.getvalue())
+                block_hash.update(block_buf.getvalue())
 
         cdef string payload_data
         while True:
@@ -676,16 +679,18 @@ cdef class WarcRecord:
                 break
 
             if checksum_data:
-                block_digest.update(payload_data.data()[:payload_data.size()])
-                if payload_digest is not None:
-                    payload_digest.update(payload_data.data()[:payload_data.size()])
+                block_hash.update(payload_data.data()[:payload_data.size()])
+                if payload_hash is not None:
+                    payload_hash.update(payload_data.data()[:payload_data.size()])
             block_buf.write(payload_data.data(), payload_data.size())
 
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>block_buf.tell()))
+        if payload_hash:
+            payload_digest = payload_hash.digest()
+        if payload_digest is not None:
+            self._headers.set_header(<char*>b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest))
         if checksum_data:
-            if payload_digest is not None:
-                self._headers.set_header(<char*>b'WARC-Payload-Digest', b'sha1:' + base64.b32encode(payload_digest.digest()))
-            self._headers.set_header(<char*>b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_digest.digest()))
+            self._headers.set_header(<char*>b'WARC-Block-Digest', b'sha1:' + base64.b32encode(block_hash.digest()))
 
         block_buf.seek(0)
         return self._write_impl(block_buf, stream, False, chunk_size)

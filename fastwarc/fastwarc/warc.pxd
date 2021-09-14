@@ -73,7 +73,7 @@ cdef class WarcRecord:
     cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
     cpdef void parse_http(self)
-    cpdef size_t write(self, stream, bint checksum_data=*, size_t chunk_size=*) except -1
+    cpdef size_t write(self, stream, bint checksum_data=*, bytes payload_digest=*, size_t chunk_size=*) except -1
     cpdef bint verify_block_digest(self, bint consume=*)
     cpdef bint verify_payload_digest(self, bint consume=*)
 
