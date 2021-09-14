@@ -48,6 +48,18 @@ def test_stream_type_auto_detection():
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc.lz4'), 'rb').read()))
 
 
+def test_archive_iterator_iterator_iface():
+    count = 0
+    try:
+        it = ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')), parse_http=False)
+        while True:
+            assert next(it).record_id
+            count += 1
+    except StopIteration:
+        pass
+    assert count == NUM_RECORDS
+
+
 def iterate_with_offsets(stream):
     offsets = []
     rec_ids = []
@@ -519,22 +531,23 @@ def test_create_new_warc_record():
     src_record.write(stream, checksum_data=True, payload_digest=payload_digest.digest())
     stream.seek(0)
 
-    count = 0
-    for rec in ArchiveIterator(stream, parse_http=False):
-        assert rec.headers.status_line == src_record.headers.status_line
-        assert rec.headers['X-Multiline-Header'] == 'Hello World'
-        assert src_record.headers['Content-Type'] == 'application/http; msgtype=response'
-        assert rec.headers == src_record.headers
-        assert rec.record_id == src_record.record_id
-        assert rec.record_type == src_record.record_type
-        assert rec.verify_block_digest()
+    it = ArchiveIterator(stream, parse_http=False)
+    rec = next(it)
+    assert rec.headers.status_line == src_record.headers.status_line
+    assert rec.headers['X-Multiline-Header'] == 'Hello World'
+    assert src_record.headers['Content-Type'] == 'application/http; msgtype=response'
+    assert rec.headers == src_record.headers
+    assert rec.record_id == src_record.record_id
+    assert rec.record_type == src_record.record_type
+    assert rec.verify_block_digest()
 
-        assert rec.is_http
-        rec.parse_http()
-        assert rec.http_headers.status_code == 200
-        assert rec.http_content_type == 'text/html'
-        assert rec.http_charset == 'utf-8'
-        assert rec.http_headers['X-Multiline-Header'] == 'Hello World'
-        assert rec.verify_payload_digest()
-        count += 1
-    assert count == 1
+    assert rec.is_http
+    rec.parse_http()
+    assert rec.http_headers.status_code == 200
+    assert rec.http_content_type == 'text/html'
+    assert rec.http_charset == 'utf-8'
+    assert rec.http_headers['X-Multiline-Header'] == 'Hello World'
+    assert rec.verify_payload_digest()
+
+    with pytest.raises(StopIteration):
+        next(it)

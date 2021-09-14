@@ -84,6 +84,7 @@ cdef class WarcRecord:
 cdef class ArchiveIterator:
     cdef BufferedReader reader
     cdef WarcRecord record
+    cdef iter
     cdef bint parse_http
     cdef bint verify_digests
     cdef size_t min_content_length

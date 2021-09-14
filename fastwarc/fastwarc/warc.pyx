@@ -928,6 +928,7 @@ cdef class ArchiveIterator:
                   func_filter=None, bint verify_digests=False):
         self._set_stream(stream)
         self.record = None
+        self.iter = None
         self.parse_http = parse_http
         self.verify_digests = verify_digests
         self.min_content_length = min_content_length
@@ -951,6 +952,18 @@ cdef class ArchiveIterator:
                 yield self.record
             elif status == eof:
                 return
+
+    def __next__(self):
+        """
+        __next__(self)
+
+        Return an iterator object for this WARC stream that can be used with ``next()``.
+
+        :rtype: t.Iterator[WarcRecord]
+        """
+        if self.iter is None:
+            self.iter = self.__iter__()
+        return next(self.iter)
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error:
         self.reader.detect_stream_type()
