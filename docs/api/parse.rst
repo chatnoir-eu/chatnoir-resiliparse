@@ -11,3 +11,4 @@ Resiliparse parsing utilities API documentation.
    parse/encoding
    parse/http
    parse/html
+   parse/lang
