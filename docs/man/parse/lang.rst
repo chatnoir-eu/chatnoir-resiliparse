@@ -22,7 +22,7 @@ Resiliparse has a very fast n-gram-based language detector for 17 languages that
   print(detect_fast('...aber fügen wir doch etwas auf Deutsch hinzu.'))
   # >> ('de', 655)
 
-:func:`~.parse.lang.detect_fast` returns a tuple with the detected language and its `out-of-place rank`, a metric indicating how much the text's n-gram ranks differ from the closest pre-trained language profile. The lower the value, the more accurate the prediction probably is. Values above 1000 are most likely false results. Longer input texts usually lead to much lower rank values and hence more accurate results.
+:func:`~.parse.lang.detect_fast` returns a tuple with the detected language and its `out-of-place measure`, a rank-order value indicating how much the text's n-gram ranks differ from the closest pre-trained language profile. The lower the value, the more accurate the prediction probably is. Values above 1000 are most likely false results. Longer input texts usually lead to much lower rank values and hence more accurate results.
 
 On an average webpage, Resiliparse's fast language detector is about 4x as fast as FastText (with the large model) and even 32x as fast as `langid <https://github.com/saffsd/langid.py>`_:
 
