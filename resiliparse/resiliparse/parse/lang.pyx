@@ -320,12 +320,12 @@ def _train_language_examples(examples, size_t vec_len=N_LANGS):
     return agg_vec
 
 
-def _train_language_examples_and_print(lang, examples, size_t vec_len=LANG_VEC_SIZE):
+def _train_language_examples_cython_str(lang, examples, size_t vec_len=LANG_VEC_SIZE):
     """
     _train_language_examples_and_print(examples, vec_len=200)
 
     Train a language vector on a list of example texts using :func:`_train_language_examples`
-    and print a Cython ``cdef`` representation of it for copy and paste.
+    and return a Cython ``cdef`` string representation of it for copy and paste.
 
     :param lang: language code
     :type lang: str
@@ -336,4 +336,4 @@ def _train_language_examples_and_print(lang, examples, size_t vec_len=LANG_VEC_S
     """
 
     vec = _train_language_examples(examples, vec_len)
-    print(f'cdef uint32_t[{vec_len} VEC_{lang.upper()} = {vec}')
+    return f'cdef uint32_t[{vec_len}] VEC_{lang.upper()} = {vec}'
