@@ -239,7 +239,7 @@ cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size)
 
 cpdef detect_fast(str text, size_t cutoff=1000):
     """
-    detect_fast(text)
+    detect_fast(text, cutoff=1000)
     
     Perform a very fast (linear-time) language detection on the input string.
     
@@ -306,7 +306,7 @@ def _train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
 
 def _train_language_examples_c_decl(str lang, examples, size_t vec_len=LANG_VEC_SIZE):
     """
-    _train_language_examples_c_decl(examples, vec_len=200)
+    _train_language_examples_c_decl(lang, examples, vec_len=200)
 
     Train a language vector on a list of example texts using :func:`_train_language_examples`
     and return a C declaration string representation of it for copy and paste.
