@@ -10,7 +10,7 @@ Resiliparse language tools.
 Fast Language Detection
 -----------------------
 
-Resiliparse has a very fast n-gram-based language detector for 17 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass through the text, making it much faster than other language detection tools for Python. The speed obviously comes at the cost of accuracy (about 80-85% depending on the language and size of the input text), so if that is important, you should probably use a more sophisticated model such as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (though Resiliparse's language detector can still be useful for pre-filtering).
+Resiliparse has a very fast n-gram-based language detector for 17 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass over the text, making it much faster than other language detection tools for Python. The speed obviously comes at the cost of accuracy (about 80-85% depending on the language and size of the input text), so if that is important, you should probably use a more sophisticated model such as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (though Resiliparse's language detector can still be useful for pre-filtering).
 
 .. code-block:: python
 
