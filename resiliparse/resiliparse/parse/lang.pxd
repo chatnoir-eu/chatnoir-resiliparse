@@ -1,0 +1,36 @@
+# Copyright 2021 Janek Bevendorff
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from libc.stdint cimport int32_t, uint8_t
+from libcpp.vector cimport vector
+
+ctypedef vector lang_vec_t[uint8_t]
+
+cdef inline long hash(Py_UCS4* ustr, int order):
+    cdef long h = 7
+    cdef int i
+    for i in range(order):
+        h = 31 * h + <int32_t>ustr[i]
+    return h
+
+
+cdef inline void shiftleft(Py_UCS4* ustr, int size):
+    cdef int i
+    for i in range(size - 1):
+        ustr[i] = ustr[i + 1]
+
+
+cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=*)
+cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size)
+cpdef detect_fast(str text, size_t cutoff=*)

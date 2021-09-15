@@ -100,6 +100,5 @@ def test_lang_detect_fast_train_examples():
                 assert vec != pv
             trained_vecs.append(vec)
 
-            vec_str = lang._train_language_examples_cython_str(l, [SAMPLES[l]], vl)
-            assert vec_str.startswith(f'cdef lang_rawvec_t VEC_{l.upper()} = [')
-            assert str(vec) in vec_str
+            vec_str = lang._train_language_examples_c_decl(l, [SAMPLES[l]], vl)
+            assert f'{{"{l}", {{{", ".join(str(i) for i in vec)}}}}};' in vec_str
