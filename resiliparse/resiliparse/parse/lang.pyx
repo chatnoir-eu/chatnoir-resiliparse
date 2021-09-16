@@ -76,7 +76,7 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     lang_vec.resize(count_vec32.size())
     if i > 0:
         for j in range(count_vec32.size()):
-            lang_vec[j] = count_vec32[j] * count_vec32.size() // i
+            lang_vec[j] = min(255u, count_vec32[j] * 256u // i)
 
     return lang_vec
 
