@@ -40,12 +40,6 @@ cdef inline uint8_t hash(Py_UCS4* ustr, int order):
         h = h * 16777619
     return <uint8_t>(((h >> 8) ^ h) & ((<uint32_t>1 << 8) - 1))
 
-    # cdef long h = 7
-    # cdef int i
-    # for i in range(order):
-    #     h = 31 * h + <int32_t>ustr[i]
-    # return h
-
 
 cdef inline void shiftleft(Py_UCS4* ustr, int size):
     cdef int i
@@ -55,4 +49,4 @@ cdef inline void shiftleft(Py_UCS4* ustr, int size):
 
 cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=*)
 cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size)
-cpdef detect_fast(str text, size_t cutoff=*, size_t num_results=*, restrict_langs=*)
+cpdef detect_fast(str text, size_t cutoff=*, size_t n_results=*, langs=*)

@@ -84,9 +84,6 @@ SAMPLES = dict(
 
 
 def test_lang_detect_fast():
-    assert lang.detect_fast('This is an average English text...')[0] == 'en'
-    assert lang.detect_fast('...aber fügen wir doch etwas auf Deutsch hinzu.')[0] == 'de'
-
     assert len(lang.supported_langs()) > 0
 
     for l in SAMPLES:

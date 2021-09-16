@@ -101,7 +101,7 @@ cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
     return a.rank > b.rank
 
 
-cpdef detect_fast(str text, size_t cutoff=1000, size_t num_results=1, restrict_langs=None):
+cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     """
     detect_fast(text, cutoff=1000, num_results=1, restrict_langs=None)
     
@@ -118,41 +118,46 @@ cpdef detect_fast(str text, size_t cutoff=1000, size_t num_results=1, restrict_l
     :type text: str
     :param cutoff: OOP rank cutoff after which to return ``"unknown"``
     :type cutoff: int
-    :param num_results: if this is greater than one, a list of the ``num_results`` best matches will be returned
-    :type num_results: int
-    :param restrict_langs: restrict detection to these languages
-    :type restrict_langs: list[str]
+    :param n_results: if this is greater than one, a list of the ``n_results`` best matches will be returned
+    :type n_results: int
+    :param langs: restrict detection to these languages
+    :type langs: list[str]
     :return: tuple of the detected language (or ``"unknown"``) and its out-of-place rank
     :rtype: (str, int) | list[(str, int)]
     """
     cdef lang_vec_t text_vec = str_to_vec(text, LANG_VEC_SIZE)
     cdef size_t min_rank = <size_t>-1
+    cdef const char* lang = NULL
+    cdef vector[lang_rank_t] predicted
     cdef size_t i
     cdef size_t rank
 
-    if restrict_langs:
-        restrict_langs = set(restrict_langs)
+    if langs:
+        langs = set(langs)
 
-    cdef vector[lang_rank_t] predicted
     for i in range(N_LANGS):
-        if restrict_langs is not None and LANGS[i].lang.decode() not in restrict_langs:
+        if langs is not None and LANGS[i].lang.decode() not in langs:
             continue
+
         # Bias rank by position in the language list as tie-breaker between close matches
         rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE) + min(i, 20u)
-        predicted.push_back([rank, LANGS[i].lang])
-        push_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
+        if rank > cutoff:
+            continue
 
-    if predicted.empty():
-        if num_results > 1:
-            return []
-        return "unknown", 0
+        if n_results == 1 and rank < min_rank:
+            min_rank = rank
+            lang = LANGS[i].lang
+        else:
+            predicted.push_back([rank, LANGS[i].lang])
+            push_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
 
-    if num_results == 1:
-        pop_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
-        return predicted.back().lang.decode(), predicted.back().rank
+    if n_results == 1:
+        if lang == NULL:
+            return "unknown", 0
+        return lang.decode(), min_rank
 
     result_list = []
-    for i in range(min(num_results, predicted.size())):
+    for i in range(min(n_results, predicted.size())):
         pop_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
         result_list.append((predicted.back().lang.decode(), predicted.back().rank))
         predicted.pop_back()
