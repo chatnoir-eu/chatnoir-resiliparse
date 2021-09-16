@@ -147,7 +147,7 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
         if n_results == 1 and rank < min_rank:
             min_rank = rank
             lang = LANGS[i].lang
-        else:
+        elif n_results > 1:
             predicted.push_back([rank, LANGS[i].lang])
             push_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
 
