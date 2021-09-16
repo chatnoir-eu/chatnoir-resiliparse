@@ -15,6 +15,17 @@
 from libc.stdint cimport int32_t, uint8_t
 from libcpp.vector cimport vector
 
+cdef extern from "lang_profiles.h" nogil:
+    cdef const size_t LANG_VEC_SIZE
+    ctypedef const uint8_t lang_rawvec_t[LANG_VEC_SIZE]
+
+    ctypedef struct lang_t:
+        const char* lang
+        const lang_rawvec_t vec
+
+    cdef const size_t N_LANGS
+    cdef const lang_t LANGS[LANG_VEC_SIZE]
+
 ctypedef vector lang_vec_t[uint8_t]
 
 cdef inline long hash(Py_UCS4* ustr, int order):

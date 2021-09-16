@@ -329,7 +329,8 @@ def train_vectors(indir, in_split, out_format, vector_size):
 
     langs = sorted(os.listdir(indir))
     if out_format == 'c':
-        click.echo(f'''
+        click.echo(f'''/* Resiliparse fast language detection profiles. */
+
 #ifndef RESILIPARSE_LANG_PROFILES_H
 #define RESILIPARSE_LANG_PROFILES_H
 

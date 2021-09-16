@@ -71,11 +71,11 @@ if os.path.isdir(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc')):
     copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc'),
               os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), update=1)
 
-data_ext = []
+data_ext = ['*.pxd', '*.h']
 inc_package = []
 if 'sdist' in sys.argv:
-    # Include resiliparse_inc module and Cython files only in source distribution
-    data_ext.extend(['*.pxd', '*.pyx', '*.pxi'])
+    # Include resiliparse_inc module and Cython src files only in source distribution
+    data_ext.extend(['*.pyx', '*.pxi'])
     inc_package.append('resiliparse_inc')
     inc_package.extend([f.path.replace('/', '.') for f in os.scandir('resiliparse_inc') if f.is_dir()])
 
