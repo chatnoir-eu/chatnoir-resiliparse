@@ -28,12 +28,23 @@ cdef extern from "lang_profiles.h" nogil:
 
 ctypedef vector lang_vec_t[uint8_t]
 
-cdef inline long hash(Py_UCS4* ustr, int order):
-    cdef long h = 7
+cdef inline int32_t hash(Py_UCS4* ustr, int order):
+    """
+    FNV-1a hash (32-bit).
+    Reference: http://www.isthe.com/chongo/tech/comp/fnv/
+    """
+    cdef int32_t h = 2166136261
     cdef int i
     for i in range(order):
-        h = 31 * h + <int32_t>ustr[i]
+        h = h ^ <int32_t>ustr[i]
+        h = h * 16777619
     return h
+
+    # cdef long h = 7
+    # cdef int i
+    # for i in range(order):
+    #     h = 31 * h + <int32_t>ustr[i]
+    # return h
 
 
 cdef inline void shiftleft(Py_UCS4* ustr, int size):
