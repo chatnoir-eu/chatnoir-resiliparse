@@ -275,48 +275,34 @@ cpdef detect_fast(str text, size_t cutoff=1000):
     return lang.decode(), min_rank
 
 
-def _train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
+cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     """
     train_language_examples(examples, vec_len=200)
 
-    Train a language vector on a list of example texts.
+    Train a language vector for fast language detection on a list of example texts.
 
     :param examples: list of example texts for this language
     :type examples: t.Iterable[str]
     :param vec_len: output vector length
     :type vec_len: int
-    :return: list with trained values
-    :rtype: List[int]
+    :return: tuple of language and vector of trained values
+    :rtype: (str, List[int])
     """
-    cdef lang_vec_t agg_vec
+    cdef vector[uint32_t] agg_vec
     agg_vec.resize(vec_len)
 
     cdef lang_vec_t tmp_vec
+    cdef size_t example_count = 0
     cdef size_t i
     for text in examples:
         tmp_vec = str_to_vec(text, vec_len)
         for i in range(tmp_vec.size()):
             agg_vec[i] += tmp_vec[i]
+        example_count += 1
 
+    cdef lang_vec_t agg_vec8
+    agg_vec8.resize(agg_vec.size())
     for i in range(agg_vec.size()):
-        agg_vec[i] = agg_vec[i] // len(examples)
+        agg_vec8[i] = agg_vec[i] // example_count
 
-    return agg_vec
-
-
-def _train_language_examples_c_decl(str lang, examples, size_t vec_len=LANG_VEC_SIZE):
-    """
-    _train_language_examples_c_decl(lang, examples, vec_len=200)
-
-    Train a language vector on a list of example texts using :func:`_train_language_examples`
-    and return a C declaration string representation of it for copy and paste.
-
-    :param lang: language code
-    :type lang: str
-    :param examples: list of example texts for this language
-    :type examples: t.Iterable[str]
-    :param vec_len: output vector length
-    :type vec_len: int
-    """
-    vec = _train_language_examples(examples, vec_len)
-    return f'{{"{lang}", {{{", ".join(str(i) for i in vec)}}}}};'
+    return agg_vec8

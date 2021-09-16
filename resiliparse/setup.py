@@ -131,5 +131,13 @@ setup(
     tests_require=[
         'pytest',
         'pytest-cov'
-    ]
+    ],
+    extras_require={
+        "CLI": [
+            'joblib'
+        ],
+    },
+    entry_points={
+        'console_scripts': ['resiliparse=resiliparse.cli:main[CLI]']
+    }
 )

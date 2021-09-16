@@ -164,3 +164,6 @@ fastwarc/**/*.html
 resiliparse/**/*.c
 resiliparse/**/*.cpp
 resiliparse/**/*.html
+
+# data directories
+wikidumps/
