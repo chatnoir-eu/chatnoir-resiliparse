@@ -338,6 +338,8 @@ def train_vectors(indir, in_split, out_format, vector_size):
 #ifndef RESILIPARSE_LANG_PROFILES_H
 #define RESILIPARSE_LANG_PROFILES_H
 
+#include <stdint.h>
+
 #define LANG_VEC_SIZE {vector_size}
 typedef const uint8_t lang_vec_t[LANG_VEC_SIZE];
 
@@ -346,17 +348,14 @@ typedef struct lang {{
     const lang_vec_t vec;
 }} lang_t;
 
-static const lang_t LANGS[] = {{''')
+static const lang_t LANGS[] = {{''', nl=False)
 
     for i, l in enumerate(langs):
-        if out_format == 'c':
-            if i > 0:
-                click.echo(',')
-            click.echo('    ', nl=False)
-
         vec = rlang.train_language_examples(open(os.path.join(indir, l, in_split + '.txt'), 'r'), vector_size)
         if out_format == 'c':
-            click.echo(f'{{"{l}", {{{", ".join(str(i) for i in vec)}}}}}', nl=False)
+            if i > 0:
+                click.echo(',', nl=False)
+            click.echo(f'\n    {{"{l}", {{{", ".join(str(i) for i in vec)}}}}}', nl=False)
         else:
             click.echo(vec)
 
