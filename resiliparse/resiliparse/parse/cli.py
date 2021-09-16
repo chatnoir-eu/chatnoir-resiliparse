@@ -209,7 +209,7 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
 @click.argument('outdir')
 @click.option('--val-size', help='Portion of the data to use for validation', default=5, type=int)
 @click.option('--test-size', help='Portion of the data to use for testing', default=5, type=int)
-@click.option('--min-examples', help='Minimum number of examples per language', default=50000,
+@click.option('--min-examples', help='Minimum number of examples per language', default=10000,
               show_default=True, type=int)
 @click.option('-j', '--jobs', help='Parallel jobs', default=4, type=int)
 def create_dataset(indir, outdir, val_size, test_size, min_examples, jobs):
@@ -239,8 +239,15 @@ def _process_raw_lang_dir(indir, outdir_base, val_size, test_size, min_examples)
     lang_name = os.path.basename(indir).replace('wiki', '')
     outdir = os.path.join(outdir_base, lang_name)
 
+    train_name = os.path.join(outdir, 'train.txt')
+    val_name = os.path.join(outdir, 'val.txt')
+    test_name = os.path.join(outdir, 'test.txt')
+
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
+    elif os.path.isfile(train_name) and os.path.getsize(train_name) > 0:
+        click.echo(f'Skipping {lang_name}, since dataset for language already present.', err=True)
+        return
 
     def dir_walk():
         for d, f in ((d[0], d[2]) for d in os.walk(indir)):
@@ -278,9 +285,6 @@ def _process_raw_lang_dir(indir, outdir_base, val_size, test_size, min_examples)
                            err=True)
                 return
 
-            train_name = os.path.join(outdir, 'train.txt')
-            val_name = os.path.join(outdir, 'val.txt')
-            test_name = os.path.join(outdir, 'test.txt')
             test_end = int(len(line_hashes) * test_size * 0.01)
             val_end = test_end + int(len(line_hashes) * val_size * 0.01)
 
