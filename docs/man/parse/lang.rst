@@ -17,10 +17,10 @@ Resiliparse has a very fast n-gram-based language detector for 110 languages tha
   from resiliparse.parse.lang import detect_fast
 
   print(detect_fast('This is an average English text...'))
-  # >>> ('en', 781)
+  # >>> ('en', 894)
 
   print(detect_fast('...aber fügen wir doch etwas auf Deutsch hinzu.'))
-  # >>> ('de', 655)
+  # >>> ('de', 782)
 
 :func:`~.parse.lang.detect_fast` returns a tuple with the detected language and its `out-of-place measure`, a rank-order value indicating how much the text's n-gram ranks differ from the closest pre-trained language profile. The lower the value, the more accurate the prediction probably is. Values above 1000 are most likely false results. Longer input texts usually lead to much lower rank values and hence more accurate results.
 

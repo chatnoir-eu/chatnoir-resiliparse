@@ -51,9 +51,6 @@ SAMPLES = dict(
     l'ultimo membro di spicco degli Alcmeonidi, il clan aristocratico a cui apparteneva la famiglia di sua madre, poi
     decaduto con la fine della guerra del Peloponneso. Svolse un ruolo importante nella seconda parte di questo
     conflitto, come consigliere strategico, comandante militare e politico.""",
-    tr="""Panayia Kilisesi, Panaya Kilisesi, Panagia Kilisesi (Yunanca: Εκκλησία Της Παναγίας) ya da Koimesis Theotokou
-    Kilisesi (Yunanca: Εκκλησία της Κοιμήσεως της Θεοτόκου); Türkiye'nin Balıkesir ilindeki Ayvalık'a bağlı Cunda'da,
-    harabe hâlindeki bulunan eski bir Rum Ortodoks kilisedir.""",
     sv="""Sveriges utrikes- och säkerhetspolitik under kalla kriget utformades efter andra världskrigets slut med
     hänsyn till landets geografiska position mellan de två militärallianserna Nato och Warszawapakten; perioden täcker
     åren från 1945 till 1989. Vid en eventuell stormaktskonflikt ville landet, genom att vara alliansfri i fredstid vid
