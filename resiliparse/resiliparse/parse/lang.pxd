@@ -44,4 +44,4 @@ cdef inline void shiftleft(Py_UCS4* ustr, int size):
 
 cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=*)
 cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size)
-cpdef detect_fast(str text, size_t cutoff=*)
+cpdef detect_fast(str text, size_t cutoff=*, size_t num_results=*, restrict_langs=*)

@@ -305,13 +305,38 @@ def _process_raw_lang_dir(indir, outdir_base, val_size, test_size, min_examples)
             os.rmdir(outdir)
 
 
+# Wikipedia languages ordered by number of users
+# Data taken from https://en.wikipedia.org/wiki/List_of_Wikipedias
+_WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 'id', 'nl', 'simple', 'pl', 'fa', 'he',
+              'vi', 'sv', 'ko', 'hi', 'uk', 'ro', 'cs', 'no', 'fi', 'hu', 'da', 'th', 'ca', 'bn', 'el', 'bg', 'sr',
+              'ms', 'hr', 'az', 'zh-yue', 'sk', 'sl', 'ta', 'eo', 'sh', 'arz', 'lt', 'et', 'ml', 'la', 'af', 'mr', 'bs',
+              'sq', 'ur', 'ka', 'eu', 'gl', 'tl', 'nn', 'hy', 'ang', 'kk', 'be', 'te', 'lv', 'mk', 'my', 'ast',
+              'zh-classical', 'sco', 'als', 'ceb', 'is', 'wuu', 'mn', 'be-tarask', 'kn', 'cy', 'br', 'uz', 'gu', 'an',
+              'bar', 'ne', 'si', 'lb', 'jv', 'zh-min-nan', 'war', 'sw', 'ga', 'ku', 'ckb', 'oc', 'nds', 'yi', 'ia',
+              'fy', 'tt', 'scn', 'pa', 'gan', 'am', 'lmo', 'km', 'tg', 'sa', 'ba', 'azb', 'io', 'as', 'vo', 'ky', 'pnb',
+              'vec', 'so', 'cv', 'or', 'hak', 'pdc', 'hif', 'ce', 'bh', 'mg', 'su', 'mzn', 'ht', 'nap', 'qu', 'ps',
+              'fo', 'li', 'se', 'bo', 'gd', 'pms', 'nds-nl', 'new', 'bat-smg', 'vls', 'yo', 'rue', 'diq', 'ace', 'tk',
+              'bpy', 'dv', 'hsb', 'eml', 'cu', 'os', 'wa', 'sah', 'ksh', 'sc', 'chr', 'szl', 'nah', 'mt', 'lad', 'co',
+              'pam', 'ug', 'bcl', 'cdo', 'arc', 'rm', 'gv', 'got', 'frr', 'dsb', 'ab', 'crh', 'xmf', 'zu', 'iu', 'rmy',
+              'cr', 'ie', 'ilo', 'gn', 'ext', 'mi', 'ha', 'csb', 'ay', 'pcd', 'sd', 'map-bms', 'min', 'lo', 'jbo', 'nv',
+              'sn', 'haw', 'frp', 'vep', 'ch', 'glk', 'lij', 'wo', 'udm', 'cbk-zam', 'kw', 'bxr', 'pap', 'ee', 'fur',
+              'av', 'kv', 'roa-rup', 'fiu-vro', 'mhr', 'ig', 'stq', 'bjn', 'nrm', 'mwl', 'bug', 'kl', 'gag', 'tpi',
+              'bi', 'zea', 'kab', 'ak', 'ln', 'myv', 'tw', 'xh', 'na', 'mai', 'roa-tara', 'nov', 'rw', 'pfl', 'chy',
+              'pih', 'kaa', 'mrj', 'kg', 'bm', 'krc', 'za', 'sm', 'lez', 'pnt', 'xal', 'st', 'om', 'kbd', 'to', 'dz',
+              'tn', 'ks', 'tet', 'ts', 'rn', 'ny', 'mdf', 'gom', 'ti', 'fj', 'lfn', 'koi', 'lbe', 'ik', 'tyv', 'ki',
+              'ff', 'pag', 'ss', 'tum', 'srn', 'lg', 'ty', 've', 'jam', 'ltg', 'pi', 'hyw', 'sg', 'kr', 'olo', 'nso',
+              'ady', 'din', 'lrc', 'dty', 'tcy', 'sat', 'aa', 'hz', 'ary', 'ban', 'kbp', 'atj', 'gor', 'shn', 'inh',
+              'ng', 'mus', 'mh', 'nqo', 'ii', 'mnw', 'avk', 'szy', 'cho', 'gcr', 'ho', 'kj', 'smn', 'awa', 'lld', 'mad',
+              'alt', 'mni', 'dag', 'skr', 'nia', 'trv', 'tay', 'shi']
+
+
 @lang.command(short_help='Train fast language detection model vectors')
 @click.argument('indir')
 @click.option('-s', '--in-split', help='Which input split to use', default='train',
               type=click.Choice(['train', 'test', 'val']), show_default=True)
 @click.option('-f', '--out-format', help='Output format (raw vectors or C code)', default='raw',
               type=click.Choice(['raw', 'c']), show_default=True)
-@click.option('-l', '--vector-size', help='Output vector size', default=200, type=int, show_default=True)
+@click.option('-l', '--vector-size', help='Output vector size', default=220, type=int, show_default=True)
 def train_vectors(indir, in_split, out_format, vector_size):
     """
     Train and print vectors for fast language detection.
@@ -331,9 +356,15 @@ def train_vectors(indir, in_split, out_format, vector_size):
             ...
     """
 
-    langs = sorted(os.listdir(indir))
+    # Sort descending by amount of data for biasing towards common languages
+    langs = os.listdir(indir)
+    langs.sort(key=lambda l: _WIKI_BIAS.index(l) if l in _WIKI_BIAS else len(_WIKI_BIAS) + langs.index(l))
+
     if out_format == 'c':
-        click.echo(f'''/* Resiliparse fast language detection profiles. */
+        click.echo(f'''/*
+    Resiliparse fast language detection profiles.
+    Generated automatically, do not modify.
+*/
 
 #ifndef RESILIPARSE_LANG_PROFILES_H
 #define RESILIPARSE_LANG_PROFILES_H
@@ -348,7 +379,10 @@ typedef struct lang {{
     const lang_vec_t vec;
 }} lang_t;
 
+/* Sorted by number of Wikipedia users */
 static const lang_t LANGS[] = {{''', nl=False)
+    else:
+        click.echo('# (lang, vec)')
 
     for i, l in enumerate(langs):
         vec = rlang.train_language_examples(open(os.path.join(indir, l, in_split + '.txt'), 'r'), vector_size)
@@ -357,7 +391,7 @@ static const lang_t LANGS[] = {{''', nl=False)
                 click.echo(',', nl=False)
             click.echo(f'\n    {{"{l}", {{{", ".join(str(i) for i in vec)}}}}}', nl=False)
         else:
-            click.echo(vec)
+            click.echo((l, vec))
 
     if out_format == 'c':
         click.echo('\n};\n')

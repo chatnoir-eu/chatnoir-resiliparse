@@ -10,7 +10,7 @@ Resiliparse language tools.
 Fast Language Detection
 -----------------------
 
-Resiliparse has a very fast n-gram-based language detector for 17 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass over the text, making it much faster than other language detection tools for Python. The speed obviously comes at the cost of accuracy (about 80-85% for tweet-sized texts, better performance for longer inputs), so if precision is important, you should probably use a more sophisticated model such as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (though Resiliparse's language detector can still be useful for pre-filtering).
+Resiliparse has a very fast n-gram-based language detector for 110 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass over the text, making it much faster than other language detection tools for Python. The speed obviously comes at the cost of accuracy (about 80-85% for tweet-sized texts, better performance for longer inputs), so if precision is important, you should probably use a more sophisticated model such as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (though Resiliparse's language detector can still be useful for pre-filtering).
 
 .. code-block:: python
 
@@ -34,3 +34,9 @@ On an average webpage, Resiliparse's fast language detector is about 4x as fast 
   Langid: 150.81s
 
 Resiliparse's performance advantage comes mostly from the fact that the language detector does not need to tokenize the text or build a vocabulary map at all, which makes it very low-latency, independent of the vocabulary size, and guarantees a fixed memory ceiling.
+
+Supported languages are:
+
+..
+
+  af, an, ar, as, az, ba, be, bg, bn, bo, br, bs, ca, ce, cs, cv, cy, da, de, dv, el, en, eo, es, et, eu, fa, fi, fo, fr, fy, ga, gd, gl, gu, ha, he, hi, hr, hu, hy, ia, id, io, is, it, ja, jv, ka, kk, km, kn, ko, ku, ky, la, lb, li, lt, lv, mg, mk, ml, mn, mr, ms, mt, my, ne, nl, nn, no, oc, or, pa, pl, ps, pt, rm, ro, ru, sa, sc, sd, sh, si, sk, sl, so, sq, sr, su, sv, sw, ta, te, tg, th, tk, tl, tr, tt, ug, uk, ur, uz, vi, vo, yi, zh

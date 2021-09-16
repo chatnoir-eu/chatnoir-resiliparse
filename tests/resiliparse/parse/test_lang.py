@@ -46,10 +46,6 @@ SAMPLES = dict(
     — был коронован как соправитель отца, а двое следующих, Ричард и Джеффри, получили титулы герцогов Аквитании и
     Бретани соответственно), эти титулы были лишь символическими, он намеревался продолжать лично управлять своими
     владениями и делиться властью с сыновьями не желал.""",
-    dk="""The Corrs er et irsk folkrockband, der kombinerer poprock med traditionel keltisk musik. Bandet består af
-    fire søskende Andrea (forsanger, tinwhistle), Sharon (violin, baggrundsvokal), Caroline (trommer, klaver, bodhrán,
-    baggrundsvokal) og Jim Corr (guitar, klaver, baggrundsvokal). De stammer fra Dundalk, County Louth i Irland.
-    The Corrs har udgivet seks studiealbums og adskillige singler, som har nået platincertificering i flere lande.""",
     it="""Alcibiade, figlio di Clinia del demo di Scambonide (in greco antico: Ἀλκιβιάδης, Alkibiádēs; Atene, 450 a
     C. – Frigia, 404 a.C.), è stato un militare e politico ateniese. Oratore e statista di altissimo livello, fu
     l'ultimo membro di spicco degli Alcmeonidi, il clan aristocratico a cui apparteneva la famiglia di sua madre, poi
@@ -63,7 +59,7 @@ SAMPLES = dict(
     åren från 1945 till 1989. Vid en eventuell stormaktskonflikt ville landet, genom att vara alliansfri i fredstid vid
     en eventuell stormaktskonflikt ha möjlighet att vara neutralt. Genom olika politiska åtgärder ville man också göra
     en sådan neutralitetspolitik trovärdig.""",
-    ar="""عِلْم الكِيِمْيَاء هو العلم الذي يدرس المادة والتغيُّرات التي تطرأ عليها، تحديدًا بدراسة خواصها، 
+    ar="""عِلْم الكِيِمْيَاء هو العلم الذي يدرس المادة والتغيُّرات التي تطرأ عليها، تحديدًا بدراسة خواصها،
     بنيتها، تركيبها، سلوكها، تفاعلاتها وما تحدثه من خلالها. ويدرس علم الكيمياء الذرات والروابط التي تحدث بينها مكونةً
     الجزيئات، وكيف تترابط هذه الجزيئات فيما بعدها لتُكوّن المادة. ويدرس أيضًا التفاعلات التي تحدث بينها. وللكيمياء
     أهمية كبيرة في حياة البشر وتدخل في مجالات كثيرة وتلعب دورًا مهمًا في الصناعات بمختلف أنواعها، كالصِّناعاتالغذائية،
@@ -76,13 +72,25 @@ SAMPLES = dict(
     kn="""ಕನ್ನಡ ಅಕ್ಷರಮಾಲೆಯು ಬ್ರಾಹ್ಮಿ ಲಿಪಿಯಿಂದ ಬೆಳೆದು ಬಂದಿದೆ. ಇದನ್ನು ಸ್ವರಗಳು, ಅನುಸ್ವಾರ, ವಿಸರ್ಗ, ವ್ಯಂಜನಗಳು, ಅವರ್ಗೀಯ ವ್ಯಂಜನಗಳೆಂದು
     ವಿಭಾಗಿಸಲಾಗಿದೆ. ಕನ್ನಡ ಅಕ್ಷರಮಾಲೆಯನ್ನು ಕನ್ನಡ ವರ್ಣಮಾಲೆಯೆಂದು ಕರೆಯಲಾಗುತ್ತದೆ. ನಾವು ಮಾತನಾಡುವ ಮಾತುಗಳೆಲ್ಲ ವಾಕ್ಯ ವಾಕ್ಯಗಳಾಗಿರುತ್ತವೆ. ವಾಕ್ಯಗಳು
     ಪದಗಳಿಂದ ಕೂಡಿರುತ್ತವೆ. ಪದಗಳು ಅಕ್ಷರಗಳಿಂದ ಕೂಡಿರುತ್ತವೆ. ಉದಾಹರಣೆಗೆ, ನಾನು ಶಾಲೆಗೆ ಹೋಗಿ ಬರುವೆನು. ಈ ವಾಕ್ಯದಲ್ಲಿ ನಾನು, ಶಾಲೆಗೆ, ಹೋಗಿ,
-    ಬರುವೆನು, ಹೀಗೆ ನಾಲ್ಕು ಪದಗಳಿವೆ. ಒಂದೊಂದು ಪದದಲ್ಲೂ ಹಲವು ಅಕ್ಷರಗಳಿವೆ."""
+    ಬರುವೆನು, ಹೀಗೆ ನಾಲ್ಕು ಪದಗಳಿವೆ. ಒಂದೊಂದು ಪದದಲ್ಲೂ ಹಲವು ಅಕ್ಷರಗಳಿವೆ.""",
+    zh="""纽约市是美国最大的城市，坐落着6,486栋竣工高层建筑物，其中有113座高度超过600英尺（183米）
+    这些高楼集中在曼哈顿中城和下城区域，曼哈顿的其他区域以及布鲁克林、皇后區、布朗克斯的行政区也有一定数量的高层建筑
+    纽约市最高的建筑是世界貿易中心一號大樓，高度1,776英尺（541米）。这栋104层高的摩天大楼同时也是美国最高、西半球最高
+    世界第六高的建筑。坐落于曼哈頓中城的帝国大厦，建于1931年，在其建成之后直到1972年原世界贸易中心110层高的北楼完工
+    曾一直保有世界上最高建筑的桂冠。世界贸易中心世界第一高的称号并没有保留很久，1974年位于芝加哥108层高的西尔斯大楼完工后赶超了它。""",
+    ja="""ステンレス鋼とは、鉄に一定量以上のクロムを含ませた、腐食に対する耐性を持つ合金鋼である。規格などでは、クロム含有量が 10.5 %
+    以上、炭素含有量が 1.2 % 以下の鋼と定義される。1910年代前半ごろに発明・実用化された。
+    ステンレス鋼の耐食性の源は含有されているクロムで、このクロムによって不働態皮膜と呼ばれる数ナノメー
+    トルの極めて薄い皮膜が表面に形成されて、金属素地が腐食から保護されている。不働態皮膜は傷ついても一般的な環境であればすぐに回復し
+    一般的な普通鋼であれば錆びるような環境でもステンレス鋼が錆びることはない"""
 )
 
 
 def test_lang_detect_fast():
     assert lang.detect_fast('This is an average English text...')[0] == 'en'
     assert lang.detect_fast('...aber fügen wir doch etwas auf Deutsch hinzu.')[0] == 'de'
+
+    assert len(lang.supported_langs()) > 0
 
     for l in SAMPLES:
         assert lang.detect_fast(SAMPLES[l])[0] == l
@@ -93,12 +101,9 @@ def test_lang_detect_fast_train_examples():
     vec_lens = [150, 200]
     for vl in vec_lens:
         for l in SAMPLES:
-            vec = lang._train_language_examples([SAMPLES[l]], vl)
+            vec = lang.train_language_examples([SAMPLES[l]], vl)
             assert len(vec) == vl
             assert vec != [0] * vl
             for pv in trained_vecs:
                 assert vec != pv
             trained_vecs.append(vec)
-
-            vec_str = lang._train_language_examples_c_decl(l, [SAMPLES[l]], vl)
-            assert f'{{"{l}", {{{", ".join(str(i) for i in vec)}}}}};' in vec_str

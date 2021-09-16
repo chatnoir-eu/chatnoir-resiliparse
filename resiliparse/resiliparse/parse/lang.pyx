@@ -17,6 +17,7 @@
 import typing as t
 
 from libc.stdint cimport uint32_t, uint8_t
+from libcpp.algorithm cimport pop_heap, push_heap
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 
 cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
@@ -91,9 +92,18 @@ cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size)
     return rank
 
 
-cpdef detect_fast(str text, size_t cutoff=1000):
+ctypedef struct lang_rank_t:
+    uint32_t rank
+    const char* lang
+
+
+cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
+    return a.rank > b.rank
+
+
+cpdef detect_fast(str text, size_t cutoff=1000, size_t num_results=1, restrict_langs=None):
     """
-    detect_fast(text, cutoff=1000)
+    detect_fast(text, cutoff=1000, num_results=1, restrict_langs=None)
     
     Perform a very fast (linear-time) language detection on the input string.
     
@@ -108,25 +118,46 @@ cpdef detect_fast(str text, size_t cutoff=1000):
     :type text: str
     :param cutoff: OOP rank cutoff after which to return ``"unknown"``
     :type cutoff: int
+    :param num_results: if this is greater than one, a list of the ``num_results`` best matches will be returned
+    :type num_results: int
+    :param restrict_langs: restrict detection to these languages
+    :type restrict_langs: list[str]
     :return: tuple of the detected language (or ``"unknown"``) and its out-of-place rank
-    :rtype: (str, int)
+    :rtype: (str, int) | list[(str, int)]
     """
     cdef lang_vec_t text_vec = str_to_vec(text, LANG_VEC_SIZE)
     cdef size_t min_rank = <size_t>-1
-    cdef const char* lang = NULL
     cdef size_t i
     cdef size_t rank
 
+    if restrict_langs:
+        restrict_langs = set(restrict_langs)
+
+    cdef vector[lang_rank_t] predicted
     for i in range(N_LANGS):
-        rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE)
-        if rank < min_rank:
-            min_rank = rank
-            lang = LANGS[i].lang
+        if restrict_langs is not None and LANGS[i].lang.decode() not in restrict_langs:
+            continue
+        # Bias rank by position in the language list as tie-breaker between close matches
+        rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE) + min(i, 20u)
+        predicted.push_back([rank, LANGS[i].lang])
+        push_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
 
-    if lang == NULL or min_rank > cutoff:
-        return 'unknown', min_rank
+    if predicted.empty():
+        if num_results > 1:
+            return []
+        return "unknown", 0
 
-    return lang.decode(), min_rank
+    if num_results == 1:
+        pop_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
+        return predicted.back().lang.decode(), predicted.back().rank
+
+    result_list = []
+    for i in range(min(num_results, predicted.size())):
+        pop_heap(predicted.begin(), predicted.end(), &lang_rank_greater)
+        result_list.append((predicted.back().lang.decode(), predicted.back().rank))
+        predicted.pop_back()
+
+    return result_list
 
 
 def supported_langs():
@@ -156,8 +187,8 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     :type examples: t.Iterable[str]
     :param vec_len: output vector length
     :type vec_len: int
-    :return: tuple of language and vector of trained values
-    :rtype: (str, List[int])
+    :return: vector of trained values
+    :rtype: List[int]
     """
     cdef vector[uint32_t] agg_vec
     agg_vec.resize(vec_len)
