@@ -103,14 +103,14 @@ cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
 
 cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     """
-    detect_fast(text, cutoff=1000, num_results=1, restrict_langs=None)
+    detect_fast(text, cutoff=1000, n_results=1, langs=None)
     
     Perform a very fast (linear-time) language detection on the input string.
     
     The output is a tuple of the detected language name and the calculated
     out-of-place rank, which indicates how far the given text is from the closest-matching
     language profile. The higher the rank, the less accurate the detection is. Values
-    above 1000 are usually false results.
+    above 1200 are usually false results.
     
     The given Unicode string should be in composed normal form (NFC) for the best results.
     
