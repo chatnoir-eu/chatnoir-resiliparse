@@ -129,6 +129,23 @@ cpdef detect_fast(str text, size_t cutoff=1000):
     return lang.decode(), min_rank
 
 
+def supported_langs():
+    """
+    supported_langs()
+
+    Get a list of all languages that are supported by the fast language detector.
+
+    :return: list of supported languages
+    :rtype: list[str]
+    """
+
+    cdef size_t i
+    langs = []
+    for i in range(N_LANGS):
+        langs.append(LANGS[i].lang.decode())
+    return sorted(langs)
+
+
 cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     """
     train_language_examples(examples, vec_len=200)
