@@ -58,15 +58,15 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
         ngram4[3] = uchar
         ngram5[4] = uchar
 
-        count_vec32[hash(&uchar, 1) % count_vec32.size()] += 1
+        count_vec32[hash_fnv(&uchar, 1) % count_vec32.size()] += 1
         if i >= 1:
-            count_vec32[hash(ngram2, 2) % count_vec32.size()] += 1
+            count_vec32[hash_fnv(ngram2, 2) % count_vec32.size()] += 1
         if i >= 2:
-            count_vec32[hash(ngram3, 3) % count_vec32.size()] += 1
+            count_vec32[hash_fnv(ngram3, 3) % count_vec32.size()] += 1
         if i >= 3:
-            count_vec32[hash(ngram4, 4) % count_vec32.size()] += 1
+            count_vec32[hash_fnv(ngram4, 4) % count_vec32.size()] += 1
         if i >= 4:
-            count_vec32[hash(ngram5, 5) % count_vec32.size()] += 1
+            count_vec32[hash_fnv(ngram5, 5) % count_vec32.size()] += 1
 
         i += 1
 
@@ -103,7 +103,7 @@ cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
 
 cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     """
-    detect_fast(text, cutoff=1000, n_results=1, langs=None)
+    detect_fast(text, cutoff=1200, n_results=1, langs=None)
     
     Perform a very fast (linear-time) language detection on the input string.
     
@@ -187,7 +187,7 @@ def supported_langs():
 
 cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     """
-    train_language_examples(examples, vec_len=200)
+    train_language_examples(examples, vec_len=256)
 
     Train a language vector for fast language detection on a list of example texts.
 
@@ -196,7 +196,7 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     :param vec_len: output vector length
     :type vec_len: int
     :return: vector of trained values
-    :rtype: List[int]
+    :rtype: list[int]
     """
     cdef vector[uint32_t] agg_vec
     agg_vec.resize(vec_len)

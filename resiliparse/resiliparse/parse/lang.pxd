@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from libc.stdint cimport uint32_t, int32_t, uint8_t
+from libc.stdint cimport uint32_t, uint8_t
 from libcpp.vector cimport vector
 
 cdef extern from "lang_profiles.h" nogil:
@@ -28,7 +28,7 @@ cdef extern from "lang_profiles.h" nogil:
 
 ctypedef vector lang_vec_t[uint8_t]
 
-cdef inline uint8_t hash(Py_UCS4* ustr, int order):
+cdef inline uint8_t hash_fnv(Py_UCS4* ustr, int order):
     """
     FNV-1a hash (32-bit, 8-bit folded).
     Reference: http://www.isthe.com/chongo/tech/comp/fnv/
