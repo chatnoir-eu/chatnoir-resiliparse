@@ -143,7 +143,7 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
         rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE)
         # Bias rank by position in the language list on short texts with high uncertainty
         if rank > 500 and text_len < 150:
-            rank += min(15u, i)
+            rank += min(50u, i * 3)
         if rank > cutoff:
             continue
 
