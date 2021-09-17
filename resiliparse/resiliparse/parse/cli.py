@@ -407,11 +407,13 @@ static const lang_t LANGS[] = {{''', nl=False)
               default='val', show_default=True)
 @click.option('-l', '--langs', help='Restrict languages to this comma-separated list')
 @click.option('-c', '--cutoff', type=int, help='Prediction cutoff', default=1200, show_default=True)
+@click.option('-t', '--truncate', type=int, help='Truncate examples to this length')
 @click.option('--sort-lang', is_flag=True, help='Sort by language instead of F1')
-def evaluate(indir, split, langs, cutoff, sort_lang):
+@click.option('--print-cm', is_flag=True, help='Print confusion matrix (may be very big)')
+def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm):
     if langs is not None:
         langs = {l.strip() for l in langs.split(',')}
-    in_langs = [l for l in os.listdir(indir) if langs is None or l in langs]
+    in_langs = sorted([l for l in os.listdir(indir) if langs is None or l in langs])
 
     recall_matrix = defaultdict(list)
     precision_matrix = defaultdict(list)
@@ -421,33 +423,53 @@ def evaluate(indir, split, langs, cutoff, sort_lang):
         for line in tqdm(open(os.path.join(indir, lang, split + '.txt'), 'r'),
                          desc=f'Predicting examples for {lang}', unit=' examples', leave=False):
 
+            if truncate:
+                line = line[:truncate]
             plang = rlang.detect_fast(line, cutoff=cutoff, langs=langs)[0]
+            if plang == 'unknown':
+                plang = '-'
             recall_matrix[lang].append(plang == lang)
             precision_matrix[plang].append(plang == lang)
             confusion_matrix[lang][plang] += 1
 
     acc = []
     results = []
-    for lang in sorted(in_langs):
-        precision = sum(precision_matrix[lang]) / len(precision_matrix[lang])
-        recall = sum(recall_matrix[lang]) / len(recall_matrix[lang])
-        f1 = 2.0 * (precision * recall) / (precision + recall)
-        results.append((lang, precision, recall, f1, len(recall_matrix[lang])))
-        # noinspection PyTypeChecker
-        confusion_matrix[lang] = [l[0] for l in sorted(confusion_matrix[lang].items(),
-                                                       key=lambda l: l[1], reverse=True)]
-        acc.append(recall)
+    sum_examples = 0
+    for lang in in_langs:
+        precision = sum(precision_matrix[lang]) / max(1, len(precision_matrix[lang]))
+        recall = sum(recall_matrix[lang]) / max(1, len(recall_matrix[lang]))
+        if precision + recall == 0:
+            f1 = 0.0
+        else:
+            f1 = 2.0 * (precision * recall) / (precision + recall)
+        n_ex = len(recall_matrix[lang])
+        results.append((lang, precision, recall, f1, n_ex))
+        acc.append(recall * n_ex)
+        sum_examples += n_ex
 
     click.echo('Lang, Precision, Recall, F1, Top Confusions, Num Examples')
     if not sort_lang:
         results.sort(key=lambda x: x[3], reverse=True)
     for r in results:
-        click.echo(f'{r[0]}, {r[1]:.2f}, {r[2]:.2f}, {r[3]:.2f}, ', nl=False)
-        click.echo(';'.join(confusion_matrix[r[0]][:5]), nl=False)
-        click.echo(f', {r[4]}')
+        click.echo(f'{r[0]}, {r[1]:.2f}, {r[2]:.2f}, {r[3]:.2f}, {r[4]}')
 
-    acc = fsum(acc) / len(in_langs)
+    acc = fsum(acc) / sum_examples
     click.echo(f'\nAccuracy: {acc:.2f}')
+
+    if print_cm:
+        label_width = max(len(l) for l in in_langs)
+        col_width = max(max(max(len(str(l2)) for l2 in l1.values()) for l1 in confusion_matrix.values()), label_width) + 2
+
+        click.echo(f'\nConfusion matrix:\n' + (' ' * label_width), nl=False)
+        for l in in_langs:
+            click.echo(f'{l:>{col_width}}', nl=False)
+
+        click.echo()
+        for l1 in in_langs:
+            click.echo(l1, nl=False)
+            for l2 in in_langs:
+                click.echo(f'{confusion_matrix[l1][l2]:>{col_width}}', nl=False)
+            click.echo()
 
 
 if __name__ == '__main__':
