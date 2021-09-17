@@ -126,6 +126,7 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     :rtype: (str, int) | list[(str, int)]
     """
     cdef lang_vec_t text_vec = str_to_vec(text, LANG_VEC_SIZE)
+    cdef size_t text_len = len(text)
     cdef size_t min_rank = <size_t>-1
     cdef const char* lang = NULL
     cdef vector[lang_rank_t] predicted
@@ -139,8 +140,10 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
         if langs is not None and LANGS[i].lang.decode() not in langs:
             continue
 
-        # Bias rank by position in the language list as tie-breaker between close matches
-        rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE) + min(i, 20u)
+        rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE)
+        # Bias rank by position in the language list on short texts with high uncertainty
+        if rank > 500 and text_len < 150:
+            rank += min(15u, i)
         if rank > cutoff:
             continue
 
