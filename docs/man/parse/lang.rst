@@ -10,7 +10,7 @@ Resiliparse language tools.
 Fast Language Detection
 -----------------------
 
-Resiliparse has a very fast n-gram-based language detector for 110 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass over the text, making it much faster than other language detection tools for Python. The speed obviously comes at the cost of accuracy (about 80-85% for tweet-sized texts, better performance for longer inputs), so if precision is important, you should probably use a more sophisticated model such as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (though Resiliparse's language detector can still be useful for pre-filtering).
+Resiliparse has a very fast n-gram-based language detector for 101 languages that can be used for fast bulk tagging of many input texts. The model is extremely simple and runs in linear time with only a single pass over the text, making it much faster than other language detection tools.
 
 .. code-block:: python
 
@@ -52,7 +52,12 @@ If you know your text is from one of several candidate languages, you can restri
              langs=['it', 'es', 'ca', 'en', 'de'], n_results=3))
   # >>> [('es', 542), ('it', 595), ('ca', 612)]
 
-On an average webpage, Resiliparse's fast language detector is about 5x as fast as FastText (with the large model) and even 45x as fast as `langid <https://github.com/saffsd/langid.py>`_:
+
+.. _parse-fast-langdetect-performance:
+
+Speed and Prediction Performance
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+On inputs the size of an average webpage, Resiliparse's fast language detector is about 5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (with the large model) and even 45x as fast as `langid <https://github.com/saffsd/langid.py>`_:
 
 ::
 
@@ -61,8 +66,10 @@ On an average webpage, Resiliparse's fast language detector is about 5x as fast 
   FastText: 18.7s
   Langid: 150.81s
 
-Resiliparse's performance advantage comes mostly from the fact that the language detector does not need to tokenize the text or build a vocabulary map at all, which makes it very low-latency, independent of the vocabulary size, and guarantees a fixed memory ceiling.
+Resiliparse's performance advantage comes mostly from the fact that the language detector does not need to tokenize the text or build a vocabulary map at all, which makes it very low-latency, independent of the vocabulary size, and guarantees a fixed memory ceiling and linear runtime complexity.
+
+The enormous speed obviously comes at the cost of some accuracy compared to other state-of-the art language detection models. For most languages, you can expect an F1 of 90-99%+ (96% accuracy over all supported languages) on inputs of at least one paragraph or longer. Some extremely similar languages (such as Danish and Norwegian) tend to perform worse than that, but also if the input text is extremely short, you will see a performance drop. On single sentences or tweets, about 70-85% F1 are realistic for languages with Latin alphabets, 85-99% for more idiosyncratic writing systems. If you need higher accuracy than that (particularly on short text snippets), you may want to use a more sophisticated model, such as FastText. You can also combine both models and use Resiliparse with a (very) conservative out-of-place rank cutoff for high-precision/low-recall pre-filtering and then use FastText for samples above that cutoff threshold.
 
 Supported languages are:
 
-  af, an, ar, as, az, ba, be, bg, bn, bo, br, bs, ca, ce, cs, cv, cy, da, de, dv, el, en, eo, es, et, eu, fa, fi, fo, fr, fy, ga, gd, gl, gu, ha, he, hi, hr, hu, hy, ia, id, io, is, it, ja, jv, ka, kk, km, kn, ko, ku, ky, la, lb, li, lt, lv, mg, mk, ml, mn, mr, ms, mt, my, ne, nl, nn, no, oc, or, pa, pl, ps, pt, rm, ro, ru, sa, sc, sd, sh, si, sk, sl, so, sq, sr, su, sv, sw, ta, te, tg, th, tk, tl, tr, tt, ug, uk, ur, uz, vi, vo, yi, zh
+  af, ar, as, az, ba, be, bg, bn, bo, br, ca, ce, cs, cv, cy, da, de, dv, el, en, eo, es, et, eu, fa, fi, fo, fr, fy, ga, gd, gl, gu, ha, he, hi, hr, hu, hy, id, io, is, it, ja, jv, ka, kk, km, kn, ko, ku, ky, la, lb, lt, lv, mg, mk, ml, mn, mr, mt, my, ne, nl, no, or, pa, pl, ps, pt, rm, ro, ru, sa, sc, sd, si, sk, sl, so, sq, sr, sv, sw, ta, te, tg, th, tk, tl, tr, tt, ug, uk, ur, uz, vi, vo, yi, zh
