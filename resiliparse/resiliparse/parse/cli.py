@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import codecs
+from collections import defaultdict
 import json
 from joblib import Parallel, delayed
 import hashlib
 import os
+from math import fsum
 import re
 import time
 import tempfile
@@ -332,12 +334,12 @@ _WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 
 
 @lang.command(short_help='Train fast language detection model vectors')
 @click.argument('indir')
-@click.option('-s', '--in-split', help='Which input split to use', default='train',
+@click.option('-s', '--split', help='Which input split to use', default='train',
               type=click.Choice(['train', 'test', 'val']), show_default=True)
 @click.option('-f', '--out-format', help='Output format (raw vectors or C code)', default='raw',
               type=click.Choice(['raw', 'c']), show_default=True)
 @click.option('-l', '--vector-size', help='Output vector size', default=220, type=int, show_default=True)
-def train_vectors(indir, in_split, out_format, vector_size):
+def train_vectors(indir, split, out_format, vector_size):
     """
     Train and print vectors for fast language detection.
 
@@ -385,7 +387,7 @@ static const lang_t LANGS[] = {{''', nl=False)
         click.echo('# (lang, vec)')
 
     for i, l in enumerate(langs):
-        vec = rlang.train_language_examples(open(os.path.join(indir, l, in_split + '.txt'), 'r'), vector_size)
+        vec = rlang.train_language_examples(open(os.path.join(indir, l, split + '.txt'), 'r'), vector_size)
         if out_format == 'c':
             if i > 0:
                 click.echo(',', nl=False)
@@ -397,6 +399,55 @@ static const lang_t LANGS[] = {{''', nl=False)
         click.echo('\n};\n')
         click.echo('#define N_LANGS sizeof(LANGS) / sizeof(lang_t)\n')
         click.echo('#endif  // RESILIPARSE_LANG_PROFILES_H')
+
+
+@lang.command(short_help='Evaluate language prediction performance.')
+@click.argument('indir')
+@click.option('-s', '--split', help='Which input split to use', type=click.Choice(['val', 'test']),
+              default='val', show_default=True)
+@click.option('-l', '--langs', help='Restrict languages to this comma-separated list')
+@click.option('-c', '--cutoff', type=int, help='Prediction cutoff', default=1200, show_default=True)
+@click.option('--sort-lang', is_flag=True, help='Sort by language instead of F1')
+def evaluate(indir, split, langs, cutoff, sort_lang):
+    if langs is not None:
+        langs = {l.strip() for l in langs.split(',')}
+    in_langs = [l for l in os.listdir(indir) if langs is None or l in langs]
+
+    recall_matrix = defaultdict(list)
+    precision_matrix = defaultdict(list)
+    confusion_matrix = defaultdict(lambda: defaultdict(int))
+
+    for lang in tqdm(in_langs, desc='Evaluating languages', unit='language', leave=False):
+        for line in tqdm(open(os.path.join(indir, lang, split + '.txt'), 'r'),
+                         desc=f'Predicting examples for {lang}', unit=' examples', leave=False):
+
+            plang = rlang.detect_fast(line, cutoff=cutoff, langs=langs)[0]
+            recall_matrix[lang].append(plang == lang)
+            precision_matrix[plang].append(plang == lang)
+            confusion_matrix[lang][plang] += 1
+
+    acc = []
+    results = []
+    for lang in sorted(in_langs):
+        precision = sum(precision_matrix[lang]) / len(precision_matrix[lang])
+        recall = sum(recall_matrix[lang]) / len(recall_matrix[lang])
+        f1 = 2.0 * (precision * recall) / (precision + recall)
+        results.append((lang, precision, recall, f1, len(recall_matrix[lang])))
+        # noinspection PyTypeChecker
+        confusion_matrix[lang] = [l[0] for l in sorted(confusion_matrix[lang].items(),
+                                                       key=lambda l: l[1], reverse=True)]
+        acc.append(recall)
+
+    click.echo('Lang, Precision, Recall, F1, Top Confusions, Num Examples')
+    if not sort_lang:
+        results.sort(key=lambda x: x[3], reverse=True)
+    for r in results:
+        click.echo(f'{r[0]}, {r[1]:.2f}, {r[2]:.2f}, {r[3]:.2f}, ', nl=False)
+        click.echo(';'.join(confusion_matrix[r[0]][:5]), nl=False)
+        click.echo(f', {r[4]}')
+
+    acc = fsum(acc) / len(in_langs)
+    click.echo(f'\nAccuracy: {acc:.2f}')
 
 
 if __name__ == '__main__':
