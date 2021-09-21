@@ -57,14 +57,14 @@ If you know your text is from one of several candidate languages, you can restri
 
 Benchmarks
 ^^^^^^^^^^
-On inputs the size of an average webpage, Resiliparse's fast language detector is about 5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (with the large model) and even 45x as fast as `langid <https://github.com/saffsd/langid.py>`_:
+On inputs the size of an average webpage, Resiliparse's fast language detector is about 2-5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (depends on FastText's convergence speed) and even 32x as fast as `langid <https://github.com/saffsd/langid.py>`_:
 
 ::
 
-  Language detection (10000 rounds):
-  Resiliparse: 3.3s
-  FastText: 18.7s
-  Langid: 150.81s
+  Benchmarking language detectors (10,000 rounds):
+  Resiliparse: 3.0s
+  FastText:    6.4s
+  Langid:      98.0s
 
 Resiliparse's performance advantage comes mostly from the fact that the language detector does not need to tokenize the text or build a vocabulary map at all, which makes it very low-latency, independent of the vocabulary size, and guarantees a fixed memory ceiling and linear runtime complexity.
 

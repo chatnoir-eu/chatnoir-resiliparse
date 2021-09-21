@@ -333,7 +333,7 @@ _WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 
 
 
 @lang.command(short_help='Train fast language detection model vectors')
-@click.argument('indir')
+@click.argument('indir', type=click.Path(exists=True, file_okay=False))
 @click.option('-s', '--split', help='Which input split to use', default='train',
               type=click.Choice(['train', 'test', 'val']), show_default=True)
 @click.option('-f', '--out-format', help='Output format (raw vectors or C code)', default='raw',
@@ -402,13 +402,14 @@ static const lang_t LANGS[] = {{''', nl=False)
 
 
 @lang.command(short_help='Evaluate language prediction performance.')
-@click.argument('indir')
+@click.argument('indir', type=click.Path(exists=True, file_okay=False))
 @click.option('-s', '--split', help='Which input split to use', type=click.Choice(['val', 'test']),
               default='val', show_default=True)
 @click.option('-l', '--langs', help='Restrict languages to this comma-separated list')
 @click.option('-c', '--cutoff', type=int, help='Prediction cutoff', default=1200, show_default=True)
 @click.option('-t', '--truncate', type=int, help='Truncate examples to this length')
-@click.option('-f', '--fasttext-model', help='Use the specified FastText model for samples above cutoff')
+@click.option('-f', '--fasttext-model', help='Use the specified FastText model for samples above cutoff',
+              type=click.Path(exists=True, dir_okay=False))
 @click.option('--sort-lang', is_flag=True, help='Sort by language instead of F1')
 @click.option('--print-cm', is_flag=True, help='Print confusion matrix (may be very big)')
 def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttext_model):
@@ -420,7 +421,8 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
         try:
             import fasttext
         except ModuleNotFoundError:
-            click.echo('FastText needs to be installed if --fasttext-model is set: pip install fasttext', err=True)
+            click.echo('FastText needs to be installed if --fasttext-model is set.', err=True)
+            click.echo('Run "pip install fasttext" to install it.', err=True)
             return
 
         # FastText prints useless warnings after loading a model, so silence its print method to make it shut up
@@ -488,6 +490,55 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
             for l2 in in_langs:
                 click.echo(f'{confusion_matrix[l1][l2]:>{col_width}}', nl=False)
             click.echo()
+
+
+@lang.command(short_help='Benchmark Resiliparse against FastText and Langid')
+@click.argument('infile', type=click.Path(exists=True, dir_okay=False))
+@click.option('-r', '--rounds', help='Number of rounds to benchmark', type=int, default=10000, show_default=True)
+@click.option('-f', '--fasttext-model', help='FastText model to benchmark', type=click.Path(exists=True, dir_okay=False))
+def benchmark(infile, rounds, fasttext_model):
+    if fasttext_model:
+        try:
+            import fasttext
+        except ModuleNotFoundError:
+            click.echo('FastText needs to be installed if --fasttext-model is set.', err=True)
+            click.echo('Run "pip install fasttext" to install it.', err=True)
+            return
+
+        # FastText prints useless warnings after loading a model, so silence its print method to make it shut up
+        # See: https://github.com/facebookresearch/fastText/issues/909
+        fasttext.FastText.eprint = lambda x: None
+        fasttext_model = fasttext.load_model(fasttext_model)
+    else:
+        click.echo('Skipping FastText benchmark, since no model has been specified.', err=True)
+
+    bench_langid = True
+    try:
+        import langid
+    except ModuleNotFoundError:
+        click.echo('Skipping langid benchmark, since it is not installed.', err=True)
+        click.echo('Run "pip install langid" to install it.', err=True)
+        bench_langid = False
+
+    in_data = open(infile, 'r').read().replace('\n', ' ')
+    click.echo(f'Benchmarking language detectors ({rounds:,} rounds):')
+
+    start = time.monotonic()
+    for _ in tqdm(range(rounds), desc='Benchmarking Resiliparse', unit=' rounds', leave=False, miniters=0.3):
+        rlang.detect_fast(in_data)
+    print(f'Resiliparse: {time.monotonic() - start:.1f}s')
+
+    if fasttext_model:
+        start = time.monotonic()
+        for _ in tqdm(range(rounds), desc='Benchmarking FastText', unit=' rounds', leave=False, miniters=0.3):
+            fasttext_model.predict(in_data)
+        print(f'FastText:    {time.monotonic() - start:.1f}s')
+
+    if bench_langid:
+        start = time.monotonic()
+        for _ in tqdm(range(rounds), desc='Benchmarking Langid', unit=' rounds', leave=False, miniters=0.3):
+            langid.classify(in_data)
+        print(f'Langid:      {time.monotonic() - start:.1f}s')
 
 
 if __name__ == '__main__':
