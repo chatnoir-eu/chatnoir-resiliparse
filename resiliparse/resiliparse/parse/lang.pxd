@@ -38,7 +38,7 @@ cdef inline uint8_t hash_fnv8(Py_UCS4* ustr, int order):
     for i in range(order):
         h = h ^ <uint32_t>ustr[i]
         h = h * 16777619
-    return <uint8_t>(((h >> 8) ^ h) & ((<uint32_t>1 << 8) - 1))
+    return <uint8_t>(((h >> 8) ^ h) & 0xff)
 
 
 cdef inline void shiftleft(Py_UCS4* ustr, int size):

@@ -213,6 +213,6 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     cdef lang_vec_t agg_vec8
     agg_vec8.resize(agg_vec.size())
     for i in range(agg_vec.size()):
-        agg_vec8[i] = agg_vec[i] // example_count
+        agg_vec8[i] = min(255u, agg_vec[i] // example_count)
 
     return agg_vec8
