@@ -338,7 +338,7 @@ _WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 
               type=click.Choice(['train', 'test', 'val']), show_default=True)
 @click.option('-f', '--out-format', help='Output format (raw vectors or C code)', default='raw',
               type=click.Choice(['raw', 'c']), show_default=True)
-@click.option('-l', '--vector-size', help='Output vector size', default=220, type=int, show_default=True)
+@click.option('-l', '--vector-size', help='Output vector size', default=256, type=int, show_default=True)
 def train_vectors(indir, split, out_format, vector_size):
     """
     Train and print vectors for fast language detection.
