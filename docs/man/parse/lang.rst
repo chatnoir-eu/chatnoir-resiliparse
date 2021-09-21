@@ -62,7 +62,7 @@ On inputs the size of an average webpage, Resiliparse's fast language detector i
 ::
 
   Benchmarking language detectors (10,000 rounds):
-  Resiliparse: 2.5s
+  Resiliparse: 2.4s
   FastText:    8.4s
   Langid:      101.3s
 

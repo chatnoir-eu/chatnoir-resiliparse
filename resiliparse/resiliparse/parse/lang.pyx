@@ -18,8 +18,13 @@ import typing as t
 
 from libc.stdint cimport uint32_t, uint8_t
 from libcpp.algorithm cimport pop_heap, push_heap
+cimport cython
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     cdef long hash2
     cdef long hash3
@@ -58,15 +63,15 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
         ngram4[3] = uchar
         ngram5[4] = uchar
 
-        count_vec32[hash_fnv8(&uchar, 1) % count_vec32.size()] += 1
+        count_vec32[hash_fnv8(&uchar, 1) % vec_len] += 1
         if i >= 1:
-            count_vec32[hash_fnv8(ngram2, 2) % count_vec32.size()] += 1
+            count_vec32[hash_fnv8(ngram2, 2) % vec_len] += 1
         if i >= 2:
-            count_vec32[hash_fnv8(ngram3, 3) % count_vec32.size()] += 1
+            count_vec32[hash_fnv8(ngram3, 3) % vec_len] += 1
         if i >= 3:
-            count_vec32[hash_fnv8(ngram4, 4) % count_vec32.size()] += 1
+            count_vec32[hash_fnv8(ngram4, 4) % vec_len] += 1
         if i >= 4:
-            count_vec32[hash_fnv8(ngram5, 5) % count_vec32.size()] += 1
+            count_vec32[hash_fnv8(ngram5, 5) % vec_len] += 1
 
         i += 1
 
@@ -76,11 +81,13 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     lang_vec.resize(count_vec32.size())
     if i > 0:
         for j in range(count_vec32.size()):
-            lang_vec[j] = min(255u, count_vec32[j] * 256u // i)
+            lang_vec[j] = min(255u, count_vec32[j] * 256u / i)
 
     return lang_vec
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size):
     cdef size_t rank = 0
     cdef size_t i
@@ -101,6 +108,8 @@ cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
     return a.rank > b.rank
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     """
     detect_fast(text, cutoff=1200, n_results=1, langs=None)
@@ -185,6 +194,9 @@ def supported_langs():
     return sorted(langs)
 
 
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     """
     train_language_examples(examples, vec_len=256)
@@ -213,6 +225,6 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     cdef lang_vec_t agg_vec8
     agg_vec8.resize(agg_vec.size())
     for i in range(agg_vec.size()):
-        agg_vec8[i] = min(255u, agg_vec[i] // example_count)
+        agg_vec8[i] = min(255u, agg_vec[i] / example_count)
 
     return agg_vec8
