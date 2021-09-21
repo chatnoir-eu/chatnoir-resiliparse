@@ -92,7 +92,7 @@ def test_lang_detect_fast():
 
 def test_lang_detect_fast_train_examples():
     trained_vecs = []
-    vec_lens = [150, 200]
+    vec_lens = [150, 256]
     for vl in vec_lens:
         for l in SAMPLES:
             vec = lang.train_language_examples([SAMPLES[l]], vl)
