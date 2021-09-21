@@ -408,12 +408,25 @@ static const lang_t LANGS[] = {{''', nl=False)
 @click.option('-l', '--langs', help='Restrict languages to this comma-separated list')
 @click.option('-c', '--cutoff', type=int, help='Prediction cutoff', default=1200, show_default=True)
 @click.option('-t', '--truncate', type=int, help='Truncate examples to this length')
+@click.option('-f', '--fasttext-model', help='Use the specified FastText model for samples above cutoff')
 @click.option('--sort-lang', is_flag=True, help='Sort by language instead of F1')
 @click.option('--print-cm', is_flag=True, help='Print confusion matrix (may be very big)')
-def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm):
+def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttext_model):
     if langs is not None:
         langs = {l.strip() for l in langs.split(',')}
     in_langs = sorted([l for l in os.listdir(indir) if langs is None or l in langs])
+
+    if fasttext_model:
+        try:
+            import fasttext
+        except ModuleNotFoundError:
+            click.echo('FastText needs to be installed if --fasttext-model is set: pip install fasttext', err=True)
+            return
+
+        # FastText prints useless warnings after loading a model, so silence its print method to make it shut up
+        # See: https://github.com/facebookresearch/fastText/issues/909
+        fasttext.FastText.eprint = lambda x: None
+        fasttext_model = fasttext.load_model(fasttext_model)
 
     recall_matrix = defaultdict(list)
     precision_matrix = defaultdict(list)
@@ -425,9 +438,14 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm):
 
             if truncate:
                 line = line[:truncate]
+
             plang = rlang.detect_fast(line, cutoff=cutoff, langs=langs)[0]
             if plang == 'unknown':
-                plang = '-'
+                if fasttext_model:
+                    ft_pred = fasttext_model.predict(line.replace('\n', ' '))
+                    plang = ft_pred[0][0].replace('__label__', '') if ft_pred else '-'
+                else:
+                    plang = '-'
             recall_matrix[lang].append(plang == lang)
             precision_matrix[plang].append(plang == lang)
             confusion_matrix[lang][plang] += 1
