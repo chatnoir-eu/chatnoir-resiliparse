@@ -57,7 +57,7 @@ If you know your text is from one of several candidate languages, you can restri
 
 Benchmarks
 ^^^^^^^^^^
-On inputs the size of an average webpage, Resiliparse's fast language detector is about 3--5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (varying between documents) and even 60x as fast as `langid <https://github.com/saffsd/langid.py>`_:
+On inputs the size of an average webpage, Resiliparse's fast language detector is about 3--5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (varying greatly with document size) and even 60x as fast as `langid <https://github.com/saffsd/langid.py>`_:
 
 ::
 
