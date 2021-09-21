@@ -64,15 +64,26 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
         ngram4[3] = uchar
         ngram5[4] = uchar
 
-        count_vec32[hash_fnv8(&uchar, 1) % vec_len] += 1
-        if i >= 1:
-            count_vec32[hash_fnv8(ngram2, 2) % vec_len] += 1
-        if i >= 2:
-            count_vec32[hash_fnv8(ngram3, 3) % vec_len] += 1
-        if i >= 3:
-            count_vec32[hash_fnv8(ngram4, 4) % vec_len] += 1
-        if i >= 4:
-            count_vec32[hash_fnv8(ngram5, 5) % vec_len] += 1
+        if vec_len >= 256:
+            count_vec32[hash_fnv8(&uchar, 1)] += 1
+            if i >= 1:
+                count_vec32[hash_fnv8(ngram2, 2)] += 1
+            if i >= 2:
+                count_vec32[hash_fnv8(ngram3, 3)] += 1
+            if i >= 3:
+                count_vec32[hash_fnv8(ngram4, 4)] += 1
+            if i >= 4:
+                count_vec32[hash_fnv8(ngram5, 5)] += 1
+        else:
+            count_vec32[hash_fnv8(&uchar, 1) % vec_len] += 1
+            if i >= 1:
+                count_vec32[hash_fnv8(ngram2, 2) % vec_len] += 1
+            if i >= 2:
+                count_vec32[hash_fnv8(ngram3, 3) % vec_len] += 1
+            if i >= 3:
+                count_vec32[hash_fnv8(ngram4, 4) % vec_len] += 1
+            if i >= 4:
+                count_vec32[hash_fnv8(ngram5, 5) % vec_len] += 1
 
         i += 1
 
