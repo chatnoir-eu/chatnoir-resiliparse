@@ -28,7 +28,7 @@ cdef extern from "lang_profiles.h" nogil:
 
 ctypedef vector lang_vec_t[uint8_t]
 
-cdef inline uint8_t hash_fnv(Py_UCS4* ustr, int order):
+cdef inline uint8_t hash_fnv8(Py_UCS4* ustr, int order):
     """
     FNV-1a hash (32-bit, 8-bit folded).
     Reference: http://www.isthe.com/chongo/tech/comp/fnv/
