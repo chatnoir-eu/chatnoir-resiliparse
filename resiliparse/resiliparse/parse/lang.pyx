@@ -48,6 +48,7 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
             if prev_is_space:
                 continue
             prev_is_space = True
+            uchar = 0x20
         else:
             prev_is_space = False
             continue
