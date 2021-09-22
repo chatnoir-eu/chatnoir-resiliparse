@@ -174,11 +174,9 @@ cdef class TimeGuard(_ResiliparseGuard):
                         signals_sent = 0
 
                     # Exceeded, but within grace period
-                    if self.timeout == 0 or (now.tv_sec - start >= self.timeout and signals_sent == 0):
+                    if (self.timeout == 0 or now.tv_sec - start >= self.timeout) and signals_sent == 0:
                         signals_sent = 1
                         self.send_interrupt(0, main_thread)
-                        if self.timeout == 0:
-                            break
 
                     # Grace period exceeded
                     elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
@@ -388,19 +386,19 @@ cdef class MemGuard(_ResiliparseGuard):
                             signals_sent = 0
 
                         # Grace period exceeded
-                        if self.grace_period == 0 or (now.tv_sec - grace_start > self.grace_period
+                        if self.grace_period == 0 or (now.tv_sec - grace_start >= self.grace_period
                                                       and signals_sent == 0):
                             signals_sent = 1
                             self.send_interrupt(0, main_thread)
 
                         # Secondary grace period exceeded
-                        elif now.tv_sec - grace_start > self.grace_period + self.secondary_grace_period \
+                        elif now.tv_sec - grace_start >= self.grace_period + self.secondary_grace_period \
                                 and signals_sent == 1:
                             signals_sent = 2
                             self.send_interrupt(1, main_thread)
 
                         # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                        elif now.tv_sec - grace_start > self.grace_period + self.secondary_grace_period * 2 \
+                        elif now.tv_sec - grace_start >= self.grace_period + self.secondary_grace_period * 2 \
                                 and signals_sent == 2:
                             signals_sent = 3
                             self.send_interrupt(2, main_thread)

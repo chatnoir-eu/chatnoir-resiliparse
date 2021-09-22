@@ -13,52 +13,53 @@ from resiliparse.itertools import progress_loop
 skip_long = pytest.mark.skipif(os.environ.get('SKIP_LONG'), reason="Skipping long tests")
 
 
-signal_sent = None
+class SignalSent(Exception):
+    def __init__(self, sig):
+        self.signal = sig
 
 
 def signal_handler(sig, _):
-    global signal_sent
-    signal_sent = sig
+    raise SignalSent(sig)
 
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
-@time_guard(timeout=1, grace_period=1, check_interval=10, interrupt_type=InterruptType.exception)
+@time_guard(timeout=0, grace_period=1, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc():
     while True:
         sleep(0.001)
 
 
-@time_guard(timeout=1, grace_period=1, check_interval=10, interrupt_type=InterruptType.exception_then_signal)
+@time_guard(timeout=0, grace_period=1, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_exc_signal():
-    while not signal_sent:
+    while True:
         try:
-            while not signal_sent:
+            while True:
                 sleep(0.001)
         except ExecutionTimeout:
             pass
 
 
-@time_guard(timeout=1, grace_period=0, check_interval=10, interrupt_type=InterruptType.signal)
+@time_guard(timeout=0, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
 def wait_func_signal():
-    while not signal_sent:
+    while True:
         sleep(0.001)
 
 
-@time_guard(timeout=1, grace_period=0, check_interval=10, interrupt_type=InterruptType.signal)
+@time_guard(timeout=0, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
 def wait_func_signal_term():
-    while signal_sent != signal.SIGTERM:
+    while True:
         sleep(0.001)
 
 
-@time_guard(timeout=1, grace_period=0, check_interval=10, interrupt_type=InterruptType.exception)
+@time_guard(timeout=1, grace_period=0, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
-    while monotonic() - start < 1.5:
+    while monotonic() - start < 1.1:
+        sleep(0.0001)
         progress(wait_func_exc_progress)
-        sleep(0.001)
 
 
 @skip_long
@@ -66,18 +67,17 @@ def test_time_guard():
     with pytest.raises(ExecutionTimeout):
         wait_func_exc()
 
-    global signal_sent
-    signal_sent = None
-    wait_func_signal()
-    assert signal_sent == signal.SIGINT
+    with pytest.raises(SignalSent) as s:
+        wait_func_signal()
+        assert s.signal == signal.SIGINT
 
-    signal_sent = None
-    wait_func_exc_signal()
-    assert signal_sent == signal.SIGINT
+    with pytest.raises(SignalSent) as s:
+        wait_func_exc_signal()
+        assert s.signal == signal.SIGINT
 
-    signal_sent = None
-    wait_func_signal_term()
-    assert signal_sent == signal.SIGTERM
+    with pytest.raises(SignalSent) as s:
+        wait_func_signal_term()
+        assert s.signal == signal.SIGTERM
 
     # Test if same guard can be used twice
     with pytest.raises(ExecutionTimeout):
@@ -85,10 +85,10 @@ def test_time_guard():
 
     # Test context manager interface
     with pytest.raises(ExecutionTimeout):
-        with time_guard(timeout=1, grace_period=0, check_interval=10, interrupt_type=InterruptType.exception):
+        with time_guard(timeout=1, grace_period=0, check_interval=5, interrupt_type=InterruptType.exception):
             wait_func_exc()
 
-    # progress()
+    # Test progress()
     wait_func_exc_progress()
 
     def infinite_gen():
@@ -96,82 +96,69 @@ def test_time_guard():
             yield 1
 
     # Progress loop
-    start = monotonic()
-    with time_guard(timeout=1, grace_period=0, check_interval=10, interrupt_type=InterruptType.exception) as guard:
-        for _ in progress_loop(infinite_gen(), ctx=guard):
-            if monotonic() - start >= 1.5:
-                break
-            sleep(0.001)
+    with pytest.raises(ExecutionTimeout):
+        with time_guard(timeout=0, grace_period=0, check_interval=5, interrupt_type=InterruptType.exception) as guard:
+            for _ in progress_loop(infinite_gen(), ctx=guard):
+                sleep(0.001)
 
 
-mem_limit = 1024
-
-
-@mem_guard(max_memory=mem_limit, absolute=False, check_interval=10, interrupt_type=InterruptType.exception)
+@mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.exception)
 def fill_mem():
-    l = []
+    l = bytearray()
     while True:
-        l.extend([1] * 50)
+        l.extend(b'\x01' * 2048)
+        sleep(0.001)
 
 
-@mem_guard(max_memory=mem_limit, absolute=False, check_interval=10, grace_period=1,
-           interrupt_type=InterruptType.exception)
-def fill_mem_grace():
-    l = []
-    while True:
-        l.extend([1] * 50)
-
-
-@mem_guard(max_memory=mem_limit, absolute=False, check_interval=10, grace_period=1,
+@mem_guard(max_memory=1, absolute=False, check_interval=5, grace_period=1,
            interrupt_type=InterruptType.exception_then_signal)
 def fill_mem_exc_signal():
-    l = []
-    try:
-        while True:
-            l.extend([1] * 50)
-    except MemoryLimitExceeded:
-        while not signal_sent:
-            l.extend([1] * 50)
+    l = bytearray()
+    while True:
+        try:
+            while True:
+                l.extend(b'\x01' * 2048)
+                sleep(0.0001)
+        except MemoryLimitExceeded:
+            pass
 
 
-@mem_guard(max_memory=mem_limit, absolute=False, check_interval=10, interrupt_type=InterruptType.signal)
+@mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.signal)
 def fill_mem_signal():
-    l = []
-    while not signal_sent:
-        l.extend([1] * 50)
+    l = bytearray()
+    while True:
+        l.extend(b'\x01' * 2048)
+        sleep(0.001)
 
 
-@mem_guard(max_memory=mem_limit, absolute=False, grace_period=1, check_interval=10, interrupt_type=InterruptType.signal)
+@mem_guard(max_memory=1, absolute=False, grace_period=1, check_interval=5, interrupt_type=InterruptType.signal)
 def fill_mem_signal_term():
-    l = []
-    while signal_sent != signal.SIGTERM:
-        l.extend([1] * 50)
+    l = bytearray()
+    while True:
+        l.extend(b'\x01' * 2048)
+        sleep(0.001)
 
 
 @skip_long
 def test_mem_guard():
-    if sys.platform != 'linux':
+    if sys.platform not in ['linux', 'darwin']:
         # Memory reporting is unreliable on other platforms
         pytest.skip("Skipping mem_guard test")
 
     with pytest.raises(MemoryLimitExceeded):
         fill_mem()
 
-    with pytest.raises(MemoryLimitExceeded):
-        fill_mem_grace()
+    with pytest.raises(SignalSent) as s:
+        fill_mem_exc_signal()
+        assert s.signal == signal.SIGINT
 
-    global signal_sent
-    signal_sent = None
-    fill_mem_exc_signal()
-    assert signal_sent == signal.SIGINT
+    with pytest.raises(SignalSent) as s:
+        fill_mem_signal()
+        assert s.signal == signal.SIGINT
 
-    signal_sent = None
-    fill_mem_signal()
-    assert signal_sent == signal.SIGINT
-
-    signal_sent = None
-    fill_mem_signal_term()
-    assert signal_sent == signal.SIGTERM
+    with pytest.raises(SignalSent) as s:
+        fill_mem_signal_term()
+        assert s.signal == signal.SIGTERM
 
     # Test if same guard can be used twice
     with pytest.raises(MemoryLimitExceeded):
@@ -179,5 +166,5 @@ def test_mem_guard():
 
     # Test context manager interface
     with pytest.raises(MemoryLimitExceeded):
-        with mem_guard(max_memory=mem_limit, absolute=False, interrupt_type=InterruptType.exception):
+        with mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.exception):
             fill_mem()
