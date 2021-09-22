@@ -19,6 +19,7 @@ import typing as t
 from libc.stdint cimport uint32_t
 from libcpp.algorithm cimport pop_heap, push_heap
 cimport cython
+from cython.operator cimport preincrement as preinc
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 
 
@@ -64,35 +65,35 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
         ngram4[3] = uchar
         ngram5[4] = uchar
 
-        if vec_len >= 256:
-            count_vec32[hash_fnv8(&uchar, 1)] += 1
+        if vec_len > 255:
+            preinc(count_vec32[hash_fnv8(&uchar, 1)])
             if i >= 1:
-                count_vec32[hash_fnv8(ngram2, 2)] += 1
+                preinc(count_vec32[hash_fnv8(ngram2, 2)])
             if i >= 2:
-                count_vec32[hash_fnv8(ngram3, 3)] += 1
+                preinc(count_vec32[hash_fnv8(ngram3, 3)])
             if i >= 3:
-                count_vec32[hash_fnv8(ngram4, 4)] += 1
+                preinc(count_vec32[hash_fnv8(ngram4, 4)])
             if i >= 4:
-                count_vec32[hash_fnv8(ngram5, 5)] += 1
+                preinc(count_vec32[hash_fnv8(ngram5, 5)])
         else:
-            count_vec32[hash_fnv8(&uchar, 1) % vec_len] += 1
+            preinc(count_vec32[hash_fnv8(&uchar, 1) % vec_len])
             if i >= 1:
-                count_vec32[hash_fnv8(ngram2, 2) % vec_len] += 1
+                preinc(count_vec32[hash_fnv8(ngram2, 2) % vec_len])
             if i >= 2:
-                count_vec32[hash_fnv8(ngram3, 3) % vec_len] += 1
+                preinc(count_vec32[hash_fnv8(ngram3, 3) % vec_len])
             if i >= 3:
-                count_vec32[hash_fnv8(ngram4, 4) % vec_len] += 1
+                preinc(count_vec32[hash_fnv8(ngram4, 4) % vec_len])
             if i >= 4:
-                count_vec32[hash_fnv8(ngram5, 5) % vec_len] += 1
+                preinc(count_vec32[hash_fnv8(ngram5, 5) % vec_len])
 
-        i += 1
+        preinc(i)
 
     # Normalize vector
     cdef size_t j
     cdef lang_vec_t lang_vec
-    lang_vec.resize(count_vec32.size())
+    lang_vec.resize(vec_len)
     if i > 0:
-        for j in range(count_vec32.size()):
+        for j in range(vec_len):
             lang_vec[j] = min(255u, count_vec32[j] * 256u / i)
 
     return lang_vec
