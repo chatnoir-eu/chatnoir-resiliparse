@@ -19,9 +19,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        os: [ ubuntu-latest ]
     env:
-      CIBW_BUILD: cp3*
+      CIBW_BUILD: cp37*
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
 
@@ -137,6 +137,7 @@ jobs:
   build-coverage:
     runs-on: ubuntu-latest
     needs: build-wheels
+    if: github.ref == 'refs/heads/develop'
     env:
       DEBUG: "1"
       PYTHONPATH: resiliparse:fastwarc

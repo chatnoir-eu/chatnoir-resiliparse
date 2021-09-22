@@ -96,47 +96,47 @@ def wait_func_exc_progress():
 
 
 def test_time_guard():
-    # with pytest.raises(ExecutionTimeout):
-    #     wait_func_exc()
-    #
-    # with pytest.raises(ExecutionTimeout):
-    #     wait_func_exc_escalate()
-    #
-    # with pytest.raises(SigIntSent):
-    #     wait_func_signal()
-    #
-    # with pytest.raises(SigIntSent):
-    #     wait_func_exc_signal()
-    #
-    # with pytest.raises(SigTermSent):
-    #     wait_func_signal_term()
-    #
-    # with pytest.raises(SigTermSent):
-    #     wait_func_signal_term_escalate()
-    #
-    # # Test if same guard can be used twice
-    # with pytest.raises(ExecutionTimeout):
-    #     wait_func_exc()
-    #
-    # # Test context manager interface
-    # with pytest.raises(ExecutionTimeout):
-    #     with time_guard(timeout=0, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception):
-    #         wait_func_exc()
-    #
-    # # Test progress()
-    # wait_func_exc_progress()
-    #
-    # def infinite_gen():
-    #     while True:
-    #         yield 1
-    #
-    # # Progress loop
-    # start = monotonic()
-    # with time_guard(timeout_ms=50, grace_period=10, check_interval=5, interrupt_type=InterruptType.exception) as guard:
-    #     for _ in progress_loop(infinite_gen(), ctx=guard):
-    #         sleep(0.001)
-    #         if monotonic() - start > .2:
-    #             break
+    with pytest.raises(ExecutionTimeout):
+        wait_func_exc()
+
+    with pytest.raises(ExecutionTimeout):
+        wait_func_exc_escalate()
+
+    with pytest.raises(SigIntSent):
+        wait_func_signal()
+
+    with pytest.raises(SigIntSent):
+        wait_func_exc_signal()
+
+    with pytest.raises(SigTermSent):
+        wait_func_signal_term()
+
+    with pytest.raises(SigTermSent):
+        wait_func_signal_term_escalate()
+
+    # Test if same guard can be used twice
+    with pytest.raises(ExecutionTimeout):
+        wait_func_exc()
+
+    # Test context manager interface
+    with pytest.raises(ExecutionTimeout):
+        with time_guard(timeout=0, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception):
+            wait_func_exc()
+
+    # Test progress()
+    wait_func_exc_progress()
+
+    def infinite_gen():
+        while True:
+            yield 1
+
+    # Progress loop
+    start = monotonic()
+    with time_guard(timeout_ms=50, grace_period=10, check_interval=5, interrupt_type=InterruptType.exception) as guard:
+        for _ in progress_loop(infinite_gen(), ctx=guard):
+            sleep(0.001)
+            if monotonic() - start > .2:
+                break
 
 
 @mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.exception)
@@ -204,4 +204,7 @@ def test_mem_guard():
     # Test context manager interface
     with pytest.raises(MemoryLimitExceeded):
         with mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.exception):
-            fill_mem()
+            l = bytearray()
+            while True:
+                l.extend(b'\x01' * 2048)
+                sleep(0.001)
