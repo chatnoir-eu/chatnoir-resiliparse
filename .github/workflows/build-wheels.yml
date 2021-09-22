@@ -101,7 +101,7 @@ jobs:
         env:
           CIBW_BEFORE_TEST: |
             set -e
-            PYTHON_ABI="$(python -c "from platform import python_version; print(''.join(python_version().split('.')[:2]))")"
+            PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
             python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
           CIBW_BEFORE_TEST_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
@@ -195,10 +195,10 @@ jobs:
         run: |
           set -e
 
-          PYTHON_ABI="$(python -c "from platform import python_version; print('''.join(python_version().split('.')[:2]))")"
+          PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
-          python -m pip install wheelhouse/*-cp${PYTHON_ABI}-*-manylinux*.whl
+          python -m pip install wheelhouse/*-cp$PYTHON_ABI-*-manylinux*.whl
 
           cd docs
           make html
