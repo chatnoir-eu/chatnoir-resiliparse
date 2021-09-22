@@ -21,12 +21,12 @@ from libc.signal cimport SIGINT, SIGTERM, SIGKILL
 import inspect
 import platform
 import threading
+import warnings
 
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
 from resiliparse_inc.string cimport string, to_string
 from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen, fflush, fprintf, popen, pclose, stderr
-from resiliparse_inc.sys.time cimport timeval, gettimeofday
 from resiliparse_inc.unistd cimport getpagesize, getpid, usleep
 
 
@@ -40,6 +40,9 @@ class ExecutionTimeout(ResiliparseGuardException):
 
 class MemoryLimitExceeded(ResiliparseGuardException):
     """Memory limit exceeded exception."""
+
+
+cdef size_t MAX_SIZE_T = <size_t>-1
 
 
 @cython.auto_pickle(False)
@@ -125,8 +128,8 @@ cdef class _ResiliparseGuard:
                 with gil:
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
-            fprintf(stderr, <char*>b'ERROR: Guarded thread did not respond to TERM signal.\n')
-            fflush(stderr)
+            with gil:
+                warnings.warn('ERROR: Guarded thread did not respond to TERM signal.')
 
 
 @cython.auto_pickle(False)
@@ -138,10 +141,10 @@ cdef class TimeGuard(_ResiliparseGuard):
     """
 
     # noinspection PyMethodOverriding
-    def __cinit__(self, size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
-                  bint send_kill=False, size_t check_interval=500):
+    def __cinit__(self, size_t timeout, size_t grace_period, InterruptType interrupt_type, bint send_kill,
+                  size_t check_interval):
         self.timeout = timeout
-        self.grace_period = max(1u, grace_period)
+        self.grace_period = max(10u, grace_period)
         self.interrupt_type = interrupt_type
         self.send_kill = send_kill
         self.check_interval = check_interval
@@ -153,10 +156,9 @@ cdef class TimeGuard(_ResiliparseGuard):
         cdef pthread_t main_thread = pthread_self()
 
         def _thread_exec():
-            cdef size_t last_epoch = 0
-            cdef timeval now
-            gettimeofday(&now, NULL)
-            cdef size_t start = now.tv_sec
+            cdef uint64_t last_epoch = 0
+            cdef uint64_t now = time_millis()
+            cdef uint64_t start = now
             cdef unsigned char signals_sent = 0
 
             with nogil:
@@ -166,29 +168,27 @@ cdef class TimeGuard(_ResiliparseGuard):
                     if self.gctx.ended.load():
                         break
 
-                    gettimeofday(&now, NULL)
+                    now = time_millis()
 
                     if self.gctx.epoch_counter.load() > last_epoch:
-                        start = now.tv_sec
+                        start = now
                         last_epoch = self.gctx.epoch_counter.load()
                         signals_sent = 0
 
                     # Exceeded, but within grace period
-                    if (self.timeout == 0 or now.tv_sec - start >= self.timeout) and signals_sent == 0:
+                    if (self.timeout == 0 or now - start >= self.timeout) and signals_sent == 0:
                         signals_sent = 1
                         self.send_interrupt(0, main_thread)
 
                     # Grace period exceeded
-                    elif now.tv_sec - start >= (self.timeout + self.grace_period) and signals_sent == 1:
+                    elif now - start >= (self.timeout + self.grace_period) and signals_sent == 1:
                         signals_sent = 2
                         self.send_interrupt(1, main_thread)
 
                     # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                    elif now.tv_sec - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
+                    elif now - start >= (self.timeout + self.grace_period * 2) and signals_sent == 2:
                         signals_sent = 3
                         self.send_interrupt(2, main_thread)
-                        fprintf(stderr, <char*>b'Terminating guard context.\n')
-                        fflush(stderr)
                         break
 
 
@@ -203,16 +203,15 @@ cdef class TimeGuard(_ResiliparseGuard):
         Increment epoch counter to indicate progress and reset the guard timeout.
         This method is thread-safe.
         """
-        cdef timeval now
-        gettimeofday(&now, NULL)
-        self.gctx.epoch_counter.store(now.tv_sec)
+        self.gctx.epoch_counter.store(time_millis())
 
 
-def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_type=exception_then_signal,
-               bint send_kill=False, size_t check_interval=500) -> TimeGuard:
+def time_guard(timeout=60, timeout_ms=None, grace_period=15, grace_period_ms=None,
+               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
+               size_t check_interval=500) -> TimeGuard:
     """
-    time_guard(timeout, grace_period=15, interrupt_type=exception_then_signal, \
-               send_kill=False, check_interval=500)
+    time_guard(timeout=60, timeout_ms=None, grace_period=15, grace_period_ms=None, \
+               interrupt_type=exception_then_signal, send_kill=False, check_interval=500)
 
     Create a :class:`TimeGuard` instance that can be used as a decorator or context manager
     for guarding the execution time of a running task.
@@ -253,8 +252,12 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
 
     :param timeout: max execution time in seconds before invoking interrupt
     :type timeout: int
+    :param timeout_ms: max execution time in milliseconds (use instead of ``timeout`` if higher resolution needed)
+    :type timeout_ms: int
     :param grace_period: grace period in seconds after which to send another interrupt
     :type grace_period: int
+    :param grace_period_ms: grace period in milliseconds (use instead of ``grace_period`` if higher resolution needed)
+    :type grace_period_ms: int
     :param interrupt_type: type of interrupt
     :type interrupt_type: InterruptType
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
@@ -264,6 +267,12 @@ def time_guard(size_t timeout, size_t grace_period=15, InterruptType interrupt_t
     :type check_interval: int
     :rtype: TimeGuard
     """
+    if timeout is timeout_ms is None:
+        raise ValueError('No timeout set')
+
+    timeout = timeout * 1000 if timeout_ms is None else timeout_ms
+    grace_period = grace_period * 1000 if grace_period_ms is None else grace_period_ms
+
     return TimeGuard.__new__(TimeGuard, timeout, grace_period, interrupt_type, send_kill, check_interval)
 
 
@@ -312,12 +321,12 @@ cdef class MemGuard(_ResiliparseGuard):
     """
 
     # noinspection PyMethodOverriding
-    def __cinit__(self, size_t max_memory, bint absolute=True, size_t grace_period=0, size_t secondary_grace_period=5,
-                  InterruptType interrupt_type=exception_then_signal, bint send_kill=False, size_t check_interval=500):
+    def __cinit__(self, size_t max_memory, bint absolute, size_t grace_period, size_t secondary_grace_period,
+                  InterruptType interrupt_type, bint send_kill, size_t check_interval):
         self.max_memory = max_memory
         self.absolute = absolute
         self.grace_period = grace_period
-        self.secondary_grace_period = max(1u, secondary_grace_period)
+        self.secondary_grace_period = max(10u, secondary_grace_period)
         self.interrupt_type = interrupt_type
         self.send_kill = send_kill
         self.check_interval = check_interval
@@ -369,10 +378,10 @@ cdef class MemGuard(_ResiliparseGuard):
             max_mem += self._get_rss()
 
         def _thread_exec():
-            cdef size_t grace_start = 0
+            cdef uint64_t grace_start = 0
+            cdef uint64_t now = 0
             cdef unsigned char signals_sent = 0
             cdef size_t rss = 0
-            cdef timeval now
 
             with nogil:
                 while True:
@@ -380,30 +389,28 @@ cdef class MemGuard(_ResiliparseGuard):
 
                     if rss > max_mem:
                         # Memory usage above limit, start grace period
-                        gettimeofday(&now, NULL)
+                        now = time_millis()
+
                         if grace_start == 0:
-                            grace_start = now.tv_sec
+                            grace_start = now
                             signals_sent = 0
 
                         # Grace period exceeded
-                        if self.grace_period == 0 or (now.tv_sec - grace_start >= self.grace_period
-                                                      and signals_sent == 0):
+                        if (self.grace_period == 0 or now - grace_start >= self.grace_period) and signals_sent == 0:
                             signals_sent = 1
                             self.send_interrupt(0, main_thread)
 
                         # Secondary grace period exceeded
-                        elif now.tv_sec - grace_start >= self.grace_period + self.secondary_grace_period \
+                        elif now - grace_start >= self.grace_period + self.secondary_grace_period \
                                 and signals_sent == 1:
                             signals_sent = 2
                             self.send_interrupt(1, main_thread)
 
                         # If process still hasn't reacted, send SIGTERM/SIGKILL and then exit
-                        elif now.tv_sec - grace_start >= self.grace_period + self.secondary_grace_period * 2 \
+                        elif now - grace_start >= self.grace_period + self.secondary_grace_period * 2 \
                                 and signals_sent == 2:
                             signals_sent = 3
                             self.send_interrupt(2, main_thread)
-                            fprintf(stderr, <char*>b'Terminating guard context.\n')
-                            fflush(stderr)
                             break
 
                     elif rss < max_mem and grace_start != 0:
@@ -420,12 +427,14 @@ cdef class MemGuard(_ResiliparseGuard):
         guard_thread.start()
 
 
-def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size_t secondary_grace_period=5,
+def mem_guard(size_t max_memory, bint absolute=True, grace_period=0, grace_period_ms=None,
+              secondary_grace_period=5, secondary_grace_period_ms=None,
               InterruptType interrupt_type=exception_then_signal, bint send_kill=False,
               size_t check_interval=500) -> MemGuard:
     """
-    mem_guard(max_memory, absolute=True, grace_period=0, secondary_grace_period=5, \
-              interrupt_type=exception_then_signal, send_kill=False, check_interval=500)
+    mem_guard(max_memory, absolute=True, grace_period=0, grace_period_ms=0, secondary_grace_period=5, \
+              secondary_grace_period_ms=None, interrupt_type=exception_then_signal, send_kill=False, \
+              check_interval=500)
 
     Create a :class:`MemGuard` instance that can be used as a decorator or context manager
     for enforcing memory limits on a running task.
@@ -454,8 +463,13 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     :type absolute: bool
     :param grace_period: grace period in seconds before sending an interrupt after exceeding ``max_memory``
     :type grace_period: int
+    :param grace_period_ms: grace period in milliseconds (use instead of ``grace_period`` if higher resolution needed)
+    :type grace_period_ms: int
     :param secondary_grace_period: time to wait after ``grace_period`` before triggering next escalation level
     :type secondary_grace_period: int
+    :param secondary_grace_period_ms: secondary grace period in milliseconds (use instead of ``secondary_grace_period``
+                                      if higher resolution needed)
+    :type secondary_grace_period_ms: int
     :param interrupt_type: type of interrupt
     :type interrupt_type: InterruptType
     :param send_kill: send ``SIGKILL`` as third attempt instead of ``SIGTERM`` (ignored if
@@ -465,5 +479,10 @@ def mem_guard(size_t max_memory, bint absolute=True, size_t grace_period=0, size
     :type check_interval: int
     :rtype: MemGuard
     """
+
+    grace_period = grace_period * 1000 if grace_period_ms is None else grace_period_ms
+    secondary_grace_period = secondary_grace_period * 1000 \
+        if secondary_grace_period_ms is None else secondary_grace_period_ms
+
     return MemGuard.__new__(MemGuard, max_memory, absolute, grace_period, secondary_grace_period,
                             interrupt_type, send_kill, check_interval)
