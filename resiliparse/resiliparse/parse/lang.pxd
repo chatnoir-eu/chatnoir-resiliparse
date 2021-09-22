@@ -29,12 +29,13 @@ cdef extern from "lang_profiles.h" nogil:
     cdef const lang_t LANGS[LANG_VEC_SIZE]
 
 
-ctypedef vector lang_vec_t[uint8_t]
+ctypedef vector lang_vec8_t[uint8_t]
+ctypedef vector lang_vec32_t[uint32_t]
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline uint8_t hash_fnv8(Py_UCS4* ustr, int order):
+cdef inline uint8_t hash_fnv8(const Py_UCS4* ustr, int order):
     """
     FNV-1a hash (32-bit, 8-bit folded).
     Reference: http://www.isthe.com/chongo/tech/comp/fnv/
@@ -73,5 +74,5 @@ ctypedef struct lang_rank_t:
     const char* lang
 
 
-cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=*)
+cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=*)
 cpdef detect_fast(str text, size_t cutoff=*, size_t n_results=*, langs=*)

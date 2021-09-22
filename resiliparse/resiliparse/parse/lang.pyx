@@ -16,7 +16,6 @@
 
 import typing as t
 
-from libc.stdint cimport uint32_t
 from libcpp.algorithm cimport pop_heap, push_heap
 cimport cython
 from cython.operator cimport preincrement as preinc
@@ -26,7 +25,7 @@ from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
+cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     cdef long hash2
     cdef long hash3
     cdef long hash4
@@ -36,7 +35,7 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     cdef Py_UCS4[4] ngram4 = [0, 0, 0, 0]
     cdef Py_UCS4[5] ngram5 = [0, 0, 0, 0, 0]
 
-    cdef vector[uint32_t] count_vec32
+    cdef lang_vec32_t count_vec32
     count_vec32.resize(vec_len)
 
     cdef bint prev_is_space = False
@@ -90,7 +89,7 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
 
     # Normalize vector
     cdef size_t j
-    cdef lang_vec_t lang_vec
+    cdef lang_vec8_t lang_vec
     lang_vec.resize(vec_len)
     if i > 0:
         for j in range(vec_len):
@@ -129,7 +128,7 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     :return: tuple of the detected language (or ``"unknown"``) and its out-of-place rank
     :rtype: (str, int) | list[(str, int)]
     """
-    cdef lang_vec_t text_vec = str_to_vec(text, LANG_VEC_SIZE)
+    cdef lang_vec8_t text_vec = str_to_vec(text, LANG_VEC_SIZE)
     cdef size_t text_len = len(text)
     cdef size_t min_rank = <size_t>-1
     cdef const char* lang = NULL
@@ -205,10 +204,10 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     :return: vector of trained values
     :rtype: list[int]
     """
-    cdef vector[uint32_t] agg_vec
+    cdef lang_vec32_t agg_vec
     agg_vec.resize(vec_len)
 
-    cdef lang_vec_t tmp_vec
+    cdef lang_vec8_t tmp_vec
     cdef size_t example_count = 0
     cdef size_t i
     for text in examples:
@@ -217,7 +216,7 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
             agg_vec[i] += tmp_vec[i]
         example_count += 1
 
-    cdef lang_vec_t agg_vec8
+    cdef lang_vec8_t agg_vec8
     agg_vec8.resize(agg_vec.size())
     for i in range(agg_vec.size()):
         agg_vec8[i] = min(255u, agg_vec[i] / example_count)
