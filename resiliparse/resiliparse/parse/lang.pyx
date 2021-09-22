@@ -65,7 +65,7 @@ cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
         ngram5[4] = uchar
 
         if vec_len > 255:
-            preinc(count_vec32[hash_fnv8(&uchar, 1)])
+            preinc(count_vec32[hash_fnv8_single(uchar)])
             if i >= 1:
                 preinc(count_vec32[hash_fnv8(ngram2, 2)])
             if i >= 2:
@@ -75,7 +75,7 @@ cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
             if i >= 4:
                 preinc(count_vec32[hash_fnv8(ngram5, 5)])
         else:
-            preinc(count_vec32[hash_fnv8(&uchar, 1) % vec_len])
+            preinc(count_vec32[hash_fnv8_single(uchar) % vec_len])
             if i >= 1:
                 preinc(count_vec32[hash_fnv8(ngram2, 2) % vec_len])
             if i >= 2:
