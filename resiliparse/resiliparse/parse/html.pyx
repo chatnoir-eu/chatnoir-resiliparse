@@ -1566,11 +1566,19 @@ cdef class HTMLTree:
         if self.dom_document == NULL:
             return None
 
-        cdef size_t title_len = 0
-        cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
-        if title == NULL:
+        # Temporary workaround for lxb_html_document_title can crash.
+        # See: https://github.com/lexbor/lexbor/issues/134
+        title = self.head.query_selector('title')
+        if title is None:
             return ''
-        return title[:title_len].decode()
+        return title.text
+
+        # Proper implementation once bug is fixed
+        # cdef size_t title_len = 0
+        # cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
+        # if title == NULL:
+        #     return ''
+        # return title[:title_len].decode()
 
     cpdef DOMNode create_element(self, str tag_name):
         """
