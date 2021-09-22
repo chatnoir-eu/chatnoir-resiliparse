@@ -90,9 +90,13 @@ jobs:
 
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
+        env:
+          CIBW_TEST_COMMAND: pytest {project}/tests/fastwarc
 
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
+        env:
+          CIBW_TEST_COMMAND: pytest {project}/tests/resiliparse
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
