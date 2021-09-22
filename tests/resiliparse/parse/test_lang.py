@@ -89,6 +89,12 @@ def test_lang_detect_fast():
     for l in SAMPLES:
         assert lang.detect_fast(SAMPLES[l])[0] == l
 
+    for l in SAMPLES:
+        assert lang.detect_fast(SAMPLES[l], n_results=2)[0][0] == l
+
+    assert lang.detect_fast('This is an average English sentence', langs=['en', 'zh'])[0] == 'en'
+    assert lang.detect_fast('This is an average English sentence', langs=['xx'])[0] == 'unknown'
+
 
 def test_lang_detect_fast_train_examples():
     trained_vecs = []
