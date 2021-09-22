@@ -99,7 +99,7 @@ jobs:
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
         env:
-          CIBW_BEFORE_TEST: |
+          CIBW_BEFORE_BUILD: |
             set -e
             PYTHON_ABI="$(python -c "from platform import python_version; print(''.join(python_version().split('.')[:2]))")"
             python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
