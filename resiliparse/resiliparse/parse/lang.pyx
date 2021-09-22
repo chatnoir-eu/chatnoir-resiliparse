@@ -16,7 +16,7 @@
 
 import typing as t
 
-from libc.stdint cimport uint32_t, uint8_t
+from libc.stdint cimport uint32_t
 from libcpp.algorithm cimport pop_heap, push_heap
 cimport cython
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
@@ -96,24 +96,6 @@ cdef lang_vec_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
             lang_vec[j] = min(255u, count_vec32[j] * 256u / i)
 
     return lang_vec
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cdef size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size):
-    cdef size_t rank = 0
-    cdef size_t i
-    for i in range(size):
-        if vec1[i] > vec2[i]:
-            rank += vec1[i] - vec2[i]
-        else:
-            rank += vec2[i] - vec1[i]
-    return rank
-
-
-ctypedef struct lang_rank_t:
-    uint32_t rank
-    const char* lang
 
 
 cdef inline bint lang_rank_greater(const lang_rank_t& a, const lang_rank_t& b):
