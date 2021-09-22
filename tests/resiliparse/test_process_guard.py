@@ -32,13 +32,13 @@ signal.signal(signal.SIGINT, sigint_handler)
 signal.signal(signal.SIGTERM, sigterm_handler)
 
 
-@time_guard(timeout=0, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=20, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc():
     while True:
         sleep(0.001)
 
 
-@time_guard(timeout_ms=10, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=40, grace_period_ms=20, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc_escalate():
     ignored = 0
     while True:
@@ -51,7 +51,7 @@ def wait_func_exc_escalate():
             ignored += 1
 
 
-@time_guard(timeout_ms=10, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
+@time_guard(timeout_ms=40, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_exc_signal():
     while True:
         try:
@@ -61,13 +61,13 @@ def wait_func_exc_signal():
             pass
 
 
-@time_guard(timeout=0, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
+@time_guard(timeout_ms=20, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
 def wait_func_signal():
     while True:
         sleep(0.001)
 
 
-@time_guard(timeout_ms=10, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
+@time_guard(timeout_ms=40, grace_period=0, check_interval=5, interrupt_type=InterruptType.signal)
 def wait_func_signal_term():
     while True:
         try:
@@ -77,7 +77,7 @@ def wait_func_signal_term():
             pass
 
 
-@time_guard(timeout_ms=10, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
+@time_guard(timeout_ms=40, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_signal_term_escalate():
     while True:
         try:
@@ -87,10 +87,10 @@ def wait_func_signal_term_escalate():
             pass
 
 
-@time_guard(timeout_ms=50, grace_period=0, check_interval=5, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=150, grace_period_ms=0, check_interval=50, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
-    while monotonic() - start < .2:
+    while monotonic() - start < .3:
         sleep(0.001)
         progress()
 
@@ -120,7 +120,7 @@ def test_time_guard():
 
     # Test context manager interface
     with pytest.raises(ExecutionTimeout):
-        with time_guard(timeout=0, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception):
+        with time_guard(timeout_ms=20, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception):
             wait_func_exc()
 
     # Test progress()
@@ -204,4 +204,7 @@ def test_mem_guard():
     # Test context manager interface
     with pytest.raises(MemoryLimitExceeded):
         with mem_guard(max_memory=1, absolute=False, check_interval=5, interrupt_type=InterruptType.exception):
-            fill_mem()
+            l = bytearray()
+            while True:
+                l.extend(b'\x01' * 2048)
+                sleep(0.001)
