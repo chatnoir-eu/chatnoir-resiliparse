@@ -87,7 +87,7 @@ def wait_func_signal_term_escalate():
             pass
 
 
-@time_guard(timeout_ms=120, grace_period_ms=0, check_interval=50, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=100, grace_period_ms=0, check_interval=10, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
     while monotonic() - start < .3:
@@ -95,6 +95,7 @@ def wait_func_exc_progress():
         progress()
 
 
+# noinspection PyUnreachableCode
 def test_time_guard():
     with pytest.raises(ExecutionTimeout):
         wait_func_exc()
@@ -120,8 +121,9 @@ def test_time_guard():
 
     # Test context manager interface
     with pytest.raises(ExecutionTimeout):
-        with time_guard(timeout_ms=20, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception):
-            wait_func_exc()
+        with time_guard(timeout_ms=20, grace_period_ms=10, check_interval=10, interrupt_type=InterruptType.exception):
+            while True:
+                sleep(0.001)
 
     # Test progress()
     wait_func_exc_progress()
@@ -132,10 +134,10 @@ def test_time_guard():
 
     # Progress loop
     start = monotonic()
-    with time_guard(timeout_ms=50, grace_period=10, check_interval=5, interrupt_type=InterruptType.exception) as guard:
+    with time_guard(timeout_ms=80, grace_period=50, check_interval=5, interrupt_type=InterruptType.exception) as guard:
         for _ in progress_loop(infinite_gen(), ctx=guard):
             sleep(0.001)
-            if monotonic() - start > .2:
+            if monotonic() - start > .3:
                 break
 
 

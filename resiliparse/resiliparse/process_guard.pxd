@@ -48,7 +48,7 @@ cdef class _ResiliparseGuard:
     cdef InterruptType interrupt_type
     cdef type exc_type
 
-    cdef inline void reset(self)
+    cdef inline void setup(self) except *
     cdef inline void finish(self)
     cdef void exec_before(self) except *
     cdef void exec_after(self) except *

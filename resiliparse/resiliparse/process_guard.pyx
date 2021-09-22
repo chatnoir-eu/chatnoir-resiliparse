@@ -45,26 +45,36 @@ class MemoryLimitExceeded(ResiliparseGuardException):
 cdef size_t MAX_SIZE_T = <size_t>-1
 
 
+__GUARD_CTX_ENTERED = False
+
+
 @cython.auto_pickle(False)
 cdef class _ResiliparseGuard:
     """Resiliparse context guard base class."""
 
     def __cinit__(self, *args, **kwargs):
-        self.reset()
+        self.gctx.epoch_counter.store(0)
+        self.gctx.ended.store(False)
 
     def __dealloc__(self):
         self.finish()
 
-    cdef inline void finish(self):
-        self.gctx.ended.store(True)
-
-    cdef inline void reset(self):
+    cdef inline void setup(self) except *:
+        global __GUARD_CTX_ENTERED
+        if __GUARD_CTX_ENTERED:
+            raise RuntimeError('Guard contexts cannot be nested.')
+        __GUARD_CTX_ENTERED = True
         self.gctx.epoch_counter.store(0)
         self.gctx.ended.store(False)
 
+    cdef inline void finish(self):
+        self.gctx.ended.store(True)
+        global __GUARD_CTX_ENTERED
+        __GUARD_CTX_ENTERED = False
+
     def __call__(self, func):
         def guard_wrapper(*args, **kwargs):
-            self.reset()
+            self.setup()
             self.exec_before()
             try:
                 return func(*args, **kwargs)
@@ -83,6 +93,7 @@ cdef class _ResiliparseGuard:
         return guard_wrapper
 
     def __enter__(self):
+        self.setup()
         self.exec_before()
         return self
 
