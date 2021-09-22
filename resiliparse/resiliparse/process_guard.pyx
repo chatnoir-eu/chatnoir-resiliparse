@@ -101,6 +101,9 @@ cdef class _ResiliparseGuard:
         pass
 
     cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) nogil:
+        if self.gctx.ended.load():
+            return
+
         if escalation_level == 0:
             if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
                 with gil:
@@ -129,7 +132,7 @@ cdef class _ResiliparseGuard:
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
             with gil:
-                warnings.warn('ERROR: Guarded thread did not respond to TERM signal.')
+                warnings.warn('ERROR: Guarded thread did not respond to TERM signal.', RuntimeWarning)
 
 
 @cython.auto_pickle(False)
