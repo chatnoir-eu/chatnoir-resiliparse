@@ -14,7 +14,7 @@ def test_encoding_detection():
     assert detect_encoding(b'\xc3\xa4\xc3\xb6\xc3\xbc') == 'utf-8'
     assert detect_encoding(b'Hello World') == 'cp1252'
     assert detect_encoding(b'Hello World', html5_compatible=False) == 'ascii'
-    assert detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.') == 'iso8859-2'
+    assert detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.') in ['iso8859-2', 'cp1250']
 
     html = b"""<!doctype html><meta charset="iso-8859-1"><title>Foo</title><body></body>"""
     assert detect_encoding(html, html5_compatible=True) == 'cp1252'
