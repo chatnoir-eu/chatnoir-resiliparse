@@ -93,8 +93,8 @@ jobs:
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
-          CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
           CIBW_TEST_COMMAND_WINDOWS: ""
+          CIBW_TEST_COMMAND: python -m pytest {project}/tests/fastwarc
 
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
@@ -103,6 +103,7 @@ jobs:
             set -e
             PYTHON_ABI="$(python -c "from platform import python_version; print(''.join(python_version().split('.')[:2]))")"
             python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
+          CIBW_BEFORE_TEST_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
           CIBW_TEST_COMMAND_WINDOWS: ""
 
@@ -135,6 +136,7 @@ jobs:
 
   build-coverage:
     runs-on: ubuntu-latest
+    needs: build-wheels
     env:
       DEBUG: "1"
       PYTHONPATH: resiliparse:fastwarc
