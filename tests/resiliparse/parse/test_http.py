@@ -17,7 +17,10 @@ tool.\r\n\
 def test_chunked_http():
     reader = BytesIO(chunked_http)
     decoded = b''
-    while chunk := read_http_chunk(reader):
+    while True:
+        chunk = read_http_chunk(reader)
+        if not chunk:
+            break
         decoded += chunk
 
     assert decoded == b'Resiliparse is an awesome tool.'
