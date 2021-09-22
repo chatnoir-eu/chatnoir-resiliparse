@@ -25,7 +25,8 @@ jobs:
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
 
-      CIBW_BEFORE_BUILD_LINUX: |
+      CIBW_BEFORE_ALL_LINUX: |
+        set -e
         cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
         [lexbor]
         name=lexbor repo
@@ -52,7 +53,7 @@ jobs:
       LIB: C:\vcpkg\installed\x64-windows\lib
       PYTHONPATH: ../resiliparse:../fastwarc
       CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
-      CIBW_TEST_REQUIRES: pytest pytest-cov lz4
+      CIBW_TEST_REQUIRES: pytest lz4
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -92,14 +93,18 @@ jobs:
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
-          CIBW_TEST_COMMAND_LINUX: pytest {project}/tests/fastwarc
-          CIBW_TEST_COMMAND_MACOS: pytest {project}/tests/fastwarc
+          CIBW_TEST_COMMAND_LINUX: python -m pytest {project}/tests/fastwarc
+          CIBW_TEST_COMMAND_MACOS: python -m pytest {project}/tests/fastwarc
 
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
         env:
-          CIBW_TEST_COMMAND_MACOS: pytest {project}/tests/resiliparse
-          CIBW_TEST_COMMAND_LINUX: pytest {project}/tests/resiliparse
+          CIBW_BEFORE_TEST: |
+            set -e
+            PYTHON_ABI="$(python -c "from platform import python_version; print(''.join(python_version().split('.')[:2]))")"
+            python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
+          CIBW_TEST_COMMAND_MACOS: python -m pytest {project}/tests/resiliparse
+          CIBW_TEST_COMMAND_LINUX: python -m pytest {project}/tests/resiliparse
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
@@ -128,6 +133,49 @@ jobs:
           name: sdist
           path: ./dist/*.tar.gz
 
+  build-coverage:
+    runs-on: ubuntu-latest
+    env:
+      DEBUG: "1"
+      PYTHONPATH: resiliparse:fastwarc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+
+      - name: Install Dependencies
+        run: |
+          set -e
+
+          curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+          echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
+              sudo tee /etc/apt/sources.list.d/lexbor.list
+
+          # Install build dependencies
+          sudo apt update -y
+          sudo apt install -y zlib1g-dev liblz4-dev libuchardet-dev liblexbor-dev
+
+          # Install test dependencies
+          python -m pip install cython pytest pytest-cov lz4
+
+      - name: Build Extensions Inline
+        run: |
+          set -e
+          (cd fastwarc && python setup.py build_ext --inplace && python setup.py install)
+          (cd resiliparse && python setup.py build_ext --inplace && python setup.py install)
+
+      - name: Run Tests
+        run: python -m pytest --cov=resiliparse/resiliparse --cov=fastwarc/fastwarc --cov-report xml tests/
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v2
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   build-documentation:
     runs-on: ubuntu-latest
     needs: build-wheels
@@ -145,10 +193,10 @@ jobs:
         run: |
           set -e
 
-          PYTHON_ABI="$(python3 -c "from platform import python_version; print('cp' + ''.join(python_version().split('.')[:2]))")"
-          python3 -m pip install twine
-          grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python3 -m pip install
-          python3 -m pip install wheelhouse/*${PYTHON_ABI}-${PYTHON_ABI}*-manylinux*.whl
+          PYTHON_ABI="$(python -c "from platform import python_version; print('''.join(python_version().split('.')[:2]))")"
+          python -m pip install twine
+          grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
+          python -m pip install wheelhouse/*-cp${PYTHON_ABI}-*-manylinux*.whl
 
           cd docs
           make html
@@ -164,7 +212,7 @@ jobs:
   publish-wheels:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ build-wheels, build-sdist, build-documentation ]
+    needs: [ build-wheels, build-sdist, build-coverage, build-documentation ]
     steps:
       - name: Download Wheels
         uses: actions/download-artifact@v2
