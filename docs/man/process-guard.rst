@@ -170,6 +170,11 @@ This will raise an exception immediately upon exceeding the pre-defined process 
 
 :class:`.MemGuard` provides the same parameters as :class:`.TimeGuard` for controlling the interrupt escalation behaviour (see: :ref:`timeguard-interrupt-escalation-behaviour`), but the time interval before triggering the next escalation level is independent of the grace period and defaults to five seconds to give the application sufficient time to react and deallocate excess memory. This secondary grace period can be configured with the ``secondary_grace_period`` parameter and must be at least one second.
 
+.. important::
+
+  At the moment, :class:`.MemGuard` is supported only on Linux. Decorating functions with :func:`.mem_guard` is allowed on other platforms as well, but calling them will raise a :exc:`RuntimeError`.
+
+
 Using MemGuard as a Context Manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Similar to :class:`.TimeGuard`, :class:`.MemGuard` can also be used as a context manager:

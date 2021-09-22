@@ -182,9 +182,8 @@ def fill_mem_signal_term():
 
 
 def test_mem_guard():
-    if sys.platform not in ['linux', 'darwin']:
-        # Memory reporting is unreliable on other platforms
-        pytest.skip("Skipping mem_guard test")
+    if sys.platform != 'linux':
+        pytest.skip("Skipping mem_guard test due to unsupported platform")
 
     with pytest.raises(MemoryLimitExceeded):
         fill_mem()

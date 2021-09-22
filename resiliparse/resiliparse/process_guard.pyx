@@ -90,10 +90,10 @@ cdef class _ResiliparseGuard:
         self.exec_after()
         self.finish()
 
-    cdef void exec_before(self):
+    cdef void exec_before(self) except *:
         pass
 
-    cdef void exec_after(self):
+    cdef void exec_after(self) except *:
         pass
 
     cdef type get_exception_type(self):
@@ -152,7 +152,7 @@ cdef class TimeGuard(_ResiliparseGuard):
     cdef type get_exception_type(self):
         return ExecutionTimeout
 
-    cdef void exec_before(self):
+    cdef void exec_before(self) except *:
         cdef pthread_t main_thread = pthread_self()
 
         def _thread_exec():
@@ -330,9 +330,21 @@ cdef class MemGuard(_ResiliparseGuard):
         self.interrupt_type = interrupt_type
         self.send_kill = send_kill
         self.check_interval = check_interval
-        self.is_linux = (platform.system() == 'Linux')
 
-    cdef size_t _get_rss_linux(self) nogil:
+    # cdef size_t _get_rss_posix(self) nogil:
+    #     cdef string cmd = string(<char*>b'ps -p ').append(to_string(getpid())).append(<char*>b' -o rss=')
+    #     cdef string buffer = string(64, <char>0)
+    #     cdef string out
+    #     cdef FILE* fp = popen(cmd.c_str(), <char*>b'r')
+    #     if fp == NULL:
+    #         return 0
+    #     while not feof(fp):
+    #         if fgets(buffer.data(), 64, fp) != NULL:
+    #             out.append(buffer.data())
+    #     pclose(fp)
+    #     return strtol(out.c_str(), NULL, 10)
+
+    cdef inline size_t _get_rss(self) nogil:
         cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
         cdef string buffer = string(64, <char>0)
         cdef string statm
@@ -348,29 +360,13 @@ cdef class MemGuard(_ResiliparseGuard):
         statm = statm.substr(0, statm.find(<char*>b' '))    # VmRSS
         return strtol(statm.c_str(), NULL, 10) * getpagesize() // 1024u
 
-    cdef size_t _get_rss_posix(self) nogil:
-        cdef string cmd = string(<char*>b'ps -p ').append(to_string(getpid())).append(<char*>b' -o rss=')
-        cdef string buffer = string(64, <char>0)
-        cdef string out
-        cdef FILE* fp = popen(cmd.c_str(), <char*>b'r')
-        if fp == NULL:
-            return 0
-        while not feof(fp):
-            if fgets(buffer.data(), 64, fp) != NULL:
-                out.append(buffer.data())
-        pclose(fp)
-        return strtol(out.c_str(), NULL, 10)
-
-    cdef inline size_t _get_rss(self) nogil:
-        if self.is_linux:
-            return self._get_rss_linux()
-        else:
-            return self._get_rss_posix()
-
     cdef type get_exception_type(self):
         return MemoryLimitExceeded
 
-    cdef void exec_before(self):
+    cdef void exec_before(self) except *:
+        if platform.system() != 'Linux':
+            raise RuntimeError(f'Unsupported platform: {platform.system()}')
+
         cdef pthread_t main_thread = pthread_self()
 
         cdef size_t max_mem = self.max_memory
@@ -479,7 +475,6 @@ def mem_guard(size_t max_memory, bint absolute=True, grace_period=0, grace_perio
     :type check_interval: int
     :rtype: MemGuard
     """
-
     grace_period = grace_period * 1000 if grace_period_ms is None else grace_period_ms
     secondary_grace_period = secondary_grace_period * 1000 \
         if secondary_grace_period_ms is None else secondary_grace_period_ms
