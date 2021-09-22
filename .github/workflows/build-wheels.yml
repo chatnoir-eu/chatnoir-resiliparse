@@ -52,6 +52,7 @@ jobs:
       LIB: C:\vcpkg\installed\x64-windows\lib
       PYTHONPATH: ../resiliparse:../fastwarc
       CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
+      CIBW_TEST_REQUIRES: pytest pytest-cov lz4
     steps:
       - name: Checkout
         uses: actions/checkout@v2
