@@ -93,19 +93,18 @@ jobs:
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
-          CIBW_TEST_COMMAND_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
+          CIBW_TEST_COMMAND_WINDOWS: ""
 
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
         env:
-          CIBW_BEFORE_BUILD_WINDOWS: ""
-          CIBW_TEST_COMMAND_WINDOWS: ""
-          CIBW_BEFORE_BUILD: |
+          CIBW_BEFORE_TEST: |
             set -e
             PYTHON_ABI="$(python -c "from platform import python_version; print(''.join(python_version().split('.')[:2]))")"
             python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
+          CIBW_TEST_COMMAND_WINDOWS: ""
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
