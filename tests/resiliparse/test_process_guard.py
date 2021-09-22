@@ -32,7 +32,7 @@ signal.signal(signal.SIGINT, sigint_handler)
 signal.signal(signal.SIGTERM, sigterm_handler)
 
 
-@time_guard(timeout_ms=20, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=20, grace_period_ms=0, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc():
     while True:
         sleep(0.001)
@@ -51,7 +51,7 @@ def wait_func_exc_escalate():
             ignored += 1
 
 
-@time_guard(timeout_ms=40, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
+@time_guard(timeout_ms=40, grace_period_ms=50, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_exc_signal():
     while True:
         try:
@@ -77,7 +77,7 @@ def wait_func_signal_term():
             pass
 
 
-@time_guard(timeout_ms=40, grace_period_ms=10, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
+@time_guard(timeout_ms=40, grace_period_ms=50, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_signal_term_escalate():
     while True:
         try:
@@ -87,7 +87,7 @@ def wait_func_signal_term_escalate():
             pass
 
 
-@time_guard(timeout_ms=150, grace_period_ms=0, check_interval=50, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=120, grace_period_ms=0, check_interval=50, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
     while monotonic() - start < .3:
