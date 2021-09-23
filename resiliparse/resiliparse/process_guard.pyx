@@ -26,7 +26,7 @@ import warnings
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
 from resiliparse_inc.string cimport string, to_string
-from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen, fflush, fprintf, popen, pclose, stderr
+from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen
 from resiliparse_inc.unistd cimport getpagesize, getpid, usleep
 
 
@@ -48,6 +48,7 @@ cdef size_t MAX_SIZE_T = <size_t>-1
 __GUARD_CTX_ACTIVE = set()
 
 
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class _ResiliparseGuard:
     """Resiliparse context guard base class."""
@@ -55,23 +56,36 @@ cdef class _ResiliparseGuard:
     def __cinit__(self, *args, **kwargs):
         self.gctx.epoch_counter.store(0)
         self.gctx.ended.store(False)
+        self.guard_thread = None
 
     def __dealloc__(self):
         self.finish()
 
-    cdef inline void setup(self) except *:
+    cdef inline bint setup(self) except 0:
         global __GUARD_CTX_ACTIVE
         if self.__class__.__name__ in __GUARD_CTX_ACTIVE:
             raise RuntimeError('Guard contexts of the same type cannot be nested.')
         __GUARD_CTX_ACTIVE.add(self.__class__.__name__)
         self.gctx.epoch_counter.store(0)
         self.gctx.ended.store(False)
+        return True
 
-    cdef inline void finish(self):
+    cdef inline bint start_guard_thread(self, func, args=()) except 0:
+        self.guard_thread = threading.Thread(target=func, args=args, daemon=True)
+        self.guard_thread.start()
+        return True
+
+    cdef inline bint finish(self) except 0:
         self.gctx.ended.store(True)
+        if self.guard_thread is not None:
+            self.guard_thread.join()
+            self.guard_thread = None
+
         global __GUARD_CTX_ACTIVE
         if self.__class__.__name__ in __GUARD_CTX_ACTIVE:
             __GUARD_CTX_ACTIVE.remove(self.__class__.__name__)
+
+        return True
 
     def __call__(self, func):
         def guard_wrapper(*args, **kwargs):
@@ -80,8 +94,8 @@ cdef class _ResiliparseGuard:
             try:
                 return func(*args, **kwargs)
             finally:
-                self.finish()
                 self.exec_after()
+                self.finish()
 
         # Retain self, but do not bind via __get__() or else func will belong to this class
         guard_wrapper._guard_self = self
@@ -206,10 +220,7 @@ cdef class TimeGuard(_ResiliparseGuard):
                         self.send_interrupt(2, main_thread)
                         break
 
-
-        cdef guard_thread = threading.Thread(target=_thread_exec)
-        guard_thread.setDaemon(True)
-        guard_thread.start()
+        self.start_guard_thread(_thread_exec)
 
     cpdef void progress(self):
         """
@@ -433,9 +444,7 @@ cdef class MemGuard(_ResiliparseGuard):
                     if self.gctx.ended.load():
                         break
 
-        cdef guard_thread = threading.Thread(target=_thread_exec)
-        guard_thread.setDaemon(True)
-        guard_thread.start()
+        self.start_guard_thread(_thread_exec)
 
 
 def mem_guard(size_t max_memory, bint absolute=True, grace_period=0, grace_period_ms=None,

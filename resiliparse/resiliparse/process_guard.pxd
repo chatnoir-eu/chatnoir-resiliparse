@@ -43,13 +43,15 @@ cdef extern from * nogil:
 
 cdef class _ResiliparseGuard:
     cdef GuardContext gctx
+    cdef object guard_thread
     cdef size_t check_interval
     cdef bint send_kill
     cdef InterruptType interrupt_type
     cdef type exc_type
 
-    cdef inline void setup(self) except *
-    cdef inline void finish(self)
+    cdef inline bint setup(self) except 0
+    cdef inline bint finish(self) except 0
+    cdef inline bint start_guard_thread(self, func, args=*) except 0
     cdef void exec_before(self) except *
     cdef void exec_after(self) except *
     cdef type get_exception_type(self)
