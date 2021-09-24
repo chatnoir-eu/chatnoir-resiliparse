@@ -9,8 +9,6 @@ from resiliparse.process_guard import InterruptType, ExecutionTimeout, MemoryLim
     mem_guard, time_guard, progress
 from resiliparse.itertools import progress_loop
 
-warnings.filterwarnings('ignore')
-
 
 class SigIntSent(Exception):
     pass
@@ -41,14 +39,16 @@ def wait_func_exc():
 @time_guard(timeout_ms=40, grace_period_ms=20, check_interval=5, interrupt_type=InterruptType.exception)
 def wait_func_exc_escalate():
     ignored = 0
-    while True:
-        try:
-            while True:
-                sleep(0.001)
-        except ExecutionTimeout as e:
-            if ignored >= 2:
-                raise e
-            ignored += 1
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        while True:
+            try:
+                while True:
+                    sleep(0.001)
+            except ExecutionTimeout as e:
+                if ignored >= 2:
+                    raise e
+                ignored += 1
 
 
 @time_guard(timeout_ms=40, grace_period_ms=50, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
@@ -79,12 +79,14 @@ def wait_func_signal_term():
 
 @time_guard(timeout_ms=40, grace_period_ms=50, check_interval=5, interrupt_type=InterruptType.exception_then_signal)
 def wait_func_signal_term_escalate():
-    while True:
-        try:
-            while True:
-                sleep(0.001)
-        except (ExecutionTimeout, SigIntSent):
-            pass
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        while True:
+            try:
+                while True:
+                    sleep(0.001)
+            except (ExecutionTimeout, SigIntSent):
+                pass
 
 
 @time_guard(timeout_ms=100, grace_period_ms=0, check_interval=10, interrupt_type=InterruptType.exception)
