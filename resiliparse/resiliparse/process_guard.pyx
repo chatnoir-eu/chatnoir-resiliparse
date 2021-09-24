@@ -27,6 +27,7 @@ from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
 from resiliparse_inc.string cimport string, to_string
 from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen
+from resiliparse_inc.time cimport timespec, clock_gettime, CLOCK_MONOTONIC
 from resiliparse_inc.unistd cimport getpagesize, getpid, usleep
 
 
@@ -43,6 +44,13 @@ class MemoryLimitExceeded(ResiliparseGuardException):
 
 
 cdef size_t MAX_SIZE_T = <size_t>-1
+
+
+@cython.cdivision(True)
+cdef inline uint64_t time_millis() nogil:
+    cdef timespec t
+    clock_gettime(CLOCK_MONOTONIC, &t)
+    return t.tv_sec * 1000u + t.tv_nsec / <long>1e6
 
 
 __GUARD_CTX_ACTIVE = set()

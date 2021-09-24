@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+cimport cython
 from libc.stdint cimport uint64_t
 from resiliparse_inc.atomic cimport atomic_uint64_t, atomic_bool
 from resiliparse_inc.pthread cimport pthread_t
@@ -26,19 +27,6 @@ cpdef enum InterruptType:
     exception,
     signal,
     exception_then_signal
-
-
-cdef extern from * nogil:
-    """
-    #include <time.h>
-
-    uint64_t inline time_millis() {
-        struct timespec t;
-        clock_gettime(CLOCK_MONOTONIC, &t);
-        return t.tv_sec * 1000u + t.tv_nsec / 1e6;
-    }
-    """
-    uint64_t time_millis()
 
 
 cdef class _ResiliparseGuard:
