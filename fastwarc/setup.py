@@ -26,7 +26,8 @@ VERSION = '0.5.0'
 ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
-DEBUG = bool(os.getenv('DEBUG'))
+TRACE = bool(os.getenv('TRACE'))
+DEBUG = bool(os.getenv('DEBUG')) or TRACE
 USE_CYTHON = False
 ext = 'cpp'
 cython_args = {}
@@ -39,7 +40,7 @@ try:
         annotate=DEBUG,
         language_level='3',
         compiler_directives=dict(
-            linetrace=DEBUG
+            linetrace=TRACE
         )
     )
 
@@ -48,7 +49,7 @@ except ModuleNotFoundError as e:
     pass
 
 cpp_args = {}
-if DEBUG:
+if TRACE:
     cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
 
 if CXX == 'unix':

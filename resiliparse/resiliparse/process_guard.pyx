@@ -16,6 +16,7 @@
 
 from cpython cimport PyObject, PyThreadState_SetAsyncExc
 cimport cython
+from libc.stdint cimport uint64_t
 from libc.signal cimport SIGINT, SIGTERM, SIGKILL
 
 import inspect

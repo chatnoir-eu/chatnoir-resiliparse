@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cimport cython
-from libc.stdint cimport uint64_t
 from resiliparse_inc.atomic cimport atomic_uint64_t, atomic_bool
 from resiliparse_inc.pthread cimport pthread_t
 
