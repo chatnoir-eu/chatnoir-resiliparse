@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 import getpass
 import importlib
 from itertools import chain
@@ -171,30 +170,34 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
 
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
-@click.argument('offset', type=click.INT)
+@click.argument('offset', type=int)
+@click.option('-o', '--output', type=click.File('wb'), default=sys.stdout.buffer,
+              help='Output file, default is stdout')
 @click.option('--payload', is_flag=True,
-              help='output only record payload (transfer and/or content encoding are preserved')
-@click.option('--headers', is_flag=True, help='output only record (and HTTP) headers')
-def extract(infile, offset, payload, headers):
-    """Extract WARC record by offset.
-    """
+              help='Output only record payload (transfer and/or content encoding are preserved')
+@click.option('--headers', is_flag=True, help='Output only record (and HTTP) headers')
+def extract(infile, offset, output, payload, headers):
+    """Extract WARC record by offset."""
     compl_record = not (payload or headers)
     with open(infile, 'rb') as stream:
         stream.seek(offset)
-        record = next(iter(ArchiveIterator(stream)))
-        if headers or compl_record:
-            ostream = PythonIOStreamAdapter(sys.stdout.buffer)
-            record.headers.write(ostream)
-            sys.stdout.buffer.write(b'\r\n')
-            if record.is_http:
-                record.http_headers.write(ostream)
-                sys.stdout.buffer.write(b'\r\n')
-        if payload or compl_record:
-            buf = record.reader.read(4096)
-            while buf:
-                sys.stdout.buffer.write(buf)
+        try:
+            record = next(ArchiveIterator(stream))
+            if compl_record:
+                record.write(output)
+            elif headers:
+                record.headers.write(PythonIOStreamAdapter(output))
+                output.write(b'\r\n')
+                if record.is_http:
+                    record.http_headers.write(PythonIOStreamAdapter(output))
+                    output.write(b'\r\n')
+            elif payload:
                 buf = record.reader.read(4096)
-
+                while buf:
+                    output.write(buf)
+                    buf = record.reader.read(4096)
+        except Exception as e:
+            sys.stderr.write('Failed to extract WARC record at offset %d: %s\n' % (offset, e))
 
 @main.group()
 def benchmark():
@@ -202,28 +205,34 @@ def benchmark():
     return 0
 
 
-def _index_record(output, fields, record, next_record_offset, file_name):
-    idx = OrderedDict()
+def _index_record(output, fields, preserve_multi_header, record, next_record_offset, file_name):
+    idx = dict()
     for f in fields:
         v = None
         if f == 'offset':
-            v = str(record.stream_pos)
+            idx[f] = str(record.stream_pos)
         elif f == 'length':
-            v = str(next_record_offset - record.stream_pos)
+            idx[f] = str(next_record_offset - record.stream_pos)
         elif f == 'filename':
-            v = file_name
+            idx[f] = file_name
         elif f == 'http:status':
-            if (record.record_type & (WarcRecordType.response | WarcRecordType.revisit)) and record.http_headers:
+            if record.is_http:
                 idx[f] = str(record.http_headers.status_code)
         elif f.startswith('http:'):
-            if record.http_headers:
-                v = record.http_headers.get(f[5:])
-        elif f == 'rec.content_length':
-            v = record.content_length
-        else:
-            v = record.headers.get(f)
-        if v is not None:
-            idx[f] = v
+            if record.http_headers and f[5:] in record.http_headers:
+                if preserve_multi_header:
+                    l = []
+                    for k, v in record.http_headers:
+                        if k.lower() == f[5:]:
+                            l.append(v)
+                    if len(l) == 1:
+                        idx[f] = l[0]
+                    else:
+                        idx[f] = l
+                else:
+                    idx[f] = record.http_headers.get(f[5:])
+        elif f in record.headers:
+            idx[f] = record.headers.get(f)
     output.write(json.dumps(idx) + '\n')
 
 
@@ -231,23 +240,24 @@ def _index_record(output, fields, record, next_record_offset, file_name):
 @click.argument('infiles', type=click.Path(dir_okay=False, exists=True), nargs=-1)
 @click.option('-o', '--output', type=click.File('w'), default=sys.stdout,
               help='Output file, default is stdout')
-@click.option('-f', '--fields', type=click.STRING,
-              default='offset,warc-type,warc-target-uri',
-              help='comma-separated list of indexed fields, eg. "offset", "length", "filename", '
+@click.option('-f', '--fields', type=str,
+              default='offset,warc-type,warc-target-uri', show_default=True,
+              help='Comma-separated list of indexed fields, eg. "offset", "length", "filename", '
                    '"http:status", "http:<http-header>", or "<warc-record-header>"')
-def index(infiles, output, fields):
-    """Index WARC records into CDXJ.
-    """
+@click.option('--preserve-multi-header', is_flag=True,
+              help='Preserve multiple values of HTTP headers as JSON list')
+def index(infiles, output, fields, preserve_multi_header):
+    """Index WARC records into CDXJ."""
     fields = fields.split(',')
     for infile in infiles:
         with open(infile, 'rb') as stream:
             last_record = None
             for record in ArchiveIterator(stream):
                 if last_record is not None:
-                    _index_record(output, fields, last_record, record.stream_pos, infile)
+                    _index_record(output, fields, preserve_multi_header, last_record, record.stream_pos, infile)
                 last_record = record
             if last_record:
-                _index_record(output, fields, last_record, stream.tell(), infile)
+                _index_record(output, fields, preserve_multi_header, last_record, stream.tell(), infile)
 
 
 boto3 = None
