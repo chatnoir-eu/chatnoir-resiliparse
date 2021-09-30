@@ -91,9 +91,9 @@ resiliparse_extensions = [
     Extension('resiliparse.parse.encoding',
               sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
     Extension('resiliparse.parse.html',
-              sources=[f'resiliparse/parse/html.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
+              sources=[f'resiliparse/parse/html.{ext}'], libraries=['lexbor'], **cpp_args),
     Extension('resiliparse.parse.http',
-              sources=[f'resiliparse/parse/http.{ext}'], libraries=['uchardet'], **cpp_args),
+              sources=[f'resiliparse/parse/http.{ext}'], **cpp_args),
     Extension('resiliparse.parse.lang',
               sources=[f'resiliparse/parse/lang.{ext}'], **cpp_args)
 ]
