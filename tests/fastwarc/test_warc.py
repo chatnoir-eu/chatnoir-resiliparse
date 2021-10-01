@@ -94,6 +94,23 @@ def test_record_offsets():
     iterate_with_offsets(open(os.path.join(DATA_DIR, 'warcfile.warc.gz'), 'rb'))
     iterate_with_offsets(open(os.path.join(DATA_DIR, 'warcfile.warc.lz4'), 'rb'))
 
+    # Test correct offset reporting when record length equals reader buffer
+    expected_offsets = {
+        '': [0, 16386, 32772],
+        '.gz': [0, 204, 409],
+        '.lz4': [0, 240, 480]
+    }
+    for ext in expected_offsets:
+        with open(os.path.join(DATA_DIR, f'block-sized-records.warc{ext}'), 'rb') as stream:
+            count = 0
+            rec_ids = set()
+            for rec, offset in zip(ArchiveIterator(stream, parse_http=False), expected_offsets[ext]):
+                assert rec.stream_pos == offset
+                assert rec.record_id and rec.record_id not in rec_ids
+                rec_ids.add(rec.record_id)
+                count += 1
+            assert count == len(expected_offsets[ext])
+
 
 def test_record_types():
     file = os.path.join(DATA_DIR, 'warcfile.warc')
