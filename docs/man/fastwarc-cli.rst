@@ -18,6 +18,8 @@ Besides the :ref:`Python API <fastwarc-manual>`, FastWARC also provides a comman
   Commands:
     benchmark   Benchmark FastWARC performance.
     check       Verify WARC consistency by checking all digests.
+    extract     Extract WARC record by offset.
+    index       Index WARC records as CDXJ.
     recompress  Recompress a WARC file with different settings.
 
 Check Digests
@@ -42,6 +44,26 @@ If your WARC is uncompressed or not compressed properly at the record-level or y
 
 
 Run ``fastwarc recompress --help`` for a full help listing.
+
+Extract Records by Offset
+-------------------------
+You can extract individual records at a given byte offset with either just headers, payload, or both:
+
+.. code-block:: bash
+
+  fastwarc extract [--headers] [--payload] [--output] INFILE OFFSET
+
+Run ``fastwarc extract --help`` for a full help listing.
+
+Index Records as CDXJ
+---------------------
+WARC files can be indexed to the `CDXJ <https://github.com/webrecorder/cdxj-indexer>`_ format with a configurable set of fields:
+
+.. code-block::
+
+  fastwarc index [--fields FIELDS] [--preserve-multi-header] [--output] [INFILES]...
+
+Run ``fastwarc index --help`` for a full help listing.
 
 Benchmark FastWARC vs. WARCIO
 -----------------------------
