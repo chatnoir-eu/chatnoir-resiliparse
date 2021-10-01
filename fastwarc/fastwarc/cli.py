@@ -196,8 +196,10 @@ def extract(infile, offset, output, payload, headers):
                 while buf:
                     output.write(buf)
                     buf = record.reader.read(4096)
+        except StopIteration:
+            pass
         except Exception as e:
-            sys.stderr.write('Failed to extract WARC record at offset %d: %s\n' % (offset, e))
+            sys.stderr.write('Failed to extract WARC record at offset {}: {}\n'.format(offset, e))
 
 @main.group()
 def benchmark():
