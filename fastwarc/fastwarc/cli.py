@@ -24,7 +24,8 @@ import urllib.request
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter
+from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter, \
+    _buf_reader_py_test_reset_limit, _buf_reader_py_test_set_limit
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream, \
     recompress_warc_interactive, verify_digests
@@ -253,13 +254,11 @@ def index(infiles, output, fields, preserve_multi_header):
     fields = fields.split(',')
     for infile in infiles:
         with open(infile, 'rb') as stream:
-            last_record = None
             for record in ArchiveIterator(stream):
-                if last_record is not None:
-                    _index_record(output, fields, preserve_multi_header, last_record, record.stream_pos, infile)
-                last_record = record
-            if last_record:
-                _index_record(output, fields, preserve_multi_header, last_record, stream.tell(), infile)
+                record.reader.consume()
+                _buf_reader_py_test_reset_limit(record.reader)
+                _index_record(output, fields, preserve_multi_header, record, record.reader.tell(), infile)
+                _buf_reader_py_test_set_limit(record.reader, 0)
 
 
 boto3 = None
