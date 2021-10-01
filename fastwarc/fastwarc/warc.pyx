@@ -115,24 +115,24 @@ class CaseInsensitiveStrDict(dict):
         super().__init__(*args, **kwargs)
         self._header_obj = None
 
-    def __getitem__(self, str key not None):
+    def __getitem__(self, key not None):
         return super().__getitem__(CaseInsensitiveStr(key))
 
-    def __setitem__(self, str key not None, str value not None):
+    def __setitem__(self, key not None, value not None):
         super().__setitem__(CaseInsensitiveStr(key), value)
         if self._header_obj is not None:
             self._header_obj[key] = value
 
-    def __contains__(self, str key not None):
+    def __contains__(self, key not None):
         return super().__contains__(CaseInsensitiveStr(key))
 
-    def get(self, str key not None, str value=None):
+    def get(self, key not None, value=None):
         return super().get(CaseInsensitiveStr(key), value)
 
-    def setdefault(self, str key not None, str value=None):
+    def setdefault(self, key not None, value=None):
         return super().setdefault(CaseInsensitiveStr(key), value)
 
-    def pop(self, str key not None):
+    def pop(self, key not None):
         return super().pop(CaseInsensitiveStr(key))
 
     def update(self, it=None, **kwargs):
@@ -188,8 +188,8 @@ cdef class WarcHeaderMap:
         :rtype: t.Iterable[(str, str)]
         """
         cdef str_pair h
-        yield from ((h[0].decode(self._enc, errors='ignore'), h[1].decode(self._enc, errors='ignore'))
-                    for h in self._headers)
+        yield from ((CaseInsensitiveStr(h[0].decode(self._enc, errors='ignore')),
+                     h[1].decode(self._enc, errors='ignore')) for h in self._headers)
 
     def __repr__(self):
         return repr(self.astuples())
@@ -224,7 +224,7 @@ cdef class WarcHeaderMap:
         return self._status_line.decode(self._enc, errors='ignore')
 
     @status_line.setter
-    def status_line(self, str status_line not None):
+    def status_line(self, status_line not None):
         """
         Set status line contents.
 
@@ -247,7 +247,7 @@ cdef class WarcHeaderMap:
             return None
         return int(s[1])
 
-    def append(self, str key not None, str value not None):
+    def append(self, key not None, value not None):
         """
         append(self, key, value)
 
@@ -262,7 +262,7 @@ cdef class WarcHeaderMap:
         value = value.replace('\r\n', ' ').replace('\n', ' ').strip()
         self.append_header(key.encode(self._enc), value.encode(self._enc))
 
-    def get(self, str key not None, str default=None) -> str:
+    def get(self, key not None, default=None) -> str:
         """
         get(self, key, default=None)
 
@@ -573,7 +573,7 @@ cdef class WarcRecord:
     @property
     def content_length(self) -> int:
         """
-        Remaining WARC length in bytes (not necessarily the same as the ``Content-Length`` header).
+        Remaining WARC record length in bytes (not necessarily the same as the ``Content-Length`` header).
 
         :type: int
         """

@@ -169,6 +169,7 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
                     click.echo(rec)
                 sys.exit(1)
 
+
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.argument('offset', type=int)
@@ -198,9 +199,10 @@ def extract(infile, offset, output, payload, headers):
                     output.write(buf)
                     buf = record.reader.read(4096)
         except StopIteration:
-            pass
-        except Exception as e:
-            sys.stderr.write('Failed to extract WARC record at offset {}: {}\n'.format(offset, e))
+            return
+        except (FastWARCError, OSError, ValueError) as e:
+            click.echo(f'Failed to extract WARC record at offset {offset}: {str(e)}', err=True)
+
 
 @main.group()
 def benchmark():
@@ -211,31 +213,31 @@ def benchmark():
 def _index_record(output, fields, preserve_multi_header, record, next_record_offset, file_name):
     idx = dict()
     for f in fields:
-        v = None
+        f = f.strip().lower()
+
         if f == 'offset':
             idx[f] = str(record.stream_pos)
         elif f == 'length':
             idx[f] = str(next_record_offset - record.stream_pos)
         elif f == 'filename':
             idx[f] = file_name
-        elif f == 'http:status':
-            if record.is_http:
-                idx[f] = str(record.http_headers.status_code)
-        elif f.startswith('http:'):
-            if record.http_headers and f[5:] in record.http_headers:
-                if preserve_multi_header:
-                    l = []
-                    for k, v in record.http_headers:
-                        if k.lower() == f[5:]:
-                            l.append(v)
-                    if len(l) == 1:
-                        idx[f] = l[0]
-                    else:
-                        idx[f] = l
-                else:
-                    idx[f] = record.http_headers.get(f[5:])
+        elif f == 'http:status' and record.is_http:
+            idx[f] = str(record.http_headers.status_code)
+        elif f.startswith('http:') and record.is_http:
+            if preserve_multi_header:
+                l = []
+                for k, v in record.http_headers:
+                    if k == f[5:]:
+                        l.append(v)
+                if len(l) == 1:
+                    idx[f] = l[0]
+                elif len(l) > 1:
+                    idx[f] = l
+            else:
+                idx[f] = record.http_headers.get(f[5:])
         elif f in record.headers:
             idx[f] = record.headers.get(f)
+
     output.write(json.dumps(idx) + '\n')
 
 
@@ -243,14 +245,14 @@ def _index_record(output, fields, preserve_multi_header, record, next_record_off
 @click.argument('infiles', type=click.Path(dir_okay=False, exists=True), nargs=-1)
 @click.option('-o', '--output', type=click.File('w'), default=sys.stdout,
               help='Output file, default is stdout')
-@click.option('-f', '--fields', type=str,
+@click.option('-f', '--fields', type=str, metavar='FIELDS',
               default='offset,warc-type,warc-target-uri', show_default=True,
               help='Comma-separated list of indexed fields, eg. "offset", "length", "filename", '
                    '"http:status", "http:<http-header>", or "<warc-record-header>"')
 @click.option('--preserve-multi-header', is_flag=True,
               help='Preserve multiple values of HTTP headers as JSON list')
 def index(infiles, output, fields, preserve_multi_header):
-    """Index WARC records into CDXJ."""
+    """Index WARC records as CDXJ."""
     fields = fields.split(',')
     for infile in infiles:
         with open(infile, 'rb') as stream:
