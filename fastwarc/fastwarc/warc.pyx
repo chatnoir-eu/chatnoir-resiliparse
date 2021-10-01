@@ -597,9 +597,9 @@ cdef class WarcRecord:
         """
         return self._stream_pos
 
-    cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=no_type, bytes record_urn=None):
+    cpdef void init_headers(self, size_t content_length=0, WarcRecordType record_type=no_type, bytes record_urn=None):
         """
-        init_headers(self, content_length, record_type=no_type, record_urn=None)
+        init_headers(self, content_length=0, record_type=no_type, record_urn=None)
         
         Initialize mandatory headers in a fresh :class:`WarcRecord` instance.
         
@@ -637,6 +637,7 @@ cdef class WarcRecord:
         """
         self._reader = BufferedReader.__new__(BufferedReader, BytesIOStream(b))
         self._content_length = len(b)
+        self._headers.set_header(<char*>b'Content-Length', to_string(<long int>self._content_length))
 
     cpdef void parse_http(self):
         """

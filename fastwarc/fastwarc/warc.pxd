@@ -70,7 +70,7 @@ cdef class WarcRecord:
     cdef BufferedReader _reader
     cdef size_t _stream_pos
 
-    cpdef void init_headers(self, size_t content_length, WarcRecordType record_type=*, bytes record_urn=*)
+    cpdef void init_headers(self, size_t content_length=*, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
     cpdef void parse_http(self)
     cpdef size_t write(self, stream, bint checksum_data=*, bytes payload_digest=*, size_t chunk_size=*) except -1
