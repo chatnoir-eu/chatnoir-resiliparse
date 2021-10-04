@@ -7,12 +7,12 @@ coverage:
       fastwarc:
         threshold: 2%
         paths:
-          - tests/fastwarc
-          - fastwarc
-      products:
+          - tests/fastwarc/
+          - fastwarc/
+      resiliparse:
         threshold: 2%
-        resiliparse:
-          - tests/resiliparse
-          - resiliparse
+        paths:
+          - tests/resiliparse/
+          - resiliparse/
 comment:
   require_changes: true
