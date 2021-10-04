@@ -15,6 +15,7 @@
 import getpass
 import importlib
 from itertools import chain
+import json
 import os
 import sys
 import time
@@ -23,7 +24,8 @@ import urllib.request
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream, StreamError, FastWARCError
+from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter, \
+    _buf_reader_py_test_reset_limit, _buf_reader_py_test_set_limit
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream, \
     recompress_warc_interactive, verify_digests
@@ -168,10 +170,97 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
                 sys.exit(1)
 
 
+@main.command()
+@click.argument('infile', type=click.Path(dir_okay=False, exists=True))
+@click.argument('offset', type=int)
+@click.option('-o', '--output', type=click.File('wb'), default=sys.stdout.buffer,
+              help='Output file, default is stdout')
+@click.option('--payload', is_flag=True,
+              help='Output only record payload (transfer and/or content encoding are preserved')
+@click.option('--headers', is_flag=True, help='Output only record (and HTTP) headers')
+def extract(infile, offset, output, payload, headers):
+    """Extract WARC record by offset."""
+    compl_record = not (payload or headers)
+    with open(infile, 'rb') as stream:
+        stream.seek(offset)
+        try:
+            record = next(ArchiveIterator(stream))
+            if compl_record:
+                record.write(output)
+            elif headers:
+                record.headers.write(PythonIOStreamAdapter(output))
+                output.write(b'\r\n')
+                if record.is_http:
+                    record.http_headers.write(PythonIOStreamAdapter(output))
+                    output.write(b'\r\n')
+            elif payload:
+                buf = record.reader.read(4096)
+                while buf:
+                    output.write(buf)
+                    buf = record.reader.read(4096)
+        except StopIteration:
+            return
+        except (FastWARCError, OSError, ValueError) as e:
+            click.echo(f'Failed to extract WARC record at offset {offset}: {str(e)}', err=True)
+
+
 @main.group()
 def benchmark():
     """Benchmark FastWARC performance."""
     return 0
+
+
+def _index_record(output, fields, preserve_multi_header, record, next_record_offset, file_name):
+    idx = dict()
+    for f in fields:
+        f = f.strip().lower()
+
+        if f == 'offset':
+            idx[f] = str(record.stream_pos)
+        elif f == 'length':
+            idx[f] = str(next_record_offset - record.stream_pos)
+        elif f == 'filename':
+            idx[f] = file_name
+        elif f == 'http:status' and record.is_http:
+            idx[f] = str(record.http_headers.status_code)
+        elif f.startswith('http:') and record.is_http:
+            if preserve_multi_header:
+                l = []
+                for k, v in record.http_headers:
+                    if k == f[5:]:
+                        l.append(v)
+                if len(l) == 1:
+                    idx[f] = l[0]
+                elif len(l) > 1:
+                    idx[f] = l
+            else:
+                idx[f] = record.http_headers.get(f[5:])
+        elif f in record.headers:
+            idx[f] = record.headers.get(f)
+
+    output.write(json.dumps(idx) + '\n')
+
+
+@main.command()
+@click.argument('infiles', type=click.Path(dir_okay=False, exists=True), nargs=-1)
+@click.option('-o', '--output', type=click.File('w'), default=sys.stdout,
+              help='Output file, default is stdout')
+@click.option('-f', '--fields', type=str, metavar='FIELDS',
+              default='offset,warc-type,warc-target-uri', show_default=True,
+              help='Comma-separated list of indexed fields, eg. "offset", "length", "filename", '
+                   '"http:status", "http:<http-header>", or "<warc-record-header>"')
+@click.option('--preserve-multi-header', is_flag=True,
+              help='Preserve multiple values of HTTP headers as JSON list')
+def index(infiles, output, fields, preserve_multi_header):
+    """Index WARC records as CDXJ."""
+    fields = fields.split(',')
+    for infile in infiles:
+        with open(infile, 'rb') as stream:
+            for record in ArchiveIterator(stream):
+                record.reader.consume()
+                _buf_reader_py_test_reset_limit(record.reader)
+                _index_record(output, fields, preserve_multi_header, record, record.reader.tell(), infile)
+                _buf_reader_py_test_set_limit(record.reader, 0)
 
 
 boto3 = None
