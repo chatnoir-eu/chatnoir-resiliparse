@@ -986,10 +986,7 @@ cdef class ArchiveIterator:
 
             if version_line == b'\r\n' or version_line == b'\n':
                 # Consume empty lines
-                if self.reader.stream_is_compressed:
-                    self.record._stream_pos = self.reader.tell()
-                else:
-                    self.record._stream_pos += version_line.size()
+                self.record._stream_pos = self.reader.tell()
                 continue
 
             version_line = strip_str(version_line)
