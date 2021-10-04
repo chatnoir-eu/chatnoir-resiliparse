@@ -256,11 +256,14 @@ def index(infiles, output, fields, preserve_multi_header):
     fields = fields.split(',')
     for infile in infiles:
         with open(infile, 'rb') as stream:
+            prev_record = None
             for record in ArchiveIterator(stream):
-                record.reader.consume()
-                _buf_reader_py_test_reset_limit(record.reader)
-                _index_record(output, fields, preserve_multi_header, record, record.reader.tell(), infile)
-                _buf_reader_py_test_set_limit(record.reader, 0)
+                if prev_record is not None:
+                    _index_record(output, fields, preserve_multi_header, prev_record, record.stream_pos, infile)
+                prev_record = record
+
+            if prev_record is not None:
+                _index_record(output, fields, preserve_multi_header, prev_record, prev_record.reader.tell(), infile)
 
 
 boto3 = None
