@@ -438,12 +438,7 @@ cdef class GZipStream(CompressingStream):
                               (self.zst.next_in - <Bytef*>self.working_buf.data())
             inflateReset(&self.zst)
 
-        cdef size_t bytes_out = size - self.zst.avail_out
-        if bytes_out == 0:
-            # We may have hit a member boundary, try again
-            return self.read(out, size)
-
-        return bytes_out
+        return size - self.zst.avail_out
 
     cdef size_t write(self, const char* data, size_t size) except -1:
         if self.initialized == _GZIP_INFLATE:
@@ -614,11 +609,7 @@ cdef class LZ4Stream(CompressingStream):
                 with gil:
                     raise StreamError(f'Not a valid LZ4 stream: {LZ4F_getErrorName(ret).decode()}')
 
-        if bytes_out == 0:
-            # Everything OK, we may have hit a frame boundary
-            return self.read(out, size)
-
-        return bytes_out
+        return out_buf_consumed
 
     cdef size_t begin_member(self):
         if self.frame_started:
