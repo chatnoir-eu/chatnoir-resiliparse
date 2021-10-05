@@ -26,8 +26,8 @@ VERSION = '0.6.1'
 ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
-TRACE = bool(os.getenv('TRACE'))
-DEBUG = bool(os.getenv('DEBUG')) or TRACE
+TRACE = bool(int(os.getenv('TRACE', 0)))
+DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
 USE_CYTHON = False
 ext = 'cpp'
 cython_args = {}
