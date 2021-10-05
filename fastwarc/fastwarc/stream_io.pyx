@@ -15,6 +15,8 @@
 # distutils: language = c++
 
 cimport cython
+from cython.operator cimport preincrement as preinc
+from libc.string cimport memchr
 
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
@@ -839,9 +841,9 @@ cdef class BufferedReader:
             self._consume_buf(buf_sub.size())
         return data_read
 
-    cpdef string readline(self, bint crlf=True, size_t max_line_len=4096) except *:
+    cpdef string readline(self, bint crlf=True, size_t max_line_len=8192) except *:
         """
-        readline(self, crlf=True, max_line_len=4096)
+        readline(self, crlf=True, max_line_len=8192)
         
         Read a single line from the input stream.
         
@@ -853,47 +855,48 @@ cdef class BufferedReader:
         :return: line contents (or empty string if EOF)
         :rtype: bytes
         """
-        cdef string line
 
-        if not self._fill_buf():
-            return string()
-
+        cdef string_view buf
         cdef size_t capacity_remaining = max_line_len
-        cdef string_view buf = self._get_buf()
-        cdef char* newline_sep = b'\r\n' if crlf else '\n'
-        cdef short newline_offset = 1 if crlf else 0
-        cdef size_t pos = buf.find(newline_sep)
         cdef bint last_was_cr = False
 
-        with nogil:
-            while pos == strnpos:
-                if capacity_remaining > 0:
-                    line.append(<string>buf.substr(0, min(buf.size(), capacity_remaining)))
-                    capacity_remaining -= line.size()
+        cdef string line
+        line.reserve(192)
 
-                # CRLF may be split
-                last_was_cr = crlf and buf.back() == <char>b'\r'
+        cdef size_t lf_pos = 0
+        cdef char* lf_ptr = NULL
 
-                # Consume rest of line
-                self._consume_buf(buf.size())
+        while lf_ptr == NULL and self._fill_buf():
+            buf = self._get_buf()
 
-                with gil:
-                    if not self._fill_buf():
-                        break
-                buf = self._get_buf()
-                if last_was_cr and buf.front() == <char>b'\n':
-                    if capacity_remaining:
-                        line.append(<char*>b'\n')
+            if crlf:
+                if last_was_cr and buf.front() == b'\n':
+                    line.push_back(b'\n')
                     self._consume_buf(1)
-                    pos = strnpos
-                    break
+                    return line
+                last_was_cr = False
 
-                pos = buf.find(newline_sep)
+                lf_ptr = <char*>memchr(buf.data(), <int>b'\r', buf.size())
+                while lf_ptr != NULL:
+                    lf_pos = lf_ptr - buf.data() + 1
+                    if lf_pos == buf.size():
+                        last_was_cr = True
+                        lf_ptr = NULL
+                        break
+                    preinc(lf_ptr)
+                    if lf_ptr[0] == b'\n':
+                        break
+                    lf_ptr = <char*>memchr(lf_ptr, <int>b'\r', buf.size() - lf_pos)
+            else:
+                lf_ptr = <char*>memchr(buf.data(), <int>b'\n', buf.size())
 
-            if not buf.empty() and pos != strnpos:
-                if capacity_remaining > 0:
-                    line.append(<string>buf.substr(0, min(pos + 1 + newline_offset, capacity_remaining)))
-                self._consume_buf(pos + 1 + newline_offset)
+            if lf_ptr == NULL:
+                lf_pos = buf.size() - 1
+
+            preinc(lf_pos)
+            line.append(buf.data(), min(lf_pos, capacity_remaining))
+            capacity_remaining = max_line_len - line.size()
+            self._consume_buf(lf_pos)
 
         return line
 
