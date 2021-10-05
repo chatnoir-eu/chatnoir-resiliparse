@@ -28,6 +28,8 @@ CXX = distutils.ccompiler.get_default_compiler()
 
 TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
+ASAN = bool(int(os.getenv('ASAN', 0)))
+
 USE_CYTHON = False
 ext = 'cpp'
 cython_args = {}
@@ -61,6 +63,10 @@ if CXX == 'unix':
                             '-fpermissive', '-Wno-c++11-narrowing'],
         extra_link_args=['-std=c++17']
     ))
+    if ASAN:
+        cpp_args['extra_compile_args'].append('-fsanitize=address')
+        cpp_args['extra_link_args'].append('-fsanitize=address')
+
 elif CXX == 'msvc':
     cpp_args.update(dict(
         extra_compile_args=['/std:c++latest'],
