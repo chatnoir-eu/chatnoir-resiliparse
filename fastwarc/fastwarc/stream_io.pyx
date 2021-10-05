@@ -15,7 +15,7 @@
 # distutils: language = c++
 
 cimport cython
-from cython.operator cimport dereference as deref, preincrement as preinc
+from cython.operator cimport preincrement as preinc
 from libc.string cimport memchr, memcmp
 
 from resiliparse_inc.cstring cimport strerror
