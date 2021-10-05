@@ -114,6 +114,8 @@ cdef class BufferedReader:
     cdef IOStream stream
     cdef string errstr
     cdef string buf
+    cdef string_view buf_view
+    cdef string_view limited_buf_view
     cdef size_t buf_size
     cdef size_t stream_pos
     cdef size_t limit
@@ -129,9 +131,9 @@ cdef class BufferedReader:
     cpdef string read(self, size_t size=*) except *
     cpdef string readline(self, bint crlf=*, size_t max_line_len=*)  except *
     cpdef size_t tell(self) except -1
-    cpdef bint consume(self, size_t size=*) except 0
+    cpdef size_t consume(self, size_t size=*) except -1
     cpdef void close(self) except *
 
     cdef bint _fill_buf(self) except -1
-    cdef inline string_view _get_buf(self) nogil
-    cdef inline void _consume_buf(self, size_t size) nogil
+    cdef inline string_view* _get_buf(self) nogil
+    cdef inline size_t _consume_buf(self, size_t size) nogil

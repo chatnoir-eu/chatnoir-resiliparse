@@ -15,8 +15,8 @@
 # distutils: language = c++
 
 cimport cython
-from cython.operator cimport preincrement as preinc
-from libc.string cimport memchr
+from cython.operator cimport dereference as deref, preincrement as preinc
+from libc.string cimport memchr, memcmp
 
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
@@ -706,6 +706,8 @@ cdef class BufferedReader:
         self.stream = stream
         self.buf_size = max(1024u, buf_size)
         self.buf = string()
+        self.buf_view = string_view()
+        self.limited_buf_view = string_view()
         self.limit = strnpos
         self.limit_consumed = 0
         self.stream_is_compressed = isinstance(stream, CompressingStream)
@@ -720,16 +722,15 @@ cdef class BufferedReader:
             return True
 
         self.negotiate_stream = False
-        if self.buf.empty():
-            self._fill_buf()
+        self._fill_buf()
 
-        if self.buf.size() > 2 and self.buf[0] == <char> 0x1f and self.buf[1] == <char> 0x8b:
+        if self.buf_view.size() > 2 and self.buf_view[0] == <char>0x1f and self.buf_view[1] == <char>0x8b:
             self.stream = GZipStream.__new__(GZipStream, self.stream)
-            (<GZipStream> self.stream).prepopulate(False, self.buf)
-        elif self.buf.size() > 4 and self.buf.substr(0, 4) == <char*>b'\x04\x22\x4d\x18':
+            (<GZipStream> self.stream).prepopulate(False, <string>self.buf_view)
+        elif self.buf_view.size() > 4 and memcmp(self.buf_view.data(), <const char*>b'\x04\x22\x4d\x18', 4) == 0:
             self.stream = LZ4Stream.__new__(LZ4Stream, self.stream)
-            (<LZ4Stream> self.stream).prepopulate(self.buf)
-        elif self.buf.size() > 5 and self.buf.substr(0, 5) == <char*>b'WARC/':
+            (<LZ4Stream> self.stream).prepopulate(<string>self.buf_view)
+        elif self.buf_view.size() > 5 and memcmp(self.buf_view.data(), <const char*>b'WARC/', 5) == 0:
             # Stream is uncompressed: bail out, dont' mess with buffers
             self.stream_is_compressed = False
             return True
@@ -738,11 +739,8 @@ cdef class BufferedReader:
             raise StreamError('Not a valid WARC stream')
 
         self.stream_is_compressed = isinstance(self.stream, CompressingStream)
-        if self.buf.size() < self.buf_size:
-            self.buf.resize(self.buf_size)
-        cdef size_t bytes_read = self.stream.read(self.buf.data(), self.buf_size)
-        if bytes_read < self.buf.size():
-            self.buf.resize(bytes_read)
+        self.buf_view.remove_prefix(self.buf_view.size())
+        self._fill_buf()
         self.stream_started = False
         return True
 
@@ -753,52 +751,60 @@ cdef class BufferedReader:
         :return: ``True`` if refill was successful, ``False`` otherwise (EOF)
         """
         self.stream_started = True
-        if self.buf.size() > 0:
+        if self.buf_view.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
         if self.buf.size() < self.buf_size:
             self.buf.resize(self.buf_size)
         cdef size_t bytes_read = self.stream.read(self.buf.data(), self.buf_size)
-        if bytes_read < self.buf_size:
-            self.buf.resize(bytes_read)
+        self.buf_view = string_view(self.buf.data(), bytes_read)
 
-        if self.buf.size() == 0:
+        if self.buf_view.size() == 0:
             return False
         elif self.limit != strnpos:
             return self.limit > self.limit_consumed
 
         return True
 
-    cdef string_view _get_buf(self) nogil:
+    cdef string_view* _get_buf(self) nogil:
         """
         Get buffer contents. Does take a set limit into account.
         
+        Returns a pointer, since Cython does not support returning lvalue references.
+        
         :return: available buffer contents
         """
-        cdef string_view v = string_view(self.buf.c_str(), self.buf.size())
-        cdef size_t remaining
-        if self.limit != strnpos:
-            remaining = self.limit - self.limit_consumed
-            if v.size() > remaining:
-                v.remove_suffix(v.size() - remaining)
-        return v
+        if self.limit == strnpos:
+            return &self.buf_view
 
-    cdef void _consume_buf(self, size_t size) nogil:
+        cdef size_t remaining = self.limit - self.limit_consumed
+        self.limited_buf_view = string_view(self.buf_view.data(), self.buf_view.size())
+        if self.limited_buf_view.size() > remaining:
+            self.limited_buf_view.remove_suffix(self.limited_buf_view.size() - remaining)
+        return &self.limited_buf_view
+
+    cdef size_t _consume_buf(self, size_t size) nogil:
         """
         Consume up to ``size`` bytes from internal buffer. Takes a set limit into account.
         
         :param size: number of bytes to read
+        :return: bytes consumed
         """
-        if self.limit == strnpos and size >= self.buf.size():
-            self.buf.clear()
-            return
+        cdef size_t consumed
+        if self.limit == strnpos and size >= self.buf_view.size():
+            consumed = self.buf_view.size()
+            self.buf_view.remove_prefix(consumed)
+            return consumed
 
         if self.limit != strnpos:
             if size > self.limit - self.limit_consumed:
                 size = self.limit - self.limit_consumed
             self.limit_consumed += size
 
-        self.buf.erase(0, size)
+        if size > self.buf_view.size():
+            size = self.buf_view.size()
+        self.buf_view.remove_prefix(size)
+        return size
 
     cdef inline void set_limit(self, size_t offset) nogil:
         """
@@ -826,13 +832,14 @@ cdef class BufferedReader:
         :rtype: bytes
         """
         cdef string data_read
-        cdef size_t missing = size
+        cdef size_t remaining = size
         cdef string_view buf_sub
 
         while (size == strnpos or data_read.size() < size) and self._fill_buf():
-            missing = size - data_read.size()
-            buf_sub = self._get_buf().substr(0, missing)
-            data_read.append(<string>buf_sub)
+            buf = self._get_buf()
+            remaining = size - data_read.size()
+            buf_sub = self._get_buf().substr(0, remaining)
+            data_read.append(buf_sub.data(), buf_sub.size())
             self._consume_buf(buf_sub.size())
         return data_read
 
@@ -851,7 +858,7 @@ cdef class BufferedReader:
         :rtype: bytes
         """
 
-        cdef string_view buf
+        cdef string_view* buf
         cdef size_t capacity_remaining = max_line_len
         cdef bint last_was_cr = False
 
@@ -915,9 +922,9 @@ cdef class BufferedReader:
             # The reader position inside the stream is meaningless.
             return self.stream.tell()
 
-        return self.stream.tell() - self.buf.size()
+        return self.stream.tell() - self.buf_view.size()
 
-    cpdef bint consume(self, size_t size=strnpos) except 0:
+    cpdef size_t consume(self, size_t size=strnpos) except -1:
         """
         consume(self, size=-1)
         
@@ -925,23 +932,23 @@ cdef class BufferedReader:
         
         :param size: number of bytes to read (default means read remaining stream)
         :type size: int
+        :return: number of bytes consumed
+        :rtype: int
         """
-        cdef string_view buf
-        cdef size_t bytes_to_consume
+        cdef string_view* buf
+        cdef size_t consumed = 0
 
-        while size > 0 and self._fill_buf():
+        while size > consumed and self._fill_buf():
             buf = self._get_buf()
             if buf.empty():
                 break
 
             if size != strnpos:
-                bytes_to_consume = min(buf.size(), size)
-                self._consume_buf(bytes_to_consume)
-                size -= bytes_to_consume
+                consumed += self._consume_buf(size - consumed)
             else:
-                self._consume_buf(buf.size())
+                consumed += self._consume_buf(buf.size())
 
-        return True
+        return consumed
 
     cpdef void close(self) except *:
         """
@@ -951,7 +958,6 @@ cdef class BufferedReader:
         """
         if self.stream is not None:
             self.stream.close()
-
 
 
 def _buf_reader_py_test_detect_stream_type(BufferedReader buf):
