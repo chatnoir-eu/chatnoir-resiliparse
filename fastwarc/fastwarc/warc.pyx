@@ -15,8 +15,10 @@
 # distutils: language = c++
 
 cimport cython
-from cython.operator cimport dereference as deref, preincrement as inc
+from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
 from libc.stdint cimport uint16_t
+from libc.string cimport memchr
+from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
 import codecs
@@ -34,22 +36,25 @@ from resiliparse_inc.string cimport npos as strnpos, string, to_string
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
 
 
-cdef string strip_str(const string& s) nogil:
-    cdef size_t start = 0
-    cdef size_t end = s.size()
+cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
+    cdef const char* end = deref(s_ptr) + l
 
-    for start in range(0, s.size()):
-        if not isspace(s[start]):
-            break
+    while deref(s_ptr) < end and isspace(deref(s_ptr)[0]):
+        inc(deref(s_ptr))
 
-    for end in reversed(range(s.size())):
-        if not isspace(s[end]):
-            break
+    while end > deref(s_ptr) and isspace((end - 1)[0]):
+        dec(end)
 
-    return s.substr(start, end - start + 1)
+    return end - deref(s_ptr)
 
 
-cdef string str_to_lower(string s) nogil:
+cdef inline string strip_str(const string& s) nogil:
+    cdef const char* start = s.data()
+    cdef size_t l = strip_c_str(&start, s.size())
+    return string(start, l)
+
+
+cdef inline string str_to_lower(string s) nogil:
     for i in range(s.size()):
         s[i] = tolower(s[i])
     return s
@@ -76,23 +81,23 @@ cdef const char* _enum_record_type_to_str(WarcRecordType record_type) nogil:
         return b'unknown'
 
 
-cdef WarcRecordType _str_record_type_to_enum(string record_type) nogil:
-    record_type = str_to_lower(record_type)
-    if record_type == b'warcinfo':
+cdef WarcRecordType _str_record_type_to_enum(const string& record_type) nogil:
+    cdef string record_type_lower = str_to_lower(record_type)
+    if record_type_lower == b'warcinfo':
         return warcinfo
-    elif record_type == b'response':
+    elif record_type_lower == b'response':
         return response
-    elif record_type == b'resource':
+    elif record_type_lower == b'resource':
         return resource
-    elif record_type == b'request':
+    elif record_type_lower == b'request':
         return request
-    elif record_type == b'metadata':
+    elif record_type_lower == b'metadata':
         return metadata
-    elif record_type == b'revisit':
+    elif record_type_lower == b'revisit':
         return revisit
-    elif record_type == b'conversion':
+    elif record_type_lower == b'conversion':
         return conversion
-    elif record_type == b'continuation':
+    elif record_type_lower == b'continuation':
         return continuation
     else:
         return unknown
@@ -860,8 +865,12 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     """
     cdef string line
     cdef string header_key, header_value
-    cdef size_t delim_pos = 0
+    cdef const char* delim_ptr
     cdef size_t bytes_consumed = 0
+
+    # Temporary variables for white-space stripping
+    cdef const char* str_start
+    cdef size_t str_len
 
     while True:
         line = reader.readline()
@@ -880,17 +889,22 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
             has_status_line = False
             continue
 
-        delim_pos = line.find(b':')
-        if delim_pos == strnpos:
+        str_start = line.data()
+        delim_ptr = <const char*>memchr(str_start, <int>b':', line.size())
+        if delim_ptr == NULL:
             # Invalid header, try to preserve it as best we can
             target.add_continuation(strip_str(line))
         else:
-            header_key = strip_str(line.substr(0, delim_pos))
-            if delim_pos >= line.size():
+            str_len = strip_c_str(&str_start, delim_ptr - str_start)
+            header_key = string(str_start, str_len)
+
+            if delim_ptr == &line.back():
                 header_value = string()
             else:
-                header_value = strip_str(line.substr(delim_pos + 1))
-            target.append_header(header_key, header_value)
+                inc(delim_ptr)
+                str_len = strip_c_str(&delim_ptr, &line.back() - delim_ptr)
+                header_value = string(delim_ptr, str_len)
+            target.append_header(move(header_key), move(header_value))
 
     return bytes_consumed
 
