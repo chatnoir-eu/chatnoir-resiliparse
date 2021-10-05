@@ -2,17 +2,5 @@ coverage:
   range: 70..90
   round: down
   precision: 2
-  status:
-    project:
-      fastwarc:
-        threshold: 2%
-        paths:
-          - tests/fastwarc/
-          - fastwarc/
-      resiliparse:
-        threshold: 2%
-        paths:
-          - tests/resiliparse/
-          - resiliparse/
 comment:
   require_changes: true
