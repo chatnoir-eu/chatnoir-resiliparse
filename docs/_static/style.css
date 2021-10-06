@@ -1,5 +1,5 @@
 .rst-content .toctree-wrapper > p.caption {
-    font-size: 125%;
+    font-size: 135%;
 }
 
 .highlight-console {
@@ -8,4 +8,46 @@
 
 .highlight-console .go {
     color: #4a4a4a;
+}
+
+h1 {
+    font-size: 180%;
+}
+
+h2 {
+    font-size: 155%;
+}
+
+h3 {
+    font-size: 135%;
+}
+
+h4 {
+    font-size: 118%;
+}
+
+h5 {
+    font-size: 100%;
+}
+
+h6 {
+    font-size: 90%;
+}
+
+#top-level-commands h3,
+#top-level-commands h4,
+#top-level-commands h5,
+#top-level-commands h6,
+#full-command-listing h3,
+#full-command-listing h4,
+#full-command-listing h5,
+#full-command-listing h6 {
+    font-family: Hack, Consolas, "Noto Sans Mono", "SF Mono", monospace;
+}
+
+#top-level-commands h4,
+#full-command-listing h4 {
+    border-top: 1px solid #e1e4e5;
+    padding-top: 24px;
+    margin: 24px 0;
 }
