@@ -1,6 +1,0 @@
-coverage:
-  range: 70..90
-  round: down
-  precision: 2
-comment:
-  require_changes: true

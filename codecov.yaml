@@ -1,0 +1,9 @@
+coverage:
+  range: 70..90
+  round: down
+  precision: 2
+fixes:
+  - "**/chatnoir-resiliparse/fastwarc/::fastwarc/"
+  - "**/chatnoir-resiliparse/resiliparse/::resiliparse/"
+comment:
+  require_changes: true
