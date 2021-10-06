@@ -701,10 +701,10 @@ cdef class BufferedReader:
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, IOStream stream, size_t buf_size=16384, bint negotiate_stream=True):
+    def __cinit__(self, IOStream stream, size_t buf_size=65536, bint negotiate_stream=True):
         self.stream = stream
         self.buf = string()
-        self.buf.resize(max(1024u, buf_size))
+        self.buf.resize(max(4096u, buf_size))
         self.buf_view = string_view()
         self.limited_buf_view = string_view()
         self.limit = strnpos
@@ -713,6 +713,7 @@ cdef class BufferedReader:
         self.stream_started = False
         self.negotiate_stream = negotiate_stream and not self.stream_is_compressed
 
+    # noinspection PyAttributeOutsideInit
     cdef bint detect_stream_type(self) except 0:
         """
         Try to auto-detect stream type (GZip, LZ4, or uncompressed).

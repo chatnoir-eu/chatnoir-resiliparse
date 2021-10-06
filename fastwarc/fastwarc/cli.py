@@ -402,7 +402,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
                 yield from l(u)
 
             for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
-                          desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.3):
+                          desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.5):
                 num += 1
         except StreamError as e:
             click.echo(f'Error reading input: {e}', err=True)
