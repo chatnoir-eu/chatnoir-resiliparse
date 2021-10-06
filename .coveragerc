@@ -2,3 +2,4 @@
 plugins = Cython.Coverage
 omit =
     */cli.py
+    */setup.py

@@ -3,7 +3,7 @@ coverage:
   round: down
   precision: 2
 fixes:
-  - "**/chatnoir-resiliparse/fastwarc/::fastwarc/"
-  - "**/chatnoir-resiliparse/resiliparse/::resiliparse/"
+  - "fastwarc/fastwarc/::fastwarc/"
+  - "resiliparse/resiliparse/::resiliparse/"
 comment:
   require_changes: true
