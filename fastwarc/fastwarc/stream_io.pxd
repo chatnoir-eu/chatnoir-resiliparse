@@ -116,7 +116,6 @@ cdef class BufferedReader:
     cdef string buf
     cdef string_view buf_view
     cdef string_view limited_buf_view
-    cdef size_t buf_size
     cdef size_t stream_pos
     cdef size_t limit
     cdef size_t limit_consumed

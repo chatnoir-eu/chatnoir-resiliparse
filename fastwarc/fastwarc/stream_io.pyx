@@ -704,8 +704,8 @@ cdef class BufferedReader:
 
     def __cinit__(self, IOStream stream, size_t buf_size=16384, bint negotiate_stream=True):
         self.stream = stream
-        self.buf_size = max(1024u, buf_size)
         self.buf = string()
+        self.buf.resize(max(1024u, buf_size))
         self.buf_view = string_view()
         self.limited_buf_view = string_view()
         self.limit = strnpos
@@ -754,9 +754,7 @@ cdef class BufferedReader:
         if self.buf_view.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
-        if self.buf.size() < self.buf_size:
-            self.buf.resize(self.buf_size)
-        cdef size_t bytes_read = self.stream.read(self.buf.data(), self.buf_size)
+        cdef size_t bytes_read = self.stream.read(self.buf.data(), self.buf.size())
         self.buf_view = string_view(self.buf.data(), bytes_read)
 
         if self.buf_view.size() == 0:
