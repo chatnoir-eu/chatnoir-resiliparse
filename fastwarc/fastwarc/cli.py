@@ -349,21 +349,8 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
     return urls_expanded
 
 
-@main.group()
-def benchmark():
-    """
-    Benchmark FastWARC performance.
-
-    The FastWARC CLI comes with a benchmarking tool for measuring WARC record decompression and parsing
-    performance on your own machine. The benchmarking results can be compared directly with WARCIO.
-
-    See :ref:`FastWARC Benchmarks <fastwarc-benchmarks>` for more information and example benchmarking results.
-    """
-    return 0
-
-
 # noinspection PyPackageRequirements
-@benchmark.command()
+@main.command()
 @click.argument('input_url', nargs=-1)
 @click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
               default='auto', show_default=True, help='Decompression algorithm')
@@ -379,16 +366,21 @@ def benchmark():
                                                         'revisit', 'conversation', 'continuation', 'any_type']),
               default=['any_type'], multiple=True, show_default=True, help='Filter for specific WARC record types')
 @click.option('-w', '--bench-warcio', is_flag=True, help='Compare FastWARC performance with WARCIO')
-def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, is_prefix, use_python_stream,
-         verify_digests, parse_http, filter_type, bench_warcio):
+def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, is_prefix, use_python_stream,
+              verify_digests, parse_http, filter_type, bench_warcio):
     """
-    Benchmark WARC read performance.
+    Benchmark FastWARC read performance.
+
+    The FastWARC CLI comes with a benchmarking tool for measuring WARC record decompression and parsing
+    performance on your own machine. The benchmarking results can be compared directly with WARCIO.
 
     Supported WARC sources are local files, S3 and HTTP(s) URLs. Supported compression algorithms
     are GZip, LZ4, or uncompressed.
 
     The read benchmarking tool has additional options, such as reading WARCs directly from a remote S3 data source
     using `Boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`_.
+
+    See :ref:`FastWARC Benchmarks <fastwarc-benchmarks>` for more information and example benchmarking results.
     """
 
     if not input_url:

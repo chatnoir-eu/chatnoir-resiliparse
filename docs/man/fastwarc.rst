@@ -246,7 +246,7 @@ The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record
 
 .. code-block:: console
 
-  $ fastwarc benchmark read CC-MAIN-*.warc --bench-warcio
+  $ fastwarc benchmark CC-MAIN-*.warc --bench-warcio
 
   Benchmarking read performance from 5 input path(s)...
   FastWARC: 630,245 records read in 5.81 seconds (108,487.93 records/s).
@@ -257,7 +257,7 @@ The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record
 
 .. code-block:: console
 
-  $ fastwarc benchmark read CC-MAIN-*.warc.gz --bench-warcio
+  $ fastwarc benchmark CC-MAIN-*.warc.gz --bench-warcio
 
   Benchmarking read performance from 5 input path(s)...
   FastWARC: 630,245 records read in 60.52 seconds (10,413.38 records/s).
@@ -268,7 +268,7 @@ The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record
 
 .. code-block:: console
 
-  $ fastwarc benchmark read CC-MAIN-*.warc.lz4
+  $ fastwarc benchmark CC-MAIN-*.warc.lz4
 
   Benchmarking read performance from 5 input path(s)...
   FastWARC: 630,245 records read in 12.65 seconds (49,825.44 records/s).
