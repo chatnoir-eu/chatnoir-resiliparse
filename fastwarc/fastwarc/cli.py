@@ -419,7 +419,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
         return ArchiveIterator(s, rec_type_filter, parse_http=parse_http, verify_digests=verify_digests)
 
     n, t_fastwarc, interrupted = _bench(input_url, _fastwarc_iterator, 'FastWARC')
-    click.echo(f'FastWARC: {n} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:,.02f} records/s).')
+    click.echo(f'FastWARC: {n:,} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:,.02f} records/s).')
 
     if interrupted:
         sys.exit(1)
@@ -436,7 +436,7 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
                         yield rec
 
         n, t_warcio, _ = _bench(input_url, _warcio_iterator, 'WARCIO')
-        click.echo(f'WARCIO:   {n} records read in {t_warcio:.02f} seconds ({n / t_warcio:,.02f} records/s).')
+        click.echo(f'WARCIO:   {n:,} records read in {t_warcio:.02f} seconds ({n / t_warcio:,.02f} records/s).')
         click.echo(f'Time difference: {t_fastwarc - t_warcio:.02f} seconds, speedup: {t_warcio / t_fastwarc:,.02f}')
 
 

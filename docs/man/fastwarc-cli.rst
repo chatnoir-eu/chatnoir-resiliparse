@@ -67,29 +67,29 @@ Run ``fastwarc index --help`` for a full help listing.
 
 Benchmark FastWARC vs. WARCIO
 -----------------------------
-The FastWARC CLI comes with a benchmarking tool that allows you to test record decompression and parsing speeds and compare them with WARCIO. Depending on your CPU, your storage speed, and the used compression algorithm, you can typically expect speedups between 1.3x and 6x over WARCIO.
+The FastWARC CLI comes with a benchmarking tool that allows you to test record decompression and parsing speeds and compare them with WARCIO. Depending on your CPU, your storage speed, and the used compression algorithm, you can typically expect speedups between 1.3x and 6.5x over WARCIO.
 
-Here are a few example runs:
+Here are example runs on five `Common Crawl <https://commoncrawl.org/>`_ WARCs (run on an AMD Ryzen Threadripper 2920X with NVMe SSD):
 
 .. code-block:: bash
 
   # Uncompressed WARC
-  $ fastwarc benchmark read foo.warc --bench-warcio
-  Benchmarking read performance from 1 input path(s)...
-  FastWARC: 126049 records read in 1.92 seconds (65694.38 records/s).
-  WARCIO:   126049 records read in 9.18 seconds (13734.69 records/s).
-  Time difference: -7.26 seconds, speedup: 4.78
+  $ fastwarc benchmark read CC-MAIN-*.warc --bench-warcio
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 5.81 seconds (108,487.93 records/s).
+  WARCIO:   630,245 records read in 37.19 seconds (16,945.51 records/s).
+  Time difference: -31.38 seconds, speedup: 6.40
 
   # GZip WARC
-  $ fastwarc benchmark read foo.warc.gz --bench-warcio
-  Benchmarking read performance from 1 input path(s)...
-  FastWARC: 126049 records read in 13.73 seconds (9179.65 records/s).
-  WARCIO:   126049 records read in 22.79 seconds (5529.95 records/s).
-  Time difference: -9.06 seconds, speedup: 1.66
+  $ fastwarc benchmark read CC-MAIN-*.warc.gz --bench-warcio
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 60.52 seconds (10,413.38 records/s).
+  WARCIO:   630,245 records read in 97.56 seconds (6,460.06 records/s).
+  Time difference: -37.04 seconds, speedup: 1.61
 
   # LZ4 WARC (direct comparison not possible, since WARCIO does not support LZ4)
-  $ fastwarc benchmark read foo.warc.lz4
-  Benchmarking read performance from 1 input path(s)...
-  FastWARC: 126049 records read in 2.70 seconds (46668.25 records/s).
+  $ fastwarc benchmark read CC-MAIN-*.warc.lz4
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 12.65 seconds (49,825.44 records/s).
 
 The benchmarking tool has additional options, such as reading WARCs directly from a remote S3 data source using `Boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`_. Run ``fastwarc benchmark --help`` for more information.
