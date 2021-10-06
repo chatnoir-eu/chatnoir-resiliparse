@@ -59,7 +59,9 @@ Benchmarks
 ^^^^^^^^^^
 On inputs the size of an average webpage, Resiliparse's fast language detector is about 3--5x as fast as `FastText <https://fasttext.cc/blog/2017/10/02/blog-post.html>`_ (varying greatly with document size) and even 60x as fast as `langid <https://github.com/saffsd/langid.py>`_:
 
-::
+.. code-block:: console
+
+  $ resiliparse lang benchmark -f lid.176.bin -r 50000 INFILE.txt
 
   Benchmarking language detectors (10,000 rounds):
   Resiliparse: 1.7s

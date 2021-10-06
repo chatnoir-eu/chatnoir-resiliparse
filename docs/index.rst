@@ -21,7 +21,6 @@ This is the full table of contents for this documentation:
    man/process-guard
    man/itertools
    man/fastwarc
-   man/fastwarc-cli
 
 
 .. toctree::
@@ -32,6 +31,14 @@ This is the full table of contents for this documentation:
    api/process-guard
    api/itertools
    api/fastwarc
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: CLI Documentation
+
+   cli/resiliparse
+   cli/fastwarc
 
 
 Indices and Tables

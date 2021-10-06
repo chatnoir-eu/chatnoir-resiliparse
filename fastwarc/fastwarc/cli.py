@@ -68,7 +68,12 @@ def _human_readable_bytes(byte_num):
 @click.option('-l', '--compress-level', type=int, default=None, help='Compression level (defaults to max)')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, quiet):
-    """Recompress a WARC file with different settings."""
+    """
+    Recompress a WARC file.
+
+    This command allows you to recompress a WARC file if it is uncompressed or not compressed
+    properly at the record-level if or you want to recompress a GZip WARC as LZ4 or vice versa.
+    """
 
     compress_alg = getattr(CompressionAlg, compress_alg)
     decompress_alg = getattr(CompressionAlg, decompress_alg)
@@ -111,7 +116,15 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 @click.option('-o', '--output', type=click.File('w'), help='Output file with verification details')
 def check(infile, decompress_alg, verify_payloads, quiet, output):
-    """Verify WARC consistency by checking all digests."""
+    """
+    Verify WARC record consistency.
+
+    Check digests of all records in a WARC file and print a summary. You can verify all block and
+    payload digests in the given WARC file and print a summary of all corrupted and (optionally)
+    all intact records.
+
+    The command will exit with a non-zero exit code if at least one record fails verification.
+    """
 
     decompress_alg = getattr(CompressionAlg, decompress_alg)
 
@@ -179,7 +192,13 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
               help='Output only record payload (transfer and/or content encoding are preserved')
 @click.option('--headers', is_flag=True, help='Output only record (and HTTP) headers')
 def extract(infile, offset, output, payload, headers):
-    """Extract WARC record by offset."""
+    """
+    Extract WARC record by offset.
+
+    You can extract individual records at a given byte offset with either just
+    headers, payload, or both.
+    """
+
     compl_record = not (payload or headers)
     with open(infile, 'rb') as stream:
         stream.seek(offset)
@@ -202,12 +221,6 @@ def extract(infile, offset, output, payload, headers):
             return
         except (FastWARCError, OSError, ValueError) as e:
             click.echo(f'Failed to extract WARC record at offset {offset}: {str(e)}', err=True)
-
-
-@main.group()
-def benchmark():
-    """Benchmark FastWARC performance."""
-    return 0
 
 
 def _index_record(output, fields, preserve_multi_header, record, next_record_offset, file_name):
@@ -252,7 +265,12 @@ def _index_record(output, fields, preserve_multi_header, record, next_record_off
 @click.option('--preserve-multi-header', is_flag=True,
               help='Preserve multiple values of HTTP headers as JSON list')
 def index(infiles, output, fields, preserve_multi_header):
-    """Index WARC records as CDXJ."""
+    """
+    Index WARC records as CDXJ.
+
+    WARC files can be indexed to the `CDXJ <https://github.com/webrecorder/cdxj-indexer>`_
+    format with a configurable set of fields.
+    """
     fields = fields.split(',')
     for infile in infiles:
         with open(infile, 'rb') as stream:
@@ -331,6 +349,19 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
     return urls_expanded
 
 
+@main.group()
+def benchmark():
+    """
+    Benchmark FastWARC performance.
+
+    The FastWARC CLI comes with a benchmarking tool for measuring WARC record decompression and parsing
+    performance on your own machine. The benchmarking results can be compared directly with WARCIO.
+
+    See :ref:`FastWARC Benchmarks <fastwarc-benchmarks>` for more information and example benchmarking results.
+    """
+    return 0
+
+
 # noinspection PyPackageRequirements
 @benchmark.command()
 @click.argument('input_url', nargs=-1)
@@ -353,8 +384,11 @@ def read(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key
     """
     Benchmark WARC read performance.
 
-    Supported WARC sources are local files, S3 and HTTP(s) URLs.
-    Supported compression algorithms are GZip, LZ4, or uncompressed.
+    Supported WARC sources are local files, S3 and HTTP(s) URLs. Supported compression algorithms
+    are GZip, LZ4, or uncompressed.
+
+    The read benchmarking tool has additional options, such as reading WARCs directly from a remote S3 data source
+    using `Boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`_.
     """
 
     if not input_url:

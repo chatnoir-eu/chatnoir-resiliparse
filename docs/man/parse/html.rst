@@ -346,16 +346,17 @@ An easier, but less efficient way of manipulating the DOM is to assign a string 
 
 .. _parse-html-benchmark:
 
-Benchmarking Parser Performance
--------------------------------
+Benchmarks
+----------
 
-The Resiliparse CLI parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax <https://github.com/rushter/selectolax>`_ (both the old MyHTML and the new Lexbor engine) and `BeautifulSoup4 <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`_ (lxml engine only, which is the fastest BS4 backend).
+The :ref:`resiliparse-cli` parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax <https://github.com/rushter/selectolax>`_ (both the old MyHTML and the new Lexbor engine) and `BeautifulSoup4 <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`_ (lxml engine only, which is the fastest BS4 backend).
 
 Here are the results of extracting the titles from all web pages in an uncompressed 42,015-document WARC file on a Ryzen Threadripper 2920X machine:
 
-.. code-block:: bash
+.. code-block:: console
 
-  $ resiliparse html benchmark warcfile.warc
+  $ resiliparse html benchmark CC-MAIN-*.warc
+
   HTML parser benchmark <title> extraction:
   =========================================
   Resiliparse (Lexbor):  42015 documents in 36.55s (1149.56 documents/s)

@@ -37,19 +37,21 @@ import resiliparse.parse.lang as rlang
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
-    """Resiliparse Parsing module CLI."""
+    """Resiliparse Command Line Interface."""
     pass
 
 
 @main.group()
 def encoding():
-    """Encoding tools CLI"""
+    """Encoding module tools."""
     pass
 
 
-@encoding.command(short_help='Download WHATWG encoding mapping.')
+@encoding.command()
 def download_whatwg_mapping():
     """
+    Download WHATWG encoding mapping.
+
     Download the current WHATWG encoding mapping, parse and transform it, and
     then print it as a copyable Python dict.
     """
@@ -79,20 +81,23 @@ def download_whatwg_mapping():
 
 @main.group()
 def html():
-    """HTML tools CLI"""
+    """HTML module tools."""
     pass
 
 
-@html.command(short_help='Benchmark Resiliparse HTML parser.')
+@html.command()
 @click.argument('warc_file', type=click.Path(dir_okay=False, exists=True))
 def benchmark(warc_file):
     """
+    Benchmark Resiliparse HTML parser.
+
     Benchmark Resiliparse HTML parsing by extracting the titles from all HTML pages in a WARC file.
 
     You can compare the performance to Selectolax (both the old MyHTML and the new Lexbor engine) and
-    BeautifulSoup4 by installing the respective packages:
+    BeautifulSoup4 by installing the PyPi packages ``selectolax`` and ``beautifulsoup4``.
 
-    pip install selectolax beautifulsoup4
+    See :ref:`Resiliparse HTML Parser Benchmarks <parse-html-benchmark>` for more details
+    and example benchmarking results.
     """
 
     print('HTML parser benchmark <title> extraction:')
@@ -148,7 +153,7 @@ def benchmark(warc_file):
 
 @main.group()
 def lang():
-    """Language tools CLI"""
+    """Language module tools."""
     pass
 
 
@@ -160,14 +165,15 @@ DEFAULT_WIKI_LANGS = ('en,ru,zh,de,vi,fr,sv,uk,pt,fa,sr,it,pl,ja,nl,es,ca,sh,ko,
                       'ty,fj,ik,nv,ak,ab,gv,tn,kg,bm,ts')
 
 
-@lang.command(short_help='Download Wikipedia dumps for language detection.')
+@lang.command()
 @click.argument('dumpdate')
-@click.option('-l', '--langs', help='Comma-separated list of languages to download', default=DEFAULT_WIKI_LANGS,
-              show_default=True)
+@click.option('-l', '--langs', help='Comma-separated list of languages to download', default=DEFAULT_WIKI_LANGS)
 @click.option('-o', '--outdir', help='Output directory', default='wikidumps', type=click.Path(file_okay=False))
 @click.option('-j', '--jobs', help='Parallel download jobs (3 is the Wikimedia rate limit)', default=3, type=int)
 def download_wiki_dumps(dumpdate, langs, outdir, jobs):
     """
+    Download Wikipedia dumps for language detection.
+
     Download the first Wikipedia article multistream part for each of the specified languages.
 
     The downloaded dumps can then be extracted with `Wikiextractor <https://github.com/attardi/wikiextractor>`_.
@@ -206,7 +212,7 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
     Parallel(n_jobs=jobs, verbose=0, prefer='threads')(delayed(dl)(l.strip()) for l in langs.split(','))
 
 
-@lang.command(short_help='Create a language detection dataset.')
+@lang.command()
 @click.argument('indir')
 @click.argument('outdir')
 @click.option('--val-size', help='Portion of the data to use for validation', default=5, type=int)
@@ -216,6 +222,8 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
 @click.option('-j', '--jobs', help='Parallel jobs', default=4, type=int)
 def create_dataset(indir, outdir, val_size, test_size, min_examples, jobs):
     """
+    Create a language detection dataset.
+
     Create a language detection dataset from a set of extracted Wikipedia article dumps.
 
     Expected is a directory containing one subdirectory per language (with the language name,
@@ -332,7 +340,7 @@ _WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 
               'alt', 'mni', 'dag', 'skr', 'nia', 'trv', 'tay', 'shi']
 
 
-@lang.command(short_help='Train fast language detection model vectors')
+@lang.command()
 @click.argument('indir', type=click.Path(exists=True, file_okay=False))
 @click.option('-s', '--split', help='Which input split to use', default='train',
               type=click.Choice(['train', 'test', 'val']), show_default=True)
@@ -401,7 +409,7 @@ static const lang_t LANGS[] = {{''', nl=False)
         click.echo('#endif  // RESILIPARSE_LANG_PROFILES_H')
 
 
-@lang.command(short_help='Evaluate language prediction performance.')
+@lang.command()
 @click.argument('indir', type=click.Path(exists=True, file_okay=False))
 @click.option('-s', '--split', help='Which input split to use', type=click.Choice(['val', 'test']),
               default='val', show_default=True)
@@ -413,6 +421,9 @@ static const lang_t LANGS[] = {{''', nl=False)
 @click.option('--sort-lang', is_flag=True, help='Sort by language instead of F1')
 @click.option('--print-cm', is_flag=True, help='Print confusion matrix (may be very big)')
 def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttext_model):
+    """
+    Evaluate language prediction performance.
+    """
     if langs is not None:
         langs = {l.strip() for l in langs.split(',')}
     in_langs = sorted([l for l in os.listdir(indir) if langs is None or l in langs])
@@ -492,11 +503,15 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
             click.echo()
 
 
-@lang.command(short_help='Benchmark Resiliparse against FastText and Langid')
+@lang.command()
 @click.argument('infile', type=click.Path(exists=True, dir_okay=False))
 @click.option('-r', '--rounds', help='Number of rounds to benchmark', type=int, default=10000, show_default=True)
 @click.option('-f', '--fasttext-model', help='FastText model to benchmark', type=click.Path(exists=True, dir_okay=False))
 def benchmark(infile, rounds, fasttext_model):
+    """
+    Benchmark Resiliparse against FastText and Langid.
+    """
+
     if fasttext_model:
         try:
             import fasttext

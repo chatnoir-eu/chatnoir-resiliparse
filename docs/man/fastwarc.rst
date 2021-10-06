@@ -232,3 +232,48 @@ Note that both :meth:`~.WarcRecord.verify_block_digest` and :meth:`~.WarcRecord.
   Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its contents for further processing (that's why verifying the HTTP payload digest after verifying the block digest worked in the first place).
 
 If your records are very large, you need to ensure that they fit into memory entirely (e.g. by checking :attr:`record.content_length <.WarcRecord.content_length>`). If you do not want to preserve the stream contents, you can set ``consume=True`` as a parameter. This will avoid the creation of a stream copy altogether and fully consume the rest of the record instead.
+
+
+.. _fastwarc-benchmarks:
+
+Benchmarks
+----------
+Depending on your CPU, your storage speed, and the WARC compression algorithm, you can typically expect speedups between 1.3x and 6.5x over WARCIO.
+
+The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record decompression and parsing performance on your own machine. The benchmarking results can be compared directly with WARCIO. Here are three example runs on an AMD Ryzen Threadripper 2920X (with NVMe SSD) over five `Common Crawl <https://commoncrawl.org/>`_ WARCs:
+
+**Uncompressed WARC:**
+
+.. code-block:: console
+
+  $ fastwarc benchmark read CC-MAIN-*.warc --bench-warcio
+
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 5.81 seconds (108,487.93 records/s).
+  WARCIO:   630,245 records read in 37.19 seconds (16,945.51 records/s).
+  Time difference: -31.38 seconds, speedup: 6.40
+
+**GZip WARC:**
+
+.. code-block:: console
+
+  $ fastwarc benchmark read CC-MAIN-*.warc.gz --bench-warcio
+
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 60.52 seconds (10,413.38 records/s).
+  WARCIO:   630,245 records read in 97.56 seconds (6,460.06 records/s).
+  Time difference: -37.04 seconds, speedup: 1.61
+
+**LZ4 WARC:**
+
+.. code-block:: console
+
+  $ fastwarc benchmark read CC-MAIN-*.warc.lz4
+
+  Benchmarking read performance from 5 input path(s)...
+  FastWARC: 630,245 records read in 12.65 seconds (49,825.44 records/s).
+
+(Direct comparison not possible, since WARCIO does not support LZ4.)
+
+The read benchmarking tool has additional options, such as reading WARCs directly from a remote S3 data source
+using `Boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`_.

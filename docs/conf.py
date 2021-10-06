@@ -36,6 +36,7 @@ master_doc = 'index'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx_click',
     'sphinx_rtd_theme'
 ]
 
