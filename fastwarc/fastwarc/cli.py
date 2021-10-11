@@ -24,8 +24,7 @@ import urllib.request
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter, \
-    _buf_reader_py_test_reset_limit, _buf_reader_py_test_set_limit
+from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream, \
     recompress_warc_interactive, verify_digests
