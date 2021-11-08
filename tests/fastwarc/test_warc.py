@@ -1,9 +1,9 @@
-import codecs
 from gzip import GzipFile
 from hashlib import md5, sha1
 import lz4.frame
 import io
 import os
+import pickle
 
 import pytest
 
@@ -278,6 +278,43 @@ def check_warc_integrity(stream):
         count += 1
     assert count == NUM_RECORDS
     assert count_response == NUM_RECORDS_OF_TYPE
+
+
+def test_pickle_warc_header_map():
+    headers = WarcHeaderMap()
+    headers['x-foo'] = 'bar'
+    headers['x-foo2'] = 'baz'
+    headers.append('x-foo', 'barbaz')
+
+    pickled = pickle.loads(pickle.dumps(headers))
+    assert len(pickled) == len(headers)
+    assert pickled == headers
+
+
+def test_pickle_warc_record():
+    for rec in ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+                               parse_http=False, record_types=WarcRecordType.response):
+        pickled = pickle.loads(pickle.dumps(rec))
+
+        assert pickled.headers == rec.headers
+        assert pickled.record_id == rec.record_id
+        assert pickled.verify_block_digest()
+        pickled.parse_http()
+        assert pickled.verify_payload_digest()
+        assert pickled.reader.read()
+
+    for rec in ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+                               parse_http=True, record_types=WarcRecordType.response):
+        pickled = pickle.loads(pickle.dumps(rec))
+
+        assert pickled.headers == rec.headers
+        assert pickled.http_headers == rec.http_headers
+        assert pickled.is_http == rec.is_http
+        assert pickled.is_http_parsed == rec.is_http_parsed
+        assert pickled.http_charset == rec.http_charset
+        assert pickled.http_content_type == rec.http_content_type
+        assert pickled.verify_payload_digest()
+        assert pickled.reader.read()
 
 
 def test_record_writer():

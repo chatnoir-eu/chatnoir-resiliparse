@@ -125,7 +125,7 @@ class CaseInsensitiveStrDict(dict):
 
     def __setitem__(self, key not None, value not None):
         super().__setitem__(CaseInsensitiveStr(key), value)
-        if self._header_obj is not None:
+        if hasattr(self, '_header_obj') and self._header_obj is not None:
             self._header_obj[key] = value
 
     def __contains__(self, key not None):
@@ -156,6 +156,15 @@ class CaseInsensitiveStrDict(dict):
             super().clear()
 
 
+def _rebuild_warc_header_map(encoding, status_line, headers):
+    """Unpickle handler for :class:`WarcHeaderMap`."""
+    cdef WarcHeaderMap header_map = WarcHeaderMap.__new__(WarcHeaderMap, encoding)
+    header_map._status_line = status_line
+    for k, v in headers:
+        header_map.append_header(k, v)
+    return header_map
+
+
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
     """
@@ -169,6 +178,9 @@ cdef class WarcHeaderMap:
 
     def __init__(self, *args, **kwargs):
         pass
+
+    def __reduce__(self):
+        return _rebuild_warc_header_map, (self._enc, self._status_line, self._headers)
 
     def __cinit__(self, str encoding='utf-8'):
         self._enc = encoding
@@ -428,12 +440,30 @@ cdef class WarcHeaderMap:
         self._dict_cache_stale = True
 
 
+def _rebuild_warc_record(record_type, headers, is_http, http_parsed, http_charset, http_headers,
+                         content_length, content_bytes, stream_pos):
+    """Unpickle handler for :class:`WarcRecord`."""
+    cdef WarcRecord record = WarcRecord.__new__(WarcRecord)
+    record._record_type = record_type
+    record._headers = headers
+    record._is_http = is_http
+    record._http_parsed = http_parsed
+    record._http_charset = http_charset
+    record._http_headers = http_headers
+    record._content_length = content_length
+    record._reader = BufferedReader.__new__(BufferedReader, BytesIOStream.__new__(BytesIOStream, content_bytes))
+    record._stream_pos = stream_pos
+    return record
+
+
 # noinspection PyProtectedMember, PyAttributeOutsideInit
 cdef class WarcRecord:
     """
     __init__(self)
 
     A WARC record.
+
+    WARC records are picklable, but pickling will consume the payload stream.
     """
 
     def __cinit__(self):
@@ -444,6 +474,19 @@ cdef class WarcRecord:
         self._headers = WarcHeaderMap.__new__(WarcHeaderMap, 'utf-8')
         self._http_headers = None
         self._stream_pos = 0
+
+    def __reduce__(self):
+        return _rebuild_warc_record, (
+            self._record_type,
+            self._headers,
+            self._is_http,
+            self._http_parsed,
+            self._http_charset,
+            self._http_headers,
+            self._content_length,
+            self._reader.read(),
+            self._stream_pos
+        )
 
     @property
     def record_id(self) -> str:
