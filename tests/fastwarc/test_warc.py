@@ -280,6 +280,17 @@ def check_warc_integrity(stream):
     assert count_response == NUM_RECORDS_OF_TYPE
 
 
+def test_freeze():
+    it = ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+                         parse_http=False, record_types=WarcRecordType.response)
+    rec_a = next(it)
+    rec_b = next(it)
+    rec_b.freeze()
+    next(it)
+    assert not rec_a.verify_block_digest()
+    assert rec_b.verify_block_digest()
+
+
 def test_pickle_warc_header_map():
     headers = WarcHeaderMap()
     headers['x-foo'] = 'bar'

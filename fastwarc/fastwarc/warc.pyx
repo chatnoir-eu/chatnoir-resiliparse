@@ -463,7 +463,7 @@ cdef class WarcRecord:
 
     A WARC record.
 
-    WARC records are picklable, but pickling will consume the payload stream.
+    WARC records are picklable, but pickling will :meth:`freeze()` the WARC record.
     """
 
     def __cinit__(self):
@@ -476,6 +476,7 @@ cdef class WarcRecord:
         self._stream_pos = 0
 
     def __reduce__(self):
+        self.freeze()
         return _rebuild_warc_record, (
             self._record_type,
             self._headers,
@@ -484,7 +485,7 @@ cdef class WarcRecord:
             self._http_charset,
             self._http_headers,
             self._content_length,
-            self._reader.read(),
+            (<BytesIOStream>self._reader.stream).buffer,
             self._stream_pos
         )
 
@@ -858,6 +859,22 @@ cdef class WarcRecord:
             self._reader = BufferedReader.__new__(BufferedReader, tee_stream)
 
         return h.digest() == digest
+
+    cpdef void freeze(self):
+        """
+        "Freeze" a record by baking in the remaining payload stream contents.
+        
+        Freezing a record makes the :class:`WarcRecord` instance copyable and reusable by decoupling
+        it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
+        frozen record maintains an internal buffer the size of the remaining payload stream contents
+        at the time of calling ``freeze()``.
+        
+        Freezing a record will consume the rest of the underlying raw stream.
+        """
+        cdef string buffer = self._reader.read()
+        cdef BytesIOStream stream = BytesIOStream.__new__(BytesIOStream)
+        stream.buffer = move(buffer)
+        self._reader = BufferedReader.__new__(BufferedReader, stream)
 
     cpdef bint verify_block_digest(self, bint consume=False):
         """
