@@ -32,6 +32,10 @@ class StreamError(FastWARCError):
     """FastWARC stream error."""
 
 
+class StreamStaleError(FastWARCError):
+    """FastWARC stream stale error."""
+
+
 @cython.auto_pickle(False)
 cdef class IOStream:
     """IOStream base class."""

@@ -69,17 +69,24 @@ cdef class WarcRecord:
     cdef size_t _content_length
     cdef BufferedReader _reader
     cdef size_t _stream_pos
+    cdef bint _stale
+    cdef bint _frozen
 
     cpdef void init_headers(self, size_t content_length=*, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
-    cpdef void parse_http(self)
+    cpdef bint parse_http(self) except 0
     cpdef size_t write(self, stream, bint checksum_data=*, bytes payload_digest=*, size_t chunk_size=*) except -1
     cpdef void freeze(self)
-    cpdef bint verify_block_digest(self, bint consume=*)
-    cpdef bint verify_payload_digest(self, bint consume=*)
+    cpdef bint verify_block_digest(self, bint consume=*) except -1
+    cpdef bint verify_payload_digest(self, bint consume=*) except -1
 
-    cdef bint _verify_digest(self, const string& base32_digest, bint consume)
+    cdef bint _verify_digest(self, const string& base32_digest, bint consume) except -1
     cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size) except -1
+    cdef inline bint _assert_not_stale(self) except 0:
+        if self._stale:
+            from fastwarc.stream_io import StreamStaleError
+            raise StreamStaleError('Reader is stale. Use freeze() if you want to retain record payload.')
+        return True
 
 
 cdef class ArchiveIterator:

@@ -474,6 +474,8 @@ cdef class WarcRecord:
         self._headers = WarcHeaderMap.__new__(WarcHeaderMap, 'utf-8')
         self._http_headers = None
         self._stream_pos = 0
+        self._stale = False
+        self._frozen = False
 
     def __reduce__(self):
         self.freeze()
@@ -635,6 +637,7 @@ cdef class WarcRecord:
 
         :type: BufferedReader
         """
+        self._assert_not_stale()
         return self._reader
 
     @property
@@ -687,8 +690,9 @@ cdef class WarcRecord:
         self._reader = BufferedReader.__new__(BufferedReader, BytesIOStream(b))
         self._content_length = len(b)
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>self._content_length))
+        self._stale = False
 
-    cpdef void parse_http(self):
+    cpdef bint parse_http(self) except 0:
         """
         parse_http(self)
         
@@ -696,12 +700,14 @@ cdef class WarcRecord:
         
         It is safe to call this method multiple times, even if the record is not an HTTP record.
         """
+        self._assert_not_stale()
         if self._http_parsed or not self._is_http:
-            return
+            return True
         self._http_headers = WarcHeaderMap.__new__(WarcHeaderMap, 'iso-8859-15')
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
         self._content_length = self._content_length - num_bytes
         self._http_parsed = True
+        return True
 
     # noinspection PyTypeChecker
     cpdef size_t write(self, stream, bint checksum_data=False, bytes payload_digest=None,
@@ -721,6 +727,8 @@ cdef class WarcRecord:
         :return: number of bytes written
         :rtype: int
         """
+        self._assert_not_stale()
+
         # If the raw byte content hasn't been parsed, we can simply pass it through
         if not checksum_data and not self._http_parsed:
             return self._write_impl(self.reader, stream, True, chunk_size)
@@ -817,7 +825,9 @@ cdef class WarcRecord:
 
         return bytes_written
 
-    cdef bint _verify_digest(self, const string& base32_digest, bint consume):
+    cdef bint _verify_digest(self, const string& base32_digest, bint consume) except -1:
+        self._assert_not_stale()
+
         cdef size_t sep_pos = base32_digest.find(b':')
         if sep_pos == strnpos:
             return False
@@ -835,28 +845,18 @@ cdef class WarcRecord:
             warnings.warn(f'Unsupported hash algorithm "{alg.decode()}".')
             return False
 
+        if not consume and not self._frozen:
+            self.freeze()
+
         cdef string block
-        cdef BytesIOStream tee_stream
-        cdef bint consume_override = consume
-
-        if isinstance(self._reader.stream, BytesIOStream):
-            # Stream is already a BytesIOStream, so we don't need to create another copy
-            consume_override = True
-            tee_stream = <BytesIOStream>self._reader.stream
-        elif not consume:
-            tee_stream = BytesIOStream()
-
         while True:
-            block = self._reader.read(1024)
+            block = self._reader.read(4096)
             if block.empty():
                 break
             h.update(block)
-            if not consume_override:
-                tee_stream.write(block.data(), block.size())
 
         if not consume:
-            tee_stream.seek(0)
-            self._reader = BufferedReader.__new__(BufferedReader, tee_stream)
+            self._reader.stream.seek(0)
 
         return h.digest() == digest
 
@@ -869,14 +869,18 @@ cdef class WarcRecord:
         frozen record maintains an internal buffer the size of the remaining payload stream contents
         at the time of calling ``freeze()``.
         
-        Freezing a record will consume the rest of the underlying raw stream.
+        Freezing a record will advance the underlying raw stream.
         """
+        if self._frozen:
+            return
+        self._assert_not_stale()
         cdef string buffer = self._reader.read()
         cdef BytesIOStream stream = BytesIOStream.__new__(BytesIOStream)
         stream.buffer = move(buffer)
         self._reader = BufferedReader.__new__(BufferedReader, stream)
+        self._frozen = True
 
-    cpdef bint verify_block_digest(self, bint consume=False):
+    cpdef bint verify_block_digest(self, bint consume=False) except -1:
         """
         verify_block_digest(self, consume=False)
         
@@ -890,7 +894,7 @@ cdef class WarcRecord:
         """
         return self._verify_digest(self._headers.find_header(<char*>b'WARC-Block-Digest', <char*>b''), consume)
 
-    cpdef bint verify_payload_digest(self, bint consume=False):
+    cpdef bint verify_payload_digest(self, bint consume=False) except -1:
         """
         verify_payload_digest(self, consume=False)
         
@@ -1046,6 +1050,7 @@ cdef class ArchiveIterator:
         if self.record is not None:
             self.reader.consume()
             self.reader.reset_limit()
+            self.record._stale = not self.record._frozen
 
         self.record = WarcRecord.__new__(WarcRecord)
         self.record._stream_pos = self.reader.tell()
