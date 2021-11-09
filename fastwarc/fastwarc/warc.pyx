@@ -860,8 +860,10 @@ cdef class WarcRecord:
 
         return h.digest() == digest
 
-    cpdef void freeze(self):
+    cpdef bint freeze(self) except 0:
         """
+        freeze(self)
+        
         "Freeze" a record by baking in the remaining payload stream contents.
         
         Freezing a record makes the :class:`WarcRecord` instance copyable and reusable by decoupling
@@ -872,13 +874,14 @@ cdef class WarcRecord:
         Freezing a record will advance the underlying raw stream.
         """
         if self._frozen:
-            return
+            return True
         self._assert_not_stale()
         cdef string buffer = self._reader.read()
         cdef BytesIOStream stream = BytesIOStream.__new__(BytesIOStream)
         stream.buffer = move(buffer)
         self._reader = BufferedReader.__new__(BufferedReader, stream)
         self._frozen = True
+        return True
 
     cpdef bint verify_block_digest(self, bint consume=False) except -1:
         """
