@@ -34,6 +34,7 @@ from resiliparse_inc.string cimport npos as strnpos, string, to_string
 from resiliparse_inc.utility cimport move
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
+from fastwarc.stream_io import ReaderStaleError
 
 
 cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
@@ -490,6 +491,11 @@ cdef class WarcRecord:
             (<BytesIOStream>self._reader.stream).buffer,
             self._stream_pos
         )
+
+    cdef inline bint _assert_not_stale(self) except 0:
+        if self._stale:
+            raise ReaderStaleError('Reader is stale. Use freeze() if you want to retain record payload.')
+        return True
 
     @property
     def record_id(self) -> str:
