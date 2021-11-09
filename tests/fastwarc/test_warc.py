@@ -288,7 +288,7 @@ def test_freeze():
     rec_b.freeze()
     next(it)
 
-    with pytest.raises(StreamStaleError):
+    with pytest.raises(ReaderStaleError):
         rec_a.verify_block_digest()
     assert rec_b.verify_block_digest()
 

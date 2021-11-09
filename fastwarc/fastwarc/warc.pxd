@@ -84,8 +84,8 @@ cdef class WarcRecord:
     cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size) except -1
     cdef inline bint _assert_not_stale(self) except 0:
         if self._stale:
-            from fastwarc.stream_io import StreamStaleError
-            raise StreamStaleError('Reader is stale. Use freeze() if you want to retain record payload.')
+            from fastwarc.stream_io import ReaderStaleError
+            raise ReaderStaleError('Reader is stale. Use freeze() if you want to retain record payload.')
         return True
 
 

@@ -32,8 +32,8 @@ class StreamError(FastWARCError):
     """FastWARC stream error."""
 
 
-class StreamStaleError(FastWARCError):
-    """FastWARC stream stale error."""
+class ReaderStaleError(FastWARCError):
+    """FastWARC reader stale error."""
 
 
 @cython.auto_pickle(False)
