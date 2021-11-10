@@ -40,13 +40,13 @@ cdef class DOMNode:
     cdef lxb_dom_node_t* node
     cdef DOMElementClassList class_list_singleton
 
-    cpdef bint hasattr(self, str attr_name)
+    cpdef bint hasattr(self, str attr_name) except -1
     cdef str _getattr_impl(self, bytes attr_name)
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value)  except -1
-    cpdef void setattr(self, str attr_name, str attr_value)
+    cpdef setattr(self, str attr_name, str attr_value)
     cdef bint _delattr_impl(self, bytes attr_name)  except -1
-    cpdef void delattr(self, str attr_name)
+    cpdef delattr(self, str attr_name)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=*)
@@ -55,13 +55,13 @@ cdef class DOMNode:
 
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
-    cpdef bint matches(self, str selector)
+    cpdef bint matches(self, str selector) except -1
 
     cpdef DOMNode append_child(self, DOMNode node)
     cpdef DOMNode insert_before(self, DOMNode node, DOMNode reference)
     cpdef DOMNode replace_child(self, DOMNode new_child, DOMNode old_child)
     cpdef DOMNode remove_child(self, DOMNode node)
-    cpdef void decompose(self)
+    cpdef decompose(self)
 
 
 cdef class DOMCollection:
@@ -78,7 +78,7 @@ cdef class DOMCollection:
 
     cpdef DOMNode query_selector(self, str selector)
     cpdef DOMCollection query_selector_all(self, str selector)
-    cpdef bint matches(self, str selector)
+    cpdef bint matches(self, str selector) except -1
 
 
 # noinspection DuplicatedCode

@@ -657,7 +657,7 @@ cdef class DOMNode:
 
         return attrs
 
-    cpdef bint hasattr(self, str attr_name):
+    cpdef bint hasattr(self, str attr_name) except -1:
         """
         hasattr(self, attr_name)
         
@@ -758,7 +758,7 @@ cdef class DOMNode:
                                       <lxb_char_t*>attr_value, len(attr_value))
         return True
 
-    cpdef void setattr(self, str attr_name, str attr_value):
+    cpdef setattr(self, str attr_name, str attr_value):
         """
         setattr(self, attr_name, attr_value)
         
@@ -811,7 +811,7 @@ cdef class DOMNode:
         lxb_dom_element_attr_remove(<lxb_dom_element_t*>self.node, attr)
         return True
 
-    cpdef void delattr(self, str attr_name):
+    cpdef delattr(self, str attr_name):
         """
         delattr(self, attr_name)
         
@@ -872,7 +872,7 @@ cdef class DOMNode:
 
         return _create_dom_collection(self.tree, coll)
 
-    cpdef bint matches(self, str selector):
+    cpdef bint matches(self, str selector) except -1:
         """
         matches(self, selector)
         
@@ -1070,7 +1070,7 @@ cdef class DOMNode:
         return node
 
     # noinspection PyAttributeOutsideInit
-    cpdef void decompose(self):
+    cpdef decompose(self):
         """
         decompose(self)
         
@@ -1307,7 +1307,7 @@ cdef class DOMCollection:
         """
         return self._forward_collection_match(b'selector_all', (selector.encode(),))
 
-    cpdef bint matches(self, str selector):
+    cpdef bint matches(self, str selector) except -1:
         """
         matches(self, selector)
 
