@@ -675,22 +675,27 @@ cdef class DOMNode:
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
-    cdef str _getattr_impl(self, bytes attr_name):
+    cdef str _getattr_impl(self, bytes attr_name, bint raise_if_not_exists=True):
         """
         Get an attribute value as string.
         
         :param attr_name: 
         :return: attribute value or None
+        :raises KeyError: if attribute does not exist
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
             raise ValueError('Node ist not an Element node.')
+
+        if raise_if_not_exists and not lxb_dom_element_has_attribute(
+                <lxb_dom_element_t*>self.node, <lxb_char_t*>attr_name, len(attr_name)):
+            raise KeyError(f'No such attribute: {attr_name.decode()}')
 
         cdef size_t value_len = 0
         cdef const lxb_char_t* value = lxb_dom_element_get_attribute(<lxb_dom_element_t*>self.node,
                                                                      <lxb_char_t*>attr_name, len(attr_name),
                                                                      &value_len)
         if value == NULL:
-            return None
+            return ''
         return value[:value_len].decode()
 
     cpdef str getattr(self, str attr_name, str default_value=None):
@@ -710,10 +715,10 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef str value = self._getattr_impl(attr_name.encode())
-        if value is None:
+        try:
+            return self._getattr_impl(attr_name.encode())
+        except KeyError:
             return default_value
-        return value
 
     def __getitem__(self, str attr_name):
         """
@@ -729,10 +734,7 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef str value = self._getattr_impl(attr_name.encode())
-        if value is None:
-            raise KeyError(f'No such attribute: {attr_name}')
-        return value
+        return self._getattr_impl(attr_name.encode())
 
     cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value) except -1:
         """
@@ -1563,7 +1565,7 @@ cdef class HTMLTree:
 
         :type: str or None
         """
-        if self.dom_document == NULL:
+        if self.dom_document == NULL or not self.head:
             return None
 
         # Temporary workaround for lxb_html_document_title can crash.

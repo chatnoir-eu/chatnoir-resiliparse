@@ -251,6 +251,21 @@ def test_attributes():
     assert a.getattr('lang') is None
 
 
+def test_empty_attributes():
+    input_tree = HTMLTree.parse('<div><input type="checkbox" checked></div>')
+    input_element = input_tree.body.query_selector('input')
+
+    assert input_element.hasattr('type')
+    assert input_element['type'] == 'checkbox'
+
+    assert input_element.hasattr('checked')
+    assert input_element['checked'] == ''
+
+    assert not input_element.hasattr('checkedx')
+    with pytest.raises(KeyError):
+        assert input_element['checkedx']
+
+
 def test_serialization():
     assert tree.body.get_element_by_id('a').text == 'Hello world!'
     assert tree.body.get_element_by_id('a').html == '<p id="a">Hello <span class="bar">world</span>!</p>'

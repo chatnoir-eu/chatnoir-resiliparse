@@ -41,7 +41,7 @@ cdef class DOMNode:
     cdef DOMElementClassList class_list_singleton
 
     cpdef bint hasattr(self, str attr_name) except -1
-    cdef str _getattr_impl(self, bytes attr_name)
+    cdef str _getattr_impl(self, bytes attr_name, bint raise_if_not_exists=*)
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value)  except -1
     cpdef setattr(self, str attr_name, str attr_value)
