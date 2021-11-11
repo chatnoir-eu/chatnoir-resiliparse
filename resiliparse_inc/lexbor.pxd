@@ -249,6 +249,29 @@ cdef extern from "<lexbor/html/html.h>" nogil:
 
         size_t  ref_count
 
+    ctypedef enum lxb_ns_id_enum_t:
+        LXB_NS__UNDEF = 0x00,
+        LXB_NS__ANY = 0x01,
+        LXB_NS_HTML = 0x02,
+        LXB_NS_MATH = 0x03,
+        LXB_NS_SVG = 0x04,
+        LXB_NS_XLINK = 0x05,
+        LXB_NS_XML = 0x06,
+        LXB_NS_XMLNS = 0x07,
+        LXB_NS__LAST_ENTRY = 0x08
+
+    ctypedef int lxb_html_tag_category_t
+    ctypedef enum lxb_html_tag_category:
+        LXB_HTML_TAG_CATEGORY__UNDEF          = 0x0000,
+        LXB_HTML_TAG_CATEGORY_ORDINARY        = 0x0001,
+        LXB_HTML_TAG_CATEGORY_SPECIAL         = 0x0002,
+        LXB_HTML_TAG_CATEGORY_FORMATTING      = 0x0004,
+        LXB_HTML_TAG_CATEGORY_SCOPE           = 0x0008,
+        LXB_HTML_TAG_CATEGORY_SCOPE_LIST_ITEM = 0x0010,
+        LXB_HTML_TAG_CATEGORY_SCOPE_BUTTON    = 0x0020,
+        LXB_HTML_TAG_CATEGORY_SCOPE_TABLE     = 0x0040,
+        LXB_HTML_TAG_CATEGORY_SCOPE_SELECT    = 0x0080,
+
     # Functions
     lxb_html_document_t * lxb_html_document_create()
     lxb_status_t lxb_html_document_parse(lxb_html_document_t *document, const lxb_char_t *html, size_t size)
@@ -258,6 +281,7 @@ cdef extern from "<lexbor/html/html.h>" nogil:
 
     lxb_status_t lxb_html_serialize_tree_str(lxb_dom_node_t *node, lexbor_str_t *str)
     const lxb_char_t* lxb_html_document_title(lxb_html_document_t *document, size_t *len)
+    bint lxb_html_tag_is_category(lxb_tag_id_t tag_id, lxb_ns_id_t ns, lxb_html_tag_category_t cat)
 
 
 cdef extern from "<lexbor/dom/dom.h>" nogil:
@@ -583,6 +607,19 @@ cdef extern from "<lexbor/tag/tag.h>" nogil:
         LXB_TAG_WBR = 0x00c2
         LXB_TAG_XMP = 0x00c3
         LXB_TAG__LAST_ENTRY = 0x00c4
+
+    ctypedef struct lexbor_hash_entry_t:
+        lxb_char_t str
+        size_t length
+        lexbor_hash_entry_t *next;
+
+    ctypedef struct lxb_tag_data_t:
+        lexbor_hash_entry_t entry
+        lxb_tag_id_t        tag_id
+        size_t              ref_count
+        bint                read_only
+
+    cdef const lxb_tag_data_t * lxb_tag_data_by_id(lexbor_hash_t *hash, lxb_tag_id_t tag_id)
 
 
 cdef extern from "<lexbor/selectors/selectors.h>" nogil:

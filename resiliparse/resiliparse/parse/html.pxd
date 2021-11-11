@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
-    lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t
+    lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t, lxb_tag_id_t
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=*)
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
@@ -24,6 +24,11 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, by
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
                                                    size_t init_size=*)
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
+
+
+cdef extern from "html.h" nogil:
+    cdef lxb_tag_id_t BLOCK_ELEMENTS[]
+    cdef size_t NUM_BLOCK_ELEMENTS
 
 
 cdef class DOMElementClassList:

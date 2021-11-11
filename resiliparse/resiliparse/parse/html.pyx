@@ -16,8 +16,11 @@
 
 import typing as t
 
+from cython.operator cimport preincrement as preinc, predecrement as predec
 from cpython.ref cimport PyObject
 
+from resiliparse_inc.cctype cimport isspace
+from resiliparse_inc.string cimport string, npos as strnpos
 from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
@@ -41,6 +44,39 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
 
 cdef inline bint check_node(DOMNode node):
     return node is not None and node.tree is not None and node.node != NULL
+
+
+cdef inline lxb_dom_node_t * _next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                                        size_t* depth=NULL, bint* end_tag=NULL):
+    """
+    Helper function for iterating a subtree in pre-order.
+
+    :param root_node: root node at which iteration started
+    :param node: current node
+    :param depth: optional DOM depth tracker (needs to passed back in)
+    :param end_tag: return on end tags (set to True if tag is end tag, needs to passed back in)
+    :returns: next node or NULL if done
+    """
+    cdef bint is_end = end_tag != NULL and end_tag[0] == True
+
+    if not is_end and node.first_child != NULL:
+        if depth != NULL:
+            preinc(depth[0])
+        return node.first_child
+    else:
+        while node != root_node and node.next == NULL:
+            node = node.parent
+            if depth != NULL:
+                predec(depth[0])
+            if end_tag != NULL:
+                end_tag[0] = True
+                return node
+
+        if end_tag != NULL:
+            end_tag[0] = False
+        if node == root_node:
+            return NULL
+        return node.next
 
 
 cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=5):
@@ -410,15 +446,9 @@ cdef class DOMNode:
         yield self
         cdef lxb_dom_node_t* node = self.node
         while True:
-            if node.first_child != NULL:
-                node = node.first_child
-            else:
-                while node != self.node and node.next == NULL:
-                    node = node.parent
-                if node == self.node:
-                    return
-                node = node.next
-
+            node = _next_node(self.node, node)
+            if node == NULL:
+                return
             yield _create_dom_node(self.tree, node)
 
     @property
@@ -1625,3 +1655,140 @@ cdef class HTMLTree:
         if doc is not None:
             return doc.html
         return ''
+
+
+cdef bint _is_block_element(lxb_tag_id_t tag_id):
+    cdef size_t i
+    for i in range(NUM_BLOCK_ELEMENTS):
+        if BLOCK_ELEMENTS[i] == tag_id:
+            return True
+    return False
+
+
+def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint list_bullets=True, bint links=False,
+                       bint alt_texts=False, bint form_fields=False, bint noscript=False, skip_elements=None):
+    """
+    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, list_bullets=True, \
+                       links=False, alt_texts=False, form_fields=False, noscript=False, skip_elements=None)
+
+    Perform a simple plain-text extraction of the given DOM node and its children.
+
+    Extracts all visible text (excluding script/style elements, comment nodes etc.)
+    and collapses consecutive white space characters. If ``preserve_formatting`` is
+    ``True``, line breaks, paragraphs, other block-level elements, list elements, and
+    ``<pre>``-formatted text will be preserved.
+
+    Extraction of particular elements and attributes such as links, alt texts, or form fields
+    can be be configured individually by setting the corresponding parameter to ``True``.
+    Defaults to ``False`` for most elements (i.e., only basic text will be extracted).
+
+    :param base_node: base DOM node of which to extract sub tree
+    :type base_node: DOMNode
+    :param preserve_formatting: preserve basic block-level formatting
+    :type preserve_formatting: bool
+    :param list_bullets: insert bullets / numbers for list items
+    :type list_bullets: bool
+    :param links: extract link target URLs
+    :type links: bool
+    :param alt_texts: preserve alternative text descriptions
+    :type alt_texts: bool
+    :param form_fields: extract form fields and their values
+    :type form_fields: bool
+    :param noscript: extract contents of <noscript> elements
+    :param skip_elements: names of elements to skip (defaults to ``head``, ``script``, ``style``)
+    :type skip_elements: t.Iterable[str] or None
+    :type noscript: bool
+    :return: extracted plain text
+    :rtype: str
+    """
+    if not check_node(base_node):
+        return ''
+
+    skip_elements = {e.encode() for e in skip_elements or []}
+    if not skip_elements:
+        skip_elements = {b'head', b'script', b'style'}
+    if not alt_texts:
+        skip_elements.update({b'object', b'video', b'audio', b'embed' b'img', b'area'})
+    if not noscript:
+        skip_elements.add(b'noscript')
+    if not form_fields:
+        skip_elements.update({b'textarea', b'input', b'button'})
+
+    cdef lxb_dom_node_t* node = base_node.node
+    cdef size_t tag_name_len = 0
+    cdef const lxb_char_t* tag_name = NULL
+    cdef size_t dom_depth = 0
+    cdef bint is_end_tag = False
+
+    cdef string text
+    cdef lxb_dom_character_data_t* node_char_data = NULL
+    cdef size_t i
+    cdef bint last_was_break = True
+    cdef bint pre_context = False
+    cdef size_t list_indent = 0
+    cdef size_t list_number = 0
+
+    while node != NULL:
+
+        # Skip everything except element and text nodes
+        if node.type != LXB_DOM_NODE_TYPE_ELEMENT and node.type != LXB_DOM_NODE_TYPE_TEXT:
+            node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
+            continue
+
+        if node.type == LXB_DOM_NODE_TYPE_TEXT:
+            node_char_data = <lxb_dom_character_data_t*>node
+            text.reserve(text.size() + node_char_data.data.length)
+            if preserve_formatting and pre_context:
+                text.append(<char*>node_char_data.data.data, node_char_data.data.length)
+            else:
+                for i in range(node_char_data.data.length):
+                    if isspace(<char>node_char_data.data.data[i]):
+                        if text.back() != b' ':
+                            text.push_back(<char>b' ')
+                    else:
+                        text.push_back(<char>node_char_data.data.data[i])
+
+        # Start elements
+        if node.type == LXB_DOM_NODE_TYPE_ELEMENT and not is_end_tag:
+            tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>node, &tag_name_len)
+
+            # Skip unwanted element nodes
+            if tag_name[:tag_name_len] in skip_elements:
+                node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
+                continue
+
+            # Block formatting
+            if preserve_formatting and _is_block_element(node.local_name) and text.back() != b'\n':
+                text.push_back(<char>b'\n')
+
+            # Headings
+            if preserve_formatting and node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
+                text.push_back(<char>b'\n')
+
+            # Lists
+            if preserve_formatting and node.local_name in [LXB_TAG_UL, LXB_TAG_OL]:
+                preinc(list_indent)
+
+            # List items
+            if preserve_formatting and list_bullets and node.local_name == LXB_TAG_LI:
+                text.append(string(2 * list_indent, <char>b' '))
+                text.append(b'\xe2\x80\xa2 ')
+
+        # End elements
+        if node.type == LXB_DOM_NODE_TYPE_ELEMENT and is_end_tag:
+            # Headings
+            if preserve_formatting and node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
+                text.push_back(<char>b'\n')
+
+            # Paragraphs
+            if preserve_formatting and node.local_name == LXB_TAG_P:
+                text.push_back(<char>b'\n')
+
+            # Lists
+            if preserve_formatting and node.local_name in [LXB_TAG_UL, LXB_TAG_OL]:
+                predec(list_indent)
+                text.push_back(<char>b'\n')
+
+        node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
+
+    return text.decode().strip()
