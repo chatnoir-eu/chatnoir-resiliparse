@@ -1471,6 +1471,10 @@ cdef class HTMLTree:
 
     HTML DOM tree parser.
     """
+
+    def __init__(self, *args, **kwargs):
+        raise SyntaxError('Cannot create instance directly. Use HTMLParser.parse() or HTMLParser.parse_from_bytes()')
+
     def __cinit__(self):
         self.dom_document = lxb_html_document_create()
         if self.dom_document == NULL:
