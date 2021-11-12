@@ -46,16 +46,20 @@ cdef inline bint check_node(DOMNode node):
     return node is not None and node.tree is not None and node.node != NULL
 
 
-cdef inline lxb_dom_node_t * _next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                        size_t* depth=NULL, bint* end_tag=NULL):
+cdef inline lxb_dom_node_t* _next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                                       size_t* depth=NULL, bint* end_tag=NULL):
     """
-    Helper function for iterating a subtree in pre-order.
+    DOM tree pre-order traversal primitive.
+    
+    This is a more flexible, step-wise implementation of ``lxb_dom_node_simple_walk()``, which
+    allows a client to react on closing tags.
 
-    :param root_node: root node at which iteration started
+    :param root_node: root node at which traversal started
     :param node: current node
-    :param depth: optional DOM depth tracker (needs to passed back in)
-    :param end_tag: return on end tags (set to True if tag is end tag, needs to passed back in)
-    :returns: next node or NULL if done
+    :param depth: tracks DOM depth if not ``NULL`` (needs to be initialized and passed back in at each step)
+    :param end_tag: if not ``NULL``, tracks whether step was an end tag (needs to be initialized with ``False``
+                    and passed back in at each step)
+    :returns: next node or ``NULL`` if done
     """
     cdef bint is_end = end_tag != NULL and end_tag[0] == True
 
@@ -549,6 +553,21 @@ cdef class DOMNode:
         if not check_node(self):
             return None
         return _create_dom_node(self.tree, self.node.prev)
+
+    @property
+    def value(self):
+        """
+        Node text value.
+
+        :type: str or None
+        """
+        if self.node.type not in [LXB_DOM_NODE_TYPE_TEXT,
+                                  LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION,
+                                  LXB_DOM_NODE_TYPE_COMMENT]:
+            return None
+
+        cdef lxb_dom_character_data_t* cd = <lxb_dom_character_data_t*>self.node
+        return cd.data.data[:cd.data.length].decode()
 
     @property
     def text(self):
@@ -1660,6 +1679,70 @@ cdef bint _is_block_element(lxb_tag_id_t tag_id):
         if BLOCK_ELEMENTS[i] == tag_id:
             return True
     return False
+
+
+class DOMContext:
+    """
+    __init__()
+
+    DOM node traversal context object.
+
+    The context object has two attributes that are set by the traversal function for
+    keeping track of the current :class:`DOMNode` and the current traversal depth.
+    Besides these, the context object is arbitrarily mutable and can be used for
+    maintaining custom state.
+
+    :ivar DOMNode node: the current :class:`DOMNode`
+    :ivar int depth: the current traversal depth
+    """
+    def __init__(self):
+        self.node = None
+        self.depth = 0
+
+
+def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=None):
+    """
+    traverse_dom(base_node, start_callback, end_callback=None, context=None)
+
+    DOM traversal helper.
+
+    Traverses the DOM tree starting at ``base_node`` in pre-order and calls ``start_callback``
+    at each child node. If ``end_callback`` is not ``None``, it will be called each time
+    a DOM element's end tag is encountered.
+
+    The callbacks are expected to take exactly one :class:`DOMContext` context parameter,
+    which keeps track of the current node and traversal depth. The context object will be
+    the same throughout the whole traversal process, so it can be mutated with custom data.
+
+    :param base_node: root node of the traversal
+    :type base_node: DOMNode
+    :param start_callback: callback for each DOM node on the way (takes a :class:`DOMNode`
+                           and ``context`` as a parameter)
+    :type start_callback: t.Callable[[DOMContext], None]
+    :param end_callback: optional callback for element node end tags (takes a :class:`DOMNode`
+                         and ``context`` as a parameter)
+    :type end_callback: t.Callable[[DOMContext], None] or None
+    :param context: optional pre-initialized context object
+    :type context: DOMContext
+    """
+
+    cdef lxb_dom_node_t* node = base_node.node
+    cdef size_t depth = 0
+    cdef bint is_end_tag = False
+    cdef bint* is_end_tag_ptr = &is_end_tag if end_callback is not None else NULL
+
+    context = context or DOMContext()
+
+    while node != NULL:
+        context.node = _create_dom_node(base_node.tree, node)
+        context.depth = depth
+
+        if not is_end_tag:
+            start_callback(context)
+        else:
+            end_callback(context)
+
+        node = _next_node(base_node.node, node, &depth, is_end_tag_ptr)
 
 
 def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint list_bullets=True, bint links=False,

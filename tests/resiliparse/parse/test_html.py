@@ -21,6 +21,7 @@ html = """<!doctype html>
       <p id="a">Hello <span class="bar">world</span>!</p>
       <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
      </main>
+     <!-- A comment -->
   </body>
 </html>"""
 
@@ -300,6 +301,33 @@ def test_traversal():
     assert child_node_types == [TEXT, ELEMENT, TEXT, ELEMENT, TEXT]
 
 
+def test_callback_traversal():
+    def start_cb(ctx: DOMContext):
+        if ctx.node.type == NodeType.ELEMENT:
+            t = (ctx.node.tag, [])
+            ctx.list_stack_current[-1].append(t)
+            ctx.list_stack_current.append(t[1])
+        elif ctx.node.type == NodeType.TEXT:
+            txt = ctx.node.value.strip()
+            if txt:
+                ctx.list_stack_current[-1].append(txt)
+
+    def end_cb(ctx: DOMContext):
+        pass
+        if ctx.node.type == NodeType.ELEMENT:
+            ctx.list_stack_current.pop()
+
+    ctx = DOMContext()
+    ctx.list_stack = []
+    ctx.list_stack_current = [ctx.list_stack]
+    traverse_dom(HTMLTree.parse(html).body, start_cb, end_cb, ctx)
+
+    assert ctx.list_stack == [('body',
+                               [('main',
+                                 [('p', ['Hello', ('span', ['world']), '!']),
+                                  ('p', ['Hello', ('a', ['DOM']), '!'])])])]
+
+
 def test_children():
     element = tree.body.get_element_by_id('a')
 
@@ -365,6 +393,14 @@ def test_dom_manipulation():
 
     new_element.decompose()
     assert repr(new_element) == '<INVALID ELEMENT>'
+
+
+def test_node_value():
+    for node in tree.document:
+        if node.type in [NodeType.TEXT, NodeType.COMMENT]:
+            assert node.value == node.text
+        else:
+            assert node.value is None
 
 
 def test_inner_html_and_text():
