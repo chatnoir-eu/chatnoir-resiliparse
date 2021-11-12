@@ -18,6 +18,8 @@ import typing as t
 
 from cython.operator cimport preincrement as preinc, predecrement as predec
 from cpython.ref cimport PyObject
+from libcpp.string cimport to_string
+from libcpp.vector cimport vector
 
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.string cimport string, npos as strnpos
@@ -1745,6 +1747,93 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
         node = _next_node(base_node.node, node, &depth, is_end_tag_ptr)
 
 
+cdef struct ExtractOpts:
+    bint preserve_formatting
+    bint list_bullets
+    bint links
+    bint alt_texts
+    bint form_fields
+    bint noscript
+
+
+cdef struct ExtractContext:
+    lxb_dom_node_t* node
+    size_t depth
+    size_t list_depth
+    vector[size_t] list_numbering
+    bint is_pre
+    string text
+    ExtractOpts opts
+
+
+cdef void _extract_start_cb(ExtractContext* ctx):
+    cdef lxb_dom_character_data_t* node_char_data = NULL
+    cdef string txt
+
+    if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
+        node_char_data = <lxb_dom_character_data_t*>ctx.node
+        ctx.text.reserve(ctx.text.size() + node_char_data.data.length)
+        if ctx.opts.preserve_formatting and ctx.is_pre:
+            ctx.text.append(<char*>node_char_data.data.data, node_char_data.data.length)
+        else:
+            for i in range(node_char_data.data.length):
+                if isspace(<char> node_char_data.data.data[i]):
+                    if ctx.text.back() != b' ':
+                        ctx.text.push_back(<char> b' ')
+                else:
+                    ctx.text.push_back(<char> node_char_data.data.data[i])
+
+    if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
+        return
+
+    cdef size_t tag_name_len
+    cdef const lxb_char_t* tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
+
+    # Block formatting
+    if _is_block_element(ctx.node.local_name) and ctx.text.back() != b'\n':
+        ctx.text.push_back(<char>b'\n')
+
+    # Headings
+    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
+        if ctx.text.back() != b'\n':
+            ctx.text.push_back(<char>b'\n')
+
+    # Lists
+    if ctx.node.local_name == LXB_TAG_UL:
+        preinc(ctx.list_depth)
+    elif ctx.node.local_name == LXB_TAG_OL:
+        preinc(ctx.list_depth)
+        ctx.list_numbering.push_back(0)
+
+    # List items
+    if ctx.opts.list_bullets and ctx.node.local_name == LXB_TAG_LI:
+        ctx.text.append(string(2 * ctx.list_depth, <char> b' '))
+        if ctx.node.parent.local_name == LXB_TAG_OL:
+            ctx.text.append(to_string(preinc(ctx.list_numbering.back())) + b'. ')
+        else:
+            ctx.text.append(b'\xe2\x80\xa2 ')
+
+
+cdef void _extract_end_cb(ExtractContext* ctx):
+    if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
+        return
+
+    # Headings
+    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
+        ctx.text.push_back(<char>b'\n')
+
+    # Paragraphs
+    if ctx.node.local_name == LXB_TAG_P and ctx.text.back() != b'\n':
+        ctx.text.push_back(<char>b'\n')
+
+    # Lists
+    if ctx.node.local_name == LXB_TAG_UL:
+        predec(ctx.list_depth)
+    elif ctx.node.local_name == LXB_TAG_OL:
+        predec(ctx.list_depth)
+        ctx.list_numbering.pop_back()
+
+
 def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint list_bullets=True, bint links=False,
                        bint alt_texts=False, bint form_fields=False, bint noscript=False, skip_elements=None):
     """
@@ -1794,81 +1883,40 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint li
     if not form_fields:
         skip_elements.update({b'textarea', b'input', b'button'})
 
-    cdef lxb_dom_node_t* node = base_node.node
     cdef size_t tag_name_len = 0
     cdef const lxb_char_t* tag_name = NULL
-    cdef size_t dom_depth = 0
+
+    cdef ExtractContext ctx
+    ctx.is_pre = False
+    ctx.depth = 0
+    ctx.list_depth = 0
+    ctx.opts = [
+        preserve_formatting,
+        list_bullets,
+        links,
+        alt_texts,
+        form_fields,
+        noscript]
+
     cdef bint is_end_tag = False
+    ctx.node = base_node.node
 
-    cdef string text
-    cdef lxb_dom_character_data_t* node_char_data = NULL
-    cdef size_t i
-    cdef bint last_was_break = True
-    cdef bint pre_context = False
-    cdef size_t list_indent = 0
-    cdef size_t list_number = 0
-
-    while node != NULL:
-
+    while ctx.node != NULL:
         # Skip everything except element and text nodes
-        if node.type != LXB_DOM_NODE_TYPE_ELEMENT and node.type != LXB_DOM_NODE_TYPE_TEXT:
-            node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
+        if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
+            ctx.node = _next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
             continue
 
-        if node.type == LXB_DOM_NODE_TYPE_TEXT:
-            node_char_data = <lxb_dom_character_data_t*>node
-            text.reserve(text.size() + node_char_data.data.length)
-            if preserve_formatting and pre_context:
-                text.append(<char*>node_char_data.data.data, node_char_data.data.length)
-            else:
-                for i in range(node_char_data.data.length):
-                    if isspace(<char>node_char_data.data.data[i]):
-                        if text.back() != b' ':
-                            text.push_back(<char>b' ')
-                    else:
-                        text.push_back(<char>node_char_data.data.data[i])
+        # Skip unwanted element nodes
+        if tag_name[:tag_name_len] in skip_elements:
+            ctx.node = _next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+            continue
 
-        # Start elements
-        if node.type == LXB_DOM_NODE_TYPE_ELEMENT and not is_end_tag:
-            tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>node, &tag_name_len)
+        if not is_end_tag:
+            _extract_start_cb(&ctx)
+        else:
+            _extract_end_cb(&ctx)
 
-            # Skip unwanted element nodes
-            if tag_name[:tag_name_len] in skip_elements:
-                node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
-                continue
+        ctx.node = _next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
 
-            # Block formatting
-            if preserve_formatting and _is_block_element(node.local_name) and text.back() != b'\n':
-                text.push_back(<char>b'\n')
-
-            # Headings
-            if preserve_formatting and node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
-                text.push_back(<char>b'\n')
-
-            # Lists
-            if preserve_formatting and node.local_name in [LXB_TAG_UL, LXB_TAG_OL]:
-                preinc(list_indent)
-
-            # List items
-            if preserve_formatting and list_bullets and node.local_name == LXB_TAG_LI:
-                text.append(string(2 * list_indent, <char>b' '))
-                text.append(b'\xe2\x80\xa2 ')
-
-        # End elements
-        if node.type == LXB_DOM_NODE_TYPE_ELEMENT and is_end_tag:
-            # Headings
-            if preserve_formatting and node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
-                text.push_back(<char>b'\n')
-
-            # Paragraphs
-            if preserve_formatting and node.local_name == LXB_TAG_P:
-                text.push_back(<char>b'\n')
-
-            # Lists
-            if preserve_formatting and node.local_name in [LXB_TAG_UL, LXB_TAG_OL]:
-                predec(list_indent)
-                text.push_back(<char>b'\n')
-
-        node = _next_node(base_node.node, node, &dom_depth, &is_end_tag)
-
-    return text.decode().strip()
+    return ctx.text.decode().strip()
