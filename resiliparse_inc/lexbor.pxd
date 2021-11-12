@@ -331,6 +331,7 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
     const lxb_char_t * lxb_dom_element_id(lxb_dom_element_t *element, size_t *len)
     const lxb_char_t * lxb_dom_element_class(lxb_dom_element_t *element, size_t *len)
 
+    const lxb_char_t * lxb_dom_node_name(lxb_dom_node_t *node, size_t *len)
     const lxb_char_t * lxb_dom_attr_local_name(lxb_dom_attr_t *attr, size_t *len);
     const lxb_char_t * lxb_dom_attr_value(lxb_dom_attr_t *attr, size_t *len)
     lxb_status_t lxb_dom_attr_set_value(lxb_dom_attr_t *attr,
@@ -612,6 +613,7 @@ cdef extern from "<lexbor/tag/tag.h>" nogil:
         lxb_char_t str
         size_t length
         lexbor_hash_entry_t *next;
+
 
     ctypedef struct lxb_tag_data_t:
         lexbor_hash_entry_t entry

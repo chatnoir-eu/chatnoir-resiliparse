@@ -465,25 +465,18 @@ cdef class DOMNode:
     @property
     def tag(self):
         """
-        DOM node tag name if node is an Element node.
+        DOM element tag or node name.
 
         :type: str or None
         """
         if not check_node(self):
             return None
 
-        if self.node.type == LXB_DOM_NODE_TYPE_TEXT:
-            return '#text'
-        if self.node.type == LXB_DOM_NODE_TYPE_DOCUMENT:
-            return '#document'
-        if self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            return None
-
         cdef size_t name_len = 0
-        cdef const lxb_char_t* name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>self.node, &name_len)
+        cdef const lxb_char_t* name = lxb_dom_node_name(self.node, &name_len)
         if name == NULL:
             return None
-        return name[:name_len].decode()
+        return name[:name_len].decode().lower()
 
     @property
     def first_child(self):
