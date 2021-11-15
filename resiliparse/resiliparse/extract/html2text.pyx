@@ -46,7 +46,7 @@ cdef struct ExtractContext:
     ExtractOpts opts
 
 
-cdef inline string _get_node_attr(lxb_dom_node_t* node, const string& attr) nogil:
+cdef inline string _get_node_attr(lxb_dom_node_t* node, const string& attr):
     cdef size_t node_attr_len
     cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
         <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
@@ -55,7 +55,7 @@ cdef inline string _get_node_attr(lxb_dom_node_t* node, const string& attr) nogi
     return string()
 
 
-cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) nogil:
+cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
@@ -148,7 +148,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
     cdef size_t tag_name_len
     cdef const lxb_char_t* tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
 
-    cdef block_creates_newline = ctx.newline_before_next_block
+    cdef bint block_creates_newline = ctx.newline_before_next_block
     # Headings and paragraphs enforce newlines
     if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
         block_creates_newline = True
