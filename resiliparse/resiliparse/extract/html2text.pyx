@@ -145,6 +145,11 @@ cdef void _extract_start_cb(ExtractContext* ctx):
     cdef size_t tag_name_len
     cdef const lxb_char_t* tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
 
+    cdef block_creates_newline = ctx.newline_before_next_block
+    # Headings and paragraphs enforce newlines
+    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
+        block_creates_newline = True
+
     # Block formatting
     if is_block_element(ctx.node.local_name) and not ctx.text.empty():
         while not ctx.text.empty() and isspace(ctx.text.back().back()):
@@ -152,17 +157,13 @@ cdef void _extract_start_cb(ExtractContext* ctx):
             if ctx.text.back().empty():
                 ctx.text.pop_back()
         if not ctx.lstrip_next_block and not ctx.text.empty():
-            ctx.text.back().append(<char*>b'\n\n' if ctx.newline_before_next_block else <char*>b'\n')
+            ctx.text.back().append(<char*>b'\n\n' if block_creates_newline else <char*>b'\n')
         elif ctx.space_before_next_block and not ctx.text.empty():
             ctx.text.back().push_back(<char>b' ')
 
     # Pre-formatted text
     if ctx.node.local_name == LXB_TAG_PRE:
         ctx.pre_depth += 1
-
-    # Headings
-    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
-        ctx.text.push_back(<char*>b'\n')
 
     # Lists
     if ctx.node.local_name == LXB_TAG_UL:
