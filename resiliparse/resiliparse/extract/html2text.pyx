@@ -252,7 +252,7 @@ cdef void _extract_end_cb(ExtractContext* ctx):
 cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
 cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
 cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])')
-cdef regex display_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:display-none|hidden|invisible|collapsed|h-0)(?:$|[\\s_-])')
+cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s)')
 cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
 cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-])?(?:footer|sidebar|nav(?:igation)?)$')
 
