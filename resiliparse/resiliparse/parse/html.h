@@ -27,6 +27,7 @@ static const lxb_tag_id_t BLOCK_ELEMENTS[] = {
     LXB_TAG_BR,
     LXB_TAG_DETAILS,
     LXB_TAG_DD,
+    LXB_TAG_DT,
     LXB_TAG_DIV,
     LXB_TAG_DL,
     LXB_TAG_FIELDSET,
@@ -51,6 +52,7 @@ static const lxb_tag_id_t BLOCK_ELEMENTS[] = {
     LXB_TAG_PRE,
     LXB_TAG_SECTION,
     LXB_TAG_TABLE,
+    LXB_TAG_TR,
     LXB_TAG_UL
 };
 static const size_t NUM_BLOCK_ELEMENTS = sizeof(BLOCK_ELEMENTS) / sizeof(lxb_tag_id_t);

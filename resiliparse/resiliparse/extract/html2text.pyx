@@ -170,6 +170,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         preinc(ctx.list_depth)
         ctx.list_numbering.push_back(0)
 
+
     # List item indents
     if ctx.opts.list_bullets and ctx.list_depth > 0 and not ctx.text.empty() and ctx.text.back().back() == b'\n':
         element_text.append(string(2 * ctx.list_depth, <char>b' '))
@@ -210,6 +211,14 @@ cdef void _extract_end_cb(ExtractContext* ctx):
             ctx.text.back().push_back(<char>b' ')
         ctx.text.back().append(<char*>b'] ')
 
+    # Add tabs between table cells
+    if ctx.node.local_name in [LXB_TAG_TD, LXB_TAG_TH]:
+        ctx.text.back().append(<char*>b'\t\t')
+
+    # No additional white space after table rows
+    if ctx.node.local_name == LXB_TAG_TR and not ctx.text.empty():
+        ctx.newline_before_next_block = False
+
     # Link targets
     cdef string link_href
     if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
@@ -228,17 +237,24 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         predec(ctx.list_depth)
         ctx.list_numbering.pop_back()
 
-    # No additional newlines after list items
+    # No additional white space after list items
     if ctx.node.local_name == LXB_TAG_LI and not ctx.text.empty():
+        ctx.newline_before_next_block = False
+
+    # Add newline after block elements if next element is text
+    if ctx.node.next != NULL and ctx.node.next.type == LXB_DOM_NODE_TYPE_TEXT \
+            and is_block_element(ctx.node.local_name) and not ctx.text.empty():
+        ctx.text.back().append(<char*>b'\n\n' if ctx.newline_before_next_block else <char*>b'\n')
         ctx.newline_before_next_block = False
 
 
 
-cdef regex nav_cls_regex = regex(<char*> b'(?:^|\\s|-)nav(?:bar|igation)?(?:$|\\s|-)')
-cdef regex sidebar_cls_regex = regex(<char*> b'(?:^|\\s)(?:nav(?:igation)?-|global-)sidebar(?:$|\\s|-)')
-cdef regex skip_cls_regex = regex(<char*>b'(?:^|\\s|-)(?:skip-to|scroll-(?:up|down))(?:$|\\s|-)')
-cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s|-)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s|-)')
+cdef regex nav_cls_regex = regex(<char*> b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
+cdef regex sidebar_cls_regex = regex(<char*> b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
+cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip-to|scroll-(?:up|down))(?:$|[\\s_-])')
+cdef regex display_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:display-none|hidden|invisible|collapsed|h-0)(?:$|[\\s_-])')
 cdef regex display_css_regex = regex(<char*> b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
+cdef regex landmark_id_regex = regex(<char*> b'^(?:global[_-])?(?:footer|sidebar|nav(?:igation)?)$')
 
 
 cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
@@ -270,11 +286,15 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
             return False
 
     cdef string cls = get_node_attr(node, <char*>b'class')
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER]:
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV]:
         if node.parent and node.parent.local_name == LXB_TAG_NAV:
             return False
         if regex_search(cls, nav_cls_regex):
             return False
+
+    # Landmark IDs
+    if regex_search(get_node_attr(node, <char *> b'id'), landmark_id_regex):
+        return False
 
     # Global sidebar
     if ctx.depth < 4 and regex_search(cls, sidebar_cls_regex):
