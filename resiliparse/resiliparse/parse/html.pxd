@@ -15,6 +15,13 @@
 from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
     lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t, lxb_tag_id_t
 
+cdef inline bint check_node(DOMNode node):
+    """Check whether node is initialized and valid."""
+    return node is not None and node.tree is not None and node.node != NULL
+
+cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                               size_t* depth=*, bint* end_tag=*)
+
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=*)
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
                                                      size_t init_size=*, bint case_insensitive=*)
@@ -24,7 +31,6 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, by
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
                                                    size_t init_size=*)
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
-
 
 cdef extern from "html.h" nogil:
     cdef lxb_tag_id_t BLOCK_ELEMENTS[]
@@ -116,3 +122,5 @@ cdef class HTMLTree:
     cpdef DOMNode create_text_node(self, str text)
 
     cdef void init_css_parser(self)
+
+cdef bint is_block_element(lxb_tag_id_t tag_id)
