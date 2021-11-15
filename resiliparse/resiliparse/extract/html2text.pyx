@@ -88,12 +88,14 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     return element_text
 
 
+cdef regex leading_ws_regex = regex(<char*>b'^\\s+')
+cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
+
+
 cdef void _extract_start_cb(ExtractContext* ctx):
     cdef lxb_dom_character_data_t* node_char_data = NULL
     cdef string node_attr_data
     cdef string element_text
-    cdef regex leading_ws_regex = regex(<char*>b'^\\s+')
-    cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
     cdef size_t i
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
@@ -231,6 +233,10 @@ cdef void _extract_end_cb(ExtractContext* ctx):
     elif ctx.node.local_name == LXB_TAG_OL:
         predec(ctx.list_depth)
         ctx.list_numbering.pop_back()
+
+    # No additional newlines after list items
+    if ctx.node.local_name == LXB_TAG_LI and not ctx.text.empty():
+        ctx.newline_before_next_block = False
 
 
 def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint list_bullets=True, bint alt_texts=True,
