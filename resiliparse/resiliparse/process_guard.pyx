@@ -18,6 +18,7 @@ from cpython cimport PyObject, PyThreadState_SetAsyncExc
 cimport cython
 from libc.stdint cimport uint64_t
 from libc.signal cimport SIGINT, SIGTERM, SIGKILL
+from libcpp.string cimport string, to_string
 
 import inspect
 import platform
@@ -26,7 +27,6 @@ import warnings
 
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.pthread cimport pthread_kill, pthread_t, pthread_self
-from resiliparse_inc.string cimport string, to_string
 from resiliparse_inc.stdio cimport FILE, fclose, feof, fgets, fopen
 from resiliparse_inc.time cimport timespec, clock_gettime, CLOCK_MONOTONIC
 from resiliparse_inc.unistd cimport getpagesize, getpid, usleep

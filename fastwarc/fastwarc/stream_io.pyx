@@ -17,11 +17,11 @@
 cimport cython
 from cython.operator cimport preincrement as preinc
 from libc.string cimport memchr, memcmp
+from libcpp.string cimport npos as strnpos, string
 
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
 from resiliparse_inc.stdio cimport fclose, ferror, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
-from resiliparse_inc.string cimport npos as strnpos, string
 
 
 class FastWARCError(Exception):

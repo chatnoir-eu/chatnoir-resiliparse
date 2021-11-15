@@ -18,10 +18,11 @@ import atexit
 import codecs
 import typing as t
 
+from libcpp.string cimport string
+
 from resiliparse_inc.lexbor cimport lxb_char_t, lxb_status_t, lxb_html_encoding_t, lxb_html_encoding_entry_t, \
     lxb_html_encoding_determine, lxb_html_encoding_meta_entry, lxb_html_encoding_init, lxb_html_encoding_destroy, \
     LXB_STATUS_OK
-from resiliparse_inc.string cimport string
 from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
     uchardet_data_end, uchardet_reset, uchardet_get_charset
 

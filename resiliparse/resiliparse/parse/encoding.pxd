@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from resiliparse_inc.string cimport string
+from libcpp.string cimport string
 from resiliparse_inc.uchardet cimport uchardet_t
 
 cdef class EncodingDetector:

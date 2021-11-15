@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from libc.stdint cimport uint16_t
+from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from resiliparse_inc.string cimport string
 from fastwarc.stream_io cimport IOStream, BufferedReader
 
 

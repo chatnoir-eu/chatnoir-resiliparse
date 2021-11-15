@@ -16,8 +16,8 @@
 
 import typing as t
 
+from libcpp.string cimport string
 from resiliparse_inc.cstdlib cimport strtol
-from resiliparse_inc.string cimport string
 
 
 cpdef bytes read_http_chunk(reader):

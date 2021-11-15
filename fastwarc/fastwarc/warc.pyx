@@ -18,6 +18,7 @@ cimport cython
 from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
 from libc.stdint cimport uint16_t
 from libc.string cimport memchr
+from libcpp.string cimport npos as strnpos, string, to_string
 from libcpp.vector cimport vector
 
 import codecs
@@ -30,7 +31,6 @@ import warnings
 
 from resiliparse_inc.cctype cimport isspace, tolower
 from resiliparse_inc.cstdlib cimport strtol
-from resiliparse_inc.string cimport npos as strnpos, string, to_string
 from resiliparse_inc.utility cimport move
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter

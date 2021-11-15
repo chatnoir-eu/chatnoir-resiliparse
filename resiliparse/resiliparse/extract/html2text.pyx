@@ -15,13 +15,12 @@
 # distutils: language = c++
 
 from cython.operator cimport preincrement as preinc, predecrement as predec
-from libcpp.string cimport to_string
+from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
-from resiliparse_inc.string cimport string
 
 cdef struct ExtractOpts:
     bint preserve_formatting
