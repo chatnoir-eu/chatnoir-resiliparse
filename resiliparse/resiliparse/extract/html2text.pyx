@@ -100,6 +100,9 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         node_char_data = <lxb_dom_character_data_t*>ctx.node
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(element_text, ctx)
+        if element_text == <char*>b'\xc2\xb6' and ctx.node.parent != NULL and ctx.node.parent.local_name == LXB_TAG_A:
+            # Skip Pilcrow anchor links
+            return
         if not regex_replace(element_text, trailing_ws_regex, <char*>b'').empty():
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
