@@ -249,12 +249,12 @@ cdef void _extract_end_cb(ExtractContext* ctx):
 
 
 
-cdef regex nav_cls_regex = regex(<char*> b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
-cdef regex sidebar_cls_regex = regex(<char*> b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
-cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip-to|scroll-(?:up|down))(?:$|[\\s_-])')
+cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
+cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
+cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])')
 cdef regex display_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:display-none|hidden|invisible|collapsed|h-0)(?:$|[\\s_-])')
-cdef regex display_css_regex = regex(<char*> b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
-cdef regex landmark_id_regex = regex(<char*> b'^(?:global[_-])?(?:footer|sidebar|nav(?:igation)?)$')
+cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
+cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-])?(?:footer|sidebar|nav(?:igation)?)$')
 
 
 cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
@@ -271,6 +271,13 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
         if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
             return False
 
+    cdef string cls = get_node_attr(node, <char*>b'class')
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV]:
+        if node.parent and node.parent.local_name == LXB_TAG_NAV:
+            return False
+        if regex_search(cls, nav_cls_regex):
+            return False
+
     # Global aside
     if node.local_name == LXB_TAG_ASIDE:
         if node.parent and node.parent.local_name == LXB_TAG_BODY:
@@ -285,15 +292,8 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
         if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
             return False
 
-    cdef string cls = get_node_attr(node, <char*>b'class')
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV]:
-        if node.parent and node.parent.local_name == LXB_TAG_NAV:
-            return False
-        if regex_search(cls, nav_cls_regex):
-            return False
-
     # Landmark IDs
-    if regex_search(get_node_attr(node, <char *> b'id'), landmark_id_regex):
+    if regex_search(get_node_attr(node, <char*> b'id'), landmark_id_regex):
         return False
 
     # Global sidebar
@@ -318,7 +318,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
         return False
 
     # Skip links
-    if node.local_name == LXB_TAG_A and regex_search(cls, skip_cls_regex):
+    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search(cls, skip_cls_regex):
         return False
 
     return True
