@@ -18,7 +18,7 @@ from cython.operator cimport preincrement as preinc, predecrement as predec
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_inc.regex cimport regex, regex_replace
+from resiliparse_inc.regex cimport regex, regex_match, regex_replace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
@@ -34,6 +34,7 @@ cdef struct ExtractOpts:
 
 
 cdef struct ExtractContext:
+    lxb_dom_node_t* root_node
     lxb_dom_node_t* node
     size_t depth
     size_t list_depth
@@ -84,6 +85,7 @@ cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
 
 
 cdef void _extract_start_cb(ExtractContext* ctx):
+    """Extraction start element callback."""
     cdef lxb_dom_character_data_t* node_char_data = NULL
     cdef string node_attr_data
     cdef string element_text
@@ -117,7 +119,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         return
 
     if ctx.opts.form_fields:
-        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
+        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child != NULL:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
             element_text.append(<char*>b'[ ')
         elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr(ctx.node, <char*>b'type') not in \
@@ -189,6 +191,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
 
 
 cdef void _extract_end_cb(ExtractContext* ctx):
+    """Extraction end element callback."""
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
         return
 
@@ -230,11 +233,79 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         ctx.newline_before_next_block = False
 
 
-def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint list_bullets=True, bint alt_texts=True,
-                       bint links=False, bint form_fields=False, bint noscript=False, skip_elements=None):
+cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
+    """Check with simple heuristics if node belongs to main content."""
+
+    # Main elements
+    if node.local_name == LXB_TAG_MAIN or node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        return True
+
+    # Global navigation
+    if node.local_name == LXB_TAG_NAV:
+        if node.parent and node.parent.local_name == LXB_TAG_BODY:
+            return False
+        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
+            return False
+
+    # Global aside
+    if node.local_name == LXB_TAG_ASIDE:
+        if node.parent and node.parent.local_name == LXB_TAG_BODY:
+            return False
+        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
+            return False
+
+    # Global footer
+    if node.local_name == LXB_TAG_FOOTER:
+        if node.parent and node.parent.local_name == LXB_TAG_BODY:
+            return False
+        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
+            return False
+
+    cdef string cls = get_node_attr(node, <char*>b'class')
+    cdef regex nav_regex = regex(<char*>b'.*(?:^|\\s|-)nav(?:bar|igation)?(?:$|\\s|-).*')
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER]:
+        if node.parent and node.parent.local_name == LXB_TAG_NAV:
+            return False
+        if regex_match(cls, nav_regex):
+            return False
+
+    # Global sidebar
+    cdef regex sidebar_regex = regex(<char*>b'.*(?:^|\\s)(?:nav(?:igation)?-|global-)sidebar(?:$|\\s|-).*')
+    if ctx.depth < 4 and regex_match(cls, sidebar_regex):
+        return False
+
+    # ARIA roles
+    if get_node_attr(node, <char*>b'role') in [<char*>b'img', <char*>b'menu', <char*>b'menubar', <char*>b'menuitem',
+                                               <char*>b'alert', <char*>b'checkbox', <char*>b'radio']:
+        return False
+
+    # Hidden elements
+    cdef regex display_cls_regex = regex(<char*>b'.*(?:^|\\s|-)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s|-).*')
+    if regex_match(cls, display_cls_regex):
+        return False
+
+    cdef regex display_regex = regex(<char*>b'.*(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;).*')
+    if regex_match(get_node_attr(node, <char *> b'style'), display_regex):
+        return False
+
+    # Aria hidden
+    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
+        return False
+
+    # Skip links
+    cdef regex skip_cls_regex = regex(<char*>b'.*(?:^|\\s|-)(?:skip-to|scroll-(?:up|down)|)(?:$|\\s|-).*')
+    if node.local_name == LXB_TAG_A and regex_match(get_node_attr(node, <char *> b'style'), skip_cls_regex):
+        return False
+
+    return True
+
+
+def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=True, bint list_bullets=True,
+                       bint alt_texts=True, bint links=False, bint form_fields=False, bint noscript=False,
+                       skip_elements=None):
     """
-    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, list_bullets=True, \
-                       alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
+    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=True, \
+        list_bullets=True, alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
 
     Perform a simple plain-text extraction from the given DOM node and its children.
 
@@ -251,6 +322,8 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint li
     :type base_node: DOMNode
     :param preserve_formatting: preserve basic block-level formatting
     :type preserve_formatting: bool
+    :param main_content: apply simple heuristics for extracting only "main-content" elements
+    :type main_content: bool
     :param list_bullets: insert bullets / numbers for list items
     :type list_bullets: bool
     :param alt_texts: preserve alternative text descriptions
@@ -283,6 +356,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint li
     cdef const lxb_char_t* tag_name = NULL
 
     cdef ExtractContext ctx
+    ctx.root_node = base_node.node
     ctx.depth = 0
     ctx.list_depth = 0
     ctx.pre_depth = 0
@@ -309,7 +383,8 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint li
 
         # Skip unwanted element nodes
         tag_name = lxb_dom_node_name(ctx.node, &tag_name_len)
-        if tag_name[:tag_name_len].lower() in skip_elements:
+        if tag_name[:tag_name_len].lower() in skip_elements or \
+                (main_content and not _is_main_content_node(ctx.node, &ctx)):
             is_end_tag = True
             ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
             continue

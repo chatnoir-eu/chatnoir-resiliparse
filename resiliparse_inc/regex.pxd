@@ -8,14 +8,9 @@ cdef extern from "<regex>" namespace "std" nogil:
         basic_regex(const char* str)
         basic_regex(const char* str, size_t len)
     ctypedef basic_regex[char] regex
+    ctypedef struct match_results
 
     string regex_replace(const string& s, const regex, const char* fmt)
     string regex_replace(const string& s, const regex, const string& fmt)
-
-    string regex_replace[OutputIterator, BidirectionalIterator](
-            OutputIterator out, BidirectionalIterator first, BidirectionalIterator last,
-            const regex, const char* fmt)
-
-    string regex_replace[OutputIterator, BidirectionalIterator](
-            OutputIterator out, BidirectionalIterator first, BidirectionalIterator last,
-            const regex, const string& fmt)
+    bool regex_match(const char* s, const regex& rgx)
+    bool regex_match(const const string& s, const regex& rgx)
