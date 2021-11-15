@@ -12,5 +12,7 @@ cdef extern from "<regex>" namespace "std" nogil:
 
     string regex_replace(const string& s, const regex, const char* fmt)
     string regex_replace(const string& s, const regex, const string& fmt)
-    bool regex_match(const char* s, const regex& rgx)
-    bool regex_match(const const string& s, const regex& rgx)
+    bint regex_match(const char* s, const regex& rgx)
+    bint regex_match(const const string& s, const regex& rgx)
+    bint regex_search(const char* s, const regex& rgx)
+    bint regex_search(const const string& s, const regex& rgx)

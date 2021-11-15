@@ -18,7 +18,7 @@ from cython.operator cimport preincrement as preinc, predecrement as predec
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_inc.regex cimport regex, regex_match, regex_replace
+from resiliparse_inc.regex cimport regex, regex_search, regex_replace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
@@ -233,11 +233,19 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         ctx.newline_before_next_block = False
 
 
+
+cdef regex nav_cls_regex = regex(<char*> b'(?:^|\\s|-)nav(?:bar|igation)?(?:$|\\s|-)')
+cdef regex sidebar_cls_regex = regex(<char*> b'(?:^|\\s)(?:nav(?:igation)?-|global-)sidebar(?:$|\\s|-)')
+cdef regex skip_cls_regex = regex(<char*>b'(?:^|\\s|-)(?:skip-to|scroll-(?:up|down))(?:$|\\s|-)')
+cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s|-)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s|-)')
+cdef regex display_css_regex = regex(<char*> b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
+
+
 cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
     """Check with simple heuristics if node belongs to main content."""
 
     # Main elements
-    if node.local_name == LXB_TAG_MAIN or node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+    if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
         return True
 
     # Global navigation
@@ -262,39 +270,35 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
             return False
 
     cdef string cls = get_node_attr(node, <char*>b'class')
-    cdef regex nav_regex = regex(<char*>b'.*(?:^|\\s|-)nav(?:bar|igation)?(?:$|\\s|-).*')
     if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER]:
         if node.parent and node.parent.local_name == LXB_TAG_NAV:
             return False
-        if regex_match(cls, nav_regex):
+        if regex_search(cls, nav_cls_regex):
             return False
 
     # Global sidebar
-    cdef regex sidebar_regex = regex(<char*>b'.*(?:^|\\s)(?:nav(?:igation)?-|global-)sidebar(?:$|\\s|-).*')
-    if ctx.depth < 4 and regex_match(cls, sidebar_regex):
+    if ctx.depth < 4 and regex_search(cls, sidebar_cls_regex):
         return False
 
     # ARIA roles
-    if get_node_attr(node, <char*>b'role') in [<char*>b'img', <char*>b'menu', <char*>b'menubar', <char*>b'menuitem',
-                                               <char*>b'alert', <char*>b'checkbox', <char*>b'radio']:
+    if get_node_attr(node, <char*>b'role') in [<char*>b'img', <char*>b'menu', <char*>b'menubar', <char*>b'navigation',
+                                               <char*>b'menuitem', <char*>b'alert', <char*>b'checkbox',
+                                               <char*>b'radio']:
         return False
 
     # Hidden elements
-    cdef regex display_cls_regex = regex(<char*>b'.*(?:^|\\s|-)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s|-).*')
-    if regex_match(cls, display_cls_regex):
+    if regex_search(cls, display_cls_regex):
         return False
 
-    cdef regex display_regex = regex(<char*>b'.*(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;).*')
-    if regex_match(get_node_attr(node, <char *> b'style'), display_regex):
+    if regex_search(get_node_attr(node, <char *> b'style'), display_css_regex):
         return False
 
-    # Aria hidden
+    # ARIA hidden
     if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
         return False
 
     # Skip links
-    cdef regex skip_cls_regex = regex(<char*>b'.*(?:^|\\s|-)(?:skip-to|scroll-(?:up|down)|)(?:$|\\s|-).*')
-    if node.local_name == LXB_TAG_A and regex_match(get_node_attr(node, <char *> b'style'), skip_cls_regex):
+    if node.local_name == LXB_TAG_A and regex_search(cls, skip_cls_regex):
         return False
 
     return True
