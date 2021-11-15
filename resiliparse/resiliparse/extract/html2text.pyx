@@ -39,19 +39,32 @@ cdef struct ExtractContext:
     size_t list_depth
     size_t pre_depth
     vector[size_t] list_numbering
+    size_t space_before_next_block
     size_t newline_before_next_block
     size_t lstrip_next_block
     vector[string] text
     ExtractOpts opts
 
 
-cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
+cdef inline string _get_node_attr(lxb_dom_node_t* node, const string& attr) nogil:
+    cdef size_t node_attr_len
+    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
+        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
+    if node_attr_data != NULL and node_attr_len > 0:
+        return string(<const char*>node_attr_data, node_attr_len)
+    return string()
+
+
+cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
     """
     cdef string element_text
     cdef regex newline_regex = regex(<char*>b'\\n')
+
+    if input_str.empty():
+        return string()
 
     element_text.reserve(input_str.size())
 
@@ -77,20 +90,20 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
 
 cdef void _extract_start_cb(ExtractContext* ctx):
     cdef lxb_dom_character_data_t* node_char_data = NULL
-    cdef const lxb_char_t* node_attr_data = NULL
-    cdef size_t node_attr_len = 0
+    cdef string node_attr_data
     cdef string element_text
     cdef regex leading_ws_regex = regex(<char*>b'^\\s+')
     cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
     cdef size_t i
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
-        node_char_data = <lxb_dom_character_data_t*> ctx.node
+        node_char_data = <lxb_dom_character_data_t*>ctx.node
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(element_text, ctx)
         if not regex_replace(element_text, trailing_ws_regex, <char*>b'').empty():
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
+            ctx.space_before_next_block = False
         if not element_text.empty():
             ctx.text.push_back(element_text)
         return
@@ -100,13 +113,31 @@ cdef void _extract_start_cb(ExtractContext* ctx):
 
     # Alternative descriptions
     if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
-        node_attr_data = lxb_dom_element_get_attribute(<lxb_dom_element_t*>ctx.node,
-                                                       <lxb_char_t*>b'alt', 3, &node_attr_len)
-        if node_attr_data != NULL and node_attr_len > 0:
-            if not element_text.empty() and not isspace(element_text.back()):
-                element_text.push_back(<char>b' ')
-            element_text.append(_get_collapsed_string(string(<char*>node_attr_data, node_attr_len), ctx))
+        node_attr_data = _get_node_attr(ctx.node, <char*>b'alt')
+        if not node_attr_data.empty():
+            element_text.append(_get_collapsed_string(node_attr_data, ctx))
             element_text.push_back(<char>b' ')
+            ctx.text.push_back(element_text)
+        return
+
+    if ctx.opts.form_fields:
+        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
+            ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
+            element_text.append(<char*>b'[ ')
+        elif ctx.node.local_name == LXB_TAG_INPUT and _get_node_attr(ctx.node, <char*>b'type') not in \
+                [<char*>b'checkbox', <char*>b'color', <char*>b'file', <char*>b'hidden',
+                 <char*>b'radio', <char*>b'reset']:
+            node_attr_data = _get_node_attr(ctx.node, <char*>b'value')
+            if node_attr_data.empty():
+                node_attr_data = _get_node_attr(ctx.node, <char*>b'placeholder')
+            if not node_attr_data.empty():
+                element_text.append(<char*>b'[ ')
+                element_text.append(_get_collapsed_string(node_attr_data, ctx))
+                if not isspace(element_text.back()):
+                    element_text.push_back(<char>b' ')
+                element_text.append(<char*>b'] ')
+                ctx.text.push_back(element_text)
+            return
 
     if not ctx.opts.preserve_formatting:
         return
@@ -121,7 +152,9 @@ cdef void _extract_start_cb(ExtractContext* ctx):
             if ctx.text.back().empty():
                 ctx.text.pop_back()
         if not ctx.lstrip_next_block and not ctx.text.empty():
-            ctx.text.push_back(<char*>b'\n\n' if ctx.newline_before_next_block else <char*>b'\n')
+            ctx.text.back().append(<char*>b'\n\n' if ctx.newline_before_next_block else <char*>b'\n')
+        elif ctx.space_before_next_block and not ctx.text.empty():
+            ctx.text.back().push_back(<char>b' ')
 
     # Pre-formatted text
     if ctx.node.local_name == LXB_TAG_PRE:
@@ -152,6 +185,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         else:
             element_text.append(b'\xe2\x80\xa2 ')
         ctx.lstrip_next_block = True
+        ctx.space_before_next_block = True
 
     if not element_text.empty():
         ctx.text.push_back(element_text)
@@ -168,6 +202,24 @@ cdef void _extract_end_cb(ExtractContext* ctx):
     # Pre-formatted text
     if ctx.node.local_name == LXB_TAG_PRE:
         ctx.pre_depth -= 1
+
+    # Forms
+    if ctx.opts.form_fields and ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
+        ctx.pre_depth -= <int>ctx.node.local_name == LXB_TAG_TEXTAREA
+        if not isspace(ctx.text.back().back()):
+            ctx.text.back().push_back(<char>b' ')
+        ctx.text.back().append(<char*>b'] ')
+
+    # Link targets
+    cdef string link_href
+    if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
+        link_href = _get_node_attr(ctx.node, <char*>b'href')
+        if not link_href.empty():
+            if not isspace(ctx.text.back().back()):
+                ctx.text.back().push_back(<char>b' ')
+            ctx.text.back().push_back(<char>b'(')
+            ctx.text.back().append(_get_collapsed_string(link_href, ctx))
+            ctx.text.back().append(<char*>b')')
 
     # Lists
     if ctx.node.local_name == LXB_TAG_UL:
@@ -233,6 +285,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint li
     ctx.depth = 0
     ctx.list_depth = 0
     ctx.pre_depth = 0
+    ctx.space_before_next_block = False
     ctx.newline_before_next_block = False
     ctx.lstrip_next_block = False
     ctx.opts = [
