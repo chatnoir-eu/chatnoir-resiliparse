@@ -46,15 +46,6 @@ cdef struct ExtractContext:
     ExtractOpts opts
 
 
-cdef inline string _get_node_attr(lxb_dom_node_t* node, const string& attr):
-    cdef size_t node_attr_len
-    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
-        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
-    if node_attr_data != NULL and node_attr_len > 0:
-        return string(<const char*>node_attr_data, node_attr_len)
-    return string()
-
-
 cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     """
     Collapse newlines and consecutive white space in a string to single spaces.
@@ -118,7 +109,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
 
     # Alternative descriptions
     if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
-        node_attr_data = _get_node_attr(ctx.node, <char*>b'alt')
+        node_attr_data = get_node_attr(ctx.node, <char*>b'alt')
         if not node_attr_data.empty():
             element_text.append(_get_collapsed_string(node_attr_data, ctx))
             element_text.push_back(<char>b' ')
@@ -129,12 +120,12 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
             element_text.append(<char*>b'[ ')
-        elif ctx.node.local_name == LXB_TAG_INPUT and _get_node_attr(ctx.node, <char*>b'type') not in \
+        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr(ctx.node, <char*>b'type') not in \
                 [<char*>b'checkbox', <char*>b'color', <char*>b'file', <char*>b'hidden',
                  <char*>b'radio', <char*>b'reset']:
-            node_attr_data = _get_node_attr(ctx.node, <char*>b'value')
+            node_attr_data = get_node_attr(ctx.node, <char*>b'value')
             if node_attr_data.empty():
-                node_attr_data = _get_node_attr(ctx.node, <char*>b'placeholder')
+                node_attr_data = get_node_attr(ctx.node, <char*>b'placeholder')
             if not node_attr_data.empty():
                 element_text.append(<char*>b'[ ')
                 element_text.append(_get_collapsed_string(node_attr_data, ctx))
@@ -219,7 +210,7 @@ cdef void _extract_end_cb(ExtractContext* ctx):
     # Link targets
     cdef string link_href
     if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
-        link_href = _get_node_attr(ctx.node, <char*>b'href')
+        link_href = get_node_attr(ctx.node, <char*>b'href')
         if not link_href.empty():
             if not isspace(ctx.text.back().back()):
                 ctx.text.back().push_back(<char>b' ')

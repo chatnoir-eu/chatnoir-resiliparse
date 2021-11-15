@@ -12,15 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from libcpp.string cimport string
 from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
     lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t, lxb_tag_id_t
+
 
 cdef inline bint check_node(DOMNode node):
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
+
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*)
+cdef string get_node_attr(lxb_dom_node_t* node, const string& attr)
+cdef string get_node_text(lxb_dom_node_t* node)
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=*)
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
@@ -52,7 +57,7 @@ cdef class DOMNode:
     cdef DOMElementClassList class_list_singleton
 
     cpdef bint hasattr(self, str attr_name) except -1
-    cdef str _getattr_impl(self, bytes attr_name, bint raise_if_not_exists=*)
+    cdef str _getattr_impl(self, const string& attr_name, bint raise_if_not_exists=*)
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value)  except -1
     cpdef setattr(self, str attr_name, str attr_value)

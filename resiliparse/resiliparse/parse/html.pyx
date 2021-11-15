@@ -77,6 +77,27 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
         return node.next
 
 
+cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr):
+    """Get node attribute value."""
+    cdef size_t node_attr_len
+    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
+        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
+    if node_attr_data != NULL and node_attr_len > 0:
+        return string(<const char*>node_attr_data, node_attr_len)
+    return string()
+
+
+cdef inline string get_node_text(lxb_dom_node_t* node):
+    """Get node inner text."""
+    cdef size_t text_len = 0
+    cdef lxb_char_t* text = lxb_dom_node_text_content(node, &text_len)
+    if text == NULL or text_len == 0:
+        return string()
+    cdef string text_str = string(<const char*>text, text_len)
+    lxb_dom_document_destroy_text(node.owner_document, text)
+    return text_str
+
+
 cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=5):
     """
     Return a collection of elements matching the given attribute name and value.
@@ -574,13 +595,8 @@ cdef class DOMNode:
         """
         if not check_node(self):
             return None
-        cdef size_t text_len = 0
-        cdef lxb_char_t* text = lxb_dom_node_text_content(self.node, &text_len)
-        if text == NULL:
-            return ''
-        cdef str py_text = text[:text_len].decode()
-        lxb_dom_document_destroy_text(self.node.owner_document, text)
-        return py_text
+
+        return get_node_text(self.node).decode()
 
     @text.setter
     def text(self, str text):
@@ -711,7 +727,7 @@ cdef class DOMNode:
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
-    cdef str _getattr_impl(self, bytes attr_name, bint raise_if_not_exists=True):
+    cdef str _getattr_impl(self, const string& attr_name, bint raise_if_not_exists=True):
         """
         Get an attribute value as string.
         
@@ -723,16 +739,10 @@ cdef class DOMNode:
             raise ValueError('Node ist not an Element node.')
 
         if raise_if_not_exists and not lxb_dom_element_has_attribute(
-                <lxb_dom_element_t*>self.node, <lxb_char_t*>attr_name, len(attr_name)):
+                <lxb_dom_element_t*>self.node, <lxb_char_t*>attr_name.data(), attr_name.size()):
             raise KeyError(f'No such attribute: {attr_name.decode()}')
 
-        cdef size_t value_len = 0
-        cdef const lxb_char_t* value = lxb_dom_element_get_attribute(<lxb_dom_element_t*>self.node,
-                                                                     <lxb_char_t*>attr_name, len(attr_name),
-                                                                     &value_len)
-        if value == NULL:
-            return ''
-        return value[:value_len].decode()
+        return get_node_attr(self.node, attr_name).decode()
 
     cpdef str getattr(self, str attr_name, str default_value=None):
         """
