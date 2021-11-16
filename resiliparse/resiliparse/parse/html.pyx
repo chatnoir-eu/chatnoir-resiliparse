@@ -24,9 +24,9 @@ from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 
 cdef inline DOMNode _create_dom_node(HTMLTree tree, lxb_dom_node_t* dom_node):
-    if dom_node == NULL:
+    if not dom_node:
         return None
-    if dom_node.user != NULL:
+    if dom_node.user:
         return <DOMNode>dom_node.user
     cdef DOMNode node = DOMNode.__new__(DOMNode, tree)
     node.node = dom_node
@@ -55,22 +55,22 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
                     and passed back in at each step)
     :returns: next node or ``NULL`` if done
     """
-    cdef bint is_end = end_tag != NULL and end_tag[0] == True
+    cdef bint is_end = end_tag and end_tag[0] == True
 
-    if not is_end and node.first_child != NULL:
-        if depth != NULL:
+    if not is_end and node.first_child:
+        if depth:
             preinc(depth[0])
         return node.first_child
     else:
-        while node != root_node and node.next == NULL:
+        while node != root_node and not node.next:
             node = node.parent
-            if depth != NULL:
+            if depth:
                 predec(depth[0])
-            if end_tag != NULL:
+            if end_tag:
                 end_tag[0] = True
                 return node
 
-        if end_tag != NULL:
+        if end_tag:
             end_tag[0] = False
         if node == root_node:
             return NULL
@@ -82,7 +82,7 @@ cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr):
     cdef size_t node_attr_len
     cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
         <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
-    if node_attr_data != NULL and node_attr_len > 0:
+    if node_attr_data and node_attr_len > 0:
         return string(<const char*>node_attr_data, node_attr_len)
     return string()
 
@@ -91,7 +91,7 @@ cdef inline string get_node_text(lxb_dom_node_t* node):
     """Get node inner text."""
     cdef size_t text_len = 0
     cdef lxb_char_t* text = lxb_dom_node_text_content(node, &text_len)
-    if text == NULL or text_len == 0:
+    if not text or not text_len:
         return string()
     cdef string text_str = string(<const char*>text, text_len)
     lxb_dom_document_destroy_text(node.owner_document, text)
@@ -110,7 +110,7 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
     cdef lxb_dom_collection_t * coll = lxb_dom_collection_make(node.owner_document, init_size)
-    if coll == NULL:
+    if not coll:
         return NULL
 
     cdef lxb_status_t status = lxb_dom_elements_by_class_name(<lxb_dom_element_t*>node, coll,
@@ -140,7 +140,7 @@ cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* c
     cdef size_t id_val_len = 0
 
     id_val = lxb_dom_element_id(<lxb_dom_element_t*>node, &id_val_len)
-    if id_val == NULL or id_val_len != match_ctx.id_val_len:
+    if not id_val or id_val_len != match_ctx.id_val_len:
         return LEXBOR_ACTION_OK
 
     if lexbor_str_data_ncmp(id_val, match_ctx.id_val, id_val_len):
@@ -180,7 +180,7 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
     cdef lxb_dom_collection_t * coll = lxb_dom_collection_make(node.owner_document, init_size)
-    if coll == NULL:
+    if not coll:
         return NULL
 
     cdef lxb_status_t status = lxb_dom_elements_by_attr(<lxb_dom_element_t*>node, coll,
@@ -205,7 +205,7 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, b
     :param tag_name: tag name as UTF-8 bytes
     """
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, 20)
-    if coll == NULL:
+    if not coll:
         raise RuntimeError('Failed to create DOM collection')
 
     cdef lxb_status_t status = lxb_dom_elements_by_tag_name(<lxb_dom_element_t*>node,
@@ -309,12 +309,12 @@ cdef class DOMElementClassList:
         self.node = node
 
     cdef list _create_list(self):
-        if self.node is None or self.node.node == NULL:
+        if self.node is None or not self.node.node:
             return []
 
         cdef size_t class_name_len = 0
         cdef const lxb_char_t* class_name = lxb_dom_element_class(<lxb_dom_element_t*>self.node.node, &class_name_len)
-        if class_name == NULL:
+        if not class_name:
             return []
 
         cdef list class_list = []
@@ -337,7 +337,7 @@ cdef class DOMElementClassList:
     cdef inline bytes _class_name_bytes(self):
         cdef size_t class_name_len = 0
         cdef const lxb_char_t* class_name = lxb_dom_element_class(<lxb_dom_element_t*>self.node.node, &class_name_len)
-        if class_name == NULL:
+        if not class_name:
             return b''
         return class_name[:class_name_len]
 
@@ -350,7 +350,7 @@ cdef class DOMElementClassList:
         :param class_name: new class name
         :type class_name: str
         """
-        if self.node is None or self.node.node == NULL:
+        if self.node is None or not self.node.node:
             return
 
         cdef list l = self._create_list()
@@ -373,7 +373,7 @@ cdef class DOMElementClassList:
         :param class_name: new class name
         :type class_name: str
         """
-        if self.node is None or self.node.node == NULL:
+        if self.node is None or not self.node.node:
             return
 
         cdef list l = [c for c in self._create_list() if c != class_name]
@@ -440,14 +440,14 @@ cdef class DOMNode:
         self.class_list_singleton = None
 
     def __dealloc__(self):
-        if self.node == NULL or self.tree is None:
+        if not self.node or self.tree is None:
             return
 
         self.node.user = NULL
 
         # Cannot be done until https://github.com/lexbor/lexbor/issues/132 is fixed
         # If you create lots of unparented DOMNodes, we may leak memory
-        # if self.node.parent == NULL and self.node != <lxb_dom_node_t*>self.node.owner_document:
+        # if not self.node.parent and self.node != <lxb_dom_node_t*>self.node.owner_document:
         #     lxb_dom_node_destroy_deep(self.node)
         self.node = NULL
 
@@ -466,7 +466,7 @@ cdef class DOMNode:
         cdef lxb_dom_node_t* node = self.node
         while True:
             node = next_node(self.node, node)
-            if node == NULL:
+            if not node:
                 return
             yield _create_dom_node(self.tree, node)
 
@@ -493,7 +493,7 @@ cdef class DOMNode:
 
         cdef size_t name_len = 0
         cdef const lxb_char_t* name = lxb_dom_node_name(self.node, &name_len)
-        if name == NULL:
+        if not name:
             return None
         return name[:name_len].decode().lower()
 
@@ -531,7 +531,7 @@ cdef class DOMNode:
 
         cdef lxb_dom_node_t* child = self.node.first_child
         child_nodes = []
-        while child != NULL:
+        while child:
             child_nodes.append(_create_dom_node(self.tree, child))
             child = child.next
         return child_nodes
@@ -644,7 +644,7 @@ cdef class DOMNode:
 
         cdef size_t value_len = 0
         cdef const lxb_char_t* value = lxb_dom_element_id(<lxb_dom_element_t*>self.node, &value_len)
-        if value == NULL:
+        if not value:
             return ''
         return value[:value_len].decode()
 
@@ -664,7 +664,7 @@ cdef class DOMNode:
 
         cdef size_t value_len = 0
         cdef const lxb_char_t* value = lxb_dom_element_class(<lxb_dom_element_t*>self.node, &value_len)
-        if value == NULL:
+        if not value:
             return ''
         return value[:value_len].decode()
 
@@ -702,7 +702,7 @@ cdef class DOMNode:
         cdef size_t local_name_len = 0
 
         attrs = []
-        while attr != NULL:
+        while attr:
             local_name = lxb_dom_attr_local_name(attr, &local_name_len)
             attrs.append(local_name[:local_name_len].decode())
             attr = attr.next
@@ -797,7 +797,7 @@ cdef class DOMNode:
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
                                                                   <lxb_char_t*>attr_name, len(attr_name))
 
-        if attr != NULL:
+        if attr:
             lxb_dom_attr_set_value(attr, <lxb_char_t*>attr_value, len(attr_value))
             return True
 
@@ -853,7 +853,7 @@ cdef class DOMNode:
 
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
                                                                   <lxb_char_t*>attr_name, len(attr_name))
-        if attr == NULL:
+        if not attr:
             return False
 
         lxb_dom_element_attr_remove(<lxb_dom_element_t*>self.node, attr)
@@ -899,7 +899,7 @@ cdef class DOMNode:
         :rtype: DOMNode or None
         """
         cdef lxb_dom_node_t* node = query_selector_impl(self.node, self.tree, selector.encode())
-        if node == NULL:
+        if not node:
             return None
         return _create_dom_node(self.tree, node)
 
@@ -915,7 +915,7 @@ cdef class DOMNode:
         :rtype: DOMCollection
         """
         cdef lxb_dom_collection_t* coll = query_selector_all_impl(self.node, self.tree, selector.encode())
-        if coll == NULL:
+        if not coll:
             raise RuntimeError('Failed to match elements by CSS selector')
 
         return _create_dom_collection(self.tree, coll)
@@ -975,7 +975,7 @@ cdef class DOMNode:
             return None
 
         cdef lxb_dom_node_t* result_node = get_element_by_id_impl(self.node, element_id.encode(), case_insensitive)
-        if result_node == NULL:
+        if not result_node:
             return None
         return _create_dom_node(self.tree, result_node)
 
@@ -1031,7 +1031,7 @@ cdef class DOMNode:
         if node.node == self.node:
             raise ValueError('Trying to append child to itself')
 
-        if node.node.parent != NULL:
+        if node.node.parent:
             lxb_dom_node_remove(node.node)
         lxb_dom_node_insert_child(self.node, node.node)
         return node
@@ -1061,7 +1061,7 @@ cdef class DOMNode:
         if reference.node.parent != self.node:
             raise ValueError('Reference node must be a child node')
 
-        if node.node.parent != NULL:
+        if node.node.parent:
             lxb_dom_node_remove(node.node)
         lxb_dom_node_insert_before(reference.node, node.node)
         return node
@@ -1089,7 +1089,7 @@ cdef class DOMNode:
         if new_child.node == old_child.node:
             return old_child
 
-        if new_child.node.parent != NULL:
+        if new_child.node.parent:
             lxb_dom_node_remove(new_child.node)
         lxb_dom_node_insert_after(old_child.node, new_child.node)
         lxb_dom_node_remove(old_child.node)
@@ -1193,7 +1193,7 @@ cdef class DOMCollection:
         self.coll = NULL
 
     def __dealloc__(self):
-        if self.coll != NULL:
+        if self.coll:
             lxb_dom_collection_destroy(self.coll, True)
             self.coll = NULL
 
@@ -1210,10 +1210,10 @@ cdef class DOMCollection:
         :param attrs: tuple of attributes to pass to the matching function
         :return: aggregated collection or single element
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
-        if lxb_dom_collection_length(self.coll) == 0:
+        if not lxb_dom_collection_length(self.coll):
             return self
 
         cdef lxb_dom_collection_t* joined_coll = lxb_dom_collection_make(self.coll.document,
@@ -1233,7 +1233,7 @@ cdef class DOMCollection:
             elif func == b'selector_all':
                 matches = query_selector_all_impl(node, self.tree, attrs[0])
 
-            if matches != NULL:
+            if matches:
                 _join_collections(joined_coll, matches)
                 lxb_dom_collection_destroy(matches, True)
 
@@ -1253,7 +1253,7 @@ cdef class DOMCollection:
         :return: matching element or ``None`` if no such element exists
         :rtype: DOMNode or None
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
         cdef lxb_dom_node_t* node
@@ -1261,7 +1261,7 @@ cdef class DOMCollection:
         cdef bytes id_bytes = element_id.encode()
         for i in range(lxb_dom_collection_length(self.coll)):
             node = get_element_by_id_impl(lxb_dom_collection_node(self.coll, i), id_bytes, case_insensitive)
-            if node != NULL:
+            if node:
                 return _create_dom_node(self.tree, node)
 
         return None
@@ -1328,7 +1328,7 @@ cdef class DOMCollection:
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
         cdef lxb_dom_node_t* node
@@ -1336,7 +1336,7 @@ cdef class DOMCollection:
         cdef bytes selector_bytes = selector.encode()
         for i in range(lxb_dom_collection_length(self.coll)):
             node = query_selector_impl(lxb_dom_collection_node(self.coll, i), self.tree, selector_bytes)
-            if node != NULL:
+            if node:
                 return _create_dom_node(self.tree, node)
 
         return None
@@ -1368,7 +1368,7 @@ cdef class DOMCollection:
         :return: boolean value indicating whether a matching element exists
         :rtype: bool
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise RuntimeError('Trying to select items from uninitialized collection')
 
         cdef size_t i = 0
@@ -1387,7 +1387,7 @@ cdef class DOMCollection:
 
         :rtype: t.Iterable[DOMNode]
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise RuntimeError('Trying to get item of uninitialized collection')
 
         cdef size_t i = 0
@@ -1402,7 +1402,7 @@ cdef class DOMCollection:
 
         :rtype: int
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             return 0
         return lxb_dom_collection_length(self.coll)
 
@@ -1418,7 +1418,7 @@ cdef class DOMCollection:
         :raises IndexError: if ``key`` is out of range
         :raises TypeError: if ``key`` is not an ``int`` or ``slice``
         """
-        if self.tree is None or self.coll == NULL:
+        if self.tree is None or not self.coll:
             raise IndexError('Trying to get item of uninitialized collection')
 
         cdef size_t coll_len = lxb_dom_collection_length(self.coll)
@@ -1500,23 +1500,23 @@ cdef class HTMLTree:
 
     def __cinit__(self):
         self.dom_document = lxb_html_document_create()
-        if self.dom_document == NULL:
+        if not self.dom_document:
             raise RuntimeError('Failed to allocate HTML document')
         self.css_parser = NULL
         self.css_selectors = NULL
         self.selectors = NULL
 
     def __dealloc__(self):
-        if self.dom_document != NULL:
+        if self.dom_document:
             lxb_html_document_destroy(self.dom_document)
             self.dom_document = NULL
 
-        if self.selectors != NULL:
+        if self.selectors:
             lxb_selectors_destroy(self.selectors, True)
-        if self.css_parser != NULL:
+        if self.css_parser:
             lxb_css_parser_destroy(self.css_parser, True)
             self.css_parser = NULL
-        if self.css_selectors != NULL:
+        if self.css_selectors:
             lxb_css_selectors_destroy(self.css_selectors, True, True)
             self.css_selectors = NULL
 
@@ -1525,7 +1525,7 @@ cdef class HTMLTree:
         """
         Initialize CSS selector if not already initialized.
         """
-        if self.css_parser == NULL:
+        if not self.css_parser:
             self.css_parser = lxb_css_parser_create()
             lxb_css_parser_init(self.css_parser, NULL, NULL)
 
@@ -1579,7 +1579,7 @@ cdef class HTMLTree:
 
         :type: DOMNode or None
         """
-        if self.dom_document == NULL:
+        if not self.dom_document:
             return None
 
         return _create_dom_node(self, <lxb_dom_node_t*>&self.dom_document.dom_document)
@@ -1591,7 +1591,7 @@ cdef class HTMLTree:
 
         :type: DOMNode or None
         """
-        if self.dom_document == NULL:
+        if not self.dom_document:
             return None
 
         return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_head_element(self.dom_document))
@@ -1603,7 +1603,7 @@ cdef class HTMLTree:
 
         :type: DOMNode or None
         """
-        if self.dom_document == NULL:
+        if not self.dom_document:
             return None
 
         return _create_dom_node(self, <lxb_dom_node_t*>lxb_html_document_body_element(self.dom_document))
@@ -1615,7 +1615,7 @@ cdef class HTMLTree:
 
         :type: str or None
         """
-        if self.dom_document == NULL or not self.head:
+        if not self.dom_document or not self.head:
             return None
 
         # Temporary workaround for lxb_html_document_title can crash.
@@ -1628,7 +1628,7 @@ cdef class HTMLTree:
         # Proper implementation once bug is fixed
         # cdef size_t title_len = 0
         # cdef const lxb_char_t* title = lxb_html_document_title(self.dom_document, &title_len)
-        # if title == NULL:
+        # if not title:
         #     return ''
         # return title[:title_len].decode()
 
@@ -1643,7 +1643,7 @@ cdef class HTMLTree:
         :return: new Element node
         :rtype: DOMNode
         """
-        if self.dom_document == NULL:
+        if not self.dom_document:
             raise RuntimeError('Trying to create element in uninitialized document.')
 
         cdef bytes tag_name_bytes = tag_name.encode()
@@ -1662,7 +1662,7 @@ cdef class HTMLTree:
         :return: new text node
         :rtype: DOMNode
         """
-        if self.dom_document == NULL:
+        if not self.dom_document:
             raise RuntimeError('Trying to create text node in uninitialized document.')
 
         cdef bytes text_bytes = text.encode()
@@ -1729,7 +1729,7 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
 
     context = context or DOMContext()
 
-    while node != NULL:
+    while node:
         context.node = _create_dom_node(base_node.tree, node)
         context.depth = depth
 
