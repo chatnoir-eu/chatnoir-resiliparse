@@ -82,6 +82,30 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
 
 cdef regex leading_ws_regex = regex(<char*>b'^\\s+')
 cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
+cdef string LIST_BULLET = <char*>b'\xe2\x80\xa2'
+
+
+cdef inline void _make_block(ExtractContext* ctx):
+    """Make a block start or end by inserting the needed number of linefeeds."""
+
+    # Strip previous linefeeds to prevent excess empty lines
+    while not ctx.text.empty() and isspace(ctx.text.back().back()):
+        ctx.text[ctx.text.size() - 1] = regex_replace(ctx.text.back(), trailing_ws_regex, <char*>b'')
+        if ctx.text.back().empty():
+            ctx.text.pop_back()
+
+    if ctx.text.empty():
+        return
+
+    # Headings and paragraphs enforce newlines
+    cdef bint block_creates_newline = ctx.newline_before_next_block
+    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
+        block_creates_newline = True
+
+    if not ctx.lstrip_next_block:
+        ctx.text.back().append(<char*>b'\n\n' if block_creates_newline else <char*>b'\n')
+    if ctx.space_before_next_block:
+        ctx.text.back().push_back(<char>b' ')
 
 
 cdef void _extract_start_cb(ExtractContext* ctx):
@@ -93,9 +117,11 @@ cdef void _extract_start_cb(ExtractContext* ctx):
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
         node_char_data = <lxb_dom_character_data_t*>ctx.node
+        if ctx.space_before_next_block:
+            element_text.push_back(<char>b' ')
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(element_text, ctx)
-        if element_text == <char*>b'\xc2\xb6' and ctx.node.parent != NULL and ctx.node.parent.local_name == LXB_TAG_A:
+        if element_text == <char*>b'\xc2\xb6' and ctx.node.parent and ctx.node.parent.local_name == LXB_TAG_A:
             # Skip Pilcrow anchor links
             return
         if not regex_replace(element_text, trailing_ws_regex, <char*>b'').empty():
@@ -118,8 +144,9 @@ cdef void _extract_start_cb(ExtractContext* ctx):
             ctx.text.push_back(element_text)
         return
 
+    # Form field elements
     if ctx.opts.form_fields:
-        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child != NULL:
+        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
             element_text.append(<char*>b'[ ')
         elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr(ctx.node, <char*>b'type') not in \
@@ -143,21 +170,12 @@ cdef void _extract_start_cb(ExtractContext* ctx):
     cdef size_t tag_name_len
     cdef const lxb_char_t* tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
 
-    cdef bint block_creates_newline = ctx.newline_before_next_block
-    # Headings and paragraphs enforce newlines
-    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
-        block_creates_newline = True
-
     # Block formatting
-    if is_block_element(ctx.node.local_name) and not ctx.text.empty():
-        while not ctx.text.empty() and isspace(ctx.text.back().back()):
-            ctx.text[ctx.text.size() - 1] = regex_replace(ctx.text.back(), trailing_ws_regex, <char*>b'')
-            if ctx.text.back().empty():
-                ctx.text.pop_back()
-        if not ctx.lstrip_next_block and not ctx.text.empty():
-            ctx.text.back().append(<char*>b'\n\n' if block_creates_newline else <char*>b'\n')
-        elif ctx.space_before_next_block and not ctx.text.empty():
-            ctx.text.back().push_back(<char>b' ')
+    if is_block_element(ctx.node.local_name):
+        if ctx.node.local_name == LXB_TAG_LI:
+            ctx.lstrip_next_block = False
+            ctx.space_before_next_block = False
+        _make_block(ctx)
 
     # Pre-formatted text
     if ctx.node.local_name == LXB_TAG_PRE:
@@ -169,7 +187,6 @@ cdef void _extract_start_cb(ExtractContext* ctx):
     elif ctx.node.local_name == LXB_TAG_OL:
         preinc(ctx.list_depth)
         ctx.list_numbering.push_back(0)
-
 
     # List item indents
     if ctx.opts.list_bullets and ctx.list_depth > 0 and not ctx.text.empty() and ctx.text.back().back() == b'\n':
@@ -183,7 +200,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         if ctx.node.parent.local_name == LXB_TAG_OL:
             element_text.append(to_string(preinc(ctx.list_numbering.back())) + <char*>b'. ')
         else:
-            element_text.append(b'\xe2\x80\xa2 ')
+            element_text.append(LIST_BULLET)
         ctx.lstrip_next_block = True
         ctx.space_before_next_block = True
 
@@ -237,73 +254,86 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         predec(ctx.list_depth)
         ctx.list_numbering.pop_back()
 
-    # No additional white space after list items
-    if ctx.node.local_name == LXB_TAG_LI and not ctx.text.empty():
+    if ctx.node.local_name == LXB_TAG_LI:
+        # Clean up empty list items
+        if not ctx.text.empty() and regex_replace(regex_replace(
+                ctx.text.back(), trailing_ws_regex, <char*>b''), leading_ws_regex, <char*>b'') == LIST_BULLET:
+            ctx.text.pop_back()
+        if not ctx.text.empty() and ctx.text.back().back() != <char>b'\n':
+            ctx.text.back().push_back(<char>b'\n')
+        # No additional white space after list items
         ctx.newline_before_next_block = False
 
     # Add newline after block elements if next element is text
-    if ctx.node.next != NULL and ctx.node.next.type == LXB_DOM_NODE_TYPE_TEXT \
-            and is_block_element(ctx.node.local_name) and not ctx.text.empty():
-        ctx.text.back().append(<char*>b'\n\n' if ctx.newline_before_next_block else <char*>b'\n')
-        ctx.newline_before_next_block = False
-
+    if ctx.node.next and ctx.node.next.type == LXB_DOM_NODE_TYPE_TEXT and is_block_element(ctx.node.local_name):
+        _make_block(ctx)
 
 
 cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
+cdef regex footer_cls_regex = regex(<char*>b'^(?:(?:global|page)[_-]?)?footer(?:[_-]?(?:section|wrapper))$')
 cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
 cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])')
 cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s)')
 cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
-cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-])?(?:footer|sidebar|nav(?:igation)?)$')
+cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$')
 
 
-cdef bint _is_main_content_node(lxb_dom_node_t* node, ExtractContext* ctx):
+cdef bint _is_main_content_node(lxb_dom_node_t* node):
     """Check with simple heuristics if node belongs to main content."""
+
+    cdef size_t length_to_body = 0
+    cdef lxb_dom_node_t* pnode = node.parent
+    while pnode.local_name != LXB_TAG_BODY and pnode.parent:
+        preinc(length_to_body)
+        pnode = pnode.parent
 
     # Main elements
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
         return True
 
     # Global navigation
-    if node.local_name == LXB_TAG_NAV:
-        if node.parent and node.parent.local_name == LXB_TAG_BODY:
-            return False
-        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
-            return False
+    if node.local_name == LXB_TAG_NAV and length_to_body < 3:
+        return False
 
     cdef string cls = get_node_attr(node, <char*>b'class')
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV]:
-        if node.parent and node.parent.local_name == LXB_TAG_NAV:
-            return False
-        if regex_search(cls, nav_cls_regex):
-            return False
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV] and length_to_body < 3:
+        return False
 
     # Global aside
-    if node.local_name == LXB_TAG_ASIDE:
-        if node.parent and node.parent.local_name == LXB_TAG_BODY:
-            return False
-        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
-            return False
+    if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
+        return False
 
     # Global footer
+    cdef bint is_last_body_child = True
     if node.local_name == LXB_TAG_FOOTER:
-        if node.parent and node.parent.local_name == LXB_TAG_BODY:
+        if length_to_body < 3:
             return False
-        if node.parent and node.parent.parent and node.parent.parent.local_name == LXB_TAG_BODY:
+
+        # Check if footer is recursive last element node of a direct body child
+        pnode = node
+        while pnode and pnode.parent and pnode.parent.local_name != LXB_TAG_BODY:
+            if pnode.next and pnode.next.type == LXB_DOM_NODE_TYPE_TEXT:
+                pnode = pnode.next
+            if pnode.next:
+                # There is at least one more element node
+                is_last_body_child = False
+                break
+            pnode = pnode.parent
+        if is_last_body_child:
             return False
 
     # Landmark IDs
-    if regex_search(get_node_attr(node, <char*> b'id'), landmark_id_regex):
+    if regex_search(get_node_attr(node, <char*>b'id'), landmark_id_regex):
         return False
 
     # Global sidebar
-    if ctx.depth < 4 and regex_search(cls, sidebar_cls_regex):
+    if length_to_body < 4 and regex_search(cls, sidebar_cls_regex):
         return False
 
     # ARIA roles
-    if get_node_attr(node, <char*>b'role') in [<char*>b'img', <char*>b'menu', <char*>b'menubar', <char*>b'navigation',
-                                               <char*>b'menuitem', <char*>b'alert', <char*>b'checkbox',
-                                               <char*>b'radio']:
+    if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
+                                               <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
+                                               <char*>b'checkbox', <char*>b'radio']:
         return False
 
     # Hidden elements
@@ -398,7 +428,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     cdef bint is_end_tag = False
     ctx.node = base_node.node
 
-    while ctx.node != NULL:
+    while ctx.node:
         # Skip everything except element and text nodes
         if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
             is_end_tag = True
@@ -408,7 +438,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
         # Skip unwanted element nodes
         tag_name = lxb_dom_node_name(ctx.node, &tag_name_len)
         if tag_name[:tag_name_len].lower() in skip_elements or \
-                (main_content and not _is_main_content_node(ctx.node, &ctx)):
+                (main_content and not _is_main_content_node(ctx.node)):
             is_end_tag = True
             ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
             continue
@@ -420,4 +450,4 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
         ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
 
-    return ''.join(s.decode() for s in ctx.text)
+    return ''.join(s.decode() for s in ctx.text).rstrip()
