@@ -269,16 +269,19 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         _make_block(ctx)
 
 
-cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])nav(?:bar|igation)?(?:$|[\\s_-])')
-cdef regex footer_cls_regex = regex(<char*>b'^(?:(?:global|page)[_-]?)?footer(?:[_-]?(?:section|wrapper))$')
-cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|global-)sidebar(?:$|[\\s_-])')
+cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])wrap(?:per)?(?:$|[\\s_-])')
+cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)')
+cdef regex footer_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?footer(?:[_-]?(?:section|wrapper)?)(?:^|\\s)')
+cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)')
+cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?search(?:[_-]?(?:bar|facility|box))?(?:$|\\s)')
 cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])')
-cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:display-none|hidden|invisible|collapsed|h-0)(?:$|\\s)')
+cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)')
 cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
 cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$')
+cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?:modal|popup|lightbox)(?:$|\\s)')
 
 
-cdef bint _is_main_content_node(lxb_dom_node_t* node):
+cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     """Check with simple heuristics if node belongs to main content."""
 
     cdef size_t length_to_body = 0
@@ -291,13 +294,20 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node):
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
         return True
 
-    # Global navigation
-    if node.local_name == LXB_TAG_NAV and length_to_body < 3:
-        return False
+    cdef string cls_attr = get_node_attr(node, <char*>b'class')
+    cdef string id_attr = get_node_attr(node, <char*>b'id')
+    cdef string cls_and_id_attr = cls_attr + <char*>b' ' + id_attr
 
-    cdef string cls = get_node_attr(node, <char*>b'class')
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV] and length_to_body < 3:
+    # Wrapper elements (whitelist them, they may contain more specific elements)
+    if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search(cls_and_id_attr, wrapper_cls_regex):
+        return True
+
+    # Global navigation
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
         return False
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
+        if regex_search(cls_and_id_attr, nav_cls_regex):
+            return False
 
     # Global aside
     if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
@@ -305,7 +315,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node):
 
     # Global footer
     cdef bint is_last_body_child = True
-    if node.local_name == LXB_TAG_FOOTER:
+    if node.local_name == LXB_TAG_FOOTER or regex_search(cls_and_id_attr, footer_cls_regex):
         if length_to_body < 3:
             return False
 
@@ -323,23 +333,31 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node):
             return False
 
     # Landmark IDs
-    if regex_search(get_node_attr(node, <char*>b'id'), landmark_id_regex):
+    if regex_search(id_attr, landmark_id_regex):
+        return False
+
+    # Global search bar
+    if regex_search(cls_and_id_attr, search_cls_regex):
         return False
 
     # Global sidebar
-    if length_to_body < 4 and regex_search(cls, sidebar_cls_regex):
+    if length_to_body < 4 and regex_search(cls_and_id_attr, sidebar_cls_regex):
+        return False
+
+    # Modals
+    if regex_search(cls_and_id_attr, modal_cls_regex):
         return False
 
     # Hidden elements
     if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
         return False
-    if regex_search(cls, display_cls_regex):
+    if regex_search(cls_attr, display_cls_regex):
         return False
 
     # ARIA roles
     if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
                                                <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
-                                               <char*>b'checkbox', <char*>b'radio']:
+                                               <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
         return False
 
     if regex_search(get_node_attr(node, <char *> b'style'), display_css_regex):
@@ -350,7 +368,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node):
         return False
 
     # Skip links
-    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search(cls, skip_cls_regex):
+    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search(cls_attr, skip_cls_regex):
         return False
 
     return True
