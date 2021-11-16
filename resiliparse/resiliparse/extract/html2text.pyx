@@ -256,7 +256,7 @@ cdef void _extract_end_cb(ExtractContext* ctx):
 
     if ctx.node.local_name == LXB_TAG_LI:
         # Clean up empty list items
-        if not ctx.text.empty() and regex_replace(regex_replace(
+        while not ctx.text.empty() and regex_replace(regex_replace(
                 ctx.text.back(), trailing_ws_regex, <char*>b''), leading_ws_regex, <char*>b'') == LIST_BULLET:
             ctx.text.pop_back()
         if not ctx.text.empty() and ctx.text.back().back() != <char>b'\n':
@@ -330,14 +330,16 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node):
     if length_to_body < 4 and regex_search(cls, sidebar_cls_regex):
         return False
 
+    # Hidden elements
+    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
+        return False
+    if regex_search(cls, display_cls_regex):
+        return False
+
     # ARIA roles
     if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
                                                <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
                                                <char*>b'checkbox', <char*>b'radio']:
-        return False
-
-    # Hidden elements
-    if regex_search(cls, display_cls_regex):
         return False
 
     if regex_search(get_node_attr(node, <char *> b'style'), display_css_regex):
