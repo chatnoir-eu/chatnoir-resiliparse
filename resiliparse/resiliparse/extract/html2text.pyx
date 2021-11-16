@@ -278,7 +278,9 @@ cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink
 cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)')
 cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
 cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$')
-cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?:modal|popup|lightbox)(?:$|\\s)')
+cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)')
+cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)')
+cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)')
 
 
 cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
@@ -297,6 +299,10 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     cdef string cls_attr = get_node_attr(node, <char*>b'class')
     cdef string id_attr = get_node_attr(node, <char*>b'id')
     cdef string cls_and_id_attr = cls_attr + <char*>b' ' + id_attr
+
+    # Iframes
+    if node.local_name == LXB_TAG_IFRAME:
+        return False
 
     # Wrapper elements (whitelist them, they may contain more specific elements)
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search(cls_and_id_attr, wrapper_cls_regex):
@@ -369,6 +375,17 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
 
     # Skip links
     if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search(cls_attr, skip_cls_regex):
+        return False
+
+    # Ads
+    if regex_search(cls_and_id_attr, ads_cls_regex) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-ad', 7) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-advertisment', 17) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-text-ad', 12):
+        return False
+
+    # Social media and feedback forms
+    if regex_search(cls_attr, social_cls_regex):
         return False
 
     return True
