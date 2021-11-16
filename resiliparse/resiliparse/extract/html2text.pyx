@@ -304,9 +304,25 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     if node.local_name == LXB_TAG_IFRAME:
         return False
 
+    # ARIA roles
+    if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
+                                               <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
+                                               <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
+        return False
+
+    # ARIA hidden
+    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
+        return False
+
     # Wrapper elements (whitelist them, they may contain more specific elements)
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search(cls_and_id_attr, wrapper_cls_regex):
         return True
+
+    # Hidden elements
+    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
+        return False
+    if regex_search(cls_attr, display_cls_regex):
+        return False
 
     # Global navigation
     if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
@@ -354,23 +370,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     if regex_search(cls_and_id_attr, modal_cls_regex):
         return False
 
-    # Hidden elements
-    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
-        return False
-    if regex_search(cls_attr, display_cls_regex):
-        return False
-
-    # ARIA roles
-    if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
-                                               <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
-                                               <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
-        return False
-
-    if regex_search(get_node_attr(node, <char *> b'style'), display_css_regex):
-        return False
-
-    # ARIA hidden
-    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
+    if regex_search(get_node_attr(node, <char*>b'style'), display_css_regex):
         return False
 
     # Skip links
