@@ -55,7 +55,6 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     Takes into account previously extracted text from ``ctx.text``.
     """
     cdef string element_text
-    cdef regex newline_regex = regex(<char*>b'\\n')
 
     if input_str.empty():
         return string()
@@ -63,10 +62,16 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     element_text.reserve(input_str.size())
 
     # Pre-formatted context, return string as is, but add list indents
+    cdef string tmp
+    cdef size_t i
     if ctx.opts.preserve_formatting and ctx.pre_depth > 0:
         if ctx.list_depth > 0:
-            return regex_replace(element_text, newline_regex,
-                                 string(<char*>b'\n') + string(2 * ctx.list_depth + 2, <char>b' '))
+            tmp.reserve(element_text.size())
+            for i in range(element_text.size()):
+                tmp.push_back(element_text[i])
+                if element_text[i] == <char>b'\n':
+                    tmp.append(string(2 * ctx.list_depth + 2, <char>b' '))
+            return tmp
         return element_text
 
     # Otherwise collapse white space
