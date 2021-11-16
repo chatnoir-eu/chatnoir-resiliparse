@@ -15,6 +15,8 @@
 # distutils: language = c++
 
 from cython.operator cimport preincrement as preinc, predecrement as predec
+from libc.stdint cimport uint32_t
+from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
@@ -108,6 +110,31 @@ cdef inline void _make_block(ExtractContext* ctx):
         ctx.text.back().push_back(<char>b' ')
 
 
+cdef bint _is_unprintable_pua(lxb_dom_node_t* node):
+    """Whether text node contains only a single unprintable code point from the private use area."""
+    if node.first_child and node.first_child.next:
+        # Node has more than one child
+        return False
+
+    cdef string element_text = regex_replace(get_node_text(node), trailing_ws_regex, <char*>b'')
+    element_text = regex_replace(element_text, leading_ws_regex, <char*>b'')
+    if element_text.size() > 3:
+        return False
+
+    # Pilcrow character (probably an anchor link)
+    if element_text == <char*>b'\xc2\xb6':
+        return False
+
+    # BMP private use area (probably an icon font)
+    cdef uint32_t cp = 0
+    if element_text.size() == 3:
+        memcpy(&cp, element_text.data(), 3 * sizeof(char))
+        if 0x8080ee <= cp <= 0xbfa3ef:
+            return True
+
+    return False
+
+
 cdef void _extract_start_cb(ExtractContext* ctx):
     """Extraction start element callback."""
     cdef lxb_dom_character_data_t* node_char_data = NULL
@@ -121,9 +148,6 @@ cdef void _extract_start_cb(ExtractContext* ctx):
             element_text.push_back(<char>b' ')
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(element_text, ctx)
-        if element_text == <char*>b'\xc2\xb6' and ctx.node.parent and ctx.node.parent.local_name == LXB_TAG_A:
-            # Skip Pilcrow anchor links
-            return
         if not regex_replace(element_text, trailing_ws_regex, <char*>b'').empty():
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
@@ -474,8 +498,9 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
         # Skip unwanted element nodes
         tag_name = lxb_dom_node_name(ctx.node, &tag_name_len)
-        if tag_name[:tag_name_len].lower() in skip_elements or \
-                (main_content and not _is_main_content_node(ctx.node)):
+        if tag_name[:tag_name_len].lower() in skip_elements \
+                or (main_content and not _is_main_content_node(ctx.node)) \
+                or _is_unprintable_pua(ctx.node):
             is_end_tag = True
             ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
             continue
