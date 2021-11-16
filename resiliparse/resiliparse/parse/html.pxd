@@ -24,6 +24,8 @@ cdef inline bint check_node(DOMNode node):
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*)
+cdef lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                               size_t* depth=*, bint* end_tag=*)
 cdef string get_node_attr(lxb_dom_node_t* node, const string& attr)
 cdef string get_node_text(lxb_dom_node_t* node)
 

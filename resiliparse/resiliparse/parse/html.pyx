@@ -77,6 +77,15 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
         return node.next
 
 
+cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                                              size_t* depth=NULL, bint* end_tag=NULL):
+
+    node = next_node(root_node, node, depth, end_tag)
+    while node and node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        node = next_node(root_node, node, depth, end_tag)
+    return node
+
+
 cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr):
     """Get node attribute value."""
     cdef size_t node_attr_len
@@ -497,6 +506,7 @@ cdef class DOMNode:
             return None
         return name[:name_len].decode().lower()
 
+    # noinspection DuplicatedCode
     @property
     def first_child(self):
         """
@@ -508,6 +518,7 @@ cdef class DOMNode:
             return None
         return _create_dom_node(self.tree, self.node.first_child)
 
+    # noinspection DuplicatedCode
     @property
     def last_child(self):
         """
@@ -518,6 +529,36 @@ cdef class DOMNode:
         if not check_node(self):
             return None
         return _create_dom_node(self.tree, self.node.last_child)
+
+    # noinspection DuplicatedCode
+    @property
+    def first_element_child(self):
+        """
+        First element child of this DOM node.
+
+        :type: DOMNode or None
+        """
+        if not check_node(self):
+            return None
+        cdef lxb_dom_node_t* child_node = self.node.first_child
+        while child_node and child_node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            child_node = child_node.next
+        return _create_dom_node(self.tree, child_node)
+
+    # noinspection DuplicatedCode
+    @property
+    def last_element_child(self):
+        """
+        Last element child element of this DOM node.
+
+        :type: DOMNode or None
+        """
+        if not check_node(self):
+            return None
+        cdef lxb_dom_node_t* child_node = self.node.last_child
+        while child_node and child_node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            child_node = child_node.prev
+        return _create_dom_node(self.tree, child_node)
 
     @property
     def child_nodes(self):
@@ -547,6 +588,7 @@ cdef class DOMNode:
             return None
         return _create_dom_node(self.tree, self.node.parent)
 
+    # noinspection DuplicatedCode
     @property
     def next(self):
         """
@@ -558,6 +600,7 @@ cdef class DOMNode:
             return None
         return _create_dom_node(self.tree, self.node.next)
 
+    # noinspection DuplicatedCode
     @property
     def prev(self):
         """
@@ -568,6 +611,38 @@ cdef class DOMNode:
         if not check_node(self):
             return None
         return _create_dom_node(self.tree, self.node.prev)
+
+    # noinspection DuplicatedCode
+    @property
+    def next_element(self):
+        """
+        Next sibling element node.
+
+        :type: DOMNode or None
+        """
+        if not check_node(self):
+            return None
+
+        cdef lxb_dom_node_t* next_node = self.node.next
+        while next_node and next_node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            next_node = next_node.next
+        return _create_dom_node(self.tree, next_node)
+
+    # noinspection DuplicatedCode
+    @property
+    def prev_element(self):
+        """
+        Previous sibling element node.
+
+        :type: DOMNode or None
+        """
+        if not check_node(self):
+            return None
+
+        cdef lxb_dom_node_t* prev_node = self.node.prev
+        while prev_node and prev_node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+            prev_node = prev_node.prev
+        return _create_dom_node(self.tree, prev_node)
 
     @property
     def value(self):
@@ -1696,9 +1771,9 @@ class DOMContext:
         self.depth = 0
 
 
-def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=None):
+def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=None, bint elements_only=False):
     """
-    traverse_dom(base_node, start_callback, end_callback=None, context=None)
+    traverse_dom(base_node, start_callback, end_callback=None, context=None, elements_only=False)
 
     DOM traversal helper.
 
@@ -1720,12 +1795,17 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
     :type end_callback: t.Callable[[DOMContext], None] or None
     :param context: optional pre-initialized context object
     :type context: DOMContext
+    :param elements_only: traverse only element nodes
+    :type elements_only: bool
     """
 
     cdef lxb_dom_node_t* node = base_node.node
     cdef size_t depth = 0
     cdef bint is_end_tag = False
     cdef bint* is_end_tag_ptr = &is_end_tag if end_callback is not None else NULL
+
+    if elements_only and base_node.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        return
 
     context = context or DOMContext()
 
@@ -1738,8 +1818,10 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
         else:
             end_callback(context)
 
-        node = next_node(base_node.node, node, &depth, is_end_tag_ptr)
-
+        if elements_only:
+            node = next_element_node(base_node.node, node, &depth, is_end_tag_ptr)
+        else:
+            node = next_node(base_node.node, node, &depth, is_end_tag_ptr)
 
 
 cdef bint is_block_element(lxb_tag_id_t tag_id):

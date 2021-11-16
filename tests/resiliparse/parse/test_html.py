@@ -198,6 +198,7 @@ def test_collection():
 
     # Collection match forwarding
     coll = tree.body.query_selector_all('p')
+    print(coll)
 
     assert coll.get_element_by_id('abc') is None
     assert coll.get_elements_by_class_name('bar')[0] is coll.query_selector('.bar')
@@ -313,7 +314,6 @@ def test_callback_traversal():
                 ctx.list_stack_current[-1].append(txt)
 
     def end_cb(ctx: DOMContext):
-        pass
         if ctx.node.type == NodeType.ELEMENT:
             ctx.list_stack_current.pop()
 
@@ -321,14 +321,23 @@ def test_callback_traversal():
     ctx.list_stack = []
     ctx.list_stack_current = [ctx.list_stack]
     traverse_dom(HTMLTree.parse(html).body, start_cb, end_cb, ctx)
-
     assert ctx.list_stack == [('body',
                                [('main',
                                  [('p', ['Hello', ('span', ['world']), '!']),
                                   ('p', ['Hello', ('a', ['DOM']), '!'])])])]
 
+    ctx = DOMContext()
+    ctx.list_stack = []
+    ctx.list_stack_current = [ctx.list_stack]
+    traverse_dom(HTMLTree.parse(html).body, start_cb, end_cb, ctx, elements_only=True)
+    assert ctx.list_stack == [('body', [('main', [('p', [('span', [])]), ('p', [('a', [])])])])]
+
 
 def test_children():
+    # <main id="foo">
+    #   <p id="a">Hello <span class="bar">world</span>!</p>
+    #   <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
+    #  </main>
     element = tree.body.get_element_by_id('a')
 
     assert element.first_child.parent is element
@@ -336,9 +345,16 @@ def test_children():
     assert element.first_child.next is element.last_child.prev
 
     assert element.first_child.type == TEXT
+    assert element.first_child.first_child is None
     assert element.first_child.text == 'Hello '
+    assert element.first_element_child.type == ELEMENT
+    assert element.first_element_child.text == 'world'
+
     assert element.last_child.type == TEXT
     assert element.last_child.text == '!'
+    assert element.last_child.last_child is None
+    assert element.last_element_child.type == ELEMENT
+    assert element.last_element_child is element.first_element_child
 
     assert element.first_child.next.type == ELEMENT
     assert element.first_child.next.tag == 'span'
@@ -347,6 +363,37 @@ def test_children():
     assert element.last_child.prev.type == ELEMENT
     assert element.last_child.prev.tag == 'span'
     assert element.last_child.prev.class_name == 'bar'
+
+
+def test_siblings():
+    # <main id="foo">
+    #   <p id="a">Hello <span class="bar">world</span>!</p>
+    #   <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
+    #  </main>
+    element1 = tree.body.get_element_by_id('foo').first_element_child
+    assert element1.type == ELEMENT
+    assert element1.id == 'a'
+
+    assert element1.next.type == TEXT
+    assert element1.next.text.strip() == ''
+    assert element1.next_element.type == ELEMENT
+    assert element1.next_element.text == 'Hello DOM!'
+    assert element1.prev.prev is None
+    assert element1.prev_element is None
+
+    element2 = tree.body.get_element_by_id('foo').last_element_child
+    assert element2.type == ELEMENT
+    assert element2.id == 'b'
+
+    assert element2.prev.type == TEXT
+    assert element2.prev.text.strip() == ''
+    assert element2.prev_element.type == ELEMENT
+    assert element2.prev_element.text == 'Hello world!'
+    assert element2.next.next is None
+    assert element2.next_element is None
+
+    assert element1.next_element is element2
+    assert element2.prev_element is element1
 
 
 def test_dom_manipulation():
