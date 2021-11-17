@@ -462,11 +462,11 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     return True
 
 
-def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=True, bint list_bullets=True,
+def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=False, bint list_bullets=True,
                        bint alt_texts=True, bint links=False, bint form_fields=False, bint noscript=False,
                        skip_elements=None):
     """
-    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=True, \
+    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=False, \
         list_bullets=True, alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
 
     Perform a simple plain-text extraction from the given DOM node and its children.
