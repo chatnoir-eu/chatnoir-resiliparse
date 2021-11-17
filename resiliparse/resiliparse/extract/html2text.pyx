@@ -299,7 +299,7 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
 
 cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>wrap(?>per)?)(?:$|[\\s_-])', flag_type.icase)
 cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?>bar|igation)?|menu(?>[_-]item)?)(?:$|\\s)', flag_type.icase)
-cdef regex footer_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', flag_type.icase)
+cdef regex footer_cls_regex = regex(<char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?(?>footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', flag_type.icase)
 cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)', flag_type.icase)
 cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>search)(?>[_-]?(?>bar|facility|box))?(?:$|\\s)', flag_type.icase)
 cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>skip|skip-to|skiplink|scroll-(?>up|down))(?:$|[\\s_-])', flag_type.icase)
@@ -329,6 +329,10 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     # Main elements
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
         return True
+
+    # Global footer
+    if node.local_name == LXB_TAG_FOOTER and length_to_body < 3:
+        return False
 
     # Global navigation
     if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
@@ -369,10 +373,8 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     cls_and_id_attr.append(id_attr)
 
     # Global footer
-    cdef bint is_last_body_child = True
-    if node.local_name == LXB_TAG_FOOTER or regex_search_not_empty(cls_and_id_attr, footer_cls_regex):
-        if length_to_body < 3:
-            return False
+    if regex_search_not_empty(cls_and_id_attr, footer_cls_regex) and length_to_body < 8:
+        return False
 
     # Wrapper elements (whitelist them, they may contain more specific elements)
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search_not_empty(cls_and_id_attr, wrapper_cls_regex):
@@ -383,6 +385,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return False
 
     # Global navigation with class
+    cdef bint is_last_body_child = True
     if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
         if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
             return False
