@@ -55,27 +55,25 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) 
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
     """
-    cdef string element_text
-
     if input_str.empty():
         return string()
 
-    element_text.reserve(input_str.size())
+    cdef string element_text
 
     # Pre-formatted context, return string as is, but add list indents
-    cdef string tmp
     cdef size_t i
     if ctx.opts.preserve_formatting and ctx.pre_depth > 0:
         if ctx.list_depth > 0:
-            tmp.reserve(element_text.size())
-            for i in range(element_text.size()):
-                tmp.push_back(element_text[i])
-                if element_text[i] == <char>b'\n':
-                    tmp.append(string(2 * ctx.list_depth + 2, <char>b' '))
-            return tmp
-        return element_text
+            element_text.reserve(input_str.size())
+            for i in range(input_str.size()):
+                element_text.push_back(input_str[i])
+                if input_str[i] == <char>b'\n':
+                    element_text.append(string(2 * ctx.list_depth + 2, <char>b' '))
+            return element_text
+        return input_str
 
     # Otherwise collapse white space
+    element_text.reserve(input_str.size())
     for i in range(input_str.size()):
         if isspace(input_str[i]):
             if (element_text.empty() and not ctx.text.empty() and not isspace(ctx.text.back().back())) or \
@@ -84,7 +82,8 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) 
         else:
             element_text.push_back(input_str[i])
 
-    element_text.reserve(element_text.size())    # Shrink to fit
+    if element_text.capacity() > element_text.size() // 2:
+        element_text.reserve(element_text.size())    # Shrink to fit
     return element_text
 
 
