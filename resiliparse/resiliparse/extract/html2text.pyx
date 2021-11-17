@@ -319,33 +319,15 @@ cdef inline bint regex_search_not_empty(const string& s, const regex& r) nogil:
 cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     """Check with simple heuristics if node belongs to main content."""
 
-    if not is_block_element(node.local_name):
-        return not _is_unprintable_pua(node)
-
-    cdef size_t length_to_body = 0
-    cdef lxb_dom_node_t* pnode = node.parent
-    while pnode.local_name != LXB_TAG_BODY and pnode.parent:
-        preinc(length_to_body)
-        pnode = pnode.parent
-
-    # Main elements
-    if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
+    if node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return True
 
-    # Global footer
-    if node.local_name == LXB_TAG_FOOTER and length_to_body < 3:
-        return False
+    cdef bint is_block = is_block_element(node.local_name)
 
-    # Global navigation
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
-        return False
 
-    # Global aside
-    if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
-        return False
+    # ------ Section 1: Inline and block elements ------
 
-    # Iframes
-    if node.local_name == LXB_TAG_IFRAME:
+    if not is_block and _is_unprintable_pua(node):
         return False
 
     # Hidden elements
@@ -362,10 +344,39 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
                                                <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
         return False
 
+    # Block element matching based only on tag name
+    cdef size_t length_to_body = 0
+    cdef lxb_dom_node_t* pnode = node.parent
+    if is_block:
+        while pnode.local_name != LXB_TAG_BODY and pnode.parent:
+            preinc(length_to_body)
+            pnode = pnode.parent
+
+        # Main elements
+        if node.local_name == LXB_TAG_MAIN:
+            return True
+
+        # Global footer
+        if node.local_name == LXB_TAG_FOOTER and length_to_body < 3:
+            return False
+
+        # Global navigation
+        if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
+            return False
+
+        # Global aside
+        if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
+            return False
+
+        # Iframes
+        if node.local_name == LXB_TAG_IFRAME:
+            return False
+
+
+    # ------ Section 2: General class and id matching ------
+
     cdef string cls_attr = get_node_attr(node, <char*>b'class')
     cdef string id_attr = get_node_attr(node, <char*>b'id')
-
-    # From here on only rules depending on id or class attributes
     if cls_attr.empty() and id_attr.empty():
         return True
 
@@ -373,6 +384,32 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     if not cls_and_id_attr.empty():
         cls_and_id_attr.push_back(<char>b' ')
     cls_and_id_attr.append(id_attr)
+
+    # Hidden elements
+    if regex_search_not_empty(cls_attr, display_cls_regex) \
+            or regex_search_not_empty(get_node_attr(node, <char*>b'style'), display_css_regex):
+        return False
+
+    # Skip links
+    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search_not_empty(cls_attr, skip_cls_regex):
+        return False
+
+    # Social media and feedback forms
+    if regex_search_not_empty(cls_attr, social_cls_regex):
+        return False
+
+    # Ads
+    if regex_search_not_empty(cls_and_id_attr, ads_cls_regex) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-ad', 7) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-advertisment', 17) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-text-ad', 12):
+        return False
+
+
+    # ------ Section 3: Class and id matching of block elements only ------
+
+    if not is_block:
+        return True
 
     # Global footer
     if regex_search_not_empty(cls_and_id_attr, footer_cls_regex) and length_to_body < 8:
@@ -382,13 +419,9 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search_not_empty(cls_and_id_attr, wrapper_cls_regex):
         return True
 
-    # Hidden elements with class
-    if regex_search_not_empty(cls_attr, display_cls_regex):
-        return False
-
-    # Global navigation with class
+    # Global navigation
     cdef bint is_last_body_child = True
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
+    if length_to_body < 12 and node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
         if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
             return False
 
@@ -419,24 +452,6 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
 
     # Modals
     if regex_search_not_empty(cls_and_id_attr, modal_cls_regex):
-        return False
-
-    if regex_search_not_empty(get_node_attr(node, <char*>b'style'), display_css_regex):
-        return False
-
-    # Skip links
-    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search_not_empty(cls_attr, skip_cls_regex):
-        return False
-
-    # Ads
-    if regex_search_not_empty(cls_and_id_attr, ads_cls_regex) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-ad', 7) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-advertisment', 17) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-text-ad', 12):
-        return False
-
-    # Social media and feedback forms
-    if regex_search_not_empty(cls_attr, social_cls_regex):
         return False
 
     return True
