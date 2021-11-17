@@ -67,7 +67,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-1
+          key: ${{ runner.os }}-vcpkg-2
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
