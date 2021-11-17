@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from libcpp.string cimport string
-from resiliparse_inc.lexbor cimport lxb_html_document_t, lxb_dom_node_t, lxb_dom_collection_t, \
-    lxb_css_parser_t, lxb_selectors_t, lxb_css_selectors_t, lxb_tag_id_t
+from resiliparse_inc.re2 cimport StringPiece
+from resiliparse_inc.string_view cimport string_view
+from resiliparse_inc.lexbor cimport *
 
 
 cdef inline bint check_node(DOMNode node):
@@ -24,9 +25,28 @@ cdef inline bint check_node(DOMNode node):
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*) nogil
-cdef lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                               size_t* depth=*, bint* end_tag=*) nogil
-cdef string get_node_attr(lxb_dom_node_t* node, const string& attr) nogil
+
+cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
+                                              size_t* depth=NULL, bint* end_tag=NULL) nogil:
+    node = next_node(root_node, node, depth, end_tag)
+    while node and node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        node = next_node(root_node, node, depth, end_tag)
+    return node
+
+cdef inline string_view get_node_attr_sv(lxb_dom_node_t* node, const string& attr) nogil:
+    """Get node attribute value as string_view."""
+    cdef size_t node_attr_len
+    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
+        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
+    return string_view(<const char*>node_attr_data, node_attr_len)
+
+cdef inline StringPiece get_node_attr_sp(lxb_dom_node_t* node, const string& attr) nogil:
+    """Get node attribute value as RE2 StringPiece."""
+    cdef size_t node_attr_len
+    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
+        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
+    return StringPiece(<const char*>node_attr_data, node_attr_len)
+
 cdef string get_node_text(lxb_dom_node_t* node) nogil
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=*)

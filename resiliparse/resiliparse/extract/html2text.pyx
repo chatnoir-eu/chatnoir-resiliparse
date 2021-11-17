@@ -50,7 +50,7 @@ cdef struct ExtractContext:
     ExtractOpts opts
 
 
-cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) nogil:
+cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* ctx) nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
@@ -70,7 +70,7 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) 
                 if input_str[i] == <char>b'\n':
                     element_text.append(string(2 * ctx.list_depth + 2, <char>b' '))
             return element_text
-        return input_str
+        return <string>input_str
 
     # Otherwise collapse white space
     element_text.reserve(input_str.size())
@@ -142,7 +142,7 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
 cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     """Extraction start element callback."""
     cdef lxb_dom_character_data_t* node_char_data = NULL
-    cdef string node_attr_data
+    cdef string_view node_attr_data
     cdef string element_text
     cdef size_t i
 
@@ -151,7 +151,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         if ctx.space_before_next_block:
             element_text.push_back(<char>b' ')
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
-        element_text = _get_collapsed_string(element_text, ctx)
+        element_text = _get_collapsed_string(<string_view>element_text, ctx)
         if not rstrip_str(element_text).empty():
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
@@ -165,7 +165,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
 
     # Alternative descriptions
     if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
-        node_attr_data = get_node_attr(ctx.node, <char*>b'alt')
+        node_attr_data = get_node_attr_sv(ctx.node, <char*>b'alt')
         if not node_attr_data.empty():
             element_text.append(_get_collapsed_string(node_attr_data, ctx))
             element_text.push_back(<char>b' ')
@@ -177,12 +177,12 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
             element_text.append(<char*>b'[ ')
-        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr(ctx.node, <char*>b'type') not in \
+        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr_sv(ctx.node, <char*>b'type') not in \
                 [<char*>b'checkbox', <char*>b'color', <char*>b'file', <char*>b'hidden',
                  <char*>b'radio', <char*>b'reset']:
-            node_attr_data = get_node_attr(ctx.node, <char*>b'value')
+            node_attr_data = get_node_attr_sv(ctx.node, <char*>b'value')
             if node_attr_data.empty():
-                node_attr_data = get_node_attr(ctx.node, <char*>b'placeholder')
+                node_attr_data = get_node_attr_sv(ctx.node, <char*>b'placeholder')
             if not node_attr_data.empty():
                 element_text.append(<char*>b'[ ')
                 element_text.append(_get_collapsed_string(node_attr_data, ctx))
@@ -265,9 +265,9 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
         ctx.newline_before_next_block = False
 
     # Link targets
-    cdef string link_href
+    cdef string_view link_href
     if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
-        link_href = get_node_attr(ctx.node, <char*>b'href')
+        link_href = get_node_attr_sv(ctx.node, <char*>b'href')
         if not link_href.empty():
             if not isspace(ctx.text.back().back()):
                 ctx.text.back().push_back(<char>b' ')
@@ -338,13 +338,14 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return False
 
     # ARIA hidden
-    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
+    if get_node_attr_sv(node, <char*>b'aria-hidden') == <char*>b'true':
         return False
 
     # ARIA roles
-    if get_node_attr(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu', <char*>b'menubar',
-                                               <char*>b'navigation', <char*>b'menuitem', <char*>b'alert',
-                                               <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
+    if get_node_attr_sv(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu',
+                                                  <char*>b'menubar', <char*>b'navigation', <char*>b'menuitem',
+                                                  <char*>b'alert', <char*>b'dialog', <char*>b'checkbox',
+                                                  <char*>b'radio']:
         return False
 
     # Block element matching based only on tag name
@@ -378,8 +379,8 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
 
     # ------ Section 2: General class and id matching ------
 
-    cdef StringPiece cls_attr = StringPiece(get_node_attr(node, <char*>b'class'))
-    cdef StringPiece id_attr = StringPiece(get_node_attr(node, <char*>b'id'))
+    cdef StringPiece cls_attr = get_node_attr_sp(node, <char*>b'class')
+    cdef StringPiece id_attr =get_node_attr_sp(node, <char*>b'id')
     if cls_attr.empty() and id_attr.empty():
         return True
 
@@ -391,7 +392,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
 
     # Hidden elements
     if regex_search_not_empty(cls_attr, display_cls_regex) \
-            or regex_search_not_empty(StringPiece(get_node_attr(node, <char*>b'style')), display_css_regex):
+            or regex_search_not_empty(get_node_attr_sp(node, <char*>b'style'), display_css_regex):
         return False
 
     # Skip links

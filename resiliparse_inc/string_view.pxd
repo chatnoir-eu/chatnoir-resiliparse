@@ -25,3 +25,9 @@ cdef extern from "<string_view>" namespace "std" nogil:
     bint operator==(const string_view& lhs, const char* rhs)
     bint operator==(const string_view& lhs, const string& rhs)
     bint operator==(const string& lhs, const string_view& rhs)
+
+    bint operator!=(const string_view& lhs, const string_view& rhs)
+    bint operator!=(const char* lhs, const string_view& rhs)
+    bint operator!=(const string_view& lhs, const char* rhs)
+    bint operator!=(const string_view& lhs, const string& rhs)
+    bint operator!=(const string& lhs, const string_view& rhs)

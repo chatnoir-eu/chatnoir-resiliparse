@@ -78,25 +78,6 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
         return node.next
 
 
-cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                              size_t* depth=NULL, bint* end_tag=NULL) nogil:
-
-    node = next_node(root_node, node, depth, end_tag)
-    while node and node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-        node = next_node(root_node, node, depth, end_tag)
-    return node
-
-
-cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr) nogil:
-    """Get node attribute value."""
-    cdef size_t node_attr_len
-    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
-        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
-    if node_attr_data and node_attr_len > 0:
-        return string(<const char*>node_attr_data, node_attr_len)
-    return string()
-
-
 cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
     """Get node inner text."""
     cdef size_t text_len = 0
@@ -818,7 +799,10 @@ cdef class DOMNode:
                 <lxb_dom_element_t*>self.node, <lxb_char_t*>attr_name.data(), attr_name.size()):
             raise KeyError(f'No such attribute: {attr_name.decode()}')
 
-        return get_node_attr(self.node, attr_name).decode()
+        cdef size_t node_attr_len
+        cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
+            <lxb_dom_element_t*>self.node, <const lxb_char_t*>attr_name.data(), attr_name.size(), &node_attr_len)
+        return node_attr_data[:node_attr_len].decode()
 
     cpdef str getattr(self, str attr_name, str default_value=None):
         """
