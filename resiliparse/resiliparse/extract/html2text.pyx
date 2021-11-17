@@ -405,7 +405,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     # Ads
     if regex_search_not_empty(cls_and_id_attr, ads_cls_regex) \
             or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-ad', 7) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-advertisment', 17) \
+            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-advertisement', 18) \
             or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'data-text-ad', 12):
         return False
 
