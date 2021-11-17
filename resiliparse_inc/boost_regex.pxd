@@ -80,7 +80,7 @@ cdef extern from "<boost/regex.hpp>" namespace "boost::regex_constants" nogil:
         format_literal,
         match_not_any
 
-
+from resiliparse_inc.string_view cimport string_view
 cdef extern from "<boost/regex.hpp>" namespace "boost" nogil:
     cdef cppclass basic_regex[charT]:
         basic_regex()
@@ -107,3 +107,41 @@ cdef extern from "<boost/regex.hpp>" namespace "boost" nogil:
 
     string regex_replace(const string& s, const regex, const string& fmt)
     string regex_replace(const string& s, const regex, const string& fmt, match_flag_type flags)
+
+
+cdef extern from * nogil:
+    """
+    #include <boost/regex.hpp>
+    #include <iterator>
+    #include <string>
+
+    inline bool regex_match(std::string_view s,
+                      const boost::regex& rgx,
+                      boost::regex_constants::match_flag_type flags = boost::regex_constants::match_default) {
+        return boost::regex_match(s.begin(), s.end(), rgx, flags);
+    }
+
+    inline bool regex_search(std::string_view s,
+                      const boost::regex& rgx,
+                      boost::regex_constants::match_flag_type flags = boost::regex_constants::match_default) {
+        return boost::regex_search(s.begin(), s.end(), rgx, flags);
+    }
+
+    inline std::string regex_replace(std::string_view s,
+                      const boost::regex& rgx,
+                      const std::string& fmt,
+                      boost::regex_constants::match_flag_type flags = boost::regex_constants::match_default) {
+        std::string out;
+        boost::regex_replace(std::back_inserter(out), s.begin(), s.end(), rgx, fmt, flags);
+        return out;
+    }
+    """
+
+    bint regex_match(const const string_view& s, const regex& rgx)
+    bint regex_match(const const string_view& s, const regex& rgx, match_flag_type flags)
+
+    bint regex_search(const const string_view& s, const regex& rgx)
+    bint regex_search(const const string_view& s, const regex& rgx, match_flag_type flags)
+
+    string regex_replace(const string_view& s, const regex, const string& fmt)
+    string regex_replace(const string_view& s, const regex, const string& fmt, match_flag_type flags)
