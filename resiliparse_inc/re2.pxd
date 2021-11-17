@@ -203,7 +203,7 @@ cdef extern from * nogil:
             return *this;
         }
 
-        const re2::RE2& operator()() const {
+        inline const re2::RE2& operator()() const {
             return *instance;
         }
 
@@ -216,6 +216,8 @@ cdef extern from * nogil:
         RE2Stack(const char* pattern)
         RE2Stack(const string& pattern)
         RE2Stack(const StringPiece& pattern)
+        RE2Stack(const string&, const Options& options)
+        RE2Stack(const char* pattern, const Options& options)
         RE2Stack(const StringPiece& pattern, const Options& options)
 
-        const RE2& operator()() const
+        inline const RE2& operator()() const

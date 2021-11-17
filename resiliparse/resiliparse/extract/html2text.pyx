@@ -299,18 +299,18 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
 cdef RE2Options re_opts
 re_opts.set_case_sensitive(False)
 
-cdef RE2 wrapper_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:wrap(?:per)?)(?:$|[\\s_-])'), re_opts)
-cdef RE2 nav_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)'), re_opts)
-cdef RE2 footer_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?(?:footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)'), re_opts)
-cdef RE2 sidebar_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)'), re_opts)
-cdef RE2 search_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?:search)(?:[_-]?(?:bar|facility|box))?(?:$|\\s)'), re_opts)
-cdef RE2 skip_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])'), re_opts)
-cdef RE2 display_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)'), re_opts)
-cdef RE2 display_css_regex = RE2(StringPiece(<char*>b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)'), re_opts)
-cdef RE2 landmark_id_regex = RE2(StringPiece(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$'), re_opts)
-cdef RE2 modal_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)'), re_opts)
-cdef RE2 ads_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)'), re_opts)
-cdef RE2 social_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)'), re_opts)
+cdef RE2 wrapper_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:wrap(?:per)?)(?:$|[\\s_-])', re_opts)
+cdef RE2 nav_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', re_opts)
+cdef RE2 footer_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?(?:footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', re_opts)
+cdef RE2 sidebar_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)', re_opts)
+cdef RE2 search_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?:search)(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', re_opts)
+cdef RE2 skip_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', re_opts)
+cdef RE2 display_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', re_opts)
+cdef RE2 display_css_regex = RE2(<const char*>b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', re_opts)
+cdef RE2 landmark_id_regex = RE2(<const char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$', re_opts)
+cdef RE2 modal_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)', re_opts)
+cdef RE2 ads_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', re_opts)
+cdef RE2 social_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', re_opts)
 
 
 cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogil:
