@@ -20,8 +20,8 @@ from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_common.string_util cimport lstrip_str, rstrip_str, strip_str
-from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search, regex_replace
+from resiliparse_common.string_util cimport rstrip_str, strip_str
+from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
@@ -116,11 +116,13 @@ cdef inline void _make_block(ExtractContext* ctx):
 
 cdef bint _is_unprintable_pua(lxb_dom_node_t* node):
     """Whether text node contains only a single unprintable code point from the private use area."""
-    if node.first_child and node.first_child.next:
+    if node.first_child and (node.first_child.next or node.first_child.type != LXB_DOM_NODE_TYPE_TEXT):
         # Node has more than one child
         return False
+    if not node.first_child and node.type != LXB_DOM_NODE_TYPE_TEXT:
+        return False
 
-    cdef string element_text = strip_str(element_text)
+    cdef string element_text = strip_str(get_node_text(node))
     if element_text.size() > 3:
         return False
 
