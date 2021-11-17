@@ -20,7 +20,7 @@ from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_inc.regex cimport regex, regex_search, regex_replace
+from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search, regex_replace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
@@ -298,18 +298,18 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         _make_block(ctx)
 
 
-cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])wrap(?:per)?(?:$|[\\s_-])')
-cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)')
-cdef regex footer_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?footer(?:[_-]?(?:section|wrapper)?)(?:^|\\s)')
-cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)')
-cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?search(?:[_-]?(?:bar|facility|box))?(?:$|\\s)')
-cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])')
-cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)')
-cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)')
-cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$')
-cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)')
-cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)')
-cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)')
+cdef regex wrapper_cls_regex = regex(<char*>b'(?<![\\s_-])(?>wrap(?:per)?)(?:$|[\\s_-])', flag_type.icase)
+cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', flag_type.icase)
+cdef regex footer_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', flag_type.icase)
+cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)', flag_type.icase)
+cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>search)(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', flag_type.icase)
+cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', flag_type.icase)
+cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?>display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', flag_type.icase)
+cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s*)(?>display\\s*:\\s*none|visibility\\s*:\\s*hidden)(?:$|\\s|\\s*;)', flag_type.icase)
+cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?>footer|sidebar|nav(?:igation)?)$', flag_type.icase)
+cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?>modal|popup|lightbox|dropdown)(?:$|\\s)', flag_type.icase)
+cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?>ad(?>vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', flag_type.icase)
+cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?>social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', flag_type.icase)
 
 
 cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:

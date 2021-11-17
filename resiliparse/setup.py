@@ -95,7 +95,7 @@ if os.path.isdir(fast_warc_src):
 
 resiliparse_extensions = [
     Extension('resiliparse.extract.html2text',
-              sources=[f'resiliparse/extract/html2text.{ext}'], libraries=['lexbor'], **cpp_args),
+              sources=[f'resiliparse/extract/html2text.{ext}'], libraries=['lexbor', 'boost_regex'], **cpp_args),
     Extension('resiliparse.parse.encoding',
               sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
     Extension('resiliparse.parse.html',

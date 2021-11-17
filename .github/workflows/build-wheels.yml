@@ -35,7 +35,7 @@ jobs:
         enabled=1
         EOF
 
-        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel
+        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel boost-devel
       CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
 
 #      CIBW_ARCHS_MACOS: universal2
@@ -83,7 +83,7 @@ jobs:
             exit 1
           fi
 
-          vcpkg install lz4 lexbor uchardet zlib
+          vcpkg install lz4 lexbor uchardet zlib boost-regex
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -161,7 +161,7 @@ jobs:
 
           # Install build dependencies
           sudo apt update -y
-          sudo apt install -y zlib1g-dev liblz4-dev libuchardet-dev liblexbor-dev
+          sudo apt install -y zlib1g-dev liblz4-dev libuchardet-dev liblexbor-dev boost-devel
 
           # Install test dependencies
           python -m pip install cython pytest pytest-cov lz4
