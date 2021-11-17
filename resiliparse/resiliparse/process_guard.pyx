@@ -47,7 +47,6 @@ class MemoryLimitExceeded(ResiliparseGuardException):
 cdef size_t MAX_SIZE_T = <size_t>-1
 
 
-@cython.cdivision(True)
 cdef inline uint64_t time_millis() nogil:
     cdef timespec t
     clock_gettime(CLOCK_MONOTONIC, &t)

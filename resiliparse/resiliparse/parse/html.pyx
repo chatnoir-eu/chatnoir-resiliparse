@@ -16,6 +16,7 @@
 
 import typing as t
 
+cimport cython
 from cython.operator cimport preincrement as preinc, predecrement as predec
 from cpython.ref cimport PyObject
 
@@ -1272,6 +1273,7 @@ cdef class DOMCollection:
             lxb_dom_collection_destroy(self.coll, True)
             self.coll = NULL
 
+    @cython.cdivision(False)
     cdef inline size_t _wrap_idx(self, ssize_t idx):
         if idx >= 0:
             return idx

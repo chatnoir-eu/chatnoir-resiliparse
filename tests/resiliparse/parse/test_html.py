@@ -197,10 +197,14 @@ def test_collection():
 
     # Collection match forwarding
     coll = tree.body.query_selector_all('p')
-    print(coll)
+
+    # Negative indexing
+    assert coll[-1] is coll[len(coll) - 1]
+    assert coll[-2] is coll[0]
 
     assert coll.get_element_by_id('abc') is None
     assert coll.get_elements_by_class_name('bar')[0] is coll.query_selector('.bar')
+    assert coll.get_elements_by_class_name('bar')[-1] is coll.query_selector('.bar.baz')
     assert len(coll.get_elements_by_attr('href', 'https://example.com')) == 1
     assert len(coll.get_elements_by_tag_name('span')) == 1
 

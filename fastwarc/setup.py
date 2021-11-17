@@ -43,7 +43,9 @@ try:
         language_level='3',
         compiler_directives=dict(
             linetrace=TRACE,
-            initializedcheck=DEBUG
+            initializedcheck=DEBUG,
+            boundscheck=DEBUG,
+            cdivision=True
         )
     )
 

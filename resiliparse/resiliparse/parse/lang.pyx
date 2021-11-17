@@ -22,8 +22,6 @@ from cython.operator cimport preincrement as preinc
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 
 
-@cython.cdivision(True)
-@cython.boundscheck(False)
 @cython.wraparound(False)
 cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     cdef long hash2
@@ -188,8 +186,6 @@ def supported_langs():
     return sorted(langs)
 
 
-@cython.cdivision(True)
-@cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     """
