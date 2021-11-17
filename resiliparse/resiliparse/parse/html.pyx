@@ -42,7 +42,7 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
 
 
 cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                      size_t* depth=NULL, bint* end_tag=NULL):
+                                      size_t* depth=NULL, bint* end_tag=NULL) nogil:
     """
     DOM tree pre-order traversal primitive.
     
@@ -79,7 +79,7 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
 
 
 cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                              size_t* depth=NULL, bint* end_tag=NULL):
+                                              size_t* depth=NULL, bint* end_tag=NULL) nogil:
 
     node = next_node(root_node, node, depth, end_tag)
     while node and node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -87,7 +87,7 @@ cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, l
     return node
 
 
-cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr):
+cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr) nogil:
     """Get node attribute value."""
     cdef size_t node_attr_len
     cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
@@ -97,7 +97,7 @@ cdef inline string get_node_attr(lxb_dom_node_t* node, const string& attr):
     return string()
 
 
-cdef inline string get_node_text(lxb_dom_node_t* node):
+cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
     """Get node inner text."""
     cdef size_t text_len = 0
     cdef lxb_char_t* text = lxb_dom_node_text_content(node, &text_len)
@@ -1826,7 +1826,7 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
             node = next_node(base_node.node, node, &depth, is_end_tag_ptr)
 
 
-cdef bint is_block_element(lxb_tag_id_t tag_id):
+cdef bint is_block_element(lxb_tag_id_t tag_id) nogil:
     """
     Check whether an element is a block-level element.
     """

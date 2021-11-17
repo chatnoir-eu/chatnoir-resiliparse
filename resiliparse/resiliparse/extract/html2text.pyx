@@ -20,7 +20,7 @@ from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_common.string_util cimport rstrip_str, strip_str
+from resiliparse_common.string_util cimport rstrip_str, strip_str, str_to_lower
 from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
@@ -50,7 +50,7 @@ cdef struct ExtractContext:
     ExtractOpts opts
 
 
-cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
+cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx) nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
@@ -91,7 +91,7 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
 cdef string LIST_BULLET = <char*>b'\xe2\x80\xa2'
 
 
-cdef inline void _make_block(ExtractContext* ctx):
+cdef inline void _make_block(ExtractContext* ctx) nogil:
     """Make a block start or end by inserting the needed number of linefeeds."""
 
     # Strip previous linefeeds to prevent excess empty lines
@@ -114,7 +114,7 @@ cdef inline void _make_block(ExtractContext* ctx):
         ctx.text.back().push_back(<char>b' ')
 
 
-cdef bint _is_unprintable_pua(lxb_dom_node_t* node):
+cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
     """Whether text node contains only a single unprintable code point from the private use area."""
     if node.first_child and (node.first_child.next or node.first_child.type != LXB_DOM_NODE_TYPE_TEXT):
         # Node has more than one child
@@ -140,7 +140,7 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node):
     return False
 
 
-cdef void _extract_start_cb(ExtractContext* ctx):
+cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     """Extraction start element callback."""
     cdef lxb_dom_character_data_t* node_char_data = NULL
     cdef string node_attr_data
@@ -237,7 +237,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
         ctx.text.push_back(element_text)
 
 
-cdef void _extract_end_cb(ExtractContext* ctx):
+cdef void _extract_end_cb(ExtractContext* ctx) nogil:
     """Extraction end element callback."""
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
         return
@@ -311,13 +311,13 @@ cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?>ad(?>ve
 cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?>social(?>media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', flag_type.icase)
 
 
-cdef inline bint regex_search_not_empty(const string& s, const regex& r):
+cdef inline bint regex_search_not_empty(const string& s, const regex& r) nogil:
     if s.empty():
         return False
     return regex_search(s, r)
 
 
-cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
+cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     """Check with simple heuristics if node belongs to main content."""
 
     cdef size_t length_to_body = 0
@@ -489,9 +489,6 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     if not form_fields:
         skip_elements.update({b'textarea', b'input', b'button'})
 
-    cdef size_t tag_name_len = 0
-    cdef const lxb_char_t* tag_name = NULL
-
     cdef ExtractContext ctx
     ctx.root_node = base_node.node
     ctx.depth = 0
@@ -508,30 +505,44 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
         form_fields,
         noscript]
 
-    cdef bint is_end_tag = False
     ctx.node = base_node.node
 
-    while ctx.node:
-        # Skip everything except element and text nodes
-        if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
-            is_end_tag = True
+    cdef vector[string] skip_elements_vec = list(skip_elements)
+    cdef const lxb_char_t* tag_name = NULL
+    cdef size_t tag_name_len
+    cdef string tag_name_str
+    cdef size_t i
+    cdef bint skip = False
+    cdef bint is_end_tag = False
+
+    with nogil:
+        while ctx.node:
+            # Skip everything except element and text nodes
+            if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
+                is_end_tag = True
+                ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+                continue
+
+            # Skip unwanted element nodes
+            if ctx.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
+                tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
+                tag_name_str = string(<const char*>tag_name, tag_name_len)
+                skip = False
+                for i in range(skip_elements_vec.size()):
+                    if skip_elements_vec[i] == tag_name_str:
+                        skip = True
+                        break
+
+                if skip or _is_unprintable_pua(ctx.node) or (main_content and not _is_main_content_node(ctx.node)):
+                    is_end_tag = True
+                    ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+                    continue
+
+            if not is_end_tag:
+                _extract_start_cb(&ctx)
+            else:
+                _extract_end_cb(&ctx)
+
             ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
-            continue
-
-        # Skip unwanted element nodes
-        tag_name = lxb_dom_node_name(ctx.node, &tag_name_len)
-        if tag_name[:tag_name_len].lower() in skip_elements \
-                or (main_content and not _is_main_content_node(ctx.node)) \
-                or _is_unprintable_pua(ctx.node):
-            is_end_tag = True
-            ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
-            continue
-
-        if not is_end_tag:
-            _extract_start_cb(&ctx)
-        else:
-            _extract_end_cb(&ctx)
-
-        ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
 
     return ''.join(s.decode() for s in ctx.text).rstrip()
