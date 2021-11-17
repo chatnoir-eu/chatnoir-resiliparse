@@ -20,7 +20,7 @@ echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
 
 # Install build dependencies
 sudo apt update
-sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev libboost-regex-dev
+sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev libre2-dev
 ```
 To build and install Resiliparse from PyPi, run
 ```bash

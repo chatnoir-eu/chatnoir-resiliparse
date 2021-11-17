@@ -74,7 +74,7 @@ echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
 # Install build dependencies
 sudo apt update
 sudo apt install build-essential python3-dev zlib1g-dev \
-    liblz4-dev libuchardet-dev liblexbor-dev libboost-regex-dev
+    liblz4-dev libuchardet-dev liblexbor-dev libre2-dev
 ```
 Then, to build the actual packages, run:
 ```bash
