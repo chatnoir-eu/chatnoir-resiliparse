@@ -76,6 +76,8 @@ elif CXX == 'msvc':
 if os.path.isdir(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc')):
     copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_inc'),
               os.path.join(ROOT_DIRECTORY, 'resiliparse_inc'), update=1)
+    copy_tree(os.path.join(ROOT_DIRECTORY, '..', 'resiliparse_common'),
+              os.path.join(ROOT_DIRECTORY, 'resiliparse_common'), update=1)
 
 data_ext = ['*.pxd', '*.h']
 inc_package = []

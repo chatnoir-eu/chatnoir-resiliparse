@@ -15,7 +15,7 @@
 # distutils: language = c++
 
 cimport cython
-from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
+from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdint cimport uint16_t
 from libc.string cimport memchr
 from libcpp.string cimport npos as strnpos, string, to_string
@@ -29,36 +29,13 @@ import typing as t
 import uuid
 import warnings
 
-from resiliparse_inc.cctype cimport isspace, tolower
+from resiliparse_common.string_util cimport str_to_lower, strip_str, strip_c_str
+from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.utility cimport move
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
 from fastwarc.stream_io import ReaderStaleError
-
-
-cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
-    cdef const char* end = deref(s_ptr) + l
-
-    while deref(s_ptr) < end and isspace(deref(s_ptr)[0]):
-        inc(deref(s_ptr))
-
-    while end > deref(s_ptr) and isspace((end - 1)[0]):
-        dec(end)
-
-    return end - deref(s_ptr)
-
-
-cdef inline string strip_str(const string& s) nogil:
-    cdef const char* start = s.data()
-    cdef size_t l = strip_c_str(&start, s.size())
-    return string(start, l)
-
-
-cdef inline string str_to_lower(string s) nogil:
-    for i in range(s.size()):
-        s[i] = tolower(s[i])
-    return s
 
 
 cdef const char* _enum_record_type_to_str(WarcRecordType record_type) nogil:

@@ -173,7 +173,7 @@ jobs:
           (cd resiliparse && python setup.py build_ext --inplace && python setup.py install)
 
       - name: Run Tests
-        run: python -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov-report xml tests/
+        run: python -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
