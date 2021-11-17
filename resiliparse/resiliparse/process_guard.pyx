@@ -91,7 +91,7 @@ cdef class _ResiliparseGuard:
             self.guard_thread = None
 
         global __GUARD_CTX_ACTIVE
-        if self.__class__.__name__ in __GUARD_CTX_ACTIVE:
+        if __GUARD_CTX_ACTIVE is not None and self.__class__.__name__ in __GUARD_CTX_ACTIVE:
             __GUARD_CTX_ACTIVE.remove(self.__class__.__name__)
 
         return True
