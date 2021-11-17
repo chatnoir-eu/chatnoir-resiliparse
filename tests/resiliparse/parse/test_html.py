@@ -26,10 +26,7 @@ html = """<!doctype html>
 </html>"""
 
 
-tree = None
-
-
-def validate_document():
+def validate_document(tree):
     assert tree is not None
 
     assert type(tree.document) is DOMNode
@@ -60,18 +57,14 @@ def validate_document():
 
 
 def test_parse():
-    global tree
     tree = HTMLTree.parse(html)
-    assert tree is not None
-
-    validate_document()
+    validate_document(tree)
 
 
 def test_parse_from_bytes():
-    global tree
     tree = HTMLTree.parse_from_bytes(html.encode('utf-16'), 'utf-16')
     assert tree is not None
-    validate_document()
+    validate_document(tree)
 
 
 html_no_head = """<!doctype html><body><span></span></body>"""
@@ -117,6 +110,8 @@ def test_parse_quirks():
 
 
 def test_node_equality():
+    tree = HTMLTree.parse(html)
+
     assert tree.body is not tree.head
     assert tree.body != tree.head
     assert tree.body is tree.body
@@ -143,6 +138,8 @@ def test_node_equality():
 
 
 def test_selection():
+    tree = HTMLTree.parse(html)
+
     assert tree.body.get_element_by_id('foo').tag == 'main'
 
     meta = tree.head.get_elements_by_tag_name('meta')
@@ -180,6 +177,8 @@ def test_selection():
 
 
 def test_collection():
+    tree = HTMLTree.parse(html)
+
     coll = tree.body.query_selector_all('main *')
 
     # Basic element attributes
@@ -213,6 +212,8 @@ def test_collection():
 
 
 def test_attributes():
+    tree = HTMLTree.parse(html)
+
     a = tree.body.query_selector('#b a')
     assert a.hasattr('class')
     assert a.class_name == 'bar baz'
@@ -269,6 +270,8 @@ def test_empty_attributes():
 
 
 def test_serialization():
+    tree = HTMLTree.parse(html)
+
     assert tree.body.get_element_by_id('a').text == 'Hello world!'
     assert tree.body.get_element_by_id('a').html == '<p id="a">Hello <span class="bar">world</span>!</p>'
 
@@ -287,6 +290,7 @@ def test_serialization():
 
 
 def test_traversal():
+    tree = HTMLTree.parse(html)
     root = tree.body.get_element_by_id('a')
 
     tag_names = [e.tag for e in root]
@@ -338,6 +342,7 @@ def test_children():
     #   <p id="a">Hello <span class="bar">world</span>!</p>
     #   <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
     #  </main>
+    tree = HTMLTree.parse(html)
     element = tree.body.get_element_by_id('a')
 
     assert element.first_child.parent is element
@@ -370,6 +375,8 @@ def test_siblings():
     #   <p id="a">Hello <span class="bar">world</span>!</p>
     #   <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
     #  </main>
+    tree = HTMLTree.parse(html)
+
     element1 = tree.body.get_element_by_id('foo').first_element_child
     assert element1.type == ELEMENT
     assert element1.id == 'a'
@@ -397,6 +404,8 @@ def test_siblings():
 
 
 def test_dom_manipulation():
+    tree = HTMLTree.parse(html)
+
     new_element = tree.create_element('p')
     assert new_element.type == ELEMENT
     assert new_element.tag == 'p'
@@ -443,6 +452,8 @@ def test_dom_manipulation():
 
 
 def test_node_value():
+    tree = HTMLTree.parse(html)
+
     for node in tree.document:
         if node.type in [NodeType.TEXT, NodeType.COMMENT]:
             assert node.value == node.text
@@ -451,6 +462,8 @@ def test_node_value():
 
 
 def test_inner_html_and_text():
+    tree = HTMLTree.parse(html)
+
     element = tree.create_element('div')
     assert element.html == '<div></div>'
 
