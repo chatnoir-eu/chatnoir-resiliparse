@@ -44,7 +44,8 @@ try:
         annotate=DEBUG,
         language_level='3',
         compiler_directives=dict(
-            linetrace=TRACE
+            linetrace=TRACE,
+            initializedcheck=DEBUG
         )
     )
     USE_CYTHON = True
