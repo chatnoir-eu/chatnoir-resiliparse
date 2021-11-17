@@ -40,13 +40,13 @@ cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
     return rstrip_c_str(s_ptr, lstrip_c_str(s_ptr, l))
 
 
-# cdef inline string lstrip_str(const string& s) nogil:
-#     """Strip leading white space from a C++ string."""
-#     cdef const char* start = s.data()
-#     cdef size_t l = lstrip_c_str(&start, s.size())
-#     if start == s.data():
-#         return s
-#     return string(start, l)
+cdef inline string lstrip_str(const string& s) nogil:
+    """Strip leading white space from a C++ string."""
+    cdef const char* start = s.data()
+    cdef size_t l = lstrip_c_str(&start, s.size())
+    if start == s.data():
+        return s
+    return string(start, l)
 
 
 cdef inline string rstrip_str(const string& s) nogil:

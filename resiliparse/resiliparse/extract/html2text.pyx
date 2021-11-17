@@ -20,6 +20,7 @@ from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
+from resiliparse_common.string_util cimport lstrip_str, rstrip_str, strip_str
 from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search, regex_replace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
@@ -87,8 +88,6 @@ cdef string _get_collapsed_string(const string& input_str, ExtractContext* ctx):
     return element_text
 
 
-cdef regex leading_ws_regex = regex(<char*>b'^\\s+')
-cdef regex trailing_ws_regex = regex(<char*>b'\\s+$')
 cdef string LIST_BULLET = <char*>b'\xe2\x80\xa2'
 
 
@@ -97,7 +96,7 @@ cdef inline void _make_block(ExtractContext* ctx):
 
     # Strip previous linefeeds to prevent excess empty lines
     while not ctx.text.empty() and isspace(ctx.text.back().back()):
-        ctx.text[ctx.text.size() - 1] = regex_replace(ctx.text.back(), trailing_ws_regex, <char*>b'')
+        ctx.text[ctx.text.size() - 1] = rstrip_str(ctx.text.back())
         if ctx.text.back().empty():
             ctx.text.pop_back()
 
@@ -121,8 +120,7 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node):
         # Node has more than one child
         return False
 
-    cdef string element_text = regex_replace(get_node_text(node), trailing_ws_regex, <char*>b'')
-    element_text = regex_replace(element_text, leading_ws_regex, <char*>b'')
+    cdef string element_text = strip_str(element_text)
     if element_text.size() > 3:
         return False
 
@@ -153,7 +151,7 @@ cdef void _extract_start_cb(ExtractContext* ctx):
             element_text.push_back(<char>b' ')
         element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(element_text, ctx)
-        if not regex_replace(element_text, trailing_ws_regex, <char*>b'').empty():
+        if not rstrip_str(element_text).empty():
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
@@ -285,8 +283,7 @@ cdef void _extract_end_cb(ExtractContext* ctx):
 
     if ctx.node.local_name == LXB_TAG_LI:
         # Clean up empty list items
-        while not ctx.text.empty() and regex_replace(regex_replace(
-                ctx.text.back(), trailing_ws_regex, <char*>b''), leading_ws_regex, <char*>b'') == LIST_BULLET:
+        while not ctx.text.empty() and strip_str(ctx.text.back()) == LIST_BULLET:
             ctx.text.pop_back()
         if not ctx.text.empty() and ctx.text.back().back() != <char>b'\n':
             ctx.text.back().push_back(<char>b'\n')
