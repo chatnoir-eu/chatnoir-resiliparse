@@ -328,15 +328,24 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT or node.local_name == LXB_TAG_MAIN:
         return True
 
-    cdef string cls_attr = get_node_attr(node, <char*>b'class')
-    cdef string id_attr = get_node_attr(node, <char*>b'id')
-    cdef string cls_and_id_attr = cls_attr
-    if not cls_and_id_attr.empty():
-        cls_and_id_attr.push_back(<char>b' ')
-    cls_and_id_attr.append(id_attr)
+    # Global navigation
+    if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
+        return False
+
+    # Global aside
+    if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
+        return False
 
     # Iframes
     if node.local_name == LXB_TAG_IFRAME:
+        return False
+
+    # Hidden elements
+    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
+        return False
+
+    # ARIA hidden
+    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
         return False
 
     # ARIA roles
@@ -345,30 +354,30 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
                                                <char*>b'dialog', <char*>b'checkbox', <char*>b'radio']:
         return False
 
-    # ARIA hidden
-    if get_node_attr(node, <char*>b'aria-hidden') == <char*>b'true':
-        return False
+    cdef string cls_attr = get_node_attr(node, <char*>b'class')
+    cdef string id_attr = get_node_attr(node, <char*>b'id')
+
+    # From here on only rules depending on id or class attributes
+    if cls_attr.empty() and id_attr.empty():
+        return True
+
+    cdef string cls_and_id_attr = cls_attr
+    if not cls_and_id_attr.empty():
+        cls_and_id_attr.push_back(<char>b' ')
+    cls_and_id_attr.append(id_attr)
 
     # Wrapper elements (whitelist them, they may contain more specific elements)
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search_not_empty(cls_and_id_attr, wrapper_cls_regex):
         return True
 
-    # Hidden elements
-    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
-        return False
+    # Hidden elements with class
     if regex_search_not_empty(cls_attr, display_cls_regex):
         return False
 
-    # Global navigation
-    if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
-        return False
+    # Global navigation with class
     if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
         if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
             return False
-
-    # Global aside
-    if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
-        return False
 
     # Global footer
     cdef bint is_last_body_child = True
