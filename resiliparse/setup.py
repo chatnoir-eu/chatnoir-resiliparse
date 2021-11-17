@@ -98,11 +98,9 @@ fast_warc_src = os.path.abspath(os.path.join(ROOT_DIRECTORY, '..', 'fastwarc'))
 if os.path.isdir(fast_warc_src):
     sys.path.insert(0, fast_warc_src)
 
-boost_suffix = '-vc140-mt' if CXX == 'msvc' else ''
 resiliparse_extensions = [
     Extension('resiliparse.extract.html2text',
-              sources=[f'resiliparse/extract/html2text.{ext}'],
-              libraries=['lexbor', 'boost_regex' + boost_suffix], **cpp_args),
+              sources=[f'resiliparse/extract/html2text.{ext}'], libraries=['lexbor', 're2'], **cpp_args),
     Extension('resiliparse.parse.encoding',
               sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
     Extension('resiliparse.parse.html',

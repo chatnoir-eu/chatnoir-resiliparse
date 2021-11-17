@@ -20,8 +20,8 @@ from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_common.string_util cimport rstrip_str, strip_str, str_to_lower
-from resiliparse_inc.boost_regex cimport flag_type, regex, regex_search
+from resiliparse_common.string_util cimport rstrip_str, strip_str
+from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
 from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.lexbor cimport *
@@ -296,24 +296,27 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
         _make_block(ctx)
 
 
-cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>wrap(?>per)?)(?:$|[\\s_-])', flag_type.icase)
-cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?>bar|igation)?|menu(?>[_-]item)?)(?:$|\\s)', flag_type.icase)
-cdef regex footer_cls_regex = regex(<char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?(?>footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', flag_type.icase)
-cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)', flag_type.icase)
-cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>search)(?>[_-]?(?>bar|facility|box))?(?:$|\\s)', flag_type.icase)
-cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>skip|skip-to|skiplink|scroll-(?>up|down))(?:$|[\\s_-])', flag_type.icase)
-cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?>display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', flag_type.icase)
-cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s)(?>display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', flag_type.icase)
-cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?>footer|sidebar|nav(?>igation)?)$', flag_type.icase)
-cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?>modal|popup|lightbox|dropdown)(?:$|\\s)', flag_type.icase)
-cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?>ad(?>vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', flag_type.icase)
-cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?>social(?>media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', flag_type.icase)
+cdef RE2Options re_opts
+re_opts.set_case_sensitive(False)
+
+cdef RE2 wrapper_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:wrap(?:per)?)(?:$|[\\s_-])'), re_opts)
+cdef RE2 nav_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)'), re_opts)
+cdef RE2 footer_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?(?:footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)'), re_opts)
+cdef RE2 sidebar_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)'), re_opts)
+cdef RE2 search_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?:search)(?:[_-]?(?:bar|facility|box))?(?:$|\\s)'), re_opts)
+cdef RE2 skip_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])'), re_opts)
+cdef RE2 display_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)'), re_opts)
+cdef RE2 display_css_regex = RE2(StringPiece(<char*>b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)'), re_opts)
+cdef RE2 landmark_id_regex = RE2(StringPiece(<char*>b'^(?:global[_-]?)?(?:footer|sidebar|nav(?:igation)?)$'), re_opts)
+cdef RE2 modal_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)'), re_opts)
+cdef RE2 ads_cls_regex = RE2(StringPiece(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)'), re_opts)
+cdef RE2 social_cls_regex = RE2(StringPiece(<char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)'), re_opts)
 
 
-cdef inline bint regex_search_not_empty(const string& s, const regex& r) nogil:
+cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogil:
     if s.empty():
         return False
-    return regex_search(s, r)
+    return PartialMatch(s, r())
 
 
 cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
@@ -375,19 +378,20 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
 
     # ------ Section 2: General class and id matching ------
 
-    cdef string cls_attr = get_node_attr(node, <char*>b'class')
-    cdef string id_attr = get_node_attr(node, <char*>b'id')
+    cdef StringPiece cls_attr = StringPiece(get_node_attr(node, <char*>b'class'))
+    cdef StringPiece id_attr = StringPiece(get_node_attr(node, <char*>b'id'))
     if cls_attr.empty() and id_attr.empty():
         return True
 
-    cdef string cls_and_id_attr = cls_attr
-    if not cls_and_id_attr.empty():
-        cls_and_id_attr.push_back(<char>b' ')
-    cls_and_id_attr.append(id_attr)
+    cdef string cls_and_id_attr_str = cls_attr.as_string()
+    if not cls_and_id_attr_str.empty():
+        cls_and_id_attr_str.push_back(<char>b' ')
+    cls_and_id_attr_str.append(id_attr.as_string())
+    cdef StringPiece cls_and_id_attr = StringPiece(cls_and_id_attr_str)
 
     # Hidden elements
     if regex_search_not_empty(cls_attr, display_cls_regex) \
-            or regex_search_not_empty(get_node_attr(node, <char*>b'style'), display_css_regex):
+            or regex_search_not_empty(StringPiece(get_node_attr(node, <char*>b'style')), display_css_regex):
         return False
 
     # Skip links

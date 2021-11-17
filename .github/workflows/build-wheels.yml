@@ -35,7 +35,7 @@ jobs:
         enabled=1
         EOF
 
-        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel boost-devel
+        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel re2-devel
       CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
 
 #      CIBW_ARCHS_MACOS: universal2
@@ -67,7 +67,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-2
+          key: ${{ runner.os }}-vcpkg-3
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -83,7 +83,7 @@ jobs:
             exit 1
           fi
 
-          vcpkg install lz4 lexbor uchardet zlib boost-regex
+          vcpkg install lz4 lexbor uchardet zlib re2
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -161,7 +161,7 @@ jobs:
 
           # Install build dependencies
           sudo apt update -y
-          sudo apt install -y zlib1g-dev liblz4-dev libuchardet-dev liblexbor-dev boost-devel
+          sudo apt install -y zlib1g-dev liblz4-dev libuchardet-dev liblexbor-dev libre2-dev
 
           # Install test dependencies
           python -m pip install cython pytest pytest-cov lz4
