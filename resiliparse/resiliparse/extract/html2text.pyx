@@ -295,18 +295,18 @@ cdef void _extract_end_cb(ExtractContext* ctx):
         _make_block(ctx)
 
 
-cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>wrap(?:per)?)(?:$|[\\s_-])', flag_type.icase)
-cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', flag_type.icase)
+cdef regex wrapper_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>wrap(?>per)?)(?:$|[\\s_-])', flag_type.icase)
+cdef regex nav_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?>bar|igation)?|menu(?>[_-]item)?)(?:$|\\s)', flag_type.icase)
 cdef regex footer_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>footer)(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', flag_type.icase)
 cdef regex sidebar_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>nav(?:igation)?-|menu-|global-)sidebar(?:$|\\s)', flag_type.icase)
-cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>search)(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', flag_type.icase)
-cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', flag_type.icase)
+cdef regex search_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:(?:global|page|site)[_-]?)?(?>search)(?>[_-]?(?>bar|facility|box))?(?:$|\\s)', flag_type.icase)
+cdef regex skip_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?>skip|skip-to|skiplink|scroll-(?>up|down))(?:$|[\\s_-])', flag_type.icase)
 cdef regex display_cls_regex = regex(<char*>b'(?:^|\\s)(?:is[_-])?(?>display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', flag_type.icase)
 cdef regex display_css_regex = regex(<char*>b'(?:^|;\\s)(?>display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', flag_type.icase)
-cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?>footer|sidebar|nav(?:igation)?)$', flag_type.icase)
+cdef regex landmark_id_regex = regex(<char*>b'^(?:global[_-]?)?(?>footer|sidebar|nav(?>igation)?)$', flag_type.icase)
 cdef regex modal_cls_regex = regex(<char*>b'(?:^|\\s)(?>modal|popup|lightbox|dropdown)(?:$|\\s)', flag_type.icase)
 cdef regex ads_cls_regex = regex(<char*>b'(?:^|[\\s_-])(?:google[_-])?(?>ad(?>vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', flag_type.icase)
-cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?>social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', flag_type.icase)
+cdef regex social_cls_regex = regex(<char*>b'(?:^|\\s)(?>social(?>media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', flag_type.icase)
 
 
 cdef inline bint regex_search_not_empty(const string& s, const regex& r):
@@ -366,6 +366,12 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
         cls_and_id_attr.push_back(<char>b' ')
     cls_and_id_attr.append(id_attr)
 
+    # Global footer
+    cdef bint is_last_body_child = True
+    if node.local_name == LXB_TAG_FOOTER or regex_search_not_empty(cls_and_id_attr, footer_cls_regex):
+        if length_to_body < 3:
+            return False
+
     # Wrapper elements (whitelist them, they may contain more specific elements)
     if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search_not_empty(cls_and_id_attr, wrapper_cls_regex):
         return True
@@ -377,12 +383,6 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) except -1:
     # Global navigation with class
     if node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
         if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
-            return False
-
-    # Global footer
-    cdef bint is_last_body_child = True
-    if node.local_name == LXB_TAG_FOOTER or regex_search_not_empty(cls_and_id_attr, footer_cls_regex):
-        if length_to_body < 3:
             return False
 
         # Check if footer is recursive last element node of a direct body child
