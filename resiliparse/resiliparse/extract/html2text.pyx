@@ -319,6 +319,9 @@ cdef inline bint regex_search_not_empty(const string& s, const regex& r) nogil:
 cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     """Check with simple heuristics if node belongs to main content."""
 
+    if not is_block_element(node.local_name):
+        return not _is_unprintable_pua(node)
+
     cdef size_t length_to_body = 0
     cdef lxb_dom_node_t* pnode = node.parent
     while pnode.local_name != LXB_TAG_BODY and pnode.parent:
@@ -535,7 +538,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
                         skip = True
                         break
 
-                if skip or _is_unprintable_pua(ctx.node) or (main_content and not _is_main_content_node(ctx.node)):
+                if skip or (main_content and not _is_main_content_node(ctx.node)):
                     is_end_tag = True
                     ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
                     continue
