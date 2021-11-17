@@ -27,7 +27,7 @@ You can compile Resiliparse either from the `PyPi <https://pypi.org/project/Resi
 
   # Install build dependencies
   sudo apt update
-  sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev
+  sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev libboost-regex-dev
 
 To build and install Resiliparse from PyPi, run
 
