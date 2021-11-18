@@ -160,6 +160,28 @@ def test_ordered_list():
            '    3. G\n      1. H\n      2. I\n  1. J'
 
 
+def test_empty_list_items():
+
+    html = """<body>
+    <ul>
+        <li>A</li>
+        <li><button></button></li>
+        <li><button>abc</button></li>
+        <li></li>
+        <li></li>
+        <li>B</li>
+        <li><button></button></li>
+        <li>    </li>
+    </ul>
+    </body>"""
+
+    tree = HTMLTree.parse(html)
+    assert extract_plain_text(tree.body, list_bullets=False) == \
+           '  A\n  B'
+    assert extract_plain_text(tree.body, list_bullets=True) == \
+           '  \u2022 A\n  \u2022 B'
+
+
 def test_real_word_data():
     # Cannot really compare expected outputs here, so only test that we have no crashes or anything
     i = 0

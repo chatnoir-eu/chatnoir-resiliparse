@@ -215,7 +215,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
                     ctx.text.push_back(move(element_text))
                 return
 
-    if not ctx.opts.preserve_formatting:
+    # All inline and/or empty elements processed, only block elements from here on
+    if not ctx.opts.preserve_formatting or not ctx.node.first_child:
         return
 
     cdef size_t tag_name_len
@@ -302,9 +303,13 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
         predec(ctx.list_depth)
         ctx.list_numbering.pop_back()
 
+    cdef string stripped
     if ctx.node.local_name == LXB_TAG_LI:
         # Clean up empty list items
-        while not ctx.text.empty() and strip_str(ctx.text.back()) == LIST_BULLET:
+        while not ctx.text.empty():
+            stripped = strip_str(ctx.text.back())
+            if not stripped.empty() and stripped != LIST_BULLET:
+                break
             ctx.text.pop_back()
         if not ctx.text.empty() and ctx.text.back().back() != b'\n':
             ctx.text.back().push_back(b'\n')
