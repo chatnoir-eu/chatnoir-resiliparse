@@ -191,7 +191,7 @@ def test_real_word_data():
         tree = HTMLTree.parse_from_bytes(data, rec.http_charset or 'utf-8')
         all = extract_plain_text(tree.body)
         assert all
-        main_content = extract_plain_text(tree.body)
+        main_content = extract_plain_text(tree.body, main_content=True)
         assert main_content
         assert len(all) >= len(main_content)
     assert i > 0
