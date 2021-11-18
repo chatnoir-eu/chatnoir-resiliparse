@@ -177,10 +177,14 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return
 
+    cdef bint last_was_space = not ctx.text.empty() and isspace(ctx.text.back().back())
+
     # Alternative descriptions
     if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
         node_attr_data = get_node_attr_sv(ctx.node, b'alt')
         if not node_attr_data.empty():
+            if not last_was_space:
+                element_text.push_back(b' ')
             element_text.append(_get_collapsed_string(node_attr_data, ctx))
             element_text.push_back(b' ')
             ctx.text.push_back(move(element_text))
@@ -190,6 +194,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     if ctx.opts.form_fields:
         if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
+            if not last_was_space:
+                element_text.push_back(<char>b' ')
             element_text.append(b'[ ')
         elif ctx.node.local_name == LXB_TAG_INPUT:
             node_attr_data = get_node_attr_sv(ctx.node, b'type')
@@ -199,6 +205,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
                 if node_attr_data.empty():
                     node_attr_data = get_node_attr_sv(ctx.node, b'placeholder')
                 if not node_attr_data.empty():
+                    if not last_was_space:
+                        element_text.push_back(<char>b' ')
                     element_text.append(b'[ ')
                     element_text.append(_get_collapsed_string(node_attr_data, ctx))
                     if not isspace(element_text.back()):
