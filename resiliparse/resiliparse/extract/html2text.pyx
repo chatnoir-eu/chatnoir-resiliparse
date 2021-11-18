@@ -21,10 +21,11 @@ from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
 from resiliparse_common.string_util cimport rstrip_str, strip_str
-from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
-from resiliparse.parse.html cimport *
 from resiliparse_inc.cctype cimport isspace
+from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
+from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
+from resiliparse_inc.utility cimport move
 
 
 cdef struct ExtractOpts:
@@ -107,10 +108,13 @@ cdef inline void _make_block(ExtractContext* ctx) nogil:
     if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
         block_creates_newline = True
 
+    cdef string ws
     if not ctx.lstrip_next_block:
-        ctx.text.back().append(b'\n\n' if block_creates_newline else b'\n')
+        ws = <const char*>b'\n\n' if block_creates_newline else <const char*>b'\n'
     if ctx.space_before_next_block:
-        ctx.text.back().push_back(b' ')
+        ws.push_back(b' ')
+    if not ws.empty():
+        ctx.text.push_back(move(ws))
 
 
 cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
@@ -157,7 +161,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
         if not element_text.empty():
-            ctx.text.push_back(element_text)
+            ctx.text.push_back(move(element_text))
         return
 
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -169,7 +173,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         if not node_attr_data.empty():
             element_text.append(_get_collapsed_string(node_attr_data, ctx))
             element_text.push_back(b' ')
-            ctx.text.push_back(element_text)
+            ctx.text.push_back(move(element_text))
         return
 
     # Form field elements
@@ -190,7 +194,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
                     if not isspace(element_text.back()):
                         element_text.push_back(b' ')
                     element_text.append(b'] ')
-                    ctx.text.push_back(element_text)
+                    ctx.text.push_back(move(element_text))
                 return
 
     if not ctx.opts.preserve_formatting:
@@ -234,7 +238,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         ctx.space_before_next_block = True
 
     if not element_text.empty():
-        ctx.text.push_back(element_text)
+        ctx.text.push_back(move(element_text))
 
 
 cdef void _extract_end_cb(ExtractContext* ctx) nogil:
