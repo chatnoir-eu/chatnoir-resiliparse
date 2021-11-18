@@ -162,7 +162,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
         node_char_data = <lxb_dom_character_data_t*>ctx.node
-        if ctx.space_before_next_block:
+        if ctx.space_before_next_block and (ctx.text.empty() or ctx.text.back().back() != b' '):
             element_text.push_back(b' ')
         element_text.append(<const char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(<string_view>element_text, ctx)
