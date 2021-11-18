@@ -67,7 +67,7 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
             element_text.reserve(input_str.size())
             for i in range(input_str.size()):
                 element_text.push_back(input_str[i])
-                if input_str[i] == <char>b'\n':
+                if input_str[i] == b'\n':
                     element_text.append(string(2 * ctx.list_depth + 2, <char>b' '))
             return element_text
         return <string>input_str
@@ -78,7 +78,7 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
         if isspace(input_str[i]):
             if (element_text.empty() and not ctx.text.empty() and not isspace(ctx.text.back().back())) or \
                     (not element_text.empty() and not isspace(element_text.back())):
-                element_text.push_back(<char>b' ')
+                element_text.push_back(b' ')
         else:
             element_text.push_back(input_str[i])
 
@@ -87,7 +87,7 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
     return element_text
 
 
-cdef string LIST_BULLET = <char*>b'\xe2\x80\xa2'
+cdef string LIST_BULLET = <const char*>b'\xe2\x80\xa2'
 
 
 cdef inline void _make_block(ExtractContext* ctx) nogil:
@@ -108,9 +108,9 @@ cdef inline void _make_block(ExtractContext* ctx) nogil:
         block_creates_newline = True
 
     if not ctx.lstrip_next_block:
-        ctx.text.back().append(<char*>b'\n\n' if block_creates_newline else <char*>b'\n')
+        ctx.text.back().append(b'\n\n' if block_creates_newline else b'\n')
     if ctx.space_before_next_block:
-        ctx.text.back().push_back(<char>b' ')
+        ctx.text.back().push_back(b' ')
 
 
 cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
@@ -126,7 +126,7 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
         return False
 
     # Pilcrow character (probably an anchor link)
-    if element_text == <char*>b'\xc2\xb6':
+    if element_text == b'\xc2\xb6':
         return False
 
     # BMP private use area (probably an icon font)
@@ -149,8 +149,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
         node_char_data = <lxb_dom_character_data_t*>ctx.node
         if ctx.space_before_next_block:
-            element_text.push_back(<char>b' ')
-        element_text.append(<char*>node_char_data.data.data, node_char_data.data.length)
+            element_text.push_back(b' ')
+        element_text.append(<const char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(<string_view>element_text, ctx)
         if not rstrip_str(element_text).empty():
             ctx.newline_before_next_block = False
@@ -165,10 +165,10 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
 
     # Alternative descriptions
     if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
-        node_attr_data = get_node_attr_sv(ctx.node, <char*>b'alt')
+        node_attr_data = get_node_attr_sv(ctx.node, b'alt')
         if not node_attr_data.empty():
             element_text.append(_get_collapsed_string(node_attr_data, ctx))
-            element_text.push_back(<char>b' ')
+            element_text.push_back(b' ')
             ctx.text.push_back(element_text)
         return
 
@@ -176,19 +176,18 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     if ctx.opts.form_fields:
         if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
-            element_text.append(<char*>b'[ ')
-        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr_sv(ctx.node, <char*>b'type') not in \
-                [<char*>b'checkbox', <char*>b'color', <char*>b'file', <char*>b'hidden',
-                 <char*>b'radio', <char*>b'reset']:
-            node_attr_data = get_node_attr_sv(ctx.node, <char*>b'value')
+            element_text.append(b'[ ')
+        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr_sv(ctx.node, b'type') not in \
+                [b'checkbox', b'color', b'file', b'hidden', b'radio', b'reset']:
+            node_attr_data = get_node_attr_sv(ctx.node, b'value')
             if node_attr_data.empty():
-                node_attr_data = get_node_attr_sv(ctx.node, <char*>b'placeholder')
+                node_attr_data = get_node_attr_sv(ctx.node, b'placeholder')
             if not node_attr_data.empty():
-                element_text.append(<char*>b'[ ')
+                element_text.append(b'[ ')
                 element_text.append(_get_collapsed_string(node_attr_data, ctx))
                 if not isspace(element_text.back()):
-                    element_text.push_back(<char>b' ')
-                element_text.append(<char*>b'] ')
+                    element_text.push_back(b' ')
+                element_text.append(b'] ')
                 ctx.text.push_back(element_text)
             return
 
@@ -221,12 +220,12 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         element_text.append(string(2 * ctx.list_depth, <char>b' '))
         if ctx.node.local_name != LXB_TAG_LI:
             # Add an additional two spaces if element is not the li element itself
-            element_text.append(<char*>b'  ')
+            element_text.append(b'  ')
 
     # List items
     if ctx.opts.list_bullets and ctx.node.local_name == LXB_TAG_LI:
         if ctx.node.parent.local_name == LXB_TAG_OL:
-            element_text.append(to_string(preinc(ctx.list_numbering.back())) + <char*>b'. ')
+            element_text.append(to_string(preinc(ctx.list_numbering.back())) + <const char*>b'. ')
         else:
             element_text.append(LIST_BULLET)
         ctx.lstrip_next_block = True
@@ -253,12 +252,12 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
     if ctx.opts.form_fields and ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
         ctx.pre_depth -= <int>ctx.node.local_name == LXB_TAG_TEXTAREA
         if not isspace(ctx.text.back().back()):
-            ctx.text.back().push_back(<char>b' ')
-        ctx.text.back().append(<char*>b'] ')
+            ctx.text.back().push_back(b' ')
+        ctx.text.back().append(b'] ')
 
     # Add tabs between table cells
     if ctx.node.local_name in [LXB_TAG_TD, LXB_TAG_TH]:
-        ctx.text.back().append(<char*>b'\t\t')
+        ctx.text.back().append(b'\t\t')
 
     # No additional white space after table rows
     if ctx.node.local_name == LXB_TAG_TR and not ctx.text.empty():
@@ -267,13 +266,13 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
     # Link targets
     cdef string_view link_href
     if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
-        link_href = get_node_attr_sv(ctx.node, <char*>b'href')
+        link_href = get_node_attr_sv(ctx.node, b'href')
         if not link_href.empty():
             if not isspace(ctx.text.back().back()):
-                ctx.text.back().push_back(<char>b' ')
-            ctx.text.back().push_back(<char>b'(')
+                ctx.text.back().push_back(b' ')
+            ctx.text.back().push_back(b'(')
             ctx.text.back().append(_get_collapsed_string(link_href, ctx))
-            ctx.text.back().append(<char*>b')')
+            ctx.text.back().append(b')')
 
     # Lists
     if ctx.node.local_name == LXB_TAG_UL:
@@ -286,8 +285,8 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
         # Clean up empty list items
         while not ctx.text.empty() and strip_str(ctx.text.back()) == LIST_BULLET:
             ctx.text.pop_back()
-        if not ctx.text.empty() and ctx.text.back().back() != <char>b'\n':
-            ctx.text.back().push_back(<char>b'\n')
+        if not ctx.text.empty() and ctx.text.back().back() != b'\n':
+            ctx.text.back().push_back(b'\n')
         # No additional white space after list items
         ctx.newline_before_next_block = False
 
@@ -299,17 +298,17 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
 cdef RE2Options re_opts
 re_opts.set_case_sensitive(False)
 
-cdef RE2 wrapper_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])wrap(?:per)?(?:$|[\\s_-])', re_opts)
-cdef RE2 nav_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', re_opts)
-cdef RE2 footer_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?footer(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', re_opts)
-cdef RE2 sidebar_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])sidebar(?:$|\\s)', re_opts)
-cdef RE2 search_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', re_opts)
-cdef RE2 skip_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', re_opts)
-cdef RE2 display_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', re_opts)
-cdef RE2 display_css_regex = RE2(<const char*>b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', re_opts)
-cdef RE2 modal_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)', re_opts)
-cdef RE2 ads_cls_regex = RE2(<const char*>b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', re_opts)
-cdef RE2 social_cls_regex = RE2(<const char*>b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', re_opts)
+cdef RE2 wrapper_cls_regex = RE2(b'(?:^|[\\s_-])wrap(?:per)?(?:$|[\\s_-])', re_opts)
+cdef RE2 nav_cls_regex = RE2(b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', re_opts)
+cdef RE2 footer_cls_regex = RE2(b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?footer(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', re_opts)
+cdef RE2 sidebar_cls_regex = RE2(b'(?:^|[\\s_-])sidebar(?:$|\\s)', re_opts)
+cdef RE2 search_cls_regex = RE2(b'(?:^|[\\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', re_opts)
+cdef RE2 skip_cls_regex = RE2(b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', re_opts)
+cdef RE2 display_cls_regex = RE2(b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', re_opts)
+cdef RE2 display_css_regex = RE2(b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', re_opts)
+cdef RE2 modal_cls_regex = RE2(b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)', re_opts)
+cdef RE2 ads_cls_regex = RE2(b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', re_opts)
+cdef RE2 social_cls_regex = RE2(b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', re_opts)
 
 
 cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogil:
@@ -337,14 +336,12 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return False
 
     # ARIA hidden
-    if get_node_attr_sv(node, <char*>b'aria-hidden') == <char*>b'true':
+    if get_node_attr_sv(node, b'aria-hidden') == b'true':
         return False
 
     # ARIA roles
-    if get_node_attr_sv(node, <char*>b'role') in [<char*>b'contentinfo', <char*>b'img', <char*>b'menu',
-                                                  <char*>b'menubar', <char*>b'navigation', <char*>b'menuitem',
-                                                  <char*>b'alert', <char*>b'dialog', <char*>b'checkbox',
-                                                  <char*>b'radio']:
+    if get_node_attr_sv(node, b'role') in [b'contentinfo', b'img', b'menu', b'menubar', b'navigation', b'menuitem',
+                                           b'alert', b'dialog', b'checkbox', b'radio']:
         return False
 
     # Block element matching based only on tag name
@@ -378,20 +375,20 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
 
     # ------ Section 2: General class and id matching ------
 
-    cdef StringPiece cls_attr = get_node_attr_sp(node, <char*>b'class')
-    cdef StringPiece id_attr =get_node_attr_sp(node, <char*>b'id')
+    cdef StringPiece cls_attr = get_node_attr_sp(node, b'class')
+    cdef StringPiece id_attr = get_node_attr_sp(node, b'id')
     if cls_attr.empty() and id_attr.empty():
         return True
 
     cdef string cls_and_id_attr_str = cls_attr.as_string()
     if not cls_and_id_attr_str.empty():
-        cls_and_id_attr_str.push_back(<char>b' ')
+        cls_and_id_attr_str.push_back(b' ')
     cls_and_id_attr_str.append(id_attr.as_string())
     cdef StringPiece cls_and_id_attr = StringPiece(cls_and_id_attr_str)
 
     # Hidden elements
     if regex_search_not_empty(cls_attr, display_cls_regex) \
-            or regex_search_not_empty(get_node_attr_sp(node, <char*>b'style'), display_css_regex):
+            or regex_search_not_empty(get_node_attr_sp(node, b'style'), display_css_regex):
         return False
 
     # Skip links
