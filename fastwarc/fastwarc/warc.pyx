@@ -29,10 +29,10 @@ import typing as t
 import uuid
 import warnings
 
+from libcpp.utility cimport move
 from resiliparse_common.string_util cimport str_to_lower, strip_str, strip_c_str
 from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.cstdlib cimport strtol
-from resiliparse_inc.utility cimport move
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
 from fastwarc.stream_io import ReaderStaleError

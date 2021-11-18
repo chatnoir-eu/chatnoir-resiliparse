@@ -18,6 +18,7 @@ from cython.operator cimport preincrement as preinc, predecrement as predec
 from libc.stdint cimport uint32_t
 from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
+from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
 from resiliparse_common.string_util cimport rstrip_str, strip_str
@@ -25,7 +26,6 @@ from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
 from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
-from resiliparse_inc.utility cimport move
 
 
 cdef struct ExtractOpts:
