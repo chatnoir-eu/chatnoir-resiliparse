@@ -177,19 +177,21 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
             ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
             element_text.append(b'[ ')
-        elif ctx.node.local_name == LXB_TAG_INPUT and get_node_attr_sv(ctx.node, b'type') not in \
-                [b'checkbox', b'color', b'file', b'hidden', b'radio', b'reset']:
-            node_attr_data = get_node_attr_sv(ctx.node, b'value')
-            if node_attr_data.empty():
-                node_attr_data = get_node_attr_sv(ctx.node, b'placeholder')
-            if not node_attr_data.empty():
-                element_text.append(b'[ ')
-                element_text.append(_get_collapsed_string(node_attr_data, ctx))
-                if not isspace(element_text.back()):
-                    element_text.push_back(b' ')
-                element_text.append(b'] ')
-                ctx.text.push_back(element_text)
-            return
+        elif ctx.node.local_name == LXB_TAG_INPUT:
+            node_attr_data = get_node_attr_sv(ctx.node, b'type')
+            if node_attr_data.empty() or node_attr_data not in \
+                    [b'checkbox', b'color', b'file', b'hidden', b'radio', b'reset']:
+                node_attr_data = get_node_attr_sv(ctx.node, b'value')
+                if node_attr_data.empty():
+                    node_attr_data = get_node_attr_sv(ctx.node, b'placeholder')
+                if not node_attr_data.empty():
+                    element_text.append(b'[ ')
+                    element_text.append(_get_collapsed_string(node_attr_data, ctx))
+                    if not isspace(element_text.back()):
+                        element_text.push_back(b' ')
+                    element_text.append(b'] ')
+                    ctx.text.push_back(element_text)
+                return
 
     if not ctx.opts.preserve_formatting:
         return
@@ -340,8 +342,9 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return False
 
     # ARIA roles
-    if get_node_attr_sv(node, b'role') in [b'contentinfo', b'img', b'menu', b'menubar', b'navigation', b'menuitem',
-                                           b'alert', b'dialog', b'checkbox', b'radio']:
+    cdef string_view role_attr = get_node_attr_sv(node, b'role')
+    if not role_attr.empty() and role_attr in [b'contentinfo', b'img', b'menu', b'menubar', b'navigation', b'menuitem',
+                                               b'alert', b'dialog', b'checkbox', b'radio']:
         return False
 
     # Block element matching based only on tag name
