@@ -370,6 +370,7 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     # Block element matching based only on tag name
     cdef size_t length_to_body = 0
     cdef lxb_dom_node_t* pnode = node.parent
+    cdef bint footer_is_last_body_child = True
     if is_block:
         while pnode.local_name != LXB_TAG_BODY and pnode.parent:
             preinc(length_to_body)
@@ -380,8 +381,22 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
             return True
 
         # Global footer
-        if node.local_name == LXB_TAG_FOOTER and length_to_body < 3:
-            return False
+        if node.local_name == LXB_TAG_FOOTER:
+            if length_to_body < 3:
+                return False
+
+            # Check if footer is recursive last element node of a direct body child
+            pnode = node
+            while pnode and pnode.parent and pnode.parent.local_name != LXB_TAG_BODY:
+                if pnode.next and pnode.next.type == LXB_DOM_NODE_TYPE_TEXT:
+                    pnode = pnode.next
+                if pnode.next:
+                    # There is at least one more element node
+                    footer_is_last_body_child = False
+                    break
+                pnode = pnode.parent
+            if footer_is_last_body_child:
+                return False
 
         # Global navigation
         if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
@@ -444,22 +459,8 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return True
 
     # Global navigation
-    cdef bint is_last_body_child = True
     if length_to_body < 12 and node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
         if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
-            return False
-
-        # Check if footer is recursive last element node of a direct body child
-        pnode = node
-        while pnode and pnode.parent and pnode.parent.local_name != LXB_TAG_BODY:
-            if pnode.next and pnode.next.type == LXB_DOM_NODE_TYPE_TEXT:
-                pnode = pnode.next
-            if pnode.next:
-                # There is at least one more element node
-                is_last_body_child = False
-                break
-            pnode = pnode.parent
-        if is_last_body_child:
             return False
 
     # Global search bar
