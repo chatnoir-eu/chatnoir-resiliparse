@@ -69,7 +69,7 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
             for i in range(input_str.size()):
                 element_text.push_back(input_str[i])
                 if input_str[i] == b'\n':
-                    element_text.append(string(2 * ctx.list_depth + 2, <char>b' '))
+                    insert_list_indent(element_text, ctx)
             return element_text
         return <string>input_str
 
@@ -91,6 +91,19 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
 cdef string LIST_BULLET = <const char*>b'\xe2\x80\xa2'
 
 
+cdef inline void insert_list_indent(string& element_text, ExtractContext* ctx) nogil:
+    if ctx.list_depth == 0 \
+            or (not element_text.empty() and element_text.back() != b'\n') \
+            or (element_text.empty() and not ctx.text.empty() and ctx.text.back().back() != b'\n'):
+        return
+
+    element_text.append(string(2 * ctx.list_depth, <char>b' '))
+    cdef lxb_dom_node_t* node = ctx.node if ctx.node.type != LXB_DOM_NODE_TYPE_TEXT else ctx.node.parent
+    if ctx.opts.list_bullets and node.local_name != LXB_TAG_LI:
+        # Add an additional two spaces if element is not the li element itself or a direct text child
+        element_text.append(b'  ')
+
+
 cdef inline void _make_block(ExtractContext* ctx) nogil:
     """Make a block start or end by inserting the needed number of linefeeds."""
 
@@ -100,17 +113,14 @@ cdef inline void _make_block(ExtractContext* ctx) nogil:
         if ctx.text.back().empty():
             ctx.text.pop_back()
 
-    if ctx.text.empty():
-        return
-
-    # Headings and paragraphs enforce newlines
-    cdef bint block_creates_newline = ctx.newline_before_next_block
-    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
-        block_creates_newline = True
-
+    cdef bint block_creates_newline = ctx.newline_before_next_block and not ctx.lstrip_next_block
     cdef string ws
-    if not ctx.lstrip_next_block:
+    if not ctx.text.empty() and (not ctx.lstrip_next_block or not ctx.opts.list_bullets):
+        if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
+            block_creates_newline = not ctx.lstrip_next_block
         ws = <const char*>b'\n\n' if block_creates_newline else <const char*>b'\n'
+
+    insert_list_indent(ws, ctx)
     if ctx.space_before_next_block:
         ws.push_back(b' ')
     if not ws.empty():
@@ -208,6 +218,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         if ctx.node.local_name == LXB_TAG_LI:
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
+        if ctx.node.local_name == LXB_TAG_UL and ctx.node.parent and ctx.node.parent.local_name == LXB_TAG_LI:
+            ctx.newline_before_next_block = False
         _make_block(ctx)
 
     # Pre-formatted text
@@ -221,21 +233,16 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
         preinc(ctx.list_depth)
         ctx.list_numbering.push_back(0)
 
-    # List item indents
-    if ctx.opts.list_bullets and ctx.list_depth > 0 and not ctx.text.empty() and ctx.text.back().back() == b'\n':
-        element_text.append(string(2 * ctx.list_depth, <char>b' '))
-        if ctx.node.local_name != LXB_TAG_LI:
-            # Add an additional two spaces if element is not the li element itself
-            element_text.append(b'  ')
-
     # List items
-    if ctx.opts.list_bullets and ctx.node.local_name == LXB_TAG_LI:
-        if ctx.node.parent.local_name == LXB_TAG_OL:
-            element_text.append(to_string(preinc(ctx.list_numbering.back())) + <const char*>b'. ')
-        else:
-            element_text.append(LIST_BULLET)
+    if ctx.node.local_name == LXB_TAG_LI:
+        if ctx.opts.list_bullets:
+            insert_list_indent(element_text, ctx)
+            if ctx.node.parent.local_name == LXB_TAG_OL:
+                element_text.append(to_string(preinc(ctx.list_numbering.back())) + <const char*>b'. ')
+            else:
+                element_text.append(LIST_BULLET)
+            ctx.space_before_next_block = True
         ctx.lstrip_next_block = True
-        ctx.space_before_next_block = True
 
     if not element_text.empty():
         ctx.text.push_back(move(element_text))
@@ -295,6 +302,7 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
             ctx.text.back().push_back(b'\n')
         # No additional white space after list items
         ctx.newline_before_next_block = False
+        ctx.lstrip_next_block = False
 
     # Add newline after block elements if next element is text
     if ctx.node.next and ctx.node.next.type == LXB_DOM_NODE_TYPE_TEXT and is_block_element(ctx.node.local_name):
@@ -539,12 +547,16 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     cdef bint skip = False
     cdef bint is_end_tag = False
 
+    if ctx.node.type == LXB_DOM_NODE_TYPE_DOCUMENT:
+        ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
+        ctx.node = ctx.root_node
+
     with nogil:
         while ctx.node:
             # Skip everything except element and text nodes
             if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
                 is_end_tag = True
-                ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+                ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
                 continue
 
             # Skip unwanted element nodes
@@ -559,7 +571,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
                 if skip or (main_content and not _is_main_content_node(ctx.node)):
                     is_end_tag = True
-                    ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+                    ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
                     continue
 
             if not is_end_tag:
@@ -567,6 +579,6 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
             else:
                 _extract_end_cb(&ctx)
 
-            ctx.node = next_node(base_node.node, ctx.node, &ctx.depth, &is_end_tag)
+            ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
     return ''.join(s.decode() for s in ctx.text).rstrip()
