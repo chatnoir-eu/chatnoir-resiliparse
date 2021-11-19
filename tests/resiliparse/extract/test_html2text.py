@@ -10,6 +10,7 @@ html = """<!doctype html>
 <head>
     <title>Foo</title>
     <meta charset="utf-8">
+    <style>* { margin: 0; }</style>
 </head>
 <body>
     <section id="wrapper">
@@ -27,7 +28,7 @@ html = """<!doctype html>
         <main>
             foo <a href="#foo" hidden>bar</a>
 
-            <p>baz</p>
+            <p>baz<br>bar</p>
 
             <button aria-hidden="true">Click here</button>
             <input type="hidden" value="foo">
@@ -36,6 +37,7 @@ html = """<!doctype html>
             <img src="" alt="Some image">
             <object data="" class="some-class hidden">Cannot display object</object>
         </main>
+        <script language="vbscript" type="text/vbscript">MsgBox("Hello World!")</script>
         <noscript>Sorry, your browser doesn't support VB Script!</noscript>
         <div><div><div><footer id="global-footer">
             Copyright (C) 2021 Foo Bar
@@ -51,44 +53,44 @@ def test_basic_extraction():
     assert extract_plain_text(tree.head) == ''
     assert extract_plain_text(tree.document) == extract_plain_text(tree.body) != ''
     assert extract_plain_text(tree.body, alt_texts=False, preserve_formatting=False) == \
-           "Nav 1 Nav 2 Nav 3 foo bar baz Copyright (C) 2021 Foo Bar"
+           "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
     assert extract_plain_text(tree.body, alt_texts=False, list_bullets=False) == \
-           "  Nav 1\n  Nav 2\n    Nav 3\nfoo bar\n\nbaz\n\nCopyright (C) 2021 Foo Bar"
+           "  Nav 1\n  Nav 2\n    Nav 3\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
     assert extract_plain_text(tree.body, alt_texts=False) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\n\nCopyright (C) 2021 Foo Bar"
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
 
 def test_alt_text_extraction():
     assert extract_plain_text(tree.body, alt_texts=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\n\n" \
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n" \
         "Some image Cannot display object\nCopyright (C) 2021 Foo Bar"
 
 
 def test_link_href_extraction():
     assert extract_plain_text(tree.body, alt_texts=False, links=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar (#foo)\n\nbaz\n\nCopyright (C) 2021 Foo Bar"
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar (#foo)\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
 
 def test_form_field_extraction():
     assert extract_plain_text(tree.body, alt_texts=False, form_fields=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\n\n"\
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n"\
         "[ Click here ] [ Some text ] [ Insert text ]\nCopyright (C) 2021 Foo Bar"
 
 
 def test_noscript_extraction():
     assert extract_plain_text(tree.body, alt_texts=False, noscript=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\n\n" \
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n" \
         "Sorry, your browser doesn't support VB Script!\n" \
         "Copyright (C) 2021 Foo Bar"
 
 
 def test_main_content_extraction():
     assert extract_plain_text(tree.body, alt_texts=False, main_content=True) == \
-           "foo\n\nbaz"
+           "foo\n\nbaz\nbar"
     assert extract_plain_text(tree.body, alt_texts=True, main_content=True) == \
-           "foo\n\nbaz\n\nSome image"
+           "foo\n\nbaz\nbar\n\nSome image"
     assert extract_plain_text(tree.body, alt_texts=False, main_content=True, form_fields=True) == \
-           "foo\n\nbaz\n\n[ Some text ] [ Insert text ]"
+           "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
 def test_pre_formatted():

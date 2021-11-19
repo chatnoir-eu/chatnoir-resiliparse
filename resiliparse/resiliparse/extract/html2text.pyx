@@ -113,6 +113,10 @@ cdef inline void _make_block(ExtractContext* ctx) nogil:
         if ctx.text.back().empty():
             ctx.text.pop_back()
 
+    if not ctx.opts.preserve_formatting and not ctx.text.empty() and ctx.text.back().back() != b' ':
+        ctx.text.back().push_back(<char>b' ')
+        return
+
     cdef bint block_creates_newline = ctx.newline_before_next_block and not ctx.lstrip_next_block
     cdef string ws
     if not ctx.text.empty() and (not ctx.lstrip_next_block or not ctx.opts.list_bullets):
@@ -170,7 +174,6 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
-        if not element_text.empty():
             ctx.text.push_back(move(element_text))
         return
 
@@ -215,8 +218,10 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
                     ctx.text.push_back(move(element_text))
                 return
 
-    # All inline and/or empty elements processed, only block elements from here on
+    # Short-circuit empty blocks (such as <br>, <hr>, or empty <divs>)
     if not ctx.opts.preserve_formatting or not ctx.node.first_child:
+        if is_block_element(ctx.node.local_name):
+            _make_block(ctx)
         return
 
     cdef size_t tag_name_len

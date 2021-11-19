@@ -56,14 +56,14 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
                     and passed back in at each step)
     :returns: next node or ``NULL`` if done
     """
-    cdef bint is_end = end_tag and end_tag[0] == True
+    cdef bint is_end = end_tag and end_tag[0]
 
     if not is_end and node.first_child:
         if depth:
             preinc(depth[0])
         return node.first_child
     else:
-        while node != root_node and not node.next:
+        while not node.next and node != root_node:
             node = node.parent
             if depth:
                 predec(depth[0])
