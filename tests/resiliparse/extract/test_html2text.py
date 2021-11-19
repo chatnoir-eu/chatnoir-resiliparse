@@ -93,6 +93,22 @@ def test_main_content_extraction():
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
+def test_inline_after_block():
+    html = """<body>
+    <div>A</div>B
+    
+    <div>C</div>
+    
+        D
+    
+    <div>E</div><span>F</span>
+    
+    <div>G</div><span>H</span>"""
+
+    tree = HTMLTree.parse(html)
+    assert extract_plain_text(tree.body, list_bullets=False) == '''A\nB\nC\nD\nE\nF\nG\nH'''
+
+
 def test_pre_formatted():
     html = """<body>
     <ul>

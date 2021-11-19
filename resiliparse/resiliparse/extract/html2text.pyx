@@ -104,6 +104,12 @@ cdef inline void insert_list_indent(string& element_text, ExtractContext* ctx) n
         element_text.append(b'  ')
 
 
+cdef inline void _add_space(ExtractContext* ctx) nogil:
+    """Add space if last character is a non-space character."""
+    if not ctx.text.empty() and not isspace(ctx.text.back().back()):
+        ctx.text.back().push_back(<char>b' ')
+
+
 cdef inline void _make_block(ExtractContext* ctx) nogil:
     """Make a block start or end by inserting the needed number of linefeeds."""
 
@@ -113,8 +119,8 @@ cdef inline void _make_block(ExtractContext* ctx) nogil:
         if ctx.text.back().empty():
             ctx.text.pop_back()
 
-    if not ctx.opts.preserve_formatting and not ctx.text.empty() and ctx.text.back().back() != b' ':
-        ctx.text.back().push_back(<char>b' ')
+    if not ctx.opts.preserve_formatting:
+        _add_space(ctx)
         return
 
     cdef bint block_creates_newline = ctx.newline_before_next_block and not ctx.lstrip_next_block
@@ -165,9 +171,10 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     cdef size_t i
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
+        if ctx.space_before_next_block:
+            _add_space(ctx)
+
         node_char_data = <lxb_dom_character_data_t*>ctx.node
-        if ctx.space_before_next_block and (ctx.text.empty() or ctx.text.back().back() != b' '):
-            element_text.push_back(b' ')
         element_text.append(<const char*>node_char_data.data.data, node_char_data.data.length)
         element_text = _get_collapsed_string(<string_view>element_text, ctx)
         if not rstrip_str(element_text).empty():
@@ -175,6 +182,8 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
             ctx.text.push_back(move(element_text))
+        else:
+            _add_space(ctx)
         return
 
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
@@ -316,14 +325,12 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
             if not stripped.empty() and stripped != LIST_BULLET:
                 break
             ctx.text.pop_back()
-        if not ctx.text.empty() and ctx.text.back().back() != b'\n':
-            ctx.text.back().push_back(b'\n')
+
         # No additional white space after list items
         ctx.newline_before_next_block = False
         ctx.lstrip_next_block = False
 
-    # Add newline after block elements if next element is text
-    if ctx.node.next and ctx.node.next.type == LXB_DOM_NODE_TYPE_TEXT and is_block_element(ctx.node.local_name):
+    if is_block_element(ctx.node.local_name):
         _make_block(ctx)
 
 
