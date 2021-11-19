@@ -33,9 +33,14 @@ The Resiliparse collection encompasses the following two modules at the moment:
 The Resiliparse main module with the following subcomponents:
 
 #### Parsing Utilities
-The Resiliparse Parsing Utilities are the largest submodule and provide an extensive (and growing) collection of efficient tools for dealing with encodings and raw protocol payloads, parsing HTML web pages, and preparing them for further processing by extracting structural or semantic information.
+The Resiliparse Parsing Utilities are highly optimized tools for dealing with encodings, detecting content types of raw protocol payloads, parsing HTML web pages, performing language detection, and more.
 
 Main documentation: [Resiliparse Parsing Utilities](https://resiliparse.chatnoir.eu/en/latest/man/parse.html)
+
+#### Extraction Utilities
+The Resiliparse Extraction Utilities are a set of performance-optimized and highly efficient tools for extracting structural or semantic information from noisy raw web data for further processing, such as (main) content extraction / boilerplate removal, schema extraction, general web data cleansing, and more.
+
+Main documentation: [Resiliparse Extraction Utilities](https://resiliparse.chatnoir.eu/en/latest/man/extract.html)
 
 #### Process Guards
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.

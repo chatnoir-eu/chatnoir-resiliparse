@@ -49,7 +49,7 @@ extensions = [
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '*.swp', 'requirements.txt']
 
 autodoc_member_order = 'groupwise'
-
+highlight_language = "none"
 
 # -- Options for HTML output -------------------------------------------------
 

@@ -18,6 +18,7 @@ This is the full table of contents for this documentation:
 
    man/installation
    man/parse
+   man/extract
    man/process-guard
    man/itertools
    man/fastwarc
@@ -28,6 +29,7 @@ This is the full table of contents for this documentation:
    :caption: API Documentation
 
    api/parse
+   api/extract
    api/process-guard
    api/itertools
    api/fastwarc
