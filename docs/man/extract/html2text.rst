@@ -8,7 +8,7 @@ Resiliparse HTML2Text is a very fast and rule-based plain text extractor for HTM
 
 Basic Plain Text Conversion
 ---------------------------
-This is the simplest and fastest way to convert an HTML page to plain text. It will extract all visible text nodes inside the HTML ``<body>``. Only ``<script>``, ``<style>`` and a few other (generally) invisible elements are skipped and very basic ASCII formatting is applied:
+The simplest and fastest way to convert an HTML page to plain text is to use the :func:`~.extract_plain_text` helper without any further parameters. This will extract all visible text nodes inside the HTML document's ``<body>``. Only ``<script>``, ``<style>`` and a few other (generally) invisible elements are skipped and very basic ASCII formatting is applied:
 
 .. code-block:: python
 
@@ -67,7 +67,7 @@ Output:
 
     Copyright (C) 2021 Foo Bar
 
-The function :func:`~.extract.html2text.extract_plain_text` accepts several parameters for customizing the output, such as the extraction of ``alt`` texts (enabled by default), link ``href`` targets, form fields, or ``noscript`` elements.
+For customization of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts several parameters controlling individual aspects of its output, such as the extraction of ``alt`` texts (enabled by default), link ``href`` targets, form fields, or ``noscript`` elements.
 
 .. code-block:: python
 
