@@ -3,7 +3,7 @@
 HTML2Text
 =========
 
-Resiliparse HTML2Text is a very fast and rule-based plain text extractor for HTML pages. HTML2Text uses the :ref:`Resilparse DOM parser <parse-html-manual>`.
+Resiliparse HTML2Text is a very fast and rule-based plain text extractor for HTML pages. HTML2Text uses the :ref:`Resiliparse DOM parser <parse-html-manual>`.
 
 
 Basic Plain Text Conversion
