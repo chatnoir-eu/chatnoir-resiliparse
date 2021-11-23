@@ -276,6 +276,9 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
     if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
         return
 
+    if ctx.text.empty():
+        ctx.text.push_back(<const char*>b'')
+
     # Headings and paragraphs insert newlines
     if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
         ctx.newline_before_next_block = True
@@ -283,6 +286,13 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
     # Pre-formatted text
     if ctx.node.local_name == LXB_TAG_PRE:
         ctx.pre_depth -= 1
+
+    # Lists
+    if ctx.node.local_name == LXB_TAG_UL:
+        predec(ctx.list_depth)
+    elif ctx.node.local_name == LXB_TAG_OL:
+        predec(ctx.list_depth)
+        ctx.list_numbering.pop_back()
 
     # Forms
     if ctx.opts.form_fields and ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
@@ -309,13 +319,6 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
             ctx.text.back().push_back(b'(')
             ctx.text.back().append(_get_collapsed_string(link_href, ctx))
             ctx.text.back().append(b')')
-
-    # Lists
-    if ctx.node.local_name == LXB_TAG_UL:
-        predec(ctx.list_depth)
-    elif ctx.node.local_name == LXB_TAG_OL:
-        predec(ctx.list_depth)
-        ctx.list_numbering.pop_back()
 
     cdef string stripped
     if ctx.node.local_name == LXB_TAG_LI:
