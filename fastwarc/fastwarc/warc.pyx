@@ -583,7 +583,7 @@ cdef class WarcRecord:
             return None
 
         if not self._http_charset.empty():
-            return self._http_charset.decode()
+            return self._http_charset.decode(errors='ignore')
 
         cdef string content_type = self._http_headers.find_header(<char*>b'content-type', <char*>b'')
         cdef size_t pos = content_type.find(<char*>b'charset=')
@@ -597,12 +597,12 @@ cdef class WarcRecord:
 
         self._http_charset = str_to_lower(strip_str(content_type.substr(pos, pos_end)))
         try:
-            codecs.lookup(self._http_charset.decode())
+            codecs.lookup(self._http_charset.decode(errors='ignore'))
         except LookupError:
             self._http_charset = <char*>b'_'
             return None
 
-        return self._http_charset.decode()
+        return self._http_charset.decode(errors='ignore')
 
     @property
     def content_length(self) -> int:
