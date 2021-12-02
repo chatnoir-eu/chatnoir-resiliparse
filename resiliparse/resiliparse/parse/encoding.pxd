@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from libcpp.string cimport string
+from libcpp.vector cimport vector
 from resiliparse_inc.uchardet cimport uchardet_t
 
 cdef class EncodingDetector:
@@ -24,3 +25,9 @@ cdef class EncodingDetector:
 cpdef str detect_encoding(bytes data, size_t max_len=*, bint html5_compatible=*, bint from_html_meta=*)
 cpdef str bytes_to_str(bytes data, str encoding=*, str errors=*, fallback_encodings=*, bint strip_bom=*)
 cpdef str map_encoding_to_html5(str encoding, bint fallback_utf8=*)
+
+cdef extern from "encoding.h" nogil:
+    ctypedef struct mime_bytes_t:
+        string magic_bytes
+        string mime_type
+    cdef vector[mime_bytes_t] MIME_BYTES

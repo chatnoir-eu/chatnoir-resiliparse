@@ -18,6 +18,7 @@ import atexit
 import codecs
 import typing as t
 
+from cython.operator cimport preincrement as preinc
 from libcpp.string cimport string
 
 from resiliparse_inc.lexbor cimport lxb_char_t, lxb_status_t, lxb_html_encoding_t, lxb_html_encoding_entry_t, \
@@ -349,3 +350,33 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
             pass
 
     return data.decode(__map_utf(encoding, data, strip_bom), errors=errors).encode(errors=errors).decode()
+
+
+cpdef str detect_mime(bytes data):
+    """
+    detect_mime(data)
+    
+    Try to detect common internet MIME types based on the initial magic byte sequence of ``data``.
+    
+    The check is very basic and only checks the starting bytes as well as the number of unprintable
+    bytes. It does not replace a full-blown MIME type detection engine like Apache Tika at the moment.
+    
+    :param data: input bytes
+    :type data: bytes
+    :return: MIME type
+    :rtype: str
+    """
+
+    cdef size_t i
+    for i in range(MIME_BYTES.size()):
+        if data.startswith(MIME_BYTES[i].magic_bytes):
+            return MIME_BYTES[i].mime_type.decode()
+
+    cdef size_t unprintable = 0
+    for i in range(<size_t>len(data)):
+        if 0x00 <= data[i] <= 0x1f or 0x7f <= data[i] <= 0xff:
+            preinc(unprintable)
+        if unprintable > 0 and unprintable > <size_t>(len(data) * 0.03):
+            return 'application/octet-stream'
+
+    return 'text/plain'

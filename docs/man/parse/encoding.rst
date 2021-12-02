@@ -100,3 +100,19 @@ With :func:`~.parse.encoding.bytes_to_str`, these issues can be avoided:
 
   # But even without fallbacks, we get 'ઉ笞', which can at least be re-encoded as UTF-8
   bytes_to_str(b'+Condensed', 'utf-7', fallback_encodings=[])
+
+.. _parse-detect-mime:
+
+Detect MIME Types
+-----------------
+Resiliparse has a very simple and fast MIME type detector for detecting common internet MIME types based on their initial magic byte signatures and the ratio of unprintable bytes:
+
+.. code-block:: python
+
+    from resiliparse.parse.encoding import detect_mime
+
+    print(detect_mime(b'%PDF-1.5\n%\xd0\xd4\xc5\xd8'))  # application/pdf
+    print(detect_mime(b'Hello world'))                  # text/plain
+    print(detect_mime(b'Hello \x00\x0f\x00world'))      # application/octet-stream
+
+The Resiliparse MIME type detector is very basic and should be used only as a quick check to determine if a byte string looks roughly like the MIME type you expect. If you need more accurate MIME type detection, you should resort to other libraries, such as Apache Tika.
