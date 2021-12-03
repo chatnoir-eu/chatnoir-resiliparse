@@ -63,6 +63,8 @@ def test_mime_detect():
         (b'<?xml version="1.0" encoding="UTF-8"?>\n'
             b'<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
             'application/xhtml+xml'),
+        (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<svg version="1.1" width="300" height="200"',
+            'image/svg+xml'),
         (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
             b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
             'image/svg+xml'),

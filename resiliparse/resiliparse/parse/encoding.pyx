@@ -373,11 +373,12 @@ cpdef str detect_mime(bytes data, float max_unprintable=0.05):
     cdef bytes data_strip = data[:128].lstrip()
     for i in range(MIME_BYTES.size()):
         if data.startswith(MIME_BYTES[i].magic_bytes) or data_strip.startswith(MIME_BYTES[i].magic_bytes):
-            if MIME_BYTES[i].mime_type in [b'application/xml', b'text/html']:
+            if MIME_BYTES[i].mime_type in [b'text/html', b'application/xml']:
                 if data_strip.find(b'"-//W3C//DTD XHTML') > -1:
                     return 'application/xhtml+xml'
-                if data_strip.find(b'"-//W3C//DTD SVG') > -1:
-                    return 'image/svg+xml'
+                if MIME_BYTES[i].mime_type == b'application/xml':
+                    if data_strip.find(b'"-//W3C//DTD SVG') > -1 or data_strip.find(b'<svg ') > -1:
+                        return 'image/svg+xml'
             return MIME_BYTES[i].mime_type.decode()
 
     cdef size_t unprintable = 0
