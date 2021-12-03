@@ -377,7 +377,7 @@ cpdef str detect_mime(bytes data, float max_unprintable=0.05):
                 if data_strip.find(b'"-//W3C//DTD XHTML') > -1:
                     return 'application/xhtml+xml'
                 if MIME_BYTES[i].mime_type == b'application/xml':
-                    if data_strip.find(b'"-//W3C//DTD SVG') > -1 or data_strip.find(b'<svg ') > -1:
+                    if data_strip.find(b'<svg ') > -1 or data_strip.find(b'"-//W3C//DTD SVG') > -1:
                         return 'image/svg+xml'
             return MIME_BYTES[i].mime_type.decode()
 
