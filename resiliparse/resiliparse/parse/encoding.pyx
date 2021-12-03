@@ -354,7 +354,7 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
 
 cpdef str detect_mime(bytes data, float max_unprintable=0.05):
     """
-    detect_mime(data)
+    detect_mime(data, max_unprintable=0.05)
     
     Try to detect common internet MIME types based on the initial magic byte sequence of ``data``.
     
