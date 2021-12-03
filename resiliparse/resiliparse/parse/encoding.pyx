@@ -352,7 +352,7 @@ cpdef str bytes_to_str(bytes data, str encoding='utf-8', str errors='ignore',
     return data.decode(__map_utf(encoding, data, strip_bom), errors=errors).encode(errors=errors).decode()
 
 
-cpdef str detect_mime(bytes data):
+cpdef str detect_mime(bytes data, float max_unprintable=0.05):
     """
     detect_mime(data)
     
@@ -363,20 +363,28 @@ cpdef str detect_mime(bytes data):
     
     :param data: input bytes
     :type data: bytes
-    :return: MIME type
+    :param max_unprintable: maximum allowable ratio of unprintable characters for text
+    :type max_unprintable: float
+    :return: detected MIME type
     :rtype: str
     """
 
     cdef size_t i
+    cdef bytes data_strip = data[:128].lstrip()
     for i in range(MIME_BYTES.size()):
-        if data.startswith(MIME_BYTES[i].magic_bytes):
+        if data.startswith(MIME_BYTES[i].magic_bytes) or data_strip.startswith(MIME_BYTES[i].magic_bytes):
+            if MIME_BYTES[i].mime_type in [b'application/xml', b'text/html']:
+                if data_strip.find(b'"-//W3C//DTD XHTML') > -1:
+                    return 'application/xhtml+xml'
+                if data_strip.find(b'"-//W3C//DTD SVG') > -1:
+                    return 'image/svg+xml'
             return MIME_BYTES[i].mime_type.decode()
 
     cdef size_t unprintable = 0
     for i in range(<size_t>len(data)):
         if 0x00 <= data[i] <= 0x1f or 0x7f <= data[i] <= 0xff:
             preinc(unprintable)
-        if unprintable > 0 and unprintable > <size_t>(len(data) * 0.03):
+        if unprintable > 0 and unprintable > <size_t>(len(data) * max_unprintable):
             return 'application/octet-stream'
 
     return 'text/plain'

@@ -57,8 +57,17 @@ def test_mime_detect():
         (b'\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00', 'application/x-elf'),
         (b'Hello world', 'text/plain'),
         (b'<!doctype html>', 'text/html'),
+        (b'      \t\n<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">', 'text/html'),
+        (b'<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
+            'application/xhtml+xml'),
+        (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
+            'application/xhtml+xml'),
+        (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+            b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
+            'image/svg+xml'),
         (b'\n<!doctype html>', 'text/html'),
-        (b'<?xml encoding="utf-8"?>', 'text/xml'),
+        (b'<?xml encoding="utf-8"?>', 'application/xml'),
         (b'Hello \x00\x0f\x00world', 'application/octet-stream')
     ]
 
