@@ -46,6 +46,7 @@ cdef struct ExtractContext:
     vector[size_t] list_numbering
     size_t space_before_next_block
     size_t newline_before_next_block
+    size_t tab_before_next_block
     size_t lstrip_next_block
     vector[string] text
     ExtractOpts opts
@@ -107,7 +108,10 @@ cdef inline void insert_list_indent(string& element_text, ExtractContext* ctx) n
 cdef inline void _add_space(ExtractContext* ctx) nogil:
     """Add space if last character is a non-space character."""
     if not ctx.text.empty() and not isspace(ctx.text.back().back()):
-        ctx.text.back().push_back(<char>b' ')
+        if ctx.tab_before_next_block:
+            ctx.text.back().append(<char*>b'\t\t')
+        else:
+            ctx.text.back().push_back(<char>b' ')
 
 
 cdef inline void _make_block(ExtractContext* ctx) nogil:
@@ -171,7 +175,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
     cdef size_t i
 
     if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
-        if ctx.space_before_next_block:
+        if ctx.space_before_next_block or ctx.tab_before_next_block:
             _add_space(ctx)
 
         node_char_data = <lxb_dom_character_data_t*>ctx.node
@@ -181,6 +185,7 @@ cdef void _extract_start_cb(ExtractContext* ctx) nogil:
             ctx.newline_before_next_block = False
             ctx.lstrip_next_block = False
             ctx.space_before_next_block = False
+            ctx.tab_before_next_block = False
             ctx.text.push_back(move(element_text))
         else:
             _add_space(ctx)
@@ -301,13 +306,16 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
             ctx.text.back().push_back(b' ')
         ctx.text.back().append(b'] ')
 
-    # Add tabs between table cells
+    # Strip whitespace between table cells
     if ctx.node.local_name in [LXB_TAG_TD, LXB_TAG_TH]:
-        ctx.text.back().append(b'\t\t')
+        ctx.tab_before_next_block = True
+        ctx.lstrip_next_block = True
 
     # No additional white space after table rows
     if ctx.node.local_name == LXB_TAG_TR and not ctx.text.empty():
+        ctx.tab_before_next_block = False
         ctx.newline_before_next_block = False
+        ctx.lstrip_next_block = False
 
     # Link targets
     cdef string_view link_href
@@ -557,6 +565,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     ctx.pre_depth = 0
     ctx.space_before_next_block = False
     ctx.newline_before_next_block = False
+    ctx.tab_before_next_block = False
     ctx.lstrip_next_block = False
     ctx.opts = [
         preserve_formatting,
