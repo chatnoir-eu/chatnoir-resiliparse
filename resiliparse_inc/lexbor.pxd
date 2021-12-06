@@ -411,8 +411,8 @@ cdef extern from "<lexbor/css/css.h>" nogil:
     lxb_css_parser_t * lxb_css_parser_create()
     lxb_status_t lxb_css_parser_init(lxb_css_parser_t *parser, lxb_css_syntax_tokenizer_t *tkz, lexbor_mraw_t *mraw)
     lxb_css_parser_t * lxb_css_parser_destroy(lxb_css_parser_t *parser, bint self_destroy)
-    lxb_css_log_serialize(lxb_css_log_t *log, lexbor_serialize_cb_f cb, void *ctx,
-                          const lxb_char_t *indent, size_t indent_length)
+    lxb_status_t lxb_css_log_serialize(lxb_css_log_t *log, lexbor_serialize_cb_f cb, void *ctx,
+                                       const lxb_char_t *indent, size_t indent_length)
 
 
 cdef extern from "<lexbor/tag/tag.h>" nogil:
