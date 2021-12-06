@@ -19,6 +19,7 @@ import typing as t
 cimport cython
 from cython.operator cimport preincrement as preinc, predecrement as predec
 from cpython.ref cimport PyObject
+from libcpp.set cimport set as stl_set
 
 from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
@@ -1847,12 +1848,20 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
             node = next_node(base_node.node, node, &depth, is_end_tag_ptr)
 
 
-cdef bint is_block_element(lxb_tag_id_t tag_id) nogil:
+cdef stl_set[lxb_tag_id_t] BLOCK_ELEMENT_SET
+
+cdef inline void _init_block_element_set() nogil:
+    if not BLOCK_ELEMENT_SET.empty():
+        return
+    cdef size_t i
+    for i in range(NUM_BLOCK_ELEMENTS):
+        BLOCK_ELEMENT_SET.insert(BLOCK_ELEMENTS[i])
+
+_init_block_element_set()
+
+
+cdef inline bint is_block_element(lxb_tag_id_t tag_id) nogil:
     """
     Check whether an element is a block-level element.
     """
-    cdef size_t i
-    for i in range(NUM_BLOCK_ELEMENTS):
-        if BLOCK_ELEMENTS[i] == tag_id:
-            return True
-    return False
+    return BLOCK_ELEMENT_SET.find(tag_id) != BLOCK_ELEMENT_SET.end()
