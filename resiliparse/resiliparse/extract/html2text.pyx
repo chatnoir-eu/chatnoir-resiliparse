@@ -155,7 +155,7 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
 
     # Pilcrow character (probably an anchor link)
     if element_text == b'\xc2\xb6':
-        return False
+        return True
 
     # BMP private use area (probably an icon font)
     cdef uint32_t cp = 0
