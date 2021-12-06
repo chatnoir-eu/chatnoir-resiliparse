@@ -175,6 +175,10 @@ def test_selection():
     assert tree.body.matches('.bar')
     assert not tree.body.matches('.barbaz')
 
+    # Invalid CSS selector
+    with pytest.raises(ValueError):
+        tree.body.query_selector('..abc')
+
 
 def test_collection():
     tree = HTMLTree.parse(html)

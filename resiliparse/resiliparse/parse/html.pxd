@@ -22,6 +22,13 @@ cdef inline bint check_node(DOMNode node):
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
+cdef bint init_css_parser(lxb_css_parser_t** parser) except 0
+cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil
+cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
+                             lxb_selectors_t** selectors) except 0
+cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selectors_t* selectors) nogil
+cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
+                                                  size_t selector_len) except NULL
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*) nogil
@@ -54,9 +61,10 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes
                                                      size_t init_size=*, bint case_insensitive=*)
 cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=*)
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name)
-cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
+cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
+                                         bytes selector) except <lxb_dom_node_t*>-1
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
-                                                   size_t init_size=*)
+                                                   size_t init_size=*) except <lxb_dom_collection_t*>-1
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
 
 cdef extern from "html.h" nogil:

@@ -16,6 +16,7 @@
 
 from cython.operator cimport preincrement as preinc, predecrement as predec
 from libc.stdint cimport uint32_t
+from libcpp.set cimport set as stl_set
 from libc.string cimport memcpy
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
@@ -506,9 +507,15 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     return True
 
 
-def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=False, bint list_bullets=True,
-                       bint alt_texts=True, bint links=False, bint form_fields=False, bint noscript=False,
-                       skip_elements=None):
+cdef inline lxb_status_t _blacklist_select_cb(lxb_dom_node_t *node,
+                                              lxb_css_selector_specificity_t *spec, void *ctx) nogil:
+    (<stl_set[lxb_dom_node_t*]*>ctx).insert(node)
+    return LXB_STATUS_OK
+
+
+def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=False,
+                       bint list_bullets=True,  bint alt_texts=True, bint links=False, bint form_fields=False,
+                       bint noscript=False, skip_elements=None):
     """
     extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=False, \
         list_bullets=True, alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
@@ -539,7 +546,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     :param form_fields: extract form fields and their values
     :type form_fields: bool
     :param noscript: extract contents of <noscript> elements
-    :param skip_elements: names of elements to skip (defaults to ``head``, ``script``, ``style``)
+    :param skip_elements: list of CSS selectors for elements to skip (defaults to ``head``, ``script``, ``style``)
     :type skip_elements: t.Iterable[str] or None
     :type noscript: bool
     :return: extracted plain text
@@ -548,15 +555,14 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     if not check_node(base_node):
         return ''
 
-    skip_elements = {e.encode() for e in skip_elements or []}
-    if not skip_elements:
-        skip_elements = {b'head', b'script', b'style'}
+    skip_selectors = {e.encode() for e in skip_elements or []}
+    skip_selectors.update({b'script', b'style'})
     if not alt_texts:
-        skip_elements.update({b'object', b'video', b'audio', b'embed' b'img', b'area'})
+        skip_selectors.update({b'object', b'video', b'audio', b'embed' b'img', b'area'})
     if not noscript:
-        skip_elements.add(b'noscript')
+        skip_selectors.add(b'noscript')
     if not form_fields:
-        skip_elements.update({b'textarea', b'input', b'button'})
+        skip_selectors.update({b'textarea', b'input', b'button'})
 
     cdef ExtractContext ctx
     ctx.root_node = base_node.node
@@ -577,7 +583,6 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
     ctx.node = base_node.node
 
-    cdef vector[string] skip_elements_vec = list(skip_elements)
     cdef const lxb_char_t* tag_name = NULL
     cdef size_t tag_name_len
     cdef string tag_name_str
@@ -589,6 +594,24 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
         ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
         ctx.node = ctx.root_node
 
+    cdef lxb_css_parser_t* css_parser = NULL
+    cdef lxb_css_selectors_t* css_selectors = NULL
+    cdef lxb_selectors_t* selectors = NULL
+
+    cdef lxb_css_selector_list_t* selector_list = NULL
+    cdef stl_set[lxb_dom_node_t*] node_blacklist
+    try:
+        # Select all blacklisted elements and save them in an ordered set
+        init_css_parser(&css_parser)
+        init_css_selectors(css_parser, &css_selectors, &selectors)
+        combined_skip_sel = b','.join(skip_selectors)
+        selector_list = parse_css_selectors(css_parser, <lxb_char_t*>combined_skip_sel, len(combined_skip_sel))
+        lxb_selectors_find(selectors, ctx.root_node, selector_list,
+                           <lxb_selectors_cb_f>_blacklist_select_cb, &node_blacklist)
+    finally:
+        destroy_css_selectors(css_selectors, selectors)
+        destroy_css_parser(css_parser)
+
     with nogil:
         while ctx.node:
             # Skip everything except element and text nodes
@@ -597,20 +620,17 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
                 ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
                 continue
 
-            # Skip unwanted element nodes
-            if ctx.node.type == LXB_DOM_NODE_TYPE_ELEMENT:
-                tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
-                tag_name_str = string(<const char*>tag_name, tag_name_len)
-                skip = False
-                for i in range(skip_elements_vec.size()):
-                    if skip_elements_vec[i] == tag_name_str:
-                        skip = True
-                        break
+            if ctx.node.local_name == LXB_TAG_HEAD:
+                is_end_tag = True
+                ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
+                continue
 
-                if skip or (main_content and not _is_main_content_node(ctx.node)):
-                    is_end_tag = True
-                    ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
-                    continue
+            # Skip blacklisted or non-main-content nodes
+            if node_blacklist.find(ctx.node) != node_blacklist.end() or \
+                    (main_content and not _is_main_content_node(ctx.node)):
+                is_end_tag = True
+                ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
+                continue
 
             if not is_end_tag:
                 _extract_start_cb(&ctx)
