@@ -349,17 +349,23 @@ cdef void _extract_end_cb(ExtractContext* ctx) nogil:
 cdef RE2Options re_opts
 re_opts.set_case_sensitive(False)
 
-cdef RE2 wrapper_cls_regex = RE2(b'(?:^|[\\s_-])wrap(?:per)?(?:$|[\\s_-])', re_opts)
-cdef RE2 nav_cls_regex = RE2(b'(?:^|[\\s_-])(?:nav(?:bar|igation)?|menu(?:[_-]item)?)(?:$|\\s)', re_opts)
-cdef RE2 footer_cls_regex = RE2(b'(?:^|\\s)(?:(?:global|page|site|copyright)[_-]?)?footer(?:[_-]?(?:section|wrapper)?)(?:^|\\s)', re_opts)
-cdef RE2 sidebar_cls_regex = RE2(b'(?:^|[\\s_-])sidebar(?:$|\\s)', re_opts)
-cdef RE2 search_cls_regex = RE2(b'(?:^|[\\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\\s)', re_opts)
-cdef RE2 skip_cls_regex = RE2(b'(?:^|[\\s_-])(?:skip|skip-to|skiplink|scroll-(?:up|down))(?:$|[\\s_-])', re_opts)
-cdef RE2 display_cls_regex = RE2(b'(?:^|\\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0)(?:-xs|-sm|-lg|-xl)?(?:$|\\s)', re_opts)
-cdef RE2 display_css_regex = RE2(b'(?:^|;\\s)(?:display\\s?:\\s?none|visibility\\s?:\\s?hidden)(?:$|\\s?;)', re_opts)
-cdef RE2 modal_cls_regex = RE2(b'(?:^|\\s)(?:modal|popup|lightbox|dropdown)(?:$|\\s)', re_opts)
-cdef RE2 ads_cls_regex = RE2(b'(?:^|[\\s_-])(?:google[_-])?(?:ad(?:vert|vertisement)?|widead|banner|promoted)(?:[_-][a-f0-9]+)?(?:$|\\s)', re_opts)
-cdef RE2 social_cls_regex = RE2(b'(?:^|\\s)(?:social(?:media)?|share|sharing|feedback|facebook|twitter)(?:[_-](?:links|section))?(?:$|\\s)', re_opts)
+cdef RE2 article_cls_regex = RE2(rb'(?:^|[\s_-])(?:article|entry|post|story|single[_-]?post|main)(?:content|body|text|page)?(?:$|[\s_-])', re_opts)
+cdef RE2 nav_cls_regex = RE2(rb'(?:^|\s)(?:[a-z]-)?(?:(?:main|site|page|sub|article)[_-]*)?(?:nav(?:bar|igation|box)?|menu(?:[_-]item)?|dropdown|bread[_-]?crumbs?)|(?:link[_-]?(?:list|container))(?:$|[\s_-])', re_opts)
+cdef RE2 recommended_cls_regex = RE2(rb'(?:^|[\s_-])(?:trends|trending|recommended|popular|editorial|editors?[_-]picks|(?:related|more)[_-]?(?:links|articles|posts|guides|stories))(?:$|[\s_-])', re_opts)
+cdef RE2 header_cls_regex = RE2(rb'(?:^|\s)(?:[a-z]-)?(?:global|page|site|full)[_-]*header|header[_-](?:wrap(?:per)?|bar)(?:$|\s)', re_opts)
+cdef RE2 footer_cls_regex = RE2(rb'(?:^|[\s_-])(?:global|page|site|copyright)?(?:footer|copyright|cookie|consent|legal)(?:$|[\s_-])', re_opts)
+cdef RE2 post_meta_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:post|entry|article(?:page)?|content|story|section)[_-]*(?:text[_-]*)?(?:footer|teaser|meta|subline|sidebar|author(?:name)?|published|timestamp|date|posted[_-]?on|info|labels?|tags?|keywords|category)|byline|author-date)(?:$|[\s_-])', re_opts)
+cdef RE2 sidebar_cls_regex = RE2(rb'(?:^|\s)(?:[a-z]-)?(?:right|left|global)?sidebar(?:$|[\s_-])', re_opts)
+cdef RE2 search_cls_regex = RE2(rb'(?:^|[\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\s)', re_opts)
+cdef RE2 skip_link_cls_regex = RE2(rb'(?:^|\s)(?:skip(?:[_-]?(?:to|link))|scroll[_-]?(?:up|down)|next|prev(?:ious)?|permalink|pagination)(?:$|\s|[_-]?(?:post|article))', re_opts)
+cdef RE2 display_cls_regex = RE2(rb'(?:^|\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0|nocontent|expandable)(?:-xs|-sm|-lg|-2?xl)?(?:$|\s)', re_opts)
+cdef RE2 display_css_regex = RE2(rb'(?:^|;\s*)(?:display\s?:\s?none|visibility\s?:\s?hidden)(?:$|\s?;)', re_opts)
+cdef RE2 modal_cls_regex = RE2(rb'(?:^|\s)(?:modal|popup|lightbox|gallery)(?:[_-]*(?:window|pane|box))?(?:$|[\s_-])', re_opts)
+cdef RE2 signin_cls_regex = RE2(rb'(?:^|\s)(?:(?:log[_-]?in|sign[_-]?(?:in|up)|account)|user[_-](?:info|profile|settings))(?:$|[\s_-])', re_opts)
+cdef RE2 ads_cls_regex = RE2(rb'(?:^|\s)(?:)?(?:(?:google|wide)[_-]?ad|ad(?:vert|vertise(?:|ment|link)|$|_[a-f0-9]+)|sponsor(?:ed)?|promoted|paid|(?:wide)?banner|donate)(?:$|[\s_-])', re_opts)
+cdef RE2 social_cls_regex = RE2(rb'(?:^|\s|__|--)(?:[a-z]-)?(?:social(?:media|search)?|share(?:daddy)?|syndication|newsletter|sharing|likes?|(?:give[_-]?)?feedback|(?:brand[_-])?engagement|facebook|twitter|subscribe|wabtn|jp-)(?:[_-]?(?:post|links?|section|icons?))?(?:$|[\s_-])', re_opts)
+cdef RE2 comments_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:article|user|post)[_-]*)?(?:(?:no[_-]?)?comments?|comment[_-]?list|reply)(?:$|[\s_-])', re_opts)
+cdef RE2 logo_cls_regex = RE2(rb'(?:^|[\s_-])(?:brand[_-]*)?logo(?:$|\s)', re_opts)
 
 
 cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogil:
@@ -368,10 +374,13 @@ cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogi
     return PartialMatch(s, r())
 
 
-cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
+cdef bint _is_main_content_node(lxb_dom_node_t* node, bint allow_comments) nogil:
     """Check with simple heuristics if node belongs to main content."""
 
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        return True
+
+    if node.local_name == LXB_TAG_BODY:
         return True
 
     cdef bint is_block = is_block_element(node.local_name)
@@ -386,25 +395,41 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <lxb_char_t*>b'hidden', 6):
         return False
 
+    # rel attributes
+    cdef string_view rel_attr = get_node_attr_sv(node, b'rel')
+    if not rel_attr.empty() and rel_attr in [b'bookmark', b'author', b'icon', b'search', b'prev', b'next']:
+        return False
+
+    # itemprop attributes
+    cdef string_view itemprop_attr = get_node_attr_sv(node, b'itemprop')
+    if not itemprop_attr.empty() and itemprop_attr in [b'datePublished', b'author', b'url']:
+        return False
+
     # ARIA hidden
     if get_node_attr_sv(node, b'aria-hidden') == b'true':
+        return False
+
+    # ARIA expanded
+    if get_node_attr_sv(node, b'aria-expanded') == b'false':
         return False
 
     # ARIA roles
     cdef string_view role_attr = get_node_attr_sv(node, b'role')
     if not role_attr.empty() and role_attr in [b'contentinfo', b'img', b'menu', b'menubar', b'navigation', b'menuitem',
-                                               b'alert', b'dialog', b'checkbox', b'radio']:
+                                               b'alert', b'dialog', b'checkbox', b'radio', b'complementary']:
         return False
 
     # Block element matching based only on tag name
     cdef size_t length_to_body = 0
-    cdef lxb_dom_node_t* pnode = node.parent
+    cdef lxb_dom_node_t* pnode = node
     cdef bint footer_is_last_body_child = True
-    if is_block:
+
+    if is_block or node.local_name == LXB_TAG_A:
         while pnode.local_name != LXB_TAG_BODY and pnode.parent:
             preinc(length_to_body)
             pnode = pnode.parent
 
+    if is_block:
         # Main elements
         if node.local_name == LXB_TAG_MAIN:
             return True
@@ -428,11 +453,11 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
                 return False
 
         # Global navigation
-        if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 3:
+        if node.local_name in [LXB_TAG_UL, LXB_TAG_NAV] and length_to_body < 8:
             return False
 
         # Global aside
-        if node.local_name == LXB_TAG_ASIDE and length_to_body < 3:
+        if node.local_name == LXB_TAG_ASIDE and length_to_body < 8:
             return False
 
         # Iframes
@@ -459,11 +484,25 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
         return False
 
     # Skip links
-    if node.local_name in [LXB_TAG_A, LXB_TAG_SPAN, LXB_TAG_LI] and regex_search_not_empty(cls_attr, skip_cls_regex):
+    if node.local_name in [LXB_TAG_A, LXB_TAG_DIV, LXB_TAG_LI] and \
+            regex_search_not_empty(cls_and_id_attr, skip_link_cls_regex):
         return False
 
-    # Social media and feedback forms
-    if regex_search_not_empty(cls_attr, social_cls_regex):
+    if length_to_body > 2:
+        # Sign-in links
+        if regex_search_not_empty(cls_attr, signin_cls_regex):
+            return False
+
+        # Post meta
+        if regex_search_not_empty(cls_attr, post_meta_cls_regex):
+            return False
+
+        # Social media and feedback forms
+        if regex_search_not_empty(cls_attr, social_cls_regex):
+            return False
+
+    # Logos
+    if regex_search_not_empty(cls_and_id_attr, logo_cls_regex):
         return False
 
     # Ads
@@ -479,25 +518,36 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node) nogil:
     if not is_block:
         return True
 
-    # Global footer
-    if regex_search_not_empty(cls_and_id_attr, footer_cls_regex) and length_to_body < 8:
-        return False
-
-    # Wrapper elements (whitelist them, they may contain more specific elements)
-    if node.local_name in [LXB_TAG_SECTION, LXB_TAG_DIV] and regex_search_not_empty(cls_and_id_attr, wrapper_cls_regex):
+    # Whitelist article elements
+    if regex_search_not_empty(cls_and_id_attr, article_cls_regex):
         return True
 
+    # Global header
+    if regex_search_not_empty(cls_and_id_attr, header_cls_regex):
+        return False
+
+    # Global footer
+    if regex_search_not_empty(cls_and_id_attr, footer_cls_regex):
+        return False
+
     # Global navigation
-    if length_to_body < 12 and node.local_name in [LXB_TAG_UL, LXB_TAG_HEADER, LXB_TAG_NAV, LXB_TAG_SECTION]:
-        if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
-            return False
+    if regex_search_not_empty(cls_and_id_attr, nav_cls_regex):
+        return False
+
+    # Recommended articles
+    if regex_search_not_empty(cls_and_id_attr, recommended_cls_regex):
+        return False
+
+    # Comments section
+    if not allow_comments and node.local_name and regex_search_not_empty(cls_and_id_attr, comments_cls_regex):
+        return False
 
     # Global search bar
     if regex_search_not_empty(cls_and_id_attr, search_cls_regex):
         return False
 
     # Global sidebar
-    if length_to_body < 4 and regex_search_not_empty(cls_and_id_attr, sidebar_cls_regex):
+    if regex_search_not_empty(cls_and_id_attr, sidebar_cls_regex):
         return False
 
     # Modals
@@ -515,7 +565,7 @@ cdef inline lxb_status_t _blacklist_select_cb(lxb_dom_node_t *node,
 
 def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint main_content=False,
                        bint list_bullets=True,  bint alt_texts=True, bint links=False, bint form_fields=False,
-                       bint noscript=False, skip_elements=None):
+                       bint noscript=False, bint comments=True, skip_elements=None):
     """
     extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=False, \
         list_bullets=True, alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
@@ -546,6 +596,8 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     :param form_fields: extract form fields and their values
     :type form_fields: bool
     :param noscript: extract contents of <noscript> elements
+    :param comments: treat comment sections as main content
+    :type comments: bool
     :param skip_elements: list of CSS selectors for elements to skip (defaults to ``head``, ``script``, ``style``)
     :type skip_elements: t.Iterable[str] or None
     :type noscript: bool
@@ -558,11 +610,12 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     skip_selectors = {e.encode() for e in skip_elements or []}
     skip_selectors.update({b'script', b'style'})
     if not alt_texts:
-        skip_selectors.update({b'object', b'video', b'audio', b'embed' b'img', b'area'})
+        skip_selectors.update({b'object', b'video', b'audio', b'embed' b'img', b'area',
+                               b'svg', b'figcaption', b'figure'})
     if not noscript:
         skip_selectors.add(b'noscript')
     if not form_fields:
-        skip_selectors.update({b'textarea', b'input', b'button'})
+        skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label',})
 
     cdef ExtractContext ctx
     ctx.root_node = base_node.node
@@ -627,7 +680,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
             # Skip blacklisted or non-main-content nodes
             if node_blacklist.find(ctx.node) != node_blacklist.end() or \
-                    (main_content and not _is_main_content_node(ctx.node)):
+                    (main_content and not _is_main_content_node(ctx.node, comments)):
                 is_end_tag = True
                 ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
                 continue
@@ -639,4 +692,4 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
-    return ''.join(s.decode() for s in ctx.text).rstrip()
+    return ''.join(s.decode() for s in ctx.text).lstrip('\n').rstrip()
