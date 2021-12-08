@@ -176,7 +176,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
 
     elif ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
         _ensure_text_contents(extract_nodes)
-        element_text_sv = <string>get_node_attr_sv(ctx.node, b'alt')
+        element_text_sv = get_node_attr_sv(ctx.node, b'alt')
         if not element_text_sv.empty():
             deref(last_node.text_contents).append(<string>element_text_sv)
 
