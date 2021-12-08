@@ -217,18 +217,6 @@ cdef inline string _indent_newlines(const string& element_text, size_t depth) no
     return tmp_text
 
 
-cdef inline void _make_margin(const ExtractNode* node, const ExtractOpts& opts, bint bullet_deferred,
-                              string& output) nogil:
-    if opts.preserve_formatting:
-        if not node.collapse_margins or (not output.empty() and output.back() != b'\n'):
-            output.push_back(<char>b'\n')
-        if node.is_big_block and not bullet_deferred and output.size() >= 2 and \
-                output[output.size() - 2] != b'\n':
-            output.push_back(<char>b'\n')
-    elif not output.empty() and output.back() != b' ':
-        output.push_back(<char>b' ')
-
-
 cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes, const ExtractOpts& opts) nogil:
     cdef size_t i
     cdef string output
@@ -256,8 +244,15 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             if current_node.tag_id == LXB_TAG_LI:
                 bullet_deferred = True
 
-        if current_node.tag_id != LXB_TAG_TEXTAREA:
-            _make_margin(current_node, opts, bullet_deferred, output)
+            # Add margins
+            if current_node.tag_id != LXB_TAG_TEXTAREA:
+                if not current_node.collapse_margins or (not output.empty() and output.back() != b'\n'):
+                    output.push_back(<char> b'\n')
+                if current_node.is_big_block and not bullet_deferred and \
+                        output.size() >= 2 and output[output.size() - 2] != b'\n':
+                    output.push_back(<char> b'\n')
+        elif not output.empty() and output.back() != b' ':
+            output.push_back(<char> b' ')
 
         if current_node.text_contents.get() == NULL:
             continue
@@ -289,8 +284,6 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                 output.append(b'\t\t')
 
         output.append(element_text)
-        # if current_node.tag_id == LXB_TAG_TEXTAREA:
-        #     _make_margin(current_node, opts, bullet_deferred, output)
 
     return output
 
