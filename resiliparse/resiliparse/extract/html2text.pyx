@@ -14,46 +14,75 @@
 
 # distutils: language = c++
 
-from cython.operator cimport preincrement as preinc, predecrement as predec
+from cython.operator cimport dereference as deref, preincrement as preinc, predecrement as predec
 from libc.stdint cimport uint32_t
 from libcpp.set cimport set as stl_set
 from libc.string cimport memcpy
+from libcpp.memory cimport make_shared, shared_ptr
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
+from resiliparse.parse.encoding import bytes_to_str
 from resiliparse_common.string_util cimport rstrip_str, strip_str
 from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
 from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
-from resiliparse_inc.utility cimport move
 
 
-cdef struct ExtractOpts:
-    bint preserve_formatting
-    bint list_bullets
-    bint links
-    bint alt_texts
-    bint form_fields
-    bint noscript
+cdef extern from * nogil:
+    """
+    struct ExtractOpts {
+        bool preserve_formatting = true;
+        bool list_bullets = true;
+        bool links = false;
+        bool alt_texts = true;
+        bool form_fields = false;
+        bool noscript = false;
+    };
+
+    struct ExtractContext {
+        lxb_dom_node_t* root_node = NULL;
+        lxb_dom_node_t* node = NULL;
+        size_t depth = 0;
+        ExtractOpts opts;
+    };
+
+    struct ExtractNode {
+        lxb_dom_node_t* reference_node = NULL;
+        lxb_tag_id_t tag_id = LXB_TAG__UNDEF;
+        size_t depth = 0;
+        bool space_after = false;
+        bool is_block = false;
+        bool is_pre = false;
+        std::shared_ptr<std::string> text_contents = NULL;
+    };
+    """
+    cdef struct ExtractOpts:
+        bint preserve_formatting
+        bint list_bullets
+        bint links
+        bint alt_texts
+        bint form_fields
+        bint noscript
+
+    cdef struct ExtractContext:
+        lxb_dom_node_t * root_node
+        lxb_dom_node_t * node
+        size_t depth
+        ExtractOpts opts
+
+    cdef struct ExtractNode:
+        lxb_dom_node_t* reference_node
+        lxb_tag_id_t tag_id
+        size_t depth
+        bint space_after
+        bint is_block
+        bint is_pre
+        shared_ptr[string] text_contents
 
 
-cdef struct ExtractContext:
-    lxb_dom_node_t* root_node
-    lxb_dom_node_t* node
-    size_t depth
-    size_t list_depth
-    size_t pre_depth
-    vector[size_t] list_numbering
-    size_t space_before_next_block
-    size_t newline_before_next_block
-    size_t tab_before_next_block
-    size_t lstrip_next_block
-    vector[string] text
-    ExtractOpts opts
-
-
-cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* ctx) nogil:
+cdef string _get_collapsed_string(const string_view& input_str) nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
@@ -62,25 +91,10 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
         return string()
 
     cdef string element_text
-
-    # Pre-formatted context, return string as is, but add list indents
-    cdef size_t i
-    if ctx.opts.preserve_formatting and ctx.pre_depth > 0:
-        if ctx.list_depth > 0:
-            element_text.reserve(input_str.size())
-            for i in range(input_str.size()):
-                element_text.push_back(input_str[i])
-                if input_str[i] == b'\n':
-                    insert_list_indent(element_text, ctx)
-            return element_text
-        return <string>input_str
-
-    # Otherwise collapse white space
     element_text.reserve(input_str.size())
     for i in range(input_str.size()):
         if isspace(input_str[i]):
-            if (element_text.empty() and not ctx.text.empty() and not isspace(ctx.text.back().back())) or \
-                    (not element_text.empty() and not isspace(element_text.back())):
+            if element_text.empty() or not isspace(element_text.back()):
                 element_text.push_back(b' ')
         else:
             element_text.push_back(input_str[i])
@@ -93,53 +107,149 @@ cdef string _get_collapsed_string(const string_view& input_str, ExtractContext* 
 cdef string LIST_BULLET = <const char*>b'\xe2\x80\xa2'
 
 
-cdef inline void insert_list_indent(string& element_text, ExtractContext* ctx) nogil:
-    if ctx.list_depth == 0 \
-            or (not element_text.empty() and element_text.back() != b'\n') \
-            or (element_text.empty() and not ctx.text.empty() and ctx.text.back().back() != b'\n'):
-        return
-
-    element_text.append(string(2 * ctx.list_depth, <char>b' '))
-    cdef lxb_dom_node_t* node = ctx.node if ctx.node.type != LXB_DOM_NODE_TYPE_TEXT else ctx.node.parent
-    if ctx.opts.list_bullets and node.local_name != LXB_TAG_LI:
-        # Add an additional two spaces if element is not the li element itself or a direct text child
-        element_text.append(b'  ')
+cdef inline void _ensure_text_contents(vector[shared_ptr[ExtractNode]]& extract_nodes) nogil:
+    if not deref(extract_nodes.back()).text_contents:
+        deref(extract_nodes.back()).text_contents = make_shared[string]()
 
 
-cdef inline void _add_space(ExtractContext* ctx) nogil:
-    """Add space if last character is a non-space character."""
-    if not ctx.text.empty() and not isspace(ctx.text.back().back()):
-        if ctx.tab_before_next_block:
-            ctx.text.back().append(<char*>b'\t\t')
+cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractContext& ctx) nogil:
+    if extract_nodes.empty():
+        extract_nodes.push_back(make_shared[ExtractNode]())
+    cdef ExtractNode* last_node = extract_nodes.back().get()
+    cdef lxb_dom_character_data_t* char_data = NULL
+    cdef string element_text
+    cdef string_view element_text_sv
+
+    if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
+        _ensure_text_contents(extract_nodes)
+        node_char_data = <lxb_dom_character_data_t*>ctx.node
+        element_text_sv = string_view(<const char*>node_char_data.data.data, node_char_data.data.length)
+        if last_node.is_pre:
+            deref(last_node.text_contents).append(<string>element_text_sv)
         else:
-            ctx.text.back().push_back(<char>b' ')
-
-
-cdef inline void _make_block(ExtractContext* ctx) nogil:
-    """Make a block start or end by inserting the needed number of linefeeds."""
-
-    # Strip previous linefeeds to prevent excess empty lines
-    while not ctx.text.empty() and isspace(ctx.text.back().back()):
-        ctx.text[ctx.text.size() - 1] = rstrip_str(ctx.text.back())
-        if ctx.text.back().empty():
-            ctx.text.pop_back()
-
-    if not ctx.opts.preserve_formatting:
-        _add_space(ctx)
+            element_text = _get_collapsed_string(element_text_sv)
+            element_text_sv = <string_view>element_text
+            if deref(last_node.text_contents).empty() or isspace(deref(last_node.text_contents).back()):
+                while not element_text_sv.empty() and isspace(element_text_sv.front()):
+                    element_text_sv.remove_prefix(1)
+            if not element_text_sv.empty():
+                deref(last_node.text_contents).append(<string>element_text_sv)
+        return
+    elif ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+        return
+    elif ctx.node.local_name == LXB_TAG_BR:
+        _ensure_text_contents(extract_nodes)
+        if not ctx.opts.preserve_formatting and (
+                deref(last_node.text_contents).empty() or deref(last_node.text_contents).back() != b' '):
+            deref(last_node.text_contents).push_back(<char>b' ' )
+        elif ctx.opts.preserve_formatting:
+            deref(last_node.text_contents).push_back(<char>b'\n' )
         return
 
-    cdef bint block_creates_newline = ctx.newline_before_next_block and not ctx.lstrip_next_block
-    cdef string ws
-    if not ctx.text.empty() and (not ctx.lstrip_next_block or not ctx.opts.list_bullets):
-        if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
-            block_creates_newline = not ctx.lstrip_next_block
-        ws = <const char*>b'\n\n' if block_creates_newline else <const char*>b'\n'
+    cdef shared_ptr[ExtractNode] new_node_shared
+    cdef ExtractNode* new_node = NULL
+    cdef bint is_block = is_block_element(ctx.node.local_name)
+    if ctx.depth > last_node.depth and last_node.tag_id in [LXB_TAG_TD, LXB_TAG_TH]:
+        is_block = False
 
-    insert_list_indent(ws, ctx)
-    if ctx.space_before_next_block:
-        ws.push_back(b' ')
-    if not ws.empty():
-        ctx.text.push_back(move(ws))
+    if is_block or ctx.node.local_name in [LXB_TAG_TD, LXB_TAG_TH]:
+        new_node_shared = make_shared[ExtractNode]()
+        new_node = new_node_shared.get()
+        new_node.reference_node = ctx.node
+        new_node.depth = ctx.depth
+        new_node.is_block = is_block
+        new_node.tag_id = ctx.node.local_name
+        new_node.is_pre = ctx.node.local_name in [LXB_TAG_PRE, LXB_TAG_TEXTAREA]
+        extract_nodes.push_back(new_node_shared)
+
+
+cdef inline string _indent_newlines(const string& element_text, size_t depth) nogil:
+    cdef string indent = string(2 * depth, <char>b' ')
+    cdef string tmp_text
+    tmp_text.reserve(element_text.size() + 10 * indent.size())
+    for i in range(element_text.size()):
+        tmp_text.push_back(element_text[i])
+        if element_text[i] == b'\n':
+            tmp_text.append(indent)
+
+    return tmp_text
+
+
+cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes, const ExtractOpts& opts) nogil:
+    cdef size_t i
+    cdef string output
+    cdef string element_text
+    cdef ExtractNode* current_node
+    cdef bint last_was_block = False
+    cdef bint big_block = False
+    cdef bint bullet_deferred = False
+    cdef vector[size_t] list_depth
+    cdef vector[size_t] list_numbering
+    cdef string list_item_indent = <const char*>b' '
+
+    for i in range(extract_nodes.size()):
+        current_node = extract_nodes[i].get()
+        big_block = current_node.is_block and not bullet_deferred \
+                    and current_node.tag_id in [LXB_TAG_P, LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4]
+
+        while not list_depth.empty() and current_node.depth <= list_depth.back():
+            list_depth.pop_back()
+            list_numbering.pop_back()
+        if opts.preserve_formatting and (current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL]
+                or (current_node.tag_id == LXB_TAG_LI and list_depth.empty())):
+            list_depth.push_back(current_node.depth)
+            list_numbering.push_back(<size_t>(current_node.tag_id == LXB_TAG_OL))
+
+        if opts.preserve_formatting and current_node.tag_id == LXB_TAG_LI:
+            bullet_deferred = True
+
+        if current_node.text_contents:
+            if opts.preserve_formatting and not bullet_deferred and current_node.is_block and not output.empty() \
+                    and output.back() != b'\n':
+                output.push_back(<char>b'\n')
+
+            if not opts.preserve_formatting and current_node.is_pre:
+                element_text = rstrip_str(_get_collapsed_string(<string_view>deref(current_node.text_contents)))
+            else:
+                element_text = rstrip_str(deref(current_node.text_contents))
+            if element_text.empty():
+                continue
+
+            if not list_depth.empty():
+                if current_node.is_pre and opts.preserve_formatting:
+                    element_text = _indent_newlines(element_text, list_depth.size() + <size_t>opts.list_bullets)
+                if opts.preserve_formatting:
+                    list_item_indent = string(2 * list_depth.size() + 2 * <size_t>(
+                            not bullet_deferred and opts.list_bullets), <char>b' ')
+                if bullet_deferred:
+                    if opts.list_bullets and list_numbering.back() == 0:
+                        list_item_indent += LIST_BULLET + <const char*>b' '
+                    elif opts.list_bullets:
+                        list_item_indent += to_string(list_numbering.back()) + <const char*>b'. '
+                        preinc(list_numbering.back())
+                    bullet_deferred = False
+                element_text = list_item_indent + element_text
+
+            if opts.preserve_formatting:
+                if big_block and output.size() >= 2 and output.substr(output.size() - 2) != b'\n\n':
+                    output.push_back(<char> b'\n')
+
+                if not current_node.is_block and current_node.tag_id in [LXB_TAG_TD, LXB_TAG_TH]:
+                    if not output.empty() and output.back() != b'\n':
+                        output.append(b'\t\t')
+
+            output.append(element_text)
+            if not opts.preserve_formatting and current_node.is_block and output.back() != b' ':
+                output.push_back(<char>b' ')
+
+            if opts.preserve_formatting and current_node.is_block:
+                output.push_back(<char>b'\n')
+                if big_block:
+                    output.push_back(<char>b'\n')
+
+        last_was_block = current_node.is_block
+
+    return output
 
 
 cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
@@ -166,184 +276,6 @@ cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
             return True
 
     return False
-
-
-cdef void _extract_start_cb(ExtractContext* ctx) nogil:
-    """Extraction start element callback."""
-    cdef lxb_dom_character_data_t* node_char_data = NULL
-    cdef string_view node_attr_data
-    cdef string element_text
-    cdef size_t i
-
-    if ctx.node.type == LXB_DOM_NODE_TYPE_TEXT:
-        if ctx.space_before_next_block or ctx.tab_before_next_block:
-            _add_space(ctx)
-
-        node_char_data = <lxb_dom_character_data_t*>ctx.node
-        element_text.append(<const char*>node_char_data.data.data, node_char_data.data.length)
-        element_text = _get_collapsed_string(<string_view>element_text, ctx)
-        if not rstrip_str(element_text).empty():
-            ctx.newline_before_next_block = False
-            ctx.lstrip_next_block = False
-            ctx.space_before_next_block = False
-            ctx.tab_before_next_block = False
-            ctx.text.push_back(move(element_text))
-        else:
-            _add_space(ctx)
-        return
-
-    if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-        return
-
-    cdef bint last_was_space = not ctx.text.empty() and isspace(ctx.text.back().back())
-
-    # Alternative descriptions
-    if ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
-        node_attr_data = get_node_attr_sv(ctx.node, b'alt')
-        if not node_attr_data.empty():
-            if not last_was_space:
-                element_text.push_back(b' ')
-            element_text.append(_get_collapsed_string(node_attr_data, ctx))
-            element_text.push_back(b' ')
-            ctx.text.push_back(move(element_text))
-        return
-
-    # Form field elements
-    if ctx.opts.form_fields:
-        if ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON] and ctx.node.first_child:
-            ctx.pre_depth += <int>ctx.node.local_name == LXB_TAG_TEXTAREA
-            if not last_was_space:
-                element_text.push_back(<char>b' ')
-            element_text.append(b'[ ')
-        elif ctx.node.local_name == LXB_TAG_INPUT:
-            node_attr_data = get_node_attr_sv(ctx.node, b'type')
-            if node_attr_data.empty() or node_attr_data not in \
-                    [b'checkbox', b'color', b'file', b'hidden', b'radio', b'reset']:
-                node_attr_data = get_node_attr_sv(ctx.node, b'value')
-                if node_attr_data.empty():
-                    node_attr_data = get_node_attr_sv(ctx.node, b'placeholder')
-                if not node_attr_data.empty():
-                    if not last_was_space:
-                        element_text.push_back(<char>b' ')
-                    element_text.append(b'[ ')
-                    element_text.append(_get_collapsed_string(node_attr_data, ctx))
-                    if not isspace(element_text.back()):
-                        element_text.push_back(b' ')
-                    element_text.append(b'] ')
-                    ctx.text.push_back(move(element_text))
-                return
-
-    # Short-circuit empty blocks (such as <br>, <hr>, or empty <divs>)
-    if not ctx.opts.preserve_formatting or not ctx.node.first_child:
-        if is_block_element(ctx.node.local_name):
-            _make_block(ctx)
-        return
-
-    cdef size_t tag_name_len
-    cdef const lxb_char_t* tag_name = lxb_dom_element_qualified_name(<lxb_dom_element_t*>ctx.node, &tag_name_len)
-
-    # Block formatting
-    if is_block_element(ctx.node.local_name):
-        if ctx.node.local_name == LXB_TAG_LI:
-            ctx.lstrip_next_block = False
-            ctx.space_before_next_block = False
-        if ctx.node.local_name == LXB_TAG_UL and ctx.node.parent and ctx.node.parent.local_name == LXB_TAG_LI:
-            ctx.newline_before_next_block = False
-        _make_block(ctx)
-
-    # Pre-formatted text
-    if ctx.node.local_name == LXB_TAG_PRE:
-        ctx.pre_depth += 1
-
-    # Lists
-    if ctx.node.local_name == LXB_TAG_UL:
-        preinc(ctx.list_depth)
-    elif ctx.node.local_name == LXB_TAG_OL:
-        preinc(ctx.list_depth)
-        ctx.list_numbering.push_back(0)
-
-    # List items
-    if ctx.node.local_name == LXB_TAG_LI:
-        if ctx.opts.list_bullets:
-            insert_list_indent(element_text, ctx)
-            if ctx.node.parent.local_name == LXB_TAG_OL:
-                element_text.append(to_string(preinc(ctx.list_numbering.back())) + <const char*>b'. ')
-            else:
-                element_text.append(LIST_BULLET)
-            ctx.space_before_next_block = True
-        ctx.lstrip_next_block = True
-
-    if not element_text.empty():
-        ctx.text.push_back(move(element_text))
-
-
-cdef void _extract_end_cb(ExtractContext* ctx) nogil:
-    """Extraction end element callback."""
-    if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT or not ctx.opts.preserve_formatting:
-        return
-
-    if ctx.text.empty():
-        ctx.text.push_back(<const char*>b'')
-
-    # Headings and paragraphs insert newlines
-    if ctx.node.local_name in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]:
-        ctx.newline_before_next_block = True
-
-    # Pre-formatted text
-    if ctx.node.local_name == LXB_TAG_PRE:
-        ctx.pre_depth -= 1
-
-    # Lists
-    if ctx.node.local_name == LXB_TAG_UL:
-        predec(ctx.list_depth)
-    elif ctx.node.local_name == LXB_TAG_OL:
-        predec(ctx.list_depth)
-        ctx.list_numbering.pop_back()
-
-    # Forms
-    if ctx.opts.form_fields and ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
-        ctx.pre_depth -= <int>ctx.node.local_name == LXB_TAG_TEXTAREA
-        if not isspace(ctx.text.back().back()):
-            ctx.text.back().push_back(b' ')
-        ctx.text.back().append(b'] ')
-
-    # Strip whitespace between table cells
-    if ctx.node.local_name in [LXB_TAG_TD, LXB_TAG_TH]:
-        ctx.tab_before_next_block = True
-        ctx.lstrip_next_block = True
-
-    # No additional white space after table rows
-    if ctx.node.local_name == LXB_TAG_TR and not ctx.text.empty():
-        ctx.tab_before_next_block = False
-        ctx.newline_before_next_block = False
-        ctx.lstrip_next_block = False
-
-    # Link targets
-    cdef string_view link_href
-    if ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
-        link_href = get_node_attr_sv(ctx.node, b'href')
-        if not link_href.empty():
-            if not isspace(ctx.text.back().back()):
-                ctx.text.back().push_back(b' ')
-            ctx.text.back().push_back(b'(')
-            ctx.text.back().append(_get_collapsed_string(link_href, ctx))
-            ctx.text.back().append(b')')
-
-    cdef string stripped
-    if ctx.node.local_name == LXB_TAG_LI:
-        # Clean up empty list items
-        while not ctx.text.empty():
-            stripped = strip_str(ctx.text.back())
-            if not stripped.empty() and stripped != LIST_BULLET:
-                break
-            ctx.text.pop_back()
-
-        # No additional white space after list items
-        ctx.newline_before_next_block = False
-        ctx.lstrip_next_block = False
-
-    if is_block_element(ctx.node.local_name):
-        _make_block(ctx)
 
 
 cdef RE2Options re_opts
@@ -619,13 +551,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
 
     cdef ExtractContext ctx
     ctx.root_node = base_node.node
-    ctx.depth = 0
-    ctx.list_depth = 0
-    ctx.pre_depth = 0
-    ctx.space_before_next_block = False
-    ctx.newline_before_next_block = False
-    ctx.tab_before_next_block = False
-    ctx.lstrip_next_block = False
+    ctx.node = base_node.node
     ctx.opts = [
         preserve_formatting,
         list_bullets,
@@ -633,8 +559,6 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
         alt_texts,
         form_fields,
         noscript]
-
-    ctx.node = base_node.node
 
     cdef const lxb_char_t* tag_name = NULL
     cdef size_t tag_name_len
@@ -665,6 +589,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
         destroy_css_selectors(css_selectors, selectors)
         destroy_css_parser(css_parser)
 
+    cdef vector[shared_ptr[ExtractNode]] extract_nodes
     with nogil:
         while ctx.node:
             # Skip everything except element and text nodes
@@ -686,10 +611,8 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
                 continue
 
             if not is_end_tag:
-                _extract_start_cb(&ctx)
-            else:
-                _extract_end_cb(&ctx)
+                _extract_cb(extract_nodes, ctx)
 
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
-    return ''.join(s.decode() for s in ctx.text).lstrip('\n').rstrip()
+    return bytes_to_str(_serialize_extract_nodes(extract_nodes, ctx.opts)).rstrip()
