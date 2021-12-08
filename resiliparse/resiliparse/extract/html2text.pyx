@@ -532,8 +532,8 @@ cdef bint _is_main_content_node(lxb_dom_node_t* node, bint allow_comments) nogil
     return True
 
 
-cdef inline lxb_status_t _blacklist_select_cb(lxb_dom_node_t *node,
-                                              lxb_css_selector_specificity_t *spec, void *ctx) nogil:
+cdef inline lxb_status_t _collect_selected_nodes_cb(lxb_dom_node_t *node,
+                                                    lxb_css_selector_specificity_t *spec, void *ctx) nogil:
     (<stl_set[lxb_dom_node_t*]*>ctx).insert(node)
     return LXB_STATUS_OK
 
@@ -619,15 +619,29 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
     cdef lxb_selectors_t* selectors = NULL
 
     cdef lxb_css_selector_list_t* selector_list = NULL
-    cdef stl_set[lxb_dom_node_t*] node_blacklist
+    cdef stl_set[lxb_dom_node_t*] preselected_nodes
+    cdef string main_content_selector = b'.article-body, .articleBody, .contentBody, .article-text, .main-content,' \
+                                        b'.postcontent, .post-content, .single-post, [role="main"]'
     try:
-        # Select all blacklisted elements and save them in an ordered set
         init_css_parser(&css_parser)
         init_css_selectors(css_parser, &css_selectors, &selectors)
+
+        # Opportunistically try to find general main content zone
+        selector_list = parse_css_selectors(css_parser, <lxb_char_t*>main_content_selector.data(),
+                                            main_content_selector.size())
+        lxb_selectors_find(selectors, ctx.root_node, selector_list,
+                           <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
+        if preselected_nodes.size() == 1:
+            # Use result only if there is exactly one match
+            ctx.root_node = deref(preselected_nodes.begin())
+            ctx.node = ctx.root_node
+
+        # Select all blacklisted elements and save them in an ordered set
+        preselected_nodes.clear()
         combined_skip_sel = b','.join(skip_selectors)
         selector_list = parse_css_selectors(css_parser, <lxb_char_t*>combined_skip_sel, len(combined_skip_sel))
         lxb_selectors_find(selectors, ctx.root_node, selector_list,
-                           <lxb_selectors_cb_f>_blacklist_select_cb, &node_blacklist)
+                           <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
     finally:
         destroy_css_selectors(css_selectors, selectors)
         destroy_css_parser(css_parser)
@@ -648,7 +662,7 @@ def extract_plain_text(DOMNode base_node, bint preserve_formatting=True, bint ma
                 continue
 
             # Skip blacklisted or non-main-content nodes
-            if node_blacklist.find(ctx.node) != node_blacklist.end() or \
+            if preselected_nodes.find(ctx.node) != preselected_nodes.end() or \
                     (main_content and not _is_main_content_node(ctx.node, comments)):
                 is_end_tag = True
                 ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
