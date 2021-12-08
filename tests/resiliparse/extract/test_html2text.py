@@ -55,33 +55,72 @@ def test_basic_extraction():
     assert extract_plain_text(tree.body, alt_texts=False, preserve_formatting=False) == \
            "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
     assert extract_plain_text(tree.body, alt_texts=False, list_bullets=False) == \
-           "  Nav 1\n  Nav 2\n    Nav 3\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+           "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
     assert extract_plain_text(tree.body, alt_texts=False) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+        "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
 
 def test_alt_text_extraction():
-    assert extract_plain_text(tree.body, alt_texts=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n" \
-        "Some image Cannot display object\nCopyright (C) 2021 Foo Bar"
+    assert extract_plain_text(tree.body, alt_texts=True) == """\
+  \u2022 Nav 1
+  \u2022 Nav 2
+
+    \u2022 Nav 3
+
+foo bar
+
+baz
+bar
+
+Some image Cannot display object
+Copyright (C) 2021 Foo Bar"""
 
 
 def test_link_href_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, links=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar (#foo)\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+    assert extract_plain_text(tree.body, alt_texts=False, links=True) == """\
+  \u2022 Nav 1
+  \u2022 Nav 2
+
+    \u2022 Nav 3
+
+foo bar (#foo)
+
+baz
+bar
+
+Copyright (C) 2021 Foo Bar"""
 
 
 def test_form_field_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, form_fields=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n"\
-        "[ Click here ] [ Some text ] [ Insert text ]\nCopyright (C) 2021 Foo Bar"
+    assert extract_plain_text(tree.body, alt_texts=False, form_fields=True) == """\
+  \u2022 Nav 1
+  \u2022 Nav 2
+
+    \u2022 Nav 3
+
+foo bar
+
+baz
+bar
+
+[ Click here ] [ Some text ] [ Insert text ]
+Copyright (C) 2021 Foo Bar"""
 
 
 def test_noscript_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, noscript=True) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n    \u2022 Nav 3\nfoo bar\n\nbaz\nbar\n\n" \
-        "Sorry, your browser doesn't support VB Script!\n" \
-        "Copyright (C) 2021 Foo Bar"
+    assert extract_plain_text(tree.body, alt_texts=False, noscript=True) == """\
+  \u2022 Nav 1
+  \u2022 Nav 2
+
+    \u2022 Nav 3
+
+foo bar
+
+baz
+bar
+
+Sorry, your browser doesn't support VB Script!
+Copyright (C) 2021 Foo Bar"""
 
 
 def test_main_content_extraction():
@@ -95,18 +134,18 @@ def test_main_content_extraction():
 
 def test_inline_after_block():
     html = """<body>
-    <div>A</div>B
-    
-    <div>C</div>
-    
-        D
-    
-    <div>E</div><span>F</span>
-    
-    <div>G</div><span>H</span>"""
+<div>A</div>B
+
+<div>C</div>
+
+    D
+
+<div>E</div><span>F</span>
+
+<div>G</div><span>H</span>"""
 
     tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree.body, list_bullets=False) == '''A\nB\nC\nD\nE\nF\nG\nH'''
+    assert extract_plain_text(tree.body, list_bullets=False) == "A\nB\nC\nD\nE\nF\nG\nH"
 
 
 def test_pre_formatted():
@@ -129,14 +168,38 @@ J</pre>
     </body>"""
 
     tree = HTMLTree.parse(html)
-    expected_without_bullets = '  A\n  B\n  C\n  D\n\n  E\n  F\n      G\n          H\n  J'
+    expected_without_bullets = """\
+  A
+  B
+  C
+  D
+
+  E
+
+  F
+      G
+          H
+  J"""
     assert extract_plain_text(tree.body, list_bullets=False) == expected_without_bullets
 
-    expected_with_bullets = \
-        '  \u2022 A\n  \u2022 B\n    C\n    D\n\n    E\n  \u2022 F\n        G\n            H\n    J'
+    expected_with_bullets = """\
+  \u2022 A
+  \u2022 B
+    C
+    D
+
+    E
+
+  \u2022 F
+        G
+            H
+    J"""
     assert extract_plain_text(tree.body, list_bullets=True) == expected_with_bullets
 
-    expected_textarea = '\n[ K\n        L\n    ]'
+    expected_textarea = """
+[ K
+        L
+     ]"""
     assert extract_plain_text(tree.body, list_bullets=False, form_fields=True) == \
            expected_without_bullets + expected_textarea
     assert extract_plain_text(tree.body, list_bullets=True, form_fields=True) == \
@@ -145,37 +208,54 @@ J</pre>
 
 def test_ordered_list():
     html = """<body>
-    <ul>
-        <li>A</li>
-        <li>B
-            <ol>
-                <li>C</li>
-                <li>D
-                    <ol>
-                        <li>E</li>
-                        <li>F</li>
-                    </ol>
-                </li>
-                <li>G
-                    <ol>
-                        <li>H</li>
-                        <li>I</li>
-                    </ol>
-                </li>
-            </ol>
-        </li>
-    </ul>
-    <ol>
-        <li>J</li>
-    </ol>
-    </body>"""
+<ul>
+    <li>A</li>
+    <li>B
+        <ol>
+            <li>C</li>
+            <li>D
+                <ol>
+                    <li>E</li>
+                    <li>F</li>
+                </ol>
+            </li>
+            <li>G
+                <ol>
+                    <li>H</li>
+                    <li>I</li>
+                </ol>
+            </li>
+        </ol>
+    </li>
+</ul>
+<ol>
+    <li>J</li>
+</ol>
+</body>"""
 
     tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree.body, list_bullets=False) == \
-           '  A\n  B\n    C\n    D\n      E\n      F\n    G\n      H\n      I\n  J'
-    assert extract_plain_text(tree.body, list_bullets=True) == \
-           '  \u2022 A\n  \u2022 B\n    1. C\n    2. D\n      1. E\n      2. F\n' \
-           '    3. G\n      1. H\n      2. I\n  1. J'
+    assert extract_plain_text(tree.body, list_bullets=False) == """\
+  A
+  B
+    C
+    D
+      E
+      F
+    G
+      H
+      I
+  J"""
+    assert extract_plain_text(tree.body, list_bullets=True) == """\
+  \u2022 A
+  \u2022 B
+    1. C
+    2. D
+      1. E
+      2. F
+    3. G
+      1. H
+      2. I
+  1. J"""
 
 
 def test_empty_list_items():
