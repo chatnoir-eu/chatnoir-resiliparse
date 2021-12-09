@@ -85,7 +85,7 @@ cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, 
     cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(css_parser, selector, selector_len)
     cdef string err
     if css_parser.status != LXB_STATUS_OK:
-        lxb_css_log_serialize(css_parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <lxb_char_t*>b'', 0)
+        lxb_css_log_serialize(css_parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <const lxb_char_t*>b'', 0)
         raise ValueError(f'CSS parser error: {err.decode().strip()}')
     return sel_list
 
@@ -154,7 +154,7 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
         return NULL
 
     cdef lxb_status_t status = lxb_dom_elements_by_class_name(<lxb_dom_element_t*>node, coll,
-                                                              <lxb_char_t*>class_name, len(class_name))
+                                                              <const lxb_char_t*>class_name, len(class_name))
 
     if status != LXB_STATUS_OK:
         lxb_dom_collection_destroy(coll, True)
@@ -249,7 +249,7 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, b
         raise RuntimeError('Failed to create DOM collection')
 
     cdef lxb_status_t status = lxb_dom_elements_by_tag_name(<lxb_dom_element_t*>node,
-                                                            coll, <lxb_char_t*>tag_name, len(tag_name))
+                                                            coll, <const lxb_char_t*>tag_name, len(tag_name))
     return coll
 
 
@@ -277,7 +277,8 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
     """
     tree.init_css_parser()
 
-    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser, <lxb_char_t*>selector, len(selector))
+    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
+                                                                 <const lxb_char_t*>selector, len(selector))
     cdef lxb_dom_node_t* result_node = NULL
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_select_callback_single, &result_node) != LXB_STATUS_OK:
@@ -301,7 +302,8 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
     """
     tree.init_css_parser()
 
-    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser, <lxb_char_t*>selector, len(selector))
+    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
+                                                                 <const lxb_char_t*>selector, len(selector))
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, init_size)
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_select_callback, coll) != LXB_STATUS_OK:
@@ -327,7 +329,8 @@ cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
     """
     tree.init_css_parser()
 
-    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser, <lxb_char_t*>selector, len(selector))
+    cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
+                                                                 <const lxb_char_t*>selector, len(selector))
     cdef bint matches = False
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_match_callback, <void*>&matches) != LXB_STATUS_OK:
@@ -708,7 +711,7 @@ cdef class DOMNode:
             raise RuntimeError('Trying to set text contents of uninitialized DOM node')
 
         cdef bytes text_bytes = text.encode()
-        lxb_dom_node_text_content_set(self.node, <lxb_char_t*>text_bytes, len(text_bytes))
+        lxb_dom_node_text_content_set(self.node, <const lxb_char_t*>text_bytes, len(text_bytes))
 
     @property
     def html(self):
@@ -734,7 +737,7 @@ cdef class DOMNode:
             raise RuntimeError('Trying to set HTML contents of uninitialized DOM node')
 
         cdef bytes html_bytes = html.encode()
-        lxb_html_element_inner_html_set(<lxb_html_element_t*>self.node, <lxb_char_t*>html_bytes, len(html_bytes))
+        lxb_html_element_inner_html_set(<lxb_html_element_t*>self.node, <const lxb_char_t*>html_bytes, len(html_bytes))
 
     @property
     def id(self):
@@ -829,7 +832,7 @@ cdef class DOMNode:
 
         cdef bytes attr_name_bytes = attr_name.encode()
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
-                                                   <lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
+                                                   <const lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
     cdef str _getattr_impl(self, const string& attr_name, bint raise_if_not_exists=True):
         """
@@ -843,7 +846,7 @@ cdef class DOMNode:
             raise ValueError('Node ist not an Element node.')
 
         if raise_if_not_exists and not lxb_dom_element_has_attribute(
-                <lxb_dom_element_t*>self.node, <lxb_char_t*>attr_name.data(), attr_name.size()):
+                <lxb_dom_element_t*>self.node, <const lxb_char_t*>attr_name.data(), attr_name.size()):
             raise KeyError(f'No such attribute: {attr_name.decode()}')
 
         cdef size_t node_attr_len
@@ -902,15 +905,15 @@ cdef class DOMNode:
 
         # Lexbor's check of existing attributes is buggy
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
-                                                                  <lxb_char_t*>attr_name, len(attr_name))
+                                                                  <const lxb_char_t*>attr_name, len(attr_name))
 
         if attr:
-            lxb_dom_attr_set_value(attr, <lxb_char_t*>attr_value, len(attr_value))
+            lxb_dom_attr_set_value(attr, <const lxb_char_t*>attr_value, len(attr_value))
             return True
 
         lxb_dom_element_set_attribute(<lxb_dom_element_t*>self.node,
-                                      <lxb_char_t*>attr_name, len(attr_name),
-                                      <lxb_char_t*>attr_value, len(attr_value))
+                                      <const lxb_char_t*>attr_name, len(attr_name),
+                                      <const lxb_char_t*>attr_value, len(attr_value))
         return True
 
     cpdef setattr(self, str attr_name, str attr_value):
@@ -959,7 +962,7 @@ cdef class DOMNode:
             raise ValueError('Node ist not an Element node.')
 
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
-                                                                  <lxb_char_t*>attr_name, len(attr_name))
+                                                                  <const lxb_char_t*>attr_name, len(attr_name))
         if not attr:
             return False
 
@@ -1747,7 +1750,7 @@ cdef class HTMLTree:
 
         cdef bytes tag_name_bytes = tag_name.encode()
         cdef lxb_dom_element_t* element = lxb_dom_document_create_element(
-            <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
+            <lxb_dom_document_t*>self.dom_document, <const lxb_char_t*>tag_name_bytes, len(tag_name_bytes), NULL)
         return _create_dom_node(self, <lxb_dom_node_t*>element)
 
     cpdef DOMNode create_text_node(self, str text):
@@ -1766,7 +1769,7 @@ cdef class HTMLTree:
 
         cdef bytes text_bytes = text.encode()
         cdef lxb_dom_text_t* node = lxb_dom_document_create_text_node(
-            <lxb_dom_document_t*>self.dom_document, <lxb_char_t*>text_bytes, len(text_bytes))
+            <lxb_dom_document_t*>self.dom_document, <const lxb_char_t*>text_bytes, len(text_bytes))
         return _create_dom_node(self, <lxb_dom_node_t*>node)
 
     def __str__(self):
