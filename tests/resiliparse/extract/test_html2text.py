@@ -50,18 +50,16 @@ tree = HTMLTree.parse(html)
 
 
 def test_basic_extraction():
-    assert extract_plain_text(tree.head) == ''
-    assert extract_plain_text(tree.document) == extract_plain_text(tree.body) != ''
-    assert extract_plain_text(tree.body, alt_texts=False, preserve_formatting=False) == \
+    assert extract_plain_text(tree, alt_texts=False, preserve_formatting=False) == \
            "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
-    assert extract_plain_text(tree.body, alt_texts=False, list_bullets=False) == \
+    assert extract_plain_text(tree, alt_texts=False, list_bullets=False) == \
            "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
-    assert extract_plain_text(tree.body, alt_texts=False) == \
+    assert extract_plain_text(tree, alt_texts=False) == \
         "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
 
 def test_alt_text_extraction():
-    assert extract_plain_text(tree.body, alt_texts=True) == """\
+    assert extract_plain_text(tree, alt_texts=True) == """\
   \u2022 Nav 1
   \u2022 Nav 2
 
@@ -77,7 +75,7 @@ Copyright (C) 2021 Foo Bar"""
 
 
 def test_link_href_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, links=True) == """\
+    assert extract_plain_text(tree, alt_texts=False, links=True) == """\
   \u2022 Nav 1
   \u2022 Nav 2
 
@@ -92,7 +90,7 @@ Copyright (C) 2021 Foo Bar"""
 
 
 def test_form_field_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, form_fields=True) == """\
+    assert extract_plain_text(tree, alt_texts=False, form_fields=True) == """\
   \u2022 Nav 1
   \u2022 Nav 2
 
@@ -108,7 +106,7 @@ Copyright (C) 2021 Foo Bar"""
 
 
 def test_noscript_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, noscript=True) == """\
+    assert extract_plain_text(tree, alt_texts=False, noscript=True) == """\
   \u2022 Nav 1
   \u2022 Nav 2
 
@@ -124,11 +122,11 @@ Copyright (C) 2021 Foo Bar"""
 
 
 def test_main_content_extraction():
-    assert extract_plain_text(tree.body, alt_texts=False, main_content=True) == \
+    assert extract_plain_text(tree, alt_texts=False, main_content=True) == \
            "foo\n\nbaz\nbar"
-    assert extract_plain_text(tree.body, alt_texts=True, main_content=True) == \
+    assert extract_plain_text(tree, alt_texts=True, main_content=True) == \
            "foo\n\nbaz\nbar\n\nSome image"
-    assert extract_plain_text(tree.body, alt_texts=False, main_content=True, form_fields=True) == \
+    assert extract_plain_text(tree, alt_texts=False, main_content=True, form_fields=True) == \
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
@@ -145,7 +143,7 @@ def test_inline_after_block():
 <div>G</div><span>H</span>"""
 
     tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree.body, list_bullets=False) == "A\nB\nC\nD\nE\nF\nG\nH"
+    assert extract_plain_text(tree, list_bullets=False) == "A\nB\nC\nD\nE\nF\nG\nH"
 
 
 def test_pre_formatted():
@@ -180,7 +178,7 @@ J</pre>
       G
           H
   J"""
-    assert extract_plain_text(tree.body, list_bullets=False) == expected_without_bullets
+    assert extract_plain_text(tree, list_bullets=False) == expected_without_bullets
 
     expected_with_bullets = """\
   \u2022 A
@@ -194,15 +192,15 @@ J</pre>
         G
             H
     J"""
-    assert extract_plain_text(tree.body, list_bullets=True) == expected_with_bullets
+    assert extract_plain_text(tree, list_bullets=True) == expected_with_bullets
 
     expected_textarea = """
 [ K
         L
      ]"""
-    assert extract_plain_text(tree.body, list_bullets=False, form_fields=True) == \
+    assert extract_plain_text(tree, list_bullets=False, form_fields=True) == \
            expected_without_bullets + expected_textarea
-    assert extract_plain_text(tree.body, list_bullets=True, form_fields=True) == \
+    assert extract_plain_text(tree, list_bullets=True, form_fields=True) == \
            expected_with_bullets + expected_textarea
 
 
@@ -234,7 +232,7 @@ def test_ordered_list():
 </body>"""
 
     tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree.body, list_bullets=False) == """\
+    assert extract_plain_text(tree, list_bullets=False) == """\
   A
   B
     C
@@ -245,7 +243,7 @@ def test_ordered_list():
       H
       I
   J"""
-    assert extract_plain_text(tree.body, list_bullets=True) == """\
+    assert extract_plain_text(tree, list_bullets=True) == """\
   \u2022 A
   \u2022 B
     1. C
@@ -274,9 +272,9 @@ def test_empty_list_items():
     </body>"""
 
     tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree.body, list_bullets=False) == \
+    assert extract_plain_text(tree, list_bullets=False) == \
            '  A\n  B'
-    assert extract_plain_text(tree.body, list_bullets=True) == \
+    assert extract_plain_text(tree, list_bullets=True) == \
            '  \u2022 A\n  \u2022 B'
 
 
@@ -287,9 +285,9 @@ def test_real_word_data():
                                             parse_http=True, record_types=WarcRecordType.response)):
         data = rec.reader.read()
         tree = HTMLTree.parse_from_bytes(data, rec.http_charset or 'utf-8')
-        all = extract_plain_text(tree.body)
+        all = extract_plain_text(tree)
         assert all
-        main_content = extract_plain_text(tree.body, main_content=True)
+        main_content = extract_plain_text(tree, main_content=True)
         assert main_content
         assert len(all) >= len(main_content)
     assert i > 0

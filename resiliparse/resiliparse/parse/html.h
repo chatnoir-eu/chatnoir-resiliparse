@@ -25,6 +25,7 @@ static const lxb_tag_id_t BLOCK_ELEMENTS[] = {
     LXB_TAG_ASIDE,
     LXB_TAG_BLOCKQUOTE,
     LXB_TAG_BR,
+    LXB_TAG_CENTER,
     LXB_TAG_DETAILS,
     LXB_TAG_DD,
     LXB_TAG_DT,
