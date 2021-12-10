@@ -288,7 +288,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     return output
 
 
-cdef bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
+cdef inline bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
     """Whether text node contains only a single unprintable code point from the private use area."""
     if node.first_child and (node.first_child.next or node.first_child.type != LXB_DOM_NODE_TYPE_TEXT):
         # Node has more than one child
@@ -369,6 +369,13 @@ cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, s
         return True
     return False
 
+
+cdef stl_set[string] blacklist_aria_roles = [b'alert', b'banner', b'checkbox', b'comment', b'complementary',
+                                             b'contentinfo', b'dialog', b'img', b'menu', b'menubar', b'menuitem',
+                                             b'navigation', b'presentation', b'radio', b'search', b'searchbox',
+                                             b'separator', b'tab', b'toolbar', b'tooltip']
+
+
 # noinspection DuplicatedCode
 cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments) nogil:
     """
@@ -380,23 +387,49 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     :return: true if element is a main content element
     """
 
-    if node.type != LXB_DOM_NODE_TYPE_ELEMENT:
+    if node.type == LXB_DOM_NODE_TYPE_TEXT:
+        return not _is_unprintable_pua(node)
+    elif node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return True
 
-    if node.local_name == LXB_TAG_BODY:
+
+    # ------ Section 1: Tag name matching ------
+
+    # Main elements and headings
+    if node.local_name in [LXB_TAG_BODY, LXB_TAG_MAIN, LXB_TAG_H1]:
         return True
 
-    cdef bint is_block = is_block_element(node.local_name) or node.local_name == LXB_TAG_TD
+    # Global footer
+    elif node.local_name == LXB_TAG_FOOTER:
+        if body_depth < 3 or _is_link_cluster(node, 0.2, 0):
+            return False
 
-
-    # ------ Section 1: Inline and block elements ------
-
-    if not is_block and _is_unprintable_pua(node):
+        # Check if footer is recursive last element node of a direct body child
+        pnode = node
+        while pnode and pnode.parent and pnode.parent.local_name != LXB_TAG_BODY:
+            if pnode.next and pnode.next.type == LXB_DOM_NODE_TYPE_TEXT:
+                pnode = pnode.next
+            if pnode.next:
+                # There is at least one more element node
+                return True
+            pnode = pnode.parent
         return False
 
-    # Hard-blacklisted elements
-    if node.local_name in [LXB_TAG_ASIDE, LXB_TAG_SOURCE, LXB_TAG_TIME]:
+    elif node.local_name == LXB_TAG_UL:
+        if body_depth < 4 or _is_link_cluster(node, 0.2, 0):
+            return False
+
+    # Teaser articles
+    elif node.local_name == LXB_TAG_ARTICLE:
+        if body_depth > 2 and _is_link_cluster(node, 0.2, 500):
+            return False
+
+    # Navigation, sidebar, other hard-blacklisted elements
+    elif node.local_name in [LXB_TAG_NAV, LXB_TAG_ASIDE, LXB_TAG_AUDIO, LXB_TAG_VIDEO, LXB_TAG_TIME]:
         return False
+
+
+    # ------ Section 2: Rel and ARIA attribute matching ------
 
     # Hidden elements
     if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'hidden', 6):
@@ -420,56 +453,15 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     if get_node_attr_sv(node, b'aria-expanded') == b'false':
         return False
 
-    # ARIA roles
-    cdef string_view role_attr = get_node_attr_sv(node, b'role')
-    if not role_attr.empty() and role_attr in [b'contentinfo', b'img', b'menu', b'menubar', b'navigation', b'menuitem',
-                                               b'alert', b'dialog', b'checkbox', b'radio', b'complementary']:
-        return False
 
-    # General block element matching (not based on attributes)
-    cdef bint footer_is_last_body_child = True
-    if is_block:
-        # Main elements and headings
-        if node.local_name in [LXB_TAG_MAIN, LXB_TAG_H1]:
-            return True
-
-        # Teaser articles
-        if body_depth > 2 and node.local_name == LXB_TAG_ARTICLE and _is_link_cluster(node, 0.2, 500):
-            return False
-
-        # Global footer
-        if node.local_name == LXB_TAG_FOOTER:
-            if body_depth < 3 or _is_link_cluster(node, 0.2, 0):
-                return False
-
-            # Check if footer is recursive last element node of a direct body child
-            pnode = node
-            while pnode and pnode.parent and pnode.parent.local_name != LXB_TAG_BODY:
-                if pnode.next and pnode.next.type == LXB_DOM_NODE_TYPE_TEXT:
-                    pnode = pnode.next
-                if pnode.next:
-                    # There is at least one more element node
-                    footer_is_last_body_child = False
-                    break
-                pnode = pnode.parent
-            if footer_is_last_body_child:
-                return False
-
-        # Global navigation
-        if node.local_name == LXB_TAG_NAV:
-            return False
-        if node.local_name == LXB_TAG_UL:
-            if body_depth < 4 or _is_link_cluster(node, 0.2, 0):
-                return False
-
-
-    # ------ Section 2: General class and id matching ------
+    # ------ Section 3: General class and ID matching ------
 
     cdef StringPiece cls_attr = get_node_attr_sp(node, b'class')
     cdef StringPiece id_attr = get_node_attr_sp(node, b'id')
-    # Only elements with class or id attributes or DIV elements from here on
-    # (will do a link cluster check for DIVs at the end)
-    if cls_attr.empty() and id_attr.empty() and node.local_name != LXB_TAG_DIV:
+    # Only elements with class or id attributes from here on
+    if cls_attr.empty() and id_attr.empty():
+        if node.local_name == LXB_TAG_DIV:
+            return body_depth <= 5 or not _is_link_cluster(node, 0.6, 800)
         return True
 
     cdef string cls_and_id_attr_str = cls_attr.as_string()
@@ -513,10 +505,17 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
         return False
 
 
-    # ------ Section 3: Class and id matching of block elements only ------
+    # ------ Section 4: Class and ID matching of block elements only ------
 
-    if not is_block:
+    if not is_block_element(node.local_name) and node.local_name != LXB_TAG_TD:
         return True
+
+    # ARIA roles
+    cdef string_view role_attr = get_node_attr_sv(node, b'role')
+    if rel_attr == b'main':
+        return True
+    if not role_attr.empty() and blacklist_aria_roles.find(<string>role_attr) != blacklist_aria_roles.end():
+        return False
 
     # Whitelist article elements
     if regex_search_not_empty(cls_and_id_attr, article_cls_regex):

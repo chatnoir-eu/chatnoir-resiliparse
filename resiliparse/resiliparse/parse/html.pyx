@@ -129,6 +129,11 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
 
 cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
     """Get node inner text."""
+    cdef lxb_dom_character_data_t* char_data
+    if node.type == LXB_DOM_NODE_TYPE_TEXT:
+        char_data = <lxb_dom_character_data_t*>node
+        return string(<const char*>char_data.data.data, char_data.data.length)
+
     cdef size_t text_len = 0
     cdef lxb_char_t* text = lxb_dom_node_text_content(node, &text_len)
     if not text or not text_len:
