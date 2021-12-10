@@ -38,7 +38,7 @@ For detailed usage instructions, please consult the [FastWARC User Manual](https
 ## Cite Us
 If you use FastWARC, please consider citing our [OSSYM 2021 abstract paper](https://arxiv.org/abs/2112.03103):
 ```bibtex
-@InProceedings{bevendorff:2021c,
+@InProceedings{bevendorff:2021,
   author =                {Janek Bevendorff and Martin Potthast and Benno Stein},
   booktitle =             {3nd International Symposium on Open Search Technology (OSSYM 2021)},
   editor =                {Andreas Wagner and Christian Guetl and Michael Granitzer and Stefan Voigt},

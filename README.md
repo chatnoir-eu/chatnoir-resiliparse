@@ -104,7 +104,7 @@ Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolki
 
 If you use FastWARC, you can also cite our [OSSYM 2021 abstract paper](https://arxiv.org/abs/2112.03103):
 ```bibtex
-@InProceedings{bevendorff:2021c,
+@InProceedings{bevendorff:2021,
   author =                {Janek Bevendorff and Martin Potthast and Benno Stein},
   booktitle =             {3nd International Symposium on Open Search Technology (OSSYM 2021)},
   editor =                {Andreas Wagner and Christian Guetl and Michael Granitzer and Stefan Voigt},
