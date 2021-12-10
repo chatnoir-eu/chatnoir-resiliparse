@@ -4,7 +4,7 @@
 ChatNoir Resiliparse |release| Documentation
 ++++++++++++++++++++++++++++++++++++++++++++
 
-ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`_.
+ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`__.
 
 
 Table of Contents
@@ -89,9 +89,12 @@ Main documentation: :ref:`fastwarc-manual` and :ref:`fastwarc-cli`
 About ChatNoir
 ==============
 
-`ChatNoir <https://chatnoir.eu>`_ is a web search engine developed developed by the `Webis Group <https://webis.de>`_ based on the `ClueWeb09 <https://lemurproject.org/clueweb09/>`_, `ClueWeb12 <https://lemurproject.org/clueweb12/>`_, and `Common Crawl <https://commoncrawl.org/>`_ datasets with the goal to make large-scale web retrieval research accessible to the wider research community.
+`ChatNoir <https://chatnoir.eu>`__ is a web search engine developed developed by the `Webis Group <https://webis.de>`__ based on the `ClueWeb09 <https://lemurproject.org/clueweb09/>`__, `ClueWeb12 <https://lemurproject.org/clueweb12/>`__, and `Common Crawl <https://commoncrawl.org/>`__ datasets with the goal to make large-scale web retrieval research accessible to the wider research community.
 
-If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our ECIR demo paper:
+Cite Us
+-------
+
+If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our `ECIR demo paper <https://webis.de/downloads/publications/papers/bevendorff_2018.pdf>`__:
 
 .. code-block:: bibtex
 
@@ -108,3 +111,19 @@ If you use ChatNoir or any of its tools for a publication, you can make us happy
     title =               {{Elastic ChatNoir: Search Engine for the ClueWeb and the Common Crawl}},
     year =                2018
   }
+
+
+If you use FastWARC, you can also cite our `OSSYM 2021 abstract paper <https://arxiv.org/abs/2112.03103>`__:
+
+.. code-block:: bibtex
+
+    @InProceedings{bevendorff:2021c,
+      author =                {Janek Bevendorff and Martin Potthast and Benno Stein},
+      booktitle =             {3nd International Symposium on Open Search Technology (OSSYM 2021)},
+      editor =                {Andreas Wagner and Christian Guetl and Michael Granitzer and Stefan Voigt},
+      month =                 oct,
+      publisher =             {International Open Search Symposium},
+      site =                  {CERN, Geneva, Switzerland},
+      title =                 {{FastWARC: Optimizing Large-Scale Web Archive Analytics}},
+      year =                  2021
+    }

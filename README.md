@@ -6,23 +6,6 @@
 
 A collection of robust and fast processing tools for parsing and analyzing web archive data.
 
-Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolkit. If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our ECIR demo paper:
-```bibtex
-@InProceedings{bevendorff:2018,
-  address =             {Berlin Heidelberg New York},
-  author =              {Janek Bevendorff and Benno Stein and Matthias Hagen and Martin Potthast},
-  booktitle =           {Advances in Information Retrieval. 40th European Conference on IR Research (ECIR 2018)},
-  editor =              {Leif Azzopardi and Allan Hanbury and Gabriella Pasi and Benjamin Piwowarski},
-  ids =                 {potthast:2018c,stein:2018c},
-  month =               mar,
-  publisher =           {Springer},
-  series =              {Lecture Notes in Computer Science},
-  site =                {Grenoble, France},
-  title =               {{Elastic ChatNoir: Search Engine for the ClueWeb and the Common Crawl}},
-  year =                2018
-}
-```
-
 ## Usage Instructions
 For detailed information about the build process, dependencies, APIs, or usage instructions, please read the [Resiliparse Documentation](https://resiliparse.chatnoir.eu/en/latest/index.html)
 
@@ -99,4 +82,36 @@ pip install --no-binary resiliparse resiliparse
 
 # Build FastWARC from PyPi
 pip install --no-binary fastwarc fastwarc
+```
+
+## Cite Us
+
+Resiliparse is part of the [ChatNoir](https://chatnoir.eu/) web analytics toolkit. If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our [ECIR 2018 demo paper](https://webis.de/downloads/publications/papers/bevendorff_2018.pdf):
+```bibtex
+@InProceedings{bevendorff:2018,
+  address =             {Berlin Heidelberg New York},
+  author =              {Janek Bevendorff and Benno Stein and Matthias Hagen and Martin Potthast},
+  booktitle =           {Advances in Information Retrieval. 40th European Conference on IR Research (ECIR 2018)},
+  editor =              {Leif Azzopardi and Allan Hanbury and Gabriella Pasi and Benjamin Piwowarski},
+  month =               mar,
+  publisher =           {Springer},
+  series =              {Lecture Notes in Computer Science},
+  site =                {Grenoble, France},
+  title =               {{Elastic ChatNoir: Search Engine for the ClueWeb and the Common Crawl}},
+  year =                2018
+}
+```
+
+If you use FastWARC, you can also cite our [OSSYM 2021 abstract paper](https://arxiv.org/abs/2112.03103):
+```bibtex
+@InProceedings{bevendorff:2021c,
+  author =                {Janek Bevendorff and Martin Potthast and Benno Stein},
+  booktitle =             {3nd International Symposium on Open Search Technology (OSSYM 2021)},
+  editor =                {Andreas Wagner and Christian Guetl and Michael Granitzer and Stefan Voigt},
+  month =                 oct,
+  publisher =             {International Open Search Symposium},
+  site =                  {CERN, Geneva, Switzerland},
+  title =                 {{FastWARC: Optimizing Large-Scale Web Archive Analytics}},
+  year =                  2021
+}
 ```
