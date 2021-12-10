@@ -86,13 +86,13 @@ cdef extern from * nogil:
         shared_ptr[string] text_contents
 
 
-cdef string _get_collapsed_string(const string_view& input_str) nogil:
+cdef string _get_collapsed_string(const string& input_str) nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
     """
     if input_str.empty():
-        return string()
+        return input_str
 
     cdef string element_text
     element_text.reserve(input_str.size())
@@ -103,8 +103,6 @@ cdef string _get_collapsed_string(const string_view& input_str) nogil:
         else:
             element_text.push_back(input_str[i])
 
-    if element_text.capacity() > element_text.size() // 2:
-        element_text.reserve(element_text.size())    # Shrink to fit
     return element_text
 
 
@@ -150,7 +148,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         if last_node.is_pre and ctx.opts.preserve_formatting:
             deref(last_node.text_contents).append(<string>element_text_sv)
         else:
-            element_text = _get_collapsed_string(element_text_sv)
+            element_text = _get_collapsed_string(<string>element_text_sv)
             element_text_sv = <string_view>element_text
             if deref(last_node.text_contents).empty() or isspace(deref(last_node.text_contents).back()):
                 while not element_text_sv.empty() and isspace(element_text_sv.front()):
@@ -354,7 +352,7 @@ cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, s
     :param max_length: do not check ratio if content length is larger than this (0 to disable limit)
     :return: true if element is a link cluster
     """
-    cdef string element_text = _get_collapsed_string(<string_view>get_node_text(node))
+    cdef string element_text = _get_collapsed_string(get_node_text(node))
     if max_length and element_text.size() > max_length:
         return False
     dom_coll = lxb_dom_collection_make(node.owner_document, 20)
@@ -363,7 +361,7 @@ cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, s
     cdef string link_texts
     link_texts.reserve(element_text.size())
     for i in range(lxb_dom_collection_length(dom_coll)):
-        link_texts.append(_get_collapsed_string(<string_view>get_node_text(lxb_dom_collection_node(dom_coll, i))))
+        link_texts.append(_get_collapsed_string(get_node_text(lxb_dom_collection_node(dom_coll, i))))
     lxb_dom_collection_destroy(dom_coll, True)
     if not link_texts.empty() and link_texts.size() / <double> element_text.size() > max_link_ratio:
         return True
