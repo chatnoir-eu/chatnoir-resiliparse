@@ -669,18 +669,19 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
         init_css_parser(&css_parser)
         init_css_selectors(css_parser, &css_selectors, &selectors)
 
-        # Opportunistically try to find general main content zone
-        selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>main_content_selector.data(),
-                                            main_content_selector.size())
-        lxb_selectors_find(selectors, ctx.root_node, selector_list,
-                           <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
-        if preselected_nodes.size() == 1:
-            # Use result only if there is exactly one match
-            ctx.root_node = deref(preselected_nodes.begin())
-            ctx.node = ctx.root_node
+        if main_content:
+            # Opportunistically try to find general main content zone
+            selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>main_content_selector.data(),
+                                                main_content_selector.size())
+            lxb_selectors_find(selectors, ctx.root_node, selector_list,
+                               <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
+            if preselected_nodes.size() == 1:
+                # Use result only if there is exactly one match
+                ctx.root_node = deref(preselected_nodes.begin())
+                ctx.node = ctx.root_node
+            preselected_nodes.clear()
 
         # Select all blacklisted elements and save them in an ordered set
-        preselected_nodes.clear()
         combined_skip_sel = b','.join(skip_selectors)
         selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>combined_skip_sel, len(combined_skip_sel))
         lxb_selectors_find(selectors, ctx.root_node, selector_list,
