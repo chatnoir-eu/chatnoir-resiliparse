@@ -236,14 +236,13 @@ def test_attributes():
     assert a.class_list == ['bar', 'abc']
     assert a.class_name == 'bar abc'
 
-    # TODO: Uncomment these tests once https://github.com/lexbor/lexbor/issues/139 has been released.
-    # assert a.getattr('id') is None
-    # assert a.getattr('id', 'default') == 'default'
-    # assert a.id == ''
-    # a.id = 'abc'
-    # assert a.id == 'abc'
-    # assert a['id'] == 'abc'
-    # assert a.getattr('id') == 'abc'
+    assert a.getattr('id') is None
+    assert a.getattr('id', 'default') == 'default'
+    assert a.id == ''
+    a.id = 'abc'
+    assert a.id == 'abc'
+    assert a['id'] == 'abc'
+    assert a.getattr('id') == 'abc'
 
     with pytest.raises(KeyError):
         # noinspection PyStatementEffect
@@ -254,16 +253,25 @@ def test_attributes():
     assert a['lang'] == 'en'
     assert a.getattr('lang') == 'en'
 
-    # TODO: These, too
-    # assert len(a.attrs) == 4
-    # assert a.attrs == ['href', 'class', 'id', 'lang']
+    assert len(a.attrs) == 4
+    assert a.attrs == ['href', 'class', 'id', 'lang']
 
     del a['lang']
     assert a.getattr('lang') is None
 
 
 def test_empty_attributes():
-    input_tree = HTMLTree.parse('<div><input type="checkbox" checked></div>')
+    input_tree = HTMLTree.parse('''<div>
+    <input type="checkbox" checked>
+    <div class="foo"></div>
+    <div class></div>
+    <div class=""></div>
+    <div id="foo"></div>
+    <div id></div>
+    <div id=""></div>
+    <div foo></div>
+    <div foo=""></div>''')
+
     input_element = input_tree.body.query_selector('input')
 
     assert input_element.hasattr('type')
@@ -275,6 +283,21 @@ def test_empty_attributes():
     assert not input_element.hasattr('checkedx')
     with pytest.raises(KeyError):
         assert input_element['checkedx']
+
+    # Test empty attribute selection
+    # There used to be a Lexbor crash with this: https://github.com/lexbor/lexbor/pull/148
+    assert len(input_tree.body.query_selector_all('.foo')) == 1
+    assert len(input_tree.body.query_selector_all('#foo')) == 1
+    assert len(input_tree.body.query_selector_all('[class]')) == 3
+    assert len(input_tree.body.query_selector_all('[id]')) == 3
+    assert input_tree.body.get_element_by_id('foo') is not None
+    assert input_tree.body.get_element_by_id('foox') is None
+    assert len(input_tree.body.get_elements_by_class_name('foo')) == 1
+    assert len(input_tree.body.get_elements_by_class_name('')) == 0     # This doesn't match anything
+    assert len(input_tree.body.get_elements_by_attr('class', 'foo')) == 1
+    assert len(input_tree.body.get_elements_by_attr('class', '')) == 2
+    assert len(input_tree.body.get_elements_by_attr('id', '')) == 2
+    assert len(input_tree.body.get_elements_by_attr('foo', '')) == 2
 
 
 def test_serialization():
