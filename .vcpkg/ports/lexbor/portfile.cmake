@@ -1,7 +1,7 @@
 vcpkg_download_distfile(ARCHIVE
-    URLS "https://github.com/lexbor/lexbor/archive/a94adb86b13a36f7062ab79169a520a4b8186173.zip"
+    URLS "https://github.com/phoerious/lexbor/archive/ac4d36e2a6a8570d20f949f2f6101a7e1e3d6d33.zip"
     FILENAME "v2.1.0git.zip"
-    SHA512 b1a10d93e6659a5174d960d8c119e7f1a97e123b314fb96ded38c97bbb693c1c984caaf13eef017b6c21856c9879dce1fead45a064cb849678ff3bff36d476ef
+    SHA512 aed80748e3e973a670367e5b8ff273d861c2077a34bf62bc62d2a6a460fa5106b734d4aaf1b60e3f38f04455616c23174a8481a205f994bcf0ed685310b1662e
 )
 
 vcpkg_extract_source_archive_ex(

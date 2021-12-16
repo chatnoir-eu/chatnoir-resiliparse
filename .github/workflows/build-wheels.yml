@@ -24,19 +24,7 @@ jobs:
       CIBW_BUILD: cp3*
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
-
-      CIBW_BEFORE_ALL_LINUX: |
-        set -e
-        cat <<'EOF' > /etc/yum.repos.d/lexbor.repo
-        [lexbor]
-        name=lexbor repo
-        baseurl=https://packages.lexbor.com/centos/$releasever/$basearch/
-        gpgcheck=0
-        enabled=1
-        EOF
-
-        yum install -y zlib-devel lz4-devel liblexbor-devel uchardet-devel re2-devel
-      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+      CIBW_MANYLINUX_X86_64_IMAGE: webis/resiliparse-manylinux2014_x86_64
 
 #      CIBW_ARCHS_MACOS: universal2
       MACOSX_DEPLOYMENT_TARGET: "10.14"
@@ -67,7 +55,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-3
+          key: ${{ runner.os }}-vcpkg-4
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
