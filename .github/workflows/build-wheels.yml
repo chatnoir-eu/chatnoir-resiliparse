@@ -140,13 +140,11 @@ jobs:
           fetch-depth: 0
 
       - name: Install Dependencies
-        run: |
-          python -m pip install cython pytest pytest-cov lz4
+        run: $PYTHON -m pip install cython pytest pytest-cov lz4
 
       - name: Build Extensions Inline
         run: |
           set -e
-          $PYTHON -m pip install cython pytest pytest-cov lz4
           (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON setup.py install)
           (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON setup.py install)
 
