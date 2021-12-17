@@ -102,14 +102,30 @@ def test_record_offsets():
     }
     for ext in expected_offsets:
         with open(os.path.join(DATA_DIR, f'block-sized-records.warc{ext}'), 'rb') as stream:
-            count = 0
-            rec_ids = set()
-            for rec, offset in zip(ArchiveIterator(stream, parse_http=False), expected_offsets[ext]):
-                assert rec.stream_pos == offset
-                assert rec.record_id and rec.record_id not in rec_ids
-                rec_ids.add(rec.record_id)
-                count += 1
-            assert count == len(expected_offsets[ext])
+            it = ArchiveIterator(stream, parse_http=False)
+            assert next(it).stream_pos == expected_offsets[ext][0]
+            assert next(it).stream_pos == expected_offsets[ext][1]
+            assert next(it).stream_pos == expected_offsets[ext][2]
+
+    # Test offsets with initial seek
+    for ext in expected_offsets:
+        with open(os.path.join(DATA_DIR, f'block-sized-records.warc{ext}'), 'rb') as stream:
+            stream.seek(expected_offsets[ext][1])
+            it = ArchiveIterator(stream, parse_http=False)
+            assert next(it).stream_pos == expected_offsets[ext][1]
+            assert next(it).stream_pos == expected_offsets[ext][2]
+
+            # Test again, but without stream negotiation
+            stream.seek(expected_offsets[ext][1])
+            if ext == '.gz':
+                stream = GZipStream(stream)
+            elif ext == '.lz4':
+                stream = LZ4Stream(stream)
+            else:
+                break
+            it = ArchiveIterator(stream, parse_http=False)
+            assert next(it).stream_pos == expected_offsets[ext][1]
+            assert next(it).stream_pos == expected_offsets[ext][2]
 
 
 def test_record_types():

@@ -337,9 +337,7 @@ cdef class GZipStream(CompressingStream):
         self.close()
 
     cdef size_t tell(self) except -1:
-        if self.initialized == _GZIP_INFLATE:
-            return self.stream_pos
-        return self.raw_stream.tell()
+        return self.stream_pos
 
     cdef void _init_z_stream(self, bint deflate) nogil:
         """
@@ -381,6 +379,7 @@ cdef class GZipStream(CompressingStream):
         self.working_buf_filled += initial_data.size()
         self.zst.next_in = <Bytef*>self.working_buf.data()
         self.zst.avail_in = self.working_buf_filled
+        self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
 
     cdef void _free_z_stream(self) nogil:
         """Release internal state and reset working buffer."""
@@ -402,7 +401,6 @@ cdef class GZipStream(CompressingStream):
         if self.working_buf_filled == 0:
             # EOF
             self._free_z_stream()
-            self.stream_pos = self.raw_stream.tell()
             return False
 
         self.zst.next_in = <Bytef*>self.working_buf.data()
@@ -423,9 +421,12 @@ cdef class GZipStream(CompressingStream):
         self.zst.next_out = <Bytef*>out
         self.zst.avail_out = size
         cdef int stream_read_status = Z_STREAM_END
+        cdef Bytef* start_in
 
         while True:
+            start_in = self.zst.next_in
             stream_read_status = inflate(&self.zst, Z_NO_FLUSH)
+            self.stream_pos += self.zst.next_in - start_in
 
             if self.zst.avail_out == 0 or (stream_read_status != Z_OK and stream_read_status != Z_BUF_ERROR):
                 break
@@ -437,10 +438,8 @@ cdef class GZipStream(CompressingStream):
             self._free_z_stream()
             raise StreamError('Not a valid GZip stream')
 
+        # Member end
         if stream_read_status == Z_STREAM_END:
-            # Member end
-            self.stream_pos = self.raw_stream.tell() - self.working_buf_filled + \
-                              (self.zst.next_in - <Bytef*>self.working_buf.data())
             inflateReset(&self.zst)
 
         return size - self.zst.avail_out
@@ -475,6 +474,7 @@ cdef class GZipStream(CompressingStream):
                 self.zst.avail_out = 4096u
 
         written += self.zst.total_out - written_so_far
+        self.stream_pos += written
         if written == 0:
             return 0
 
@@ -505,6 +505,7 @@ cdef class GZipStream(CompressingStream):
 
         cdef size_t written = self.zst.total_out - written_so_far
         deflateReset(&self.zst)
+        self.stream_pos += written
         self.member_started = False
 
         if written == 0:
@@ -554,9 +555,7 @@ cdef class LZ4Stream(CompressingStream):
         self.close()
 
     cdef size_t tell(self) except -1:
-        if self.dctx != NULL:
-            return self.stream_pos
-        return self.raw_stream.tell()
+        return self.stream_pos
 
     cdef void prepopulate(self, const string& initial_data):
         """
@@ -568,6 +567,7 @@ cdef class LZ4Stream(CompressingStream):
         """
         self.working_buf.append(initial_data)
         self.working_buf_filled += initial_data.size()
+        self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
 
     cdef size_t read(self, char* out, size_t size) except -1:
         if self.cctx != NULL:
@@ -597,16 +597,14 @@ cdef class LZ4Stream(CompressingStream):
             bytes_out = size - out_buf_consumed
             ret = LZ4F_decompress(self.dctx, out + out_buf_consumed, &bytes_out,
                                   self.working_buf.data() + self.working_buf_read, &bytes_in, NULL)
+            self.stream_pos += bytes_in
             self.working_buf_read += bytes_in
             out_buf_consumed += bytes_out
 
             if ret == 0 or out_buf_consumed == size or LZ4F_isError(ret):
                 break
 
-        if ret == 0:
-            # Frame end
-            self.stream_pos = self.raw_stream.tell() - self.working_buf_filled + self.working_buf_read
-        elif LZ4F_isError(ret):
+        if LZ4F_isError(ret):
             self._free_ctx()
             raise StreamError(f'Not a valid LZ4 stream: {LZ4F_getErrorName(ret).decode()}')
 
@@ -652,6 +650,7 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t header_bytes_written = self.begin_member()
         cdef size_t written = LZ4F_compressUpdate(self.cctx, self.working_buf.data(), self.working_buf.size(),
                                                   data, size, NULL)
+        self.stream_pos += written
         return self.raw_stream.write(self.working_buf.data(), written) + header_bytes_written
 
     cdef void flush(self) except *:
@@ -664,6 +663,7 @@ cdef class LZ4Stream(CompressingStream):
 
         cdef size_t written = LZ4F_flush(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
         self.raw_stream.write(self.working_buf.data(), written)
+        self.stream_pos += written
         self.raw_stream.flush()
 
     cdef void close(self) except *:
@@ -735,7 +735,7 @@ cdef class BufferedReader:
             self.stream = LZ4Stream.__new__(LZ4Stream, self.stream)
             (<LZ4Stream> self.stream).prepopulate(<string>self.buf_view)
         elif self.buf_view.size() > 5 and memcmp(self.buf_view.data(), <const char*>b'WARC/', 5) == 0:
-            # Stream is uncompressed: bail out, dont' mess with buffers
+            # Stream is uncompressed: bail out, don't mess with buffers
             self.stream_is_compressed = False
             return True
         else:
@@ -744,7 +744,6 @@ cdef class BufferedReader:
 
         self.stream_is_compressed = isinstance(self.stream, CompressingStream)
         self.buf_view.remove_prefix(self.buf_view.size())
-        self._fill_buf()
         self.stream_started = False
         return True
 
@@ -913,15 +912,15 @@ cdef class BufferedReader:
         :return: offset
         :rtype: int
         """
-        if not self.stream_started:
+        if not self.stream_is_compressed and not self.stream_started:
             return 0
 
         if self.limit != strnpos:
             return self.limit_consumed
 
         if self.stream_is_compressed:
-            # Compressed streams advance their position only on block boundaries.
-            # The reader position inside the stream is meaningless.
+            # Use position as returned by the decompressor.
+            # The BufferedReader position inside a decompressed stream is meaningless.
             return self.stream.tell()
 
         return self.stream.tell() - self.buf_view.size()
