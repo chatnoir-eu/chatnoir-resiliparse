@@ -351,30 +351,38 @@ def test_record_writer():
     buf = io.BytesIO()
 
     # Without HTTP
+    written = 0
     for rec in ArchiveIterator(FileStream(file), parse_http=False):
-        rec.write(buf)
+        written += rec.write(buf)
+        assert written == buf.tell()
     buf.seek(0)
     check_warc_integrity(buf)
 
     # With HTTP and re-checksumming
     buf = io.BytesIO()
+    written = 0
     for rec in ArchiveIterator(FileStream(file), parse_http=True):
-        rec.write(buf)
+        written += rec.write(buf)
+        assert written == buf.tell()
     buf.seek(0)
     check_warc_integrity(buf)
 
     # With HTTP and re-checksumming
     buf = io.BytesIO()
+    written = 0
     for rec in ArchiveIterator(FileStream(file), parse_http=True):
-        rec.write(buf, checksum_data=True)
+        written += rec.write(buf, checksum_data=True)
+        assert written == buf.tell()
     buf.seek(0)
     check_warc_integrity(buf)
 
     # Check raw stream data for identity
     source_bytes = open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()
     buf = io.BytesIO()
+    written = 0
     for rec in ArchiveIterator(io.BytesIO(source_bytes), parse_http=False):
-        rec.write(buf)
+        written += rec.write(buf)
+        assert written == buf.tell()
     buf.seek(0)
     assert md5(source_bytes).hexdigest() == md5(buf.getvalue()).hexdigest()
 
@@ -386,8 +394,10 @@ def test_warc_writer_compression():
     # GZip
     raw_buf = io.BytesIO()
     com_buf = GZipStream(raw_buf)
+    written = 0
     for rec in ArchiveIterator(io.BytesIO(source_bytes), parse_http=False):
-        rec.write(com_buf)
+        written += rec.write(com_buf)
+        assert written == raw_buf.tell()
 
     raw_buf.seek(0)
     assert md5(GzipFile(fileobj=raw_buf).read()).hexdigest() == src_md5
@@ -397,8 +407,10 @@ def test_warc_writer_compression():
     # LZ4
     raw_buf = io.BytesIO()
     com_buf = LZ4Stream(raw_buf)
+    written = 0
     for rec in ArchiveIterator(io.BytesIO(source_bytes), parse_http=False):
-        rec.write(com_buf)
+        written += rec.write(com_buf)
+        assert written == raw_buf.tell()
 
     raw_buf.seek(0)
     compressed = raw_buf.getvalue()
