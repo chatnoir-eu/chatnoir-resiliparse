@@ -424,7 +424,6 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_out = size
         cdef int stream_read_status = Z_STREAM_END
         cdef size_t read_so_far = self.zst.total_in
-        cdef size_t i = 0
 
         while True:
             stream_read_status = inflate(&self.zst, Z_NO_FLUSH)
