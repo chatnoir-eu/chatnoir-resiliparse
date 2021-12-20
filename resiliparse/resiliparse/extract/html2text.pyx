@@ -584,8 +584,8 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
                        bint list_bullets=True,  bint alt_texts=True, bint links=False, bint form_fields=False,
                        bint noscript=False, bint comments=True, skip_elements=None):
     """
-    extract_plain_text(base_node, preserve_formatting=True, preserve_formatting=True, main_content=False, \
-        list_bullets=True, alt_texts=False, links=True, form_fields=False, noscript=False, skip_elements=None)
+    extract_plain_text(tree, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
+                       links=True, form_fields=False, noscript=False, comments=None, skip_elements=None)
 
     Perform a simple plain-text extraction from the given DOM node and its children.
 
