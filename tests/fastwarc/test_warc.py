@@ -646,3 +646,34 @@ def test_create_new_warc_record():
 
     with pytest.raises(StopIteration):
         next(it)
+
+
+def test_clueweb_quirks():
+    # Test ClueWeb09 quirks (the test file is recompressed and does not represent all
+    # quirks of the original ClueWeb09, but contains some of them such as LF-only HTTP headers
+
+    fname = os.path.join(DATA_DIR, 'clueweb-quirk.warc.gz')
+
+    count = 0
+    prev_stream_pos = -1
+    for rec in ArchiveIterator(FileStream(fname)):
+        assert rec.record_id
+        assert rec.stream_pos > prev_stream_pos
+        prev_stream_pos = rec.stream_pos
+
+        # WARC headers use correct CRLF, but HTTP headers are LF-only
+        assert rec.record_id
+        assert rec.http_content_type is None
+
+        count += 1
+    assert count == 30
+
+    count = 0
+    prev_stream_pos = -1
+    for rec in ArchiveIterator(FileStream(fname), strict_mode=False):
+        assert rec.record_id
+        assert rec.stream_pos > prev_stream_pos
+        prev_stream_pos = rec.stream_pos
+        count += 1
+
+    assert count == 30
