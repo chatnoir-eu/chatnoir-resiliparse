@@ -677,7 +677,7 @@ cdef class WarcRecord:
 
     cpdef bint parse_http(self, bint strict_mode=True) except 0:
         """
-        parse_http(self)
+        parse_http(self, strict_mode=True)
         
         Parse HTTP headers and advance content reader.
         
@@ -904,7 +904,7 @@ cdef class WarcRecord:
 cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line,
                                bint strict_mode=True) except -1:
     """
-    parse_header_block(reader, target, has_status_line=False)
+    parse_header_block(reader, target, has_status_line=False, strict_mode=True)
     
     Helper function for parsing WARC or HTTP header blocks.
     
@@ -970,7 +970,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 cdef class ArchiveIterator:
     """
     __init__(self, stream, record_types=any_type, parse_http=True, min_content_length=-1, max_content_length=-1, \
-             func_filter=None, verify_digests=False)
+             func_filter=None, verify_digests=False, strict_mode=True)
 
     WARC record stream iterator.
 
