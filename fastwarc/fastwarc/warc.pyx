@@ -1055,7 +1055,7 @@ cdef class ArchiveIterator:
                 continue
 
             version_line = strip_str(version_line)
-            if version_line == b'WARC/1.0' or version_line == b'WARC/1.1':
+            if version_line.substr(0, 7) in [b'WARC/1.', b'WARC/0.']:
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)
                 break
