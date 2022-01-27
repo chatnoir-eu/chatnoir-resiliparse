@@ -675,19 +675,22 @@ cdef class WarcRecord:
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>self._content_length))
         self._stale = False
 
-    cpdef bint parse_http(self) except 0:
+    cpdef bint parse_http(self, bint strict_mode=True) except 0:
         """
         parse_http(self)
         
         Parse HTTP headers and advance content reader.
         
         It is safe to call this method multiple times, even if the record is not an HTTP record.
+        
+        :param strict_mode: enforce ``CRLF`` line endings, setting this to ``False`` will allow plain ``LF`` also
+        :type: strict_mode: bool
         """
         self._assert_not_stale()
         if self._http_parsed or not self._is_http:
             return True
         self._http_headers = WarcHeaderMap.__new__(WarcHeaderMap, 'iso-8859-15')
-        cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True)
+        cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True, strict_mode)
         self._content_length = self._content_length - num_bytes
         self._http_parsed = True
         return True
@@ -898,7 +901,8 @@ cdef class WarcRecord:
 
 
 # noinspection PyProtectedMember
-cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line=False) except -1:
+cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line,
+                               bint strict_mode=True) except -1:
     """
     parse_header_block(reader, target, has_status_line=False)
     
@@ -910,6 +914,8 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     :type reader: WarcHeaderMap
     :param has_status_line: whether first line is a status line or already a header
     :type has_status_line: bool
+    :param strict_mode: enforce ``CRLF`` line endings, setting this to ``False`` will allow plain ``LF`` also
+    :type: strict_mode: bool
     :return: number of bytes read from `reader`
     :rtype: int
     """
@@ -923,10 +929,10 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
     cdef size_t str_len
 
     while True:
-        line = reader.readline()
+        line = reader.readline(strict_mode)
         bytes_consumed += line.size()
 
-        if line == b'\r\n' or line == b'':
+        if line == b'\r\n' or line == b'' or (not strict_mode and line == b'\n'):
             break
 
         if isspace(line[0]):
@@ -983,6 +989,9 @@ cdef class ArchiveIterator:
     :type func_filter: Callable
     :param verify_digests: skip records which have no or an invalid block digest
     :type verify_digests: bool
+    :param strict_mode: enforce strict spec compliance (setting this to ``False`` will enable quirks such
+                        as ``LF`` instead of ``CRLF`` for headers)
+    :type strict_mode: bool
     """
 
     def __init__(self, *args, **kwargs):
@@ -990,7 +999,7 @@ cdef class ArchiveIterator:
 
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
                   size_t min_content_length=strnpos, size_t max_content_length=strnpos,
-                  func_filter=None, bint verify_digests=False):
+                  func_filter=None, bint verify_digests=False, bint strict_mode=True):
         self._set_stream(stream)
         self.record = None
         self.iter = None
@@ -1000,6 +1009,7 @@ cdef class ArchiveIterator:
         self.max_content_length = max_content_length
         self.func_filter = func_filter
         self.record_type_filter = record_types
+        self.strict_mode = strict_mode
 
     def __iter__(self) -> t.Iterable[WarcRecord]:
         """
@@ -1043,7 +1053,7 @@ cdef class ArchiveIterator:
 
         cdef string version_line
         while True:
-            version_line = self.reader.readline()
+            version_line = self.reader.readline(self.strict_mode)
 
             if version_line.empty():
                 # EOF
@@ -1063,7 +1073,7 @@ cdef class ArchiveIterator:
                 # Not a WARC file or unsupported version
                 return eof
 
-        parse_header_block(self.reader, self.record._headers)
+        parse_header_block(self.reader, self.record._headers, False, self.strict_mode)
 
         cdef string hkey
         cdef size_t parse_count = 0
@@ -1107,7 +1117,7 @@ cdef class ArchiveIterator:
             return skip_next
 
         if self.parse_http and self.record._is_http:
-            self.record.parse_http()
+            self.record.parse_http(self.strict_mode)
 
         return has_next
 

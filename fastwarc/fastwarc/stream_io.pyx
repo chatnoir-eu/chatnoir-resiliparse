@@ -892,6 +892,8 @@ cdef class BufferedReader:
                     lf_ptr = <char*>memchr(lf_ptr, <int>b'\r', buf.size() - lf_pos)
             else:
                 lf_ptr = <char*>memchr(buf.data(), <int>b'\n', buf.size())
+                if lf_ptr != NULL:
+                    lf_pos = lf_ptr - buf.data()
 
             if lf_ptr == NULL:
                 lf_pos = buf.size() - 1
