@@ -9,7 +9,7 @@ FROM quay.io/pypa/manylinux2014_x86_64:latest
 #EOF
 
 RUN set -x \
-    && git clone -b fix/null-attr-crash https://github.com/phoerious/lexbor.git \
+    && git clone -b fix/use-after-free-tokenizer https://github.com/phoerious/lexbor.git \
     && mkdir lexbor/build \
     && (cd lexbor/build \
         && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib64 -DCMAKE_INSTALL_PREFIX=/usr .. \
