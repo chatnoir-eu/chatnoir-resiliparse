@@ -22,7 +22,7 @@ from setuptools import find_packages, setup, Extension
 
 # 1. BOILERPLATE -------------------------------------------------------
 
-VERSION = '0.10.4'
+VERSION = '0.10.5'
 ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
