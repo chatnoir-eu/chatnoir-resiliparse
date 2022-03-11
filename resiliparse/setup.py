@@ -138,7 +138,7 @@ setup(
     ext_modules=resiliparse_extensions,
     install_requires=[
         'click',
-        'fastwarc',
+        'fastwarc==' + VERSION,
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
@@ -147,9 +147,13 @@ setup(
         'pytest-cov'
     ],
     extras_require={
-        "CLI": [
+        'CLI': [
             'joblib'
         ],
+        'Beam': [
+            'apache_beam>=2.37.0',
+            'elasticsearch'
+        ]
     },
     entry_points={
         'console_scripts': ['resiliparse=resiliparse.cli:main[CLI]']
