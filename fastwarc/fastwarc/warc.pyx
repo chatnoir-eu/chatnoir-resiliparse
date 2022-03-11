@@ -477,7 +477,7 @@ cdef class WarcRecord:
     @property
     def record_id(self) -> str:
         """
-        Record ID (same as ``headers['WARC-Record'ID']``.
+        Record ID (same as ``headers['WARC-Record-ID']``).
 
         :type: str
         """
@@ -504,6 +504,37 @@ cdef class WarcRecord:
         """
         self._record_type = record_type
         self._headers.set_header(<char*>b'WARC-Type', _enum_record_type_to_str(record_type))
+
+    @property
+    def record_date(self):
+        """
+        WARC Date.
+
+        :type: datetime.datetime | None
+        """
+        try:
+            date = self._headers.get('WARC-Date', '').replace('Z', '+00:00')
+            return datetime.datetime.fromisoformat(date)
+        except ValueError:
+            return None
+
+    @record_date.setter
+    def record_date(self, date):
+        """
+        record_date(self, date)
+
+        Set WARC Date.
+
+        :param date: datetime object
+        :type: datetime.datetime | None
+        """
+        if not isinstance(date, datetime.datetime):
+            raise TypeError('Invalid type: ' + type(date))
+
+        if date.tzinfo is None:
+            raise ValueError('Trying to set naive datetime without timezone info.')
+
+        self._headers.set_header(b'WARC-Date', date.isoformat().replace('+00:00', 'Z').encode())
 
     @property
     def headers(self) -> WarcHeaderMap:

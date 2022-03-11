@@ -1,3 +1,4 @@
+import datetime
 from gzip import GzipFile
 from hashlib import md5, sha1
 import lz4.frame
@@ -159,6 +160,46 @@ def test_record_types():
             assert rec.record_type == request
         else:
             assert rec.record_type == response
+
+
+def test_record_date():
+    file = os.path.join(DATA_DIR, 'warcfile.warc')
+
+    count = 0
+    for rec in ArchiveIterator(FileStream(file), parse_http=False, record_types=response):
+        count += 1
+        assert type(rec.record_date) is datetime.datetime
+        assert rec.record_date.tzinfo is not None
+    assert count == NUM_RECORDS_OF_TYPE
+
+    new_rec = WarcRecord()
+    assert new_rec.record_date is None
+    new_rec.init_headers()
+    assert new_rec.record_date is not None
+    assert new_rec.record_date.tzinfo is datetime.timezone.utc
+
+    dt_now_utc = datetime.datetime.utcnow().astimezone(datetime.timezone.utc)
+    new_rec.record_date = dt_now_utc
+    assert new_rec.record_date == dt_now_utc
+    assert new_rec.record_date.tzinfo == datetime.timezone.utc
+    assert new_rec.headers['WARC-Date'] == dt_now_utc.isoformat().replace('+00:00', 'Z')
+
+    dt_now_utc2 = datetime.datetime.utcnow().astimezone(datetime.timezone(datetime.timedelta(hours=2)))
+    assert dt_now_utc2.isoformat().endswith('+02:00')
+    new_rec.record_date = dt_now_utc2
+    assert new_rec.record_date == dt_now_utc2
+    assert new_rec.record_date.tzinfo == dt_now_utc2.tzinfo
+    assert new_rec.headers['WARC-Date'] == dt_now_utc2.isoformat()
+
+    # Invalid type
+    with pytest.raises(TypeError):
+        new_rec.record_date = 'abc'
+    with pytest.raises(TypeError):
+        new_rec.record_date = None
+
+    # Naive datetime
+    with pytest.raises(ValueError):
+        new_rec.record_date = datetime.datetime.now()
 
 
 def test_record_func_filters():
