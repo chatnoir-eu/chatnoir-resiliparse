@@ -152,6 +152,7 @@ setup(
         ],
         'Beam': [
             'apache_beam>=2.37.0',
+            'boto3',
             'elasticsearch'
         ]
     },
