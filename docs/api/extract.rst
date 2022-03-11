@@ -1,3 +1,5 @@
+.. _extract-api:
+
 Resiliparse Extraction Utilities
 ================================
 

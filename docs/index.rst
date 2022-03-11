@@ -32,6 +32,7 @@ This is the full table of contents for this documentation:
    api/extract
    api/process-guard
    api/itertools
+   api/beam
    api/fastwarc
 
 
