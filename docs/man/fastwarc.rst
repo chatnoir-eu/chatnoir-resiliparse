@@ -189,6 +189,7 @@ The :class:`.ArchiveIterator` returns objects of type :class:`.WarcRecord`, whic
       record.headers            # Dict-like object containing the WARC headers
       record.record_id          # Shorthand for record.headers['WARC-Record-ID']
       record.record_type        # Shorthand for record.headers['WARC-Type']
+      record.record_date        # Parsed record.headers['WARC-Date']
       record.content_length     # Effective record payload length
       record.stream_pos         # Record start offset in the (uncompressed) stream
       record.is_http            # Boolean indicating whether record is an HTTP record
