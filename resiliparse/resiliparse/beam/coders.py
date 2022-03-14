@@ -21,7 +21,7 @@ class StrUtf8Coder(_StrUtf8Coder):
     """
     More resilient version of :class:`apache_beam.coders.StrUtf8Coder`, which can handle encoding errors.
 
-    Uses the Resiliparse encoding helpers for encoding and decoding text.
+    Uses the :class:`~resiliparse.parse.encoding.bytes_to_str` encoding helpers for encoding and decoding text.
     """
 
     def decode(self, value):

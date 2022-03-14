@@ -21,6 +21,7 @@ This is the full table of contents for this documentation:
    man/extract
    man/process-guard
    man/itertools
+   man/beam
    man/fastwarc
 
 
