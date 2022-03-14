@@ -95,6 +95,7 @@ jobs:
           CIBW_BEFORE_TEST_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
           CIBW_TEST_COMMAND_WINDOWS: ""
+          CIBW_TEST_EXTRAS: Beam
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
