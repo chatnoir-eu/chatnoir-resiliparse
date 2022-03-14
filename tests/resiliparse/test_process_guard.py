@@ -89,7 +89,7 @@ def wait_func_signal_term_escalate():
                 pass
 
 
-@time_guard(timeout_ms=100, grace_period_ms=0, check_interval=10, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=160, grace_period_ms=0, check_interval=80, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
     while monotonic() - start < .3:
@@ -98,6 +98,8 @@ def wait_func_exc_progress():
 
 
 # noinspection PyUnreachableCode
+@pytest.mark.serial
+@pytest.mark.slow
 def test_time_guard():
     with pytest.raises(ExecutionTimeout):
         wait_func_exc()
@@ -136,7 +138,7 @@ def test_time_guard():
 
     # Progress loop
     start = monotonic()
-    with time_guard(timeout_ms=80, grace_period=50, check_interval=5, interrupt_type=InterruptType.exception) as guard:
+    with time_guard(timeout_ms=160, grace_period=50, check_interval=80, interrupt_type=InterruptType.exception) as guard:
         for _ in progress_loop(infinite_gen(), ctx=guard):
             sleep(0.001)
             if monotonic() - start > .3:
@@ -159,7 +161,7 @@ def fill_mem_exc_signal():
         try:
             while True:
                 l.extend(b'\x01' * 2048)
-                sleep(0.001)
+                sleep(0.0001)
         except MemoryLimitExceeded:
             pass
 
@@ -169,7 +171,7 @@ def fill_mem_signal():
     l = bytearray()
     while True:
         l.extend(b'\x01' * 2048)
-        sleep(0.001)
+        sleep(0.0001)
 
 
 @mem_guard(max_memory=1, absolute=False, grace_period_ms=0, secondary_grace_period_ms=10, check_interval=5,
@@ -180,11 +182,13 @@ def fill_mem_signal_term():
         try:
             while True:
                 l.extend(b'\x01' * 2048)
-                sleep(0.001)
+                sleep(0.0001)
         except SigIntSent:
             pass
 
 
+@pytest.mark.serial
+@pytest.mark.slow
 def test_mem_guard():
     if sys.platform != 'linux':
         pytest.skip("Skipping mem_guard test due to unsupported platform")
