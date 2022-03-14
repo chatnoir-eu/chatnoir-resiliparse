@@ -14,12 +14,12 @@
 
 import apache_beam as beam
 import apache_beam.typehints as t
-from apache_beam.coders import coders
 from apache_beam.io import fileio as beam_fio
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.filesystem import CompressionTypes, FileMetadata
+from apache_beam.io.filesystem import CompressionTypes, FileMetadata, CompressedFile
 from apache_beam.io.restriction_trackers import OffsetRange, OffsetRestrictionTracker
 
+from resiliparse.beam import coders
 from resiliparse.beam.fileio import MatchFiles
 
 
@@ -131,6 +131,20 @@ class _ReadSplits(beam.DoFn):
         with FileSystems.open(file_meta.path,
                               mime_type=CompressionTypes.mime_type(self.compression_type),
                               compression_type=self.compression_type) as file:
+
+            if isinstance(file, CompressedFile) and tracker.try_claim(pos):
+                # If file is compressed, we need to check the position in the compressed stream
+                if pos > 0:
+                    file.seek(pos)
+                while file._file.tell() <= restriction.stop:
+                    line = file.readline()
+                    if not line:
+                        break
+                    yield line[:-1]     # Strip trailing newline character
+
+                tracker.try_claim(file._file.tell())
+                return
+
             if pos > 0:
                 # Seek to one character before the starting position and discard the first line.
                 # This avoids skipping lines if files are split exactly at newlines.
@@ -138,9 +152,10 @@ class _ReadSplits(beam.DoFn):
                 file.readline()
 
             while tracker.try_claim(file.tell()):
-                line = file.readline()[:-1]     # Strip trailing newline character
+                line = file.readline()
                 if not line:
                     raise IOError(f'Unexpected EOF at {file.tell()}')
+                line = line[:-1]     # Strip trailing newline character
                 if self.coder:
                     line = self.coder.decode(line)
                 yield line
