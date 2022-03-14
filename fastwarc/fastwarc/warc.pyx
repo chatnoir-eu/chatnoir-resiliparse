@@ -648,7 +648,7 @@ cdef class WarcRecord:
 
         try:
             return parsedate_to_datetime(self._http_headers.get('Date', ''))
-        except TypeError:
+        except (ValueError, TypeError):
             return None
 
     @property
