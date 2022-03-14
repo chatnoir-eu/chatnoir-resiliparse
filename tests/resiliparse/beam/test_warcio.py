@@ -2,16 +2,15 @@ import datetime
 import os
 
 import apache_beam as beam
-from apache_beam.io.filesystem import FileMetadata
 from apache_beam.io.aws.clients.s3 import boto3_client, messages
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that, equal_to
+from resiliparse.beam import fileio
 from resiliparse.beam import warcio
 
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
 FILE_PATH = os.path.join(DATA_DIR, 'warcfile.warc')
-FILE_META = FileMetadata(FILE_PATH, os.path.getsize(FILE_PATH))
 
 
 def test_readwarcs():
@@ -34,7 +33,7 @@ def test_readallwarcs():
     # Test iteration
     with TestPipeline() as pipeline:
         count = (pipeline
-                 | beam.Create([FILE_META])
+                 | fileio.MatchFiles(FILE_PATH)
                  | warcio.ReadAllWarcs()
                  | beam.combiners.Count.Globally())
         assert_that(count, equal_to([50]))

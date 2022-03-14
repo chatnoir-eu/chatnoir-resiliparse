@@ -69,7 +69,8 @@ class ReadWarcs(beam.PTransform):
 
 class ReadAllWarcs(beam.PTransform):
     """
-    Read WARC records from a :class:`~apache_beam.pvalue.PCollection` of WARC file names.
+    Read WARC records from a given :class:`~apache_beam.pvalue.PCollection` of
+    :class:`~apache_beam.io.filesystem.FileMetadata` objects.
 
     :param warc_args: arguments to pass to :class:`fastwarc.warc.ArchiveIterator`
     :param with_filename: keep the input filename as a key (otherwise return only the record)

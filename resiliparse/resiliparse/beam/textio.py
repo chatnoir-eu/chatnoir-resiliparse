@@ -71,6 +71,42 @@ class ReadFromText(beam.PTransform):
         return pcoll | self._transform
 
 
+class ReadAllFromText(beam.PTransform):
+    """
+    Read lines from a given :class:`~apache_beam.pvalue.PCollection` of
+    :class:`~apache_beam.io.filesystem.FileMetadata` objects in parallel.
+
+    See :class:`ReadFormText` for more information.
+
+    :param shuffle_splits: shuffle input splits to break fusion
+    :param shuffle_names: shuffle matched file names before deriving splits (adds one more fusion
+                          break, should be enabled if ``file_pattern`` matches many files or if
+                          input files are compressed and cannot be split)
+    :param desired_split_size: desired file split size in bytes
+    :param min_split_size: minimum file split size in bytes
+    :param compression_type: file compression type, will determine whether individual files are splittable
+    :param coder: coder for decoding file contents
+    """
+
+    def __init__(self,
+                 shuffle_splits: bool = True,
+                 shuffle_names: bool = False,
+                 desired_split_size: int = DEFAULT_DESIRED_SPLIT_SIZE,
+                 min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
+                 compression_type: CompressionTypes = CompressionTypes.AUTO,
+                 coder: coders.Coder = coders.StrUtf8Coder()):
+        super().__init__()
+        self._transform = beam.ParDo(_GenSplits(desired_split_size, min_split_size, compression_type))
+        if shuffle_names:
+            self._transform = beam.Reshuffle() | self._transform
+        if shuffle_splits:
+            self._transform |= beam.Reshuffle()
+        self._transform |= beam.ParDo(_ReadSplits(compression_type, coder))
+
+    def expand(self, pcoll):
+        return pcoll | self._transform
+
+
 # noinspection PyAbstractClass
 class _GenSplits(beam.DoFn):
     """Create initial splits based on the text file size."""
