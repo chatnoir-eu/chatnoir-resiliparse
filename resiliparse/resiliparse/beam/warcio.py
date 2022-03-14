@@ -25,18 +25,12 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.restriction_trackers import OffsetRange, OffsetRestrictionTracker
 from apache_beam.options.value_provider import RuntimeValueProvider
 import apache_beam.transforms.window as window
+import boto3
+import botocore.client as boto_client
 
 from fastwarc.warc import ArchiveIterator
 from resiliparse.beam.fileio import MatchFiles
 from resiliparse.itertools import warc_retry
-
-try:
-    import boto3
-    import botocore.client as boto_client
-except ModuleNotFoundError:
-    boto3 = None
-    boto_client = None
-
 
 logger = logging.getLogger()
 
@@ -144,7 +138,7 @@ class _ReadWarc(beam.DoFn):
 
                 if self.max_content_length is not None and record.content_length > self.max_content_length:
                     # Max length exceeded, but we still want to return a metadata record
-                    logger.debug("Stripping long record %s (%s bytes) of its payload.",
+                    logger.debug("Stripping long record %s (%i bytes) of its payload.",
                                  record.record_id, record.content_length)
                     record.reader.consume()
 
@@ -159,7 +153,7 @@ class _ReadWarc(beam.DoFn):
             logger.info('Completed WARC file %s', file_meta.path)
         except Exception as e:
             if record:
-                logger.error('WARC reader failed in %s past record %s (pos: %s).',
+                logger.error('WARC reader failed in %s past record %s (pos: %i).',
                              file_meta.path, record.record_id, record.stream_pos)
             else:
                 logger.error('WARC reader failed in %s', file_meta.path)
