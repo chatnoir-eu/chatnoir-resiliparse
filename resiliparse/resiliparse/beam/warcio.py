@@ -111,7 +111,7 @@ class _ReadWarc(beam.DoFn):
 
     def __init__(self, warc_args, with_filename, freeze, always_keep_meta):
         super().__init__()
-        self.warc_args = warc_args
+        self.warc_args = warc_args or {}
         self.with_filename = with_filename
         self.freeze = freeze
         self.max_content_length = None
@@ -146,8 +146,9 @@ class _ReadWarc(beam.DoFn):
                     record.freeze()
 
                 if self.with_filename:
-                    record = (file_meta.path, record)
-                yield window.TimestampedValue(record, record.record_date.timestamp())
+                    yield window.TimestampedValue((file_meta.path, record), record.record_date.timestamp())
+                else:
+                    yield window.TimestampedValue(record, record.record_date.timestamp())
             else:
                 tracker.try_claim(restriction.stop)
             logger.info('Completed WARC file %s', file_meta.path)
@@ -184,7 +185,7 @@ class _ReadWarc(beam.DoFn):
         return io.BufferedReader(DownloaderStream(downloader, mode='rb'), buffer_size=buffer_size)
 
 
-class _Boto3Client(boto3_client.Client):
+class _Boto3Client(boto3_client.Client):    # pragma: no cover
     """Boto3 client with custom settings."""
 
     # noinspection PyMissingConstructor
