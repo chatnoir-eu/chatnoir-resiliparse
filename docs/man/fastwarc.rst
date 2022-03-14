@@ -196,6 +196,7 @@ The :class:`.ArchiveIterator` returns objects of type :class:`.WarcRecord`, whic
       record.http_headers       # Dict-like object containing the parsed HTTP headers
       record.http_content_type  # Plain HTTP Content-Type without charset
       record.http_charset       # HTTP charset from the Content-Type header (if any)
+      record.http_date          # Parsed HTTP Date header
       record.reader             # A BufferedReader for the record content
 
       # Read and return up to 1024 bytes from the record stream
