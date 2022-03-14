@@ -24,6 +24,7 @@ from libcpp.vector cimport vector
 import codecs
 import base64
 import datetime
+from email.utils import parsedate_to_datetime
 import hashlib
 import typing as t
 import uuid
@@ -450,7 +451,7 @@ cdef class WarcRecord:
         self._http_parsed = False
         self._content_length = 0
         self._headers = WarcHeaderMap.__new__(WarcHeaderMap, 'utf-8')
-        self._http_headers = None
+        self._http_headers = None   # type: WarcHeaderMap | None
         self._stream_pos = 0
         self._stale = False
         self._frozen = False
@@ -634,6 +635,21 @@ cdef class WarcRecord:
             return None
 
         return self._http_charset.decode(errors='ignore')
+
+    @property
+    def http_date(self):
+        """
+        Parsed HTTP ``Date`` header or ``None`` if server did not return a valid HTTP date.
+
+        :type: datetime.datetime | None
+        """
+        if not self._http_parsed:
+            return None
+
+        try:
+            return parsedate_to_datetime(self._http_headers.get('Date', ''))
+        except TypeError:
+            return None
 
     @property
     def content_length(self) -> int:

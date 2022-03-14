@@ -1,4 +1,5 @@
 import datetime
+from email.utils import format_datetime
 from gzip import GzipFile
 from hashlib import md5, sha1
 import lz4.frame
@@ -178,7 +179,7 @@ def test_record_date():
     assert new_rec.record_date is not None
     assert new_rec.record_date.tzinfo is datetime.timezone.utc
 
-    dt_now_utc = datetime.datetime.utcnow().astimezone(datetime.timezone.utc)
+    dt_now_utc = datetime.datetime.utcnow().replace(microsecond=0).astimezone(datetime.timezone.utc)
     new_rec.record_date = dt_now_utc
     assert new_rec.record_date == dt_now_utc
     assert new_rec.record_date.tzinfo == datetime.timezone.utc
@@ -275,8 +276,9 @@ def test_record_http_parsing():
         assert rec.http_headers.status_code
         assert str(rec.http_headers.status_code) in rec.http_headers.status_line
         assert len(rec.http_headers.asdict()) <= len(rec.http_headers.astuples())
-        assert rec.http_content_type.startswith('text/')
 
+        # HTTP Content-Type
+        assert rec.http_content_type.startswith('text/')
         assert 'Content-Type' in rec.http_headers
         if 'charset=' in rec.http_headers.get('Content-Type'):
             charset = rec.http_headers['Content-Type'].split('charset=')[1].lower()
@@ -285,6 +287,15 @@ def test_record_http_parsing():
                 assert rec.http_charset == charset
             except LookupError:
                 assert rec.http_charset is None
+
+        # HTTP Date
+        assert rec.http_date
+        assert rec.http_date.tzinfo
+        rec.http_headers['Date'] = 'Invalid Date'
+        assert rec.http_date is None
+        now_date = datetime.datetime.utcnow().replace(microsecond=0)
+        rec.http_headers['Date'] = format_datetime(now_date)
+        assert rec.http_date == now_date
 
         # Content
         assert rec.reader.read(5) != b'HTTP/'
@@ -295,6 +306,7 @@ def test_record_http_parsing():
         assert not rec.http_headers
         assert rec.http_content_type is None
         assert rec.http_charset is None
+        assert rec.http_date is None
         assert rec.reader.read(5) == b'HTTP/'
         assert not rec.headers.status_code
 
@@ -530,6 +542,11 @@ def test_warc_headers():
     assert 'X-FOOBAR' in headers.asdict()
     assert headers.get('x-foobar') == 'abc'
 
+    # Iterate items() before adding duplicate headers
+    for (k1, v1), (k2, v2) in zip(headers, headers.items()):
+        assert k1 == k2
+        assert v1 == v2
+
     # Duplicate headers
     dict_len = len(headers.asdict())
     tuple_len = len(headers.astuples())
@@ -541,6 +558,9 @@ def test_warc_headers():
     assert headers['X-Custom-Header'] == 'Foobarbaz'
     assert ('X-Custom-Header', 'Foobar') in headers.astuples()
     assert ('X-Custom-Header', 'Foobarbaz') in headers.astuples()
+
+    # Iterate items() before after adding duplicate headers
+    assert len(list(headers)) > len(list(headers.items()))
 
     # Case-insensitive set vs. append
     tuple_len = len(headers.astuples())
