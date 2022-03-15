@@ -132,9 +132,11 @@ def test_time_guard():
                 sleep(0.001)
 
     # Test progress()
-    # Skip on macOS, since GitHub's macOS VM is too slow, so we get race conditions with short timeouts
+    # Skip on macOS. GitHub's macOS VM is too slow, so we get race conditions with short timeouts
     if platform.system() != 'Darwin':
         wait_func_exc_progress()
+    else:
+        warnings.warn('Skipped unstable time_guard progress() test.')
 
     def infinite_gen():
         while True:

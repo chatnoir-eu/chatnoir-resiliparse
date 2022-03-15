@@ -95,7 +95,7 @@ jobs:
           CIBW_BEFORE_TEST_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
           CIBW_TEST_COMMAND_WINDOWS: ""
-          CIBW_TEST_EXTRAS: Beam
+          CIBW_TEST_EXTRAS: All
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
@@ -184,7 +184,7 @@ jobs:
           PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
-          python -m pip install wheelhouse/*-cp$PYTHON_ABI-*-manylinux*.whl
+          python -m pip install wheelhouse/*-cp$PYTHON_ABI-*-manylinux*.whl[All]
 
           cd docs
           make html

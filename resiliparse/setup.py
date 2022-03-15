@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import chain
 import platform
 import os
 import warnings
@@ -123,6 +124,18 @@ if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)
 
 
+EXTRAS_REQUIRE = {
+    'CLI': [
+        'joblib'
+    ],
+    'Beam': [
+        'apache_beam>=2.37.0',
+        'boto3',
+        'elasticsearch'
+    ]
+}
+EXTRAS_REQUIRE['All'] = list(chain(*EXTRAS_REQUIRE.values()))
+
 setup(
     name='Resiliparse',
     version=VERSION,
@@ -146,16 +159,7 @@ setup(
         'pytest',
         'pytest-cov'
     ],
-    extras_require={
-        'CLI': [
-            'joblib'
-        ],
-        'Beam': [
-            'apache_beam>=2.37.0',
-            'boto3',
-            'elasticsearch'
-        ]
-    },
+    extras_require=EXTRAS_REQUIRE,
     entry_points={
         'console_scripts': ['resiliparse=resiliparse.cli:main[CLI]']
     }
