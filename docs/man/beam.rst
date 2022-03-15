@@ -8,11 +8,11 @@ Resiliparse offers a variety of :class:`~apache_beam.transforms.PTransform` util
 Installing Resiliparse Beam Transforms
 --------------------------------------
 
-The Resiliparse Beam transforms come bundled with Resiliparse by default, but in order to install the required dependencies (``apache_beam``, ``boto3``, etc.), you need to install Resiliparse with the ``Beam`` extra:
+The Resiliparse Beam transforms come bundled with Resiliparse by default, but in order to install the required dependencies (``apache_beam``, ``boto3``, etc.), you need to install Resiliparse with the ``beam`` extra (or alternatively: ``all``):
 
 .. code-block:: console
 
-    pip install 'resiliparse[Beam]'
+    pip install 'resiliparse[beam]'
 
 Reading WARC Files
 ------------------

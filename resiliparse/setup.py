@@ -124,23 +124,23 @@ if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)
 
 
-extras_require = {
-    'CLI': [
+EXTRAS_REQUIRE = {
+    'cli': [
         'joblib'
     ],
-    'Beam': [
-        'apache_beam>=2.37.0',
-        'boto3',
-        'elasticsearch'
+    'beam': [
+        'apache_beam[aws]>=2.38.0',
+        'boto3>=1.9',
+        'elasticsearch>=7.0.0'
     ]
 }
-extras_require['All'] = list(chain(*extras_require.values()))
+EXTRAS_REQUIRE['all'] = list(chain(*EXTRAS_REQUIRE.values()))   # All except "test"
 
-tests_require = [
+TESTS_REQUIRE = [
     'pytest',
     'pytest-cov'
 ]
-extras_require['Testing'] = tests_require
+EXTRAS_REQUIRE['test'] = TESTS_REQUIRE
 
 setup(
     name='Resiliparse',
@@ -161,8 +161,8 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=tests_require,
-    extras_require=extras_require,
+    tests_require=TESTS_REQUIRE,
+    extras_require=EXTRAS_REQUIRE,
     entry_points={
         'console_scripts': ['resiliparse=resiliparse.cli:main[CLI]']
     }

@@ -103,15 +103,15 @@ fastwarc_extensions = [
 if USE_CYTHON:
     fastwarc_extensions = cythonize(fastwarc_extensions, **cython_args)
 
-extras_require = {}
-extras_require['All'] = list(chain(*extras_require.values()))
+EXTRAS_REQUIRE = {}
+EXTRAS_REQUIRE['all'] = list(chain(*EXTRAS_REQUIRE.values()))   # All except "test"
 
-tests_require = [
+TESTS_REQUIRE = [
     'pytest',
     'pytest-cov',
     'lz4'
 ]
-extras_require['Testing'] = tests_require
+EXTRAS_REQUIRE['test'] = TESTS_REQUIRE
 
 setup(
     name='FastWARC',
@@ -130,8 +130,8 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=tests_require,
-    extras_require=extras_require,
+    tests_require=TESTS_REQUIRE,
+    extras_require=EXTRAS_REQUIRE,
     entry_points={
         'console_scripts': ['fastwarc=fastwarc.cli:main']
     }

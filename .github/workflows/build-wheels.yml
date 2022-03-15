@@ -42,7 +42,7 @@ jobs:
       LIB: C:\vcpkg\installed\x64-windows\lib
       PYTHONPATH: ../resiliparse:../fastwarc
       CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
-      CIBW_TEST_EXTRAS: All,Testing
+      CIBW_TEST_EXTRAS: all,test
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -142,8 +142,8 @@ jobs:
       - name: Build Extensions Inline
         run: |
           set -e
-          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All,Testing]")
-          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All,Testing]")
+          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[all,test]")
+          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[all,test]")
 
       - name: Run Tests
         run: $PYTHON -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
@@ -180,7 +180,7 @@ jobs:
           PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
-          find wheelhouse -name "*-cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[All]"
+          find wheelhouse -name "*-cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
 
           cd docs
           make html
