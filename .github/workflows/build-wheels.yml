@@ -131,7 +131,7 @@ jobs:
     needs: [ build-wheels, build-sdist ]
     env:
       TRACE: "1"
-      PYTHON: /opt/python/cp310-cp310/bin/python
+      PYTHON: /opt/python/cp39-cp39/bin/python
       PYTHONPATH: resiliparse:fastwarc
 
     steps:
