@@ -1,5 +1,5 @@
 fastwarc
-resiliparse[CLI]
+resiliparse[Beam,CLI]
 sphinx
 sphinx-click
 sphinx_rtd_theme
