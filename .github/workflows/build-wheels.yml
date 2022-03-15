@@ -184,7 +184,7 @@ jobs:
           PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
-          python -m pip install wheelhouse/*-cp$PYTHON_ABI-*-manylinux*.whl[All]
+          python -m pip install wheelhouse/*-cp$PYTHON_ABI-*-manylinux*.whl"[All]"
 
           cd docs
           make html
