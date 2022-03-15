@@ -42,7 +42,7 @@ jobs:
       LIB: C:\vcpkg\installed\x64-windows\lib
       PYTHONPATH: ../resiliparse:../fastwarc
       CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
-      CIBW_TEST_REQUIRES: pytest lz4
+      CIBW_TEST_EXTRAS: All,Testing
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -95,7 +95,6 @@ jobs:
           CIBW_BEFORE_TEST_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
           CIBW_TEST_COMMAND_WINDOWS: ""
-          CIBW_TEST_EXTRAS: All
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
@@ -140,14 +139,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Dependencies
-        run: $PYTHON -m pip install cython pytest pytest-cov lz4
-
       - name: Build Extensions Inline
         run: |
           set -e
-          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e .)
-          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All]")
+          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All,Testing]")
+          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All,Testing]")
 
       - name: Run Tests
         run: $PYTHON -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/

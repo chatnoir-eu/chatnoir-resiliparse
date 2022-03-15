@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import chain
 import os
 import sys
 
@@ -102,6 +103,16 @@ fastwarc_extensions = [
 if USE_CYTHON:
     fastwarc_extensions = cythonize(fastwarc_extensions, **cython_args)
 
+extras_require = {}
+extras_require['All'] = list(chain(*extras_require.values()))
+
+tests_require = [
+    'pytest',
+    'pytest-cov',
+    'lz4'
+]
+extras_require['Testing'] = tests_require
+
 setup(
     name='FastWARC',
     version=VERSION,
@@ -119,11 +130,8 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=[
-        'pytest',
-        'pytest-cov',
-        'lz4'
-    ],
+    tests_require=tests_require,
+    extras_require=extras_require,
     entry_points={
         'console_scripts': ['fastwarc=fastwarc.cli:main']
     }
