@@ -129,7 +129,7 @@ EXTRAS_REQUIRE = {
         'joblib'
     ],
     'beam': [
-        'apache_beam[aws]>=2.38.0',
+        'apache_beam[aws]>=2.37.0',
         'boto3>=1.9',
         'elasticsearch>=7.0.0'
     ]
