@@ -146,8 +146,8 @@ jobs:
       - name: Build Extensions Inline
         run: |
           set -e
-          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON setup.py install)
-          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON setup.py install)
+          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e .)
+          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[All]")
 
       - name: Run Tests
         run: $PYTHON -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
