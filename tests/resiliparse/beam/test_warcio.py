@@ -79,7 +79,7 @@ def test_max_content_length():
         assert_that(count, equal_to([50]))
 
 
-class _StubBoto3Client:    # pragma: no cover
+class _StubBoto3Client:
     """Stub Boto3 client."""
     def __init__(self, *args, **kwargs):
         pass
