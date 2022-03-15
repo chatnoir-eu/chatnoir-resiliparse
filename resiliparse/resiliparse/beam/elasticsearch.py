@@ -77,7 +77,7 @@ class ElasticsearchBulkIndex(beam.PTransform):
                                               initial_backoff=initial_backoff,
                                               max_backoff=max_backoff,
                                               request_timeout=request_timeout,
-                                              ignore_persistent_400=ignore_400,
+                                              ignore_400=ignore_400,
                                               dry_run=dry_run)
         self._parallelism = parallelism
 
@@ -99,7 +99,7 @@ class _ElasticsearchBulkIndex(beam.DoFn):
                  initial_backoff,
                  max_backoff,
                  request_timeout,
-                 ignore_persistent_400,
+                 ignore_400,
                  dry_run):
         super().__init__()
 
@@ -123,7 +123,7 @@ class _ElasticsearchBulkIndex(beam.DoFn):
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
         self.max_backoff = max_backoff
-        self.ignore_400 = ignore_persistent_400
+        self.ignore_400 = ignore_400
         self.dry_run = dry_run
 
     def setup(self):
@@ -167,12 +167,15 @@ class _ElasticsearchBulkIndex(beam.DoFn):
             yield from self._flush_buffer(window_values=True)
 
     def _flush_buffer(self, window_values=False):
+        if not self.buffer:
+            return
+
         retry_count = 0
         errors = []
         self.buffer.sort(key=lambda x: x[0].get('_id', ''))
 
         try:
-            while retry_count < self.max_retries:
+            while retry_count < self.max_retries + 1:
                 try:
                     errors = []
                     to_retry = []
@@ -186,7 +189,7 @@ class _ElasticsearchBulkIndex(beam.DoFn):
                                 # 400 errors are persistent, no point in retrying them
                                 to_retry.append(self.buffer[i])
                             logger.error('Failed to index document (attempt %i/%i): %s',
-                                         retry_count + 1, self.max_retries, info)
+                                         retry_count + 1, self.max_retries + 1, info)
                         else:
                             if window_values:
                                 yield WindowedValue(info_val['_id'], self.buffer[i][1], [self.buffer[i][2]])
@@ -200,16 +203,16 @@ class _ElasticsearchBulkIndex(beam.DoFn):
 
                 except es_exc.TransportError as e:
                     logger.error('Elasticsearch transport error (attempt %i/%i): %s',
-                                 retry_count + 1, self.max_retries, e.error)
-                    if retry_count + 1 >= self.max_retries:
+                                 retry_count + 1, self.max_retries + 1, e.message)
+                    if retry_count >= self.max_retries:
                         raise e
 
-                retry_count += 1
                 if retry_count >= self.max_retries:
                     break
                 logger.error('Retrying with exponential backoff in %i seconds...',
                              self.initial_backoff * (2 ** retry_count))
                 time.sleep(min(self.max_backoff, self.initial_backoff * (2 ** retry_count)))
+                retry_count += 1
         finally:
             self.buffer.clear()
 
