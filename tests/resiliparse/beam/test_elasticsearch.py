@@ -1,12 +1,11 @@
 import json
 import pytest
 import os
-from unittest.mock import patch
+from unittest import mock
 
 import apache_beam as beam
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that, equal_to
-from elasticsearch.helpers import BulkIndexError
 from resiliparse.beam import elasticsearch as es
 
 
@@ -16,10 +15,11 @@ DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '
 MOCK_RETURN_CODE = 200
 
 
-def mock_bulk(body, **_):
+def mock_bulk(*, operations=None, **_):
+    assert operations is not None
     items = []
-    for line in body.strip().split('\n'):
-        doc = json.loads(line)
+    for op in operations:
+        doc = json.loads(op)
         key = list(doc.keys())[0]
         val = doc[key]
         if not type(val) is dict or not val.get('_index'):
@@ -33,22 +33,22 @@ def mock_bulk(body, **_):
                 'status': MOCK_RETURN_CODE
             }
         })
-    return {
+
+    resp = mock.Mock()
+    resp.body = {
         'took': 100,
-        'errors': False,
+        'errors': 200 <= MOCK_RETURN_CODE < 300,
         'items': items
     }
-
-
-@patch('elasticsearch.Elasticsearch')
-def mock_client(es):
-    es.bulk.side_effect = mock_bulk
-    es.transport.serializer.dumps.side_effect = json.dumps
-    return es
+    return resp
 
 
 def es_setup(self):
-    self.client = mock_client()
+    client = mock.Mock()
+    client.options.return_value = client
+    client.bulk = mock_bulk
+    client.transport.serializers.get_serializer.return_value = json
+    self.client = client
 
 
 # Use mock client
@@ -100,28 +100,30 @@ def test_bulk_index_with_error():
     MOCK_RETURN_CODE = 400
 
     # Raise
-    with pytest.raises(BulkIndexError):
+    with pytest.raises(RuntimeError) as exc_info:
         with TestPipeline() as pipeline:
             _ = (pipeline
                  | beam.Create(INDEX_DOCS)
-                 | es.ElasticsearchBulkIndex({}, ignore_400=False, max_retries=1))
+                 | es.ElasticsearchBulkIndex({}, ignore_400=False, max_retries=0))
+    assert 'elasticsearch.helpers.BulkIndexError' in exc_info.value.args[0]
 
     # Ignore
     with TestPipeline() as pipeline:
         ids = (pipeline
                | beam.Create(INDEX_DOCS)
-               | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=1))
+               | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=0))
 
     assert_that(ids, equal_to([]))
 
     # Retry non-client error
     MOCK_RETURN_CODE = 500
-    with pytest.raises(BulkIndexError):
+    with pytest.raises(RuntimeError) as exc_info:
         with TestPipeline() as pipeline:
             ids = (pipeline
                    | beam.Create(INDEX_DOCS)
-                   | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=2, initial_backoff=0.01))
+                   | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=1, initial_backoff=0.01))
 
+    assert 'elasticsearch.helpers.BulkIndexError' in exc_info.value.args[0]
     assert_that(ids, equal_to([]))
 
     MOCK_RETURN_CODE = 200
