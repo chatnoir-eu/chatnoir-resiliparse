@@ -89,11 +89,11 @@ def wait_func_signal_term_escalate():
                 pass
 
 
-@time_guard(timeout_ms=160, grace_period_ms=0, check_interval=80, interrupt_type=InterruptType.exception)
+@time_guard(timeout_ms=250, grace_period_ms=0, check_interval=80, interrupt_type=InterruptType.exception)
 def wait_func_exc_progress():
     start = monotonic()
-    while monotonic() - start < .3:
-        sleep(0.001)
+    while monotonic() - start < .5:
+        # No sleep here to avoid context switches that could mess with short timings
         progress()
 
 
