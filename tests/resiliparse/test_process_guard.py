@@ -1,5 +1,7 @@
+import platform
 import signal
 import sys
+import time
 from time import sleep, monotonic
 import warnings
 
@@ -93,7 +95,7 @@ def wait_func_signal_term_escalate():
 def wait_func_exc_progress():
     start = monotonic()
     while monotonic() - start < .5:
-        # No sleep here to avoid context switches that could mess with short timings
+        time.sleep(0.001)
         progress()
 
 
@@ -130,7 +132,9 @@ def test_time_guard():
                 sleep(0.001)
 
     # Test progress()
-    wait_func_exc_progress()
+    # Skip on macOS, since GitHub's macOS VM is too slow, so we get race conditions with short timeouts
+    if platform.system() != 'Darwin':
+        wait_func_exc_progress()
 
     def infinite_gen():
         while True:
@@ -190,7 +194,7 @@ def fill_mem_signal_term():
 @pytest.mark.serial
 @pytest.mark.slow
 def test_mem_guard():
-    if sys.platform != 'linux':
+    if platform.system() != 'Linux':
         pytest.skip("Skipping mem_guard test due to unsupported platform")
 
     with pytest.raises(MemoryLimitExceeded):
