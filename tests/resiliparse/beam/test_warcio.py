@@ -1,5 +1,6 @@
 import datetime
 import os
+import pytest
 
 import apache_beam as beam
 from apache_beam.io.aws.clients.s3 import boto3_client, messages
@@ -13,6 +14,7 @@ DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '
 FILE_PATH = os.path.join(DATA_DIR, 'warcfile.warc')
 
 
+@pytest.mark.slow
 def test_readwarcs():
     # Test iteration
     with TestPipeline() as pipeline:
@@ -29,6 +31,7 @@ def test_readwarcs():
         assert_that(count, equal_to([50]))
 
 
+@pytest.mark.slow
 def test_readallwarcs():
     # Test iteration
     with TestPipeline() as pipeline:
@@ -39,6 +42,7 @@ def test_readallwarcs():
         assert_that(count, equal_to([50]))
 
 
+@pytest.mark.slow
 def test_max_content_length():
     def assert_content_length(e):
         assert e.content_length <= 500
@@ -101,6 +105,7 @@ boto3_client.Client = _StubBoto3Client
 warcio._Boto3Client = _StubBoto3Client
 
 
+@pytest.mark.slow
 def test_s3_read():
     with TestPipeline() as pipeline:
         count = (pipeline

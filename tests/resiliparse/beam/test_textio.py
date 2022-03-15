@@ -1,5 +1,6 @@
 import gzip
 import os
+import pytest
 
 import apache_beam as beam
 from apache_beam.testing.test_pipeline import TestPipeline
@@ -11,6 +12,7 @@ from resiliparse.beam import textio
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
 
 
+@pytest.mark.slow
 def test_readlines():
     with open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb') as f:
         num_lines = len(f.readlines())
@@ -30,6 +32,7 @@ def test_readlines():
         assert_that(count, equal_to([num_lines]))
 
 
+@pytest.mark.slow
 def test_readalllines():
     with open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb') as f:
         num_lines = len(f.readlines())
@@ -50,6 +53,7 @@ def test_readalllines():
         assert_that(count, equal_to([num_lines]))
 
 
+@pytest.mark.slow
 def test_read_lines_compressed():
     with gzip.GzipFile(os.path.join(DATA_DIR, 'warcfile.warc.gz'), 'rb') as f:
         num_lines = len(f.readlines())

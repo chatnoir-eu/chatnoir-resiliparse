@@ -78,6 +78,7 @@ def bulk_index_with_args(docs, **args):
     assert_that(ids, equal_to([d['_id'] for d in docs]))
 
 
+@pytest.mark.slow
 def test_bulk_actions():
     for d, a in zip(INDEX_DOCS, EXPECTED_INDEX_ACTIONS):
         assert d == a
@@ -94,6 +95,7 @@ def test_bulk_actions():
     bulk_index_with_args(INDEX_DOCS, dry_run=True)
 
 
+@pytest.mark.slow
 def test_bulk_index_with_error():
     # With client error
     global MOCK_RETURN_CODE
@@ -129,6 +131,7 @@ def test_bulk_index_with_error():
     MOCK_RETURN_CODE = 200
 
 
+@pytest.mark.slow
 def test_bulk_kv_pairs():
         docs = [
             ('doc1', {'field': 'value'}),
