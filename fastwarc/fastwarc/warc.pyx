@@ -618,7 +618,10 @@ cdef class WarcRecord:
             return self._http_charset.decode(errors='ignore')
 
         cdef string content_type = self._http_headers.find_header(<char*>b'content-type', <char*>b'')
-        cdef size_t pos = content_type.find(<char*>b'charset=')
+        cdef size_t pos = content_type.find(<char*>b';')
+        if pos == strnpos:
+            return None
+        pos = content_type.find(<char*>b'charset=', pos)
         if pos == strnpos:
             return None
 
