@@ -31,14 +31,12 @@ TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
 ASAN = bool(int(os.getenv('ASAN', 0)))
 
-USE_CYTHON = False
-ext = 'cpp'
-cython_args = {}
+cpp_args = {}
 try:
     from Cython.Build import cythonize
     import Cython.Compiler.Options
 
-    ext = 'pyx'
+    cpp_ext = 'pyx'
     cython_args = dict(
         annotate=DEBUG,
         gdb_debug=DEBUG,
@@ -52,9 +50,10 @@ try:
     )
     USE_CYTHON = True
 except ModuleNotFoundError as e:
-    pass
+    cpp_ext = 'cpp'
+    cython_args = {}
+    USE_CYTHON = False
 
-cpp_args = {}
 if TRACE:
     cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
 
@@ -92,24 +91,22 @@ if 'sdist' in sys.argv:
 # 2. FASTWARC SETUP -------------------------------------------------------
 
 fastwarc_extensions = [
-    Extension('fastwarc.warc', sources=[f'fastwarc/warc.{ext}'], **cpp_args),
-    Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{ext}'],
+    Extension('fastwarc.warc', sources=[f'fastwarc/warc.{cpp_ext}'], **cpp_args),
+    Extension('fastwarc.stream_io', sources=[f'fastwarc/stream_io.{cpp_ext}'],
               libraries=['zlib' if CXX == 'msvc' else 'z', 'lz4'], **cpp_args),
-    Extension('fastwarc.tools', sources=[f'fastwarc/tools.{ext}'], **cpp_args)
+    Extension('fastwarc.tools', sources=[f'fastwarc/tools.{cpp_ext}'], **cpp_args)
 ]
 if USE_CYTHON:
     fastwarc_extensions = cythonize(fastwarc_extensions, **cython_args)
 
-EXTRAS_REQUIRE = {}
-EXTRAS_REQUIRE['all'] = list(chain(*EXTRAS_REQUIRE.values()))   # All except "test"
-
-TESTS_REQUIRE = [
+extras_require = {}
+extras_require['all'] = list(chain(*extras_require.values()))   # All except "test"
+tests_require = [
     'pytest',
     'pytest-cov',
     'lz4'
 ]
-EXTRAS_REQUIRE['test'] = TESTS_REQUIRE
-
+extras_require['test'] = tests_require
 setup(
     name='FastWARC',
     version=VERSION,
@@ -127,8 +124,8 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=TESTS_REQUIRE,
-    extras_require=EXTRAS_REQUIRE,
+    tests_require=tests_require,
+    extras_require=extras_require,
     entry_points={
         'console_scripts': ['fastwarc=fastwarc.cli:main']
     }

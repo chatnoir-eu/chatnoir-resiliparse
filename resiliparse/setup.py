@@ -33,14 +33,12 @@ TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
 ASAN = bool(int(os.getenv('ASAN', 0)))
 
-USE_CYTHON = False
-ext = 'cpp'
-cython_args = {}
+cpp_args = {}
 try:
     from Cython.Build import cythonize
     import Cython.Compiler.Options
 
-    ext = 'pyx'
+    cpp_ext = 'pyx'
     cython_args = dict(
         annotate=DEBUG,
         gdb_debug=DEBUG,
@@ -54,9 +52,10 @@ try:
     )
     USE_CYTHON = True
 except ModuleNotFoundError as e:
-    pass
+    cpp_ext = 'cpp'
+    cython_args = {}
+    USE_CYTHON = False
 
-cpp_args = {}
 if TRACE:
     cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
 
@@ -99,21 +98,21 @@ if os.path.isdir(fast_warc_src):
 
 resiliparse_extensions = [
     Extension('resiliparse.extract.html2text',
-              sources=[f'resiliparse/extract/html2text.{ext}'], libraries=['lexbor', 're2'], **cpp_args),
+              sources=[f'resiliparse/extract/html2text.{cpp_ext}'], libraries=['lexbor', 're2'], **cpp_args),
     Extension('resiliparse.parse.encoding',
-              sources=[f'resiliparse/parse/encoding.{ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
+              sources=[f'resiliparse/parse/encoding.{cpp_ext}'], libraries=['uchardet', 'lexbor'], **cpp_args),
     Extension('resiliparse.parse.html',
-              sources=[f'resiliparse/parse/html.{ext}'], libraries=['lexbor'], **cpp_args),
+              sources=[f'resiliparse/parse/html.{cpp_ext}'], libraries=['lexbor'], **cpp_args),
     Extension('resiliparse.parse.http',
-              sources=[f'resiliparse/parse/http.{ext}'], **cpp_args),
+              sources=[f'resiliparse/parse/http.{cpp_ext}'], **cpp_args),
     Extension('resiliparse.parse.lang',
-              sources=[f'resiliparse/parse/lang.{ext}'], **cpp_args)
+              sources=[f'resiliparse/parse/lang.{cpp_ext}'], **cpp_args)
 ]
 if os.name == 'posix':
     resiliparse_extensions.extend([
-        Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{ext}'],
+        Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{cpp_ext}'],
                   libraries=['pthread'], **cpp_args),
-        Extension('resiliparse.itertools', sources=[f'resiliparse/itertools.{ext}'], **cpp_args)
+        Extension('resiliparse.itertools', sources=[f'resiliparse/itertools.{cpp_ext}'], **cpp_args)
     ])
 else:
     warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
@@ -122,7 +121,7 @@ if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)
 
 
-EXTRAS_REQUIRE = {
+extras_require = {
     'cli': [
         'joblib'
     ],
@@ -132,14 +131,12 @@ EXTRAS_REQUIRE = {
         'elasticsearch>=7.0.0'
     ]
 }
-EXTRAS_REQUIRE['all'] = list(chain(*EXTRAS_REQUIRE.values()))   # All except "test"
-
-TESTS_REQUIRE = [
+extras_require['all'] = list(chain(*extras_require.values()))   # All except "test"
+tests_require = [
     'pytest',
     'pytest-cov'
 ]
-EXTRAS_REQUIRE['test'] = TESTS_REQUIRE
-
+extras_require['test'] = tests_require
 setup(
     name='Resiliparse',
     version=VERSION,
@@ -159,9 +156,9 @@ setup(
         'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
-    tests_require=TESTS_REQUIRE,
-    extras_require=EXTRAS_REQUIRE,
+    tests_require=tests_require,
+    extras_require=extras_require,
     entry_points={
-        'console_scripts': ['resiliparse=resiliparse.cli:main[CLI]']
+        'console_scripts': ['resiliparse=resiliparse.cli:main[cli]']
     }
 )
