@@ -200,11 +200,6 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
     The downloaded dumps can then be extracted with `Wikiextractor <https://github.com/attardi/wikiextractor>`_.
     """
 
-    if joblib is None:
-        click.echo('Required dependency not installed: joblib', err=True)
-        click.echo('Install Resiliparse with the "cli" flag: pip install "resiliparse[cli]"', err=True)
-        sys.exit(1)
-
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
 
