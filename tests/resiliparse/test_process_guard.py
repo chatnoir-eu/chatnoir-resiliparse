@@ -100,7 +100,6 @@ def wait_func_exc_progress():
 
 
 # noinspection PyUnreachableCode
-@pytest.mark.serial
 @pytest.mark.slow
 def test_time_guard():
     with pytest.raises(ExecutionTimeout):
@@ -193,7 +192,6 @@ def fill_mem_signal_term():
             pass
 
 
-@pytest.mark.serial
 @pytest.mark.slow
 def test_mem_guard():
     if platform.system() != 'Linux':
