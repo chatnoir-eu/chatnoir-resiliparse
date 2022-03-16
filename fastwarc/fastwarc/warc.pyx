@@ -21,6 +21,7 @@ from libc.string cimport memchr
 from libcpp.string cimport npos as strnpos, string, to_string
 from libcpp.vector cimport vector
 
+import binascii
 import codecs
 import base64
 import datetime
@@ -861,25 +862,30 @@ cdef class WarcRecord:
 
         return bytes_written
 
-    cdef bint _verify_digest(self, const string& base32_digest, bint consume) except -1:
+    cdef bint _verify_digest(self, const string& digest_str, bint consume) except -1:
         self._assert_not_stale()
 
-        cdef size_t sep_pos = base32_digest.find(b':')
+        cdef size_t sep_pos = digest_str.find(b':')
         if sep_pos == strnpos:
             return False
 
-        cdef string alg = base32_digest.substr(0, sep_pos)
-        cdef bytes digest = base64.b32decode(base32_digest.substr(sep_pos + 1))
-
-        if alg == b'sha1':
-            h = hashlib.sha1()
-        elif alg == b'md5':
-            h = hashlib.md5()
-        elif alg == b'sha256':
-            h = hashlib.sha256()
+        cdef string alg = digest_str.substr(0, sep_pos)
+        if alg in (b'sha1', b'md5', b'sha256', b'sha512'):
+            h = getattr(hashlib, alg.decode())()
         else:
-            warnings.warn(f'Unsupported hash algorithm "{alg.decode()}".')
+            warnings.warn(f'Unsupported hash algorithm: "{alg.decode()}".')
             return False
+
+        cdef bytes digest_bytes
+        try:
+            digest_bytes = base64.b32decode(digest_str.substr(sep_pos + 1))
+        except binascii.Error:
+            try:
+                # Hex digests are non-standard, but are created by some libraries such as warcprox
+                digest_bytes = binascii.unhexlify(digest_str.substr(sep_pos + 1))
+            except binascii.Error:
+                warnings.warn('Invalid digest encoding.')
+                return False
 
         if not consume and not self._frozen:
             self.freeze()
@@ -894,7 +900,7 @@ cdef class WarcRecord:
         if not consume:
             self._reader.stream.seek(0)
 
-        return h.digest() == digest
+        return h.digest() == digest_bytes
 
     cpdef bint freeze(self) except 0:
         """

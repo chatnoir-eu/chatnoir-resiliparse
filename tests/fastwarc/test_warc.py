@@ -1,7 +1,7 @@
-import datetime
+from base64 import b32encode
 from email.utils import format_datetime
 from gzip import GzipFile
-from hashlib import md5, sha1
+import hashlib
 import lz4.frame
 import io
 import os
@@ -262,6 +262,57 @@ def test_verify_digests():
         assert not rec.verify_block_digest()
 
 
+def test_verify_digest_algorithms():
+    content = b'Hello World'
+
+    for alg in ('md5', 'sha1', 'sha256', 'sha512'):
+        rec = WarcRecord()
+        rec.init_headers(content_length=len(content))
+        rec.set_bytes_content(content)
+
+        assert not rec.verify_block_digest()
+        digest = getattr(hashlib, alg)(content).digest()
+        rec.headers['WARC-Block-Digest'] = alg + ':' + b32encode(digest).decode()
+        assert rec.verify_block_digest(), 'Digest did not match: ' + rec.headers['WARC-Block-Digest']
+        rec.headers['WARC-Block-Digest'] = alg + ':' + b32encode(b'xxxxxx').decode()
+        assert not rec.verify_block_digest(), 'Digest matched when it shouldn\'t have: ' \
+                                              + rec.headers['WARC-Block-Digest']
+
+
+def test_verify_hex_digests():
+    # Some tools produce hex digests instead of the standard base32 digests
+    content = b'Hello World'
+    hex_digest = hashlib.sha1(content).hexdigest()
+
+    rec = WarcRecord()
+    rec.init_headers(content_length=len(content))
+    rec.set_bytes_content(content)
+
+    assert not rec.verify_block_digest()
+    rec.headers['WARC-Block-Digest'] = 'sha1:' + hex_digest
+    assert rec.verify_block_digest(), 'Digest did not match: ' + rec.headers['WARC-Block-Digest']
+    rec.headers['WARC-Block-Digest'] = 'sha1:' + ('0' * len(hex_digest))
+    assert not rec.verify_block_digest(), 'Digest matched when it shouldn\'t have: ' \
+                                          + rec.headers['WARC-Block-Digest']
+
+
+def test_invalid_digests():
+    content = b'Hello World'
+    rec = WarcRecord()
+    rec.init_headers(content_length=len(content))
+    rec.set_bytes_content(content)
+
+    # Invalid digests should not raise, but simply return False
+    rec.headers['WARC-Block-Digest'] = 'xalg:foobar'
+    assert not rec.verify_block_digest()
+    rec.headers['WARC-Block-Digest'] = 'sha1:_____'
+    assert not rec.verify_block_digest()
+    rec.headers['WARC-Block-Digest'] = 'xxxxxx'
+    assert not rec.verify_block_digest()
+    rec.headers['WARC-Block-Digest'] = ''
+    assert not rec.verify_block_digest()
+
+
 def test_record_http_parsing():
     file = os.path.join(DATA_DIR, 'warcfile.warc')
 
@@ -437,12 +488,12 @@ def test_record_writer():
         written += rec.write(buf)
         assert written == buf.tell()
     buf.seek(0)
-    assert md5(source_bytes).hexdigest() == md5(buf.getvalue()).hexdigest()
+    assert hashlib.md5(source_bytes).hexdigest() == hashlib.md5(buf.getvalue()).hexdigest()
 
 
 def test_warc_writer_compression():
     source_bytes = open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()
-    src_md5 = md5(source_bytes).hexdigest()
+    src_md5 = hashlib.md5(source_bytes).hexdigest()
 
     # GZip
     raw_buf = io.BytesIO()
@@ -453,7 +504,7 @@ def test_warc_writer_compression():
         assert written == raw_buf.tell()
 
     raw_buf.seek(0)
-    assert md5(GzipFile(fileobj=raw_buf).read()).hexdigest() == src_md5
+    assert hashlib.md5(GzipFile(fileobj=raw_buf).read()).hexdigest() == src_md5
     raw_buf.seek(0)
     check_warc_integrity(raw_buf)
 
@@ -476,7 +527,7 @@ def test_warc_writer_compression():
         if read >= len(compressed):
             break
 
-    assert md5(decompressed).hexdigest() == src_md5
+    assert hashlib.md5(decompressed).hexdigest() == src_md5
     check_warc_integrity(raw_buf)
 
 
@@ -682,7 +733,7 @@ def test_create_new_warc_record():
 
     # Write and read back
     stream = io.BytesIO()
-    payload_digest = sha1()
+    payload_digest = hashlib.sha1()
     payload_digest.update(new_record_bytes_content[new_record_bytes_content.find(b'\r\n\r\n') + 4:])
     src_record.write(stream, checksum_data=True, payload_digest=payload_digest.digest())
     stream.seek(0)
