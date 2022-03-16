@@ -100,7 +100,10 @@ if USE_CYTHON:
     fastwarc_extensions = cythonize(fastwarc_extensions, **cython_args)
 
 extras_require = {}
-extras_require['all'] = list(chain(*extras_require.values()))   # All except "test"
+extras_require.update({
+    'all': list(chain(*extras_require.values())),   # All except "test"
+})
+
 tests_require = [
     'pytest',
     'pytest-cov',

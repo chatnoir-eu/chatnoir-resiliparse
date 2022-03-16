@@ -122,16 +122,27 @@ if USE_CYTHON:
 
 
 extras_require = {
-    'cli': [
-        'joblib'
-    ],
     'beam': [
         'apache_beam[aws]>=2.37.0',
         'boto3>=1.9',
         'elasticsearch>=7.0.0'
+    ],
+    'cli': [
+        'click',
+        'joblib',
+        'tqdm'
     ]
 }
-extras_require['all'] = list(chain(*extras_require.values()))   # All except "test"
+extras_require.update({
+    'all': list(chain(*extras_require.values())),   # All except "test" and "cli-benchmark"
+    'cli-benchmark': [
+        'beautifulsoup4',
+        'fasttext',
+        'langid',
+        'selectolax'
+    ]
+})
+
 tests_require = [
     'pytest',
     'pytest-cov'
@@ -151,9 +162,7 @@ setup(
     package_data={'': data_ext},
     ext_modules=resiliparse_extensions,
     install_requires=[
-        'click',
         'fastwarc==' + VERSION,
-        'tqdm'
     ],
     setup_requires=['setuptools>=18.0'],
     tests_require=tests_require,

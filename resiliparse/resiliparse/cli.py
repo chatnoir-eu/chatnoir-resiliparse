@@ -15,7 +15,6 @@
 import codecs
 from collections import defaultdict
 import json
-from joblib import Parallel, delayed
 import hashlib
 import os
 from math import fsum
@@ -25,9 +24,7 @@ import tempfile
 import unicodedata
 import urllib.request
 from urllib.error import HTTPError
-
-import click
-from tqdm import tqdm
+import sys
 
 from fastwarc import ArchiveIterator, WarcRecordType
 from resiliparse.parse.encoding import detect_encoding, bytes_to_str
@@ -35,10 +32,30 @@ from resiliparse.parse.html import HTMLTree
 import resiliparse.parse.lang as rlang
 
 
+# Optional 'cli' dependencies
+MISSING_DEPS = False
+try:
+    import click
+except ModuleNotFoundError:
+    print('Missing dependency: click', file=sys.stderr)
+    print('Install Resiliparse with the "cli" flag: pip install "resiliparse[cli]"', file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from tqdm import tqdm
+    import joblib
+except ModuleNotFoundError:
+    MISSING_DEPS = True
+
+
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
     """Resiliparse Command Line Interface."""
-    pass
+
+    if MISSING_DEPS:
+        click.echo('Missing CLI dependencies!', err=True)
+        click.echo('Install Resiliparse with the "cli" flag: pip install "resiliparse[cli]"', err=True)
+        sys.exit(1)
 
 
 @main.group()
@@ -94,7 +111,8 @@ def benchmark(warc_file):
     Benchmark Resiliparse HTML parsing by extracting the titles from all HTML pages in a WARC file.
 
     You can compare the performance to Selectolax (both the old MyHTML and the new Lexbor engine) and
-    BeautifulSoup4 by installing the PyPi packages ``selectolax`` and ``beautifulsoup4``.
+    BeautifulSoup4 by installing the PyPi packages ``selectolax`` and ``beautifulsoup4``. Install
+    Resiliparse with the ``cli-benchmark`` flag to install all optional third-party dependencies automatically.
 
     See :ref:`Resiliparse HTML Parser Benchmarks <parse-html-benchmark>` for more details
     and example benchmarking results.
@@ -104,6 +122,7 @@ def benchmark(warc_file):
     print('=========================================')
 
     start = time.monotonic()
+    i = 0
     for i, record in enumerate(tqdm(ArchiveIterator(open(warc_file, 'rb'), record_types=WarcRecordType.response),
                                     desc=f'Benchmarking Resiliparse (Lexbor)', unit=' docs',
                                     leave=False, mininterval=0.3)):
@@ -116,6 +135,7 @@ def benchmark(warc_file):
     try:
         from selectolax.lexbor import LexborHTMLParser as SelectolaxLexbor
         start = time.monotonic()
+        i = 0
         for i, record in enumerate(tqdm(ArchiveIterator(open(warc_file, 'rb'), record_types=WarcRecordType.response),
                                         desc=f'Benchmarking Selectolax (Lexbor)', unit=' docs',
                                         leave=False, mininterval=0.3)):
@@ -126,6 +146,7 @@ def benchmark(warc_file):
 
         from selectolax.parser import HTMLParser as SelectolaxMyHTML
         start = time.monotonic()
+        i = 0
         for i, record in enumerate(tqdm(ArchiveIterator(open(warc_file, 'rb'), record_types=WarcRecordType.response),
                                         desc=f'Benchmarking Selectolax (MyHTML)', unit=' docs',
                                         leave=False, mininterval=0.3)):
@@ -133,7 +154,7 @@ def benchmark(warc_file):
             SelectolaxMyHTML(bytes_to_str(content, detect_encoding(content))).css_first('title')
         t = time.monotonic() - start
         print(f'Selectolax (MyHTML):   {i} documents in {time.monotonic() - start:.2f}s ({i / t:.2f} documents/s)')
-    except ImportError:
+    except ModuleNotFoundError:
         print('[Not benchmarking Selectolax, because it is not installed.')
 
     try:
@@ -147,7 +168,7 @@ def benchmark(warc_file):
             BeautifulSoup(bytes_to_str(content, detect_encoding(content)), 'lxml').title
         t = time.monotonic() - start
         print(f'BeautifulSoup4 (lxml): {i} documents in {time.monotonic() - start:.2f}s ({i / t:.2f} documents/s)')
-    except ImportError:
+    except ModuleNotFoundError:
         print('[Not benchmarking BeautifulSoup4, because it is not installed.')
 
 
@@ -178,6 +199,12 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
 
     The downloaded dumps can then be extracted with `Wikiextractor <https://github.com/attardi/wikiextractor>`_.
     """
+
+    if joblib is None:
+        click.echo('Required dependency not installed: joblib', err=True)
+        click.echo('Install Resiliparse with the "cli" flag: pip install "resiliparse[cli]"', err=True)
+        sys.exit(1)
+
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
 
@@ -209,7 +236,7 @@ def download_wiki_dumps(dumpdate, langs, outdir, jobs):
         except HTTPError as e:
             click.echo(f'Error downloading {l}wiki: {e}', err=True)
 
-    Parallel(n_jobs=jobs, verbose=0, prefer='threads')(delayed(dl)(l.strip()) for l in langs.split(','))
+    joblib.Parallel(n_jobs=jobs, verbose=0, prefer='threads')(joblib.delayed(dl)(l.strip()) for l in langs.split(','))
 
 
 @lang.command()
@@ -241,8 +268,8 @@ def create_dataset(indir, outdir, val_size, test_size, min_examples, jobs):
         os.makedirs(outdir)
 
     langdirs = [os.path.join(indir, d) for d in os.listdir(indir) if os.path.isdir(os.path.join(indir, d))]
-    Parallel(n_jobs=jobs, verbose=10, backend='multiprocessing')(
-        delayed(_process_raw_lang_dir)(l, outdir, val_size, test_size, min_examples) for l in langdirs)
+    joblib.Parallel(n_jobs=jobs, verbose=10, backend='multiprocessing')(
+        joblib.delayed(_process_raw_lang_dir)(l, outdir, val_size, test_size, min_examples) for l in langdirs)
 
 
 def _process_raw_lang_dir(indir, outdir_base, val_size, test_size, min_examples):
@@ -510,6 +537,9 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
 def benchmark(infile, rounds, fasttext_model):
     """
     Benchmark Resiliparse against FastText and Langid.
+
+    Either package must be installed for this comparison. Install Resiliparse with the
+    ``cli-benchmark`` flag to install all optional third-party dependencies automatically.
     """
 
     if fasttext_model:
@@ -535,7 +565,7 @@ def benchmark(infile, rounds, fasttext_model):
         click.echo('Run "pip install langid" to install it.', err=True)
         bench_langid = False
 
-    in_data = open(infile, 'r').read().replace('\n', ' ')
+    in_data = bytes_to_str(open(infile, 'rb').read().replace(b'\n', b' '))
     click.echo(f'Benchmarking language detectors ({rounds:,} rounds):')
 
     start = time.monotonic()

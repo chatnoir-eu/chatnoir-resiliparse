@@ -9,9 +9,16 @@ Installation Instructions
 
 Pre-built Resiliparse binaries can be installed from `PyPi <https://pypi.org/project/Resiliparse/>`_:
 
-.. code-block:: bash
+.. code-block:: console
 
-  pip install resiliparse
+  $ pip install resiliparse
+
+To install the Resiliparse CLI and its dependencies, install the package with the `cli` flag (or alternatively the `all` flag):
+
+.. code-block:: console
+
+  $ pip install 'resiliparse[cli]'
+
 
 Building Resiliparse From Source
 --------------------------------
