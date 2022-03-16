@@ -18,4 +18,9 @@ RUN set -x \
     && rm -rf lexbor
 
 RUN set -x \
-    && yum install -y zlib-devel lz4-devel uchardet-devel re2-devel
+    && yum install -y \
+          devtoolset-10-libasan-devel \
+          lz4-devel \
+          re2-devel \
+          uchardet-devel \
+          zlib-devel

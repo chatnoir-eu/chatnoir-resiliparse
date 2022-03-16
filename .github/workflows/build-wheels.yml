@@ -123,11 +123,42 @@ jobs:
           name: sdist
           path: ./dist/*.tar.gz
 
+  build-asan:
+    runs-on: ubuntu-latest
+    container:
+      image: webis/resiliparse-manylinux2014_x86_64
+    env:
+      TRACE: "1"
+      ASAN: "1"
+      ASAN_OPTIONS: detect_leaks=0
+      PYTHON: /opt/python/cp310-cp310/bin/python
+      PYTHONPATH: resiliparse:fastwarc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Build Dependencies
+        run: $PYTHON -m pip install cython
+
+      - name: Build Extensions Inline
+        run: |
+          set -e
+          (cd fastwarc && $PYTHON setup.py develop build_ext --debug --inplace easy_install "fastwarc[all,test]")
+          (cd resiliparse && $PYTHON setup.py develop build_ext --debug --inplace easy_install "resiliparse[all,test]")
+
+      - name: Run Tests
+        run: |
+          export LD_PRELOAD="$(ldconfig -p | grep libasan | head -n1 | awk '{print $4}')"
+          $PYTHON -m pytest --capture=sys tests/
+
   build-coverage:
     runs-on: ubuntu-latest
     container:
       image: webis/resiliparse-manylinux2014_x86_64
-    needs: [ build-wheels, build-sdist ]
+    needs: [ build-wheels, build-asan, build-sdist ]
     env:
       TRACE: "1"
       PYTHON: /opt/python/cp39-cp39/bin/python
@@ -145,8 +176,8 @@ jobs:
       - name: Build Extensions Inline
         run: |
           set -e
-          (cd fastwarc && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[all,test]")
-          (cd resiliparse && $PYTHON setup.py build_ext --inplace && $PYTHON -m pip install -e ".[all,test]")
+          (cd fastwarc && $PYTHON setup.py develop build_ext --inplace easy_install "fastwarc[all,test]")
+          (cd resiliparse && $PYTHON setup.py develop build_ext --inplace easy_install "resiliparse[all,test]")
 
       - name: Run Tests
         run: $PYTHON -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
