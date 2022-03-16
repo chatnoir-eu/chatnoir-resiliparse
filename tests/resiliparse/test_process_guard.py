@@ -1,6 +1,6 @@
+import os
 import platform
 import signal
-import sys
 import time
 from time import sleep, monotonic
 import warnings
@@ -10,6 +10,13 @@ import pytest
 from resiliparse.process_guard import InterruptType, ExecutionTimeout, MemoryLimitExceeded, \
     mem_guard, time_guard, progress
 from resiliparse.itertools import progress_loop
+
+
+# Skip tests on macOS GitHub CI.
+# GitHub's macOS VM is too slow and we often get race conditions with short timeouts.
+if platform.system() == 'Darwin' and 'CIBW_BUILD' in os.environ:
+    pytest.skip('macOS CI detected: Skipping unreliable process guard tests due to CI slowness.',
+                allow_module_level=True)
 
 
 class SigIntSent(Exception):
@@ -131,11 +138,7 @@ def test_time_guard():
                 sleep(0.001)
 
     # Test progress()
-    # Skip on macOS. GitHub's macOS VM is too slow, so we get race conditions with short timeouts
-    if platform.system() != 'Darwin':
-        wait_func_exc_progress()
-    else:
-        warnings.warn('Skipped unstable time_guard progress() test.')
+    wait_func_exc_progress()
 
     def infinite_gen():
         while True:
