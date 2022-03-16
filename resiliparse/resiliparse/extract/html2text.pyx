@@ -164,10 +164,10 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         last_node.collapse_margins = False
 
     elif ctx.opts.links and is_end_tag and ctx.node.local_name == LXB_TAG_A:
-        element_text_sv = <string>get_node_attr_sv(ctx.node, b'href')
+        element_text_sv = get_node_attr_sv(ctx.node, b'href')
         if not element_text_sv.empty():
             element_text.append(b' (')
-            element_text.append(<string> element_text_sv)
+            element_text.append(<string>element_text_sv)
             element_text.append(b') ')
             _ensure_text_contents(extract_nodes)
             deref(last_node.text_contents).append(element_text)
