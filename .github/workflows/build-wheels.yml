@@ -130,7 +130,7 @@ jobs:
     env:
       DEBUG: "1"
       ASAN: "1"
-      ASAN_OPTIONS: detect_leaks=0
+      ASAN_OPTIONS: leak_check_at_exit=0
       PYTHON: /opt/python/cp39-cp39/bin/python
       PYTHONPATH: resiliparse:fastwarc
 
