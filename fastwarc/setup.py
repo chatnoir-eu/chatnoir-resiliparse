@@ -41,15 +41,15 @@ try:
     ext = 'pyx'
     cython_args = dict(
         annotate=DEBUG,
-        language_level='3',
+        gdb_debug=DEBUG,
         compiler_directives=dict(
+            language_level='3',
             linetrace=TRACE,
             initializedcheck=DEBUG,
             boundscheck=DEBUG,
             cdivision=True
         )
     )
-
     USE_CYTHON = True
 except ModuleNotFoundError as e:
     pass
@@ -60,11 +60,8 @@ if TRACE:
 
 if CXX == 'unix':
     cpp_args.update(dict(
-        extra_compile_args=['-std=c++17', '-O3', '-Wno-deprecated-declarations',
-                            '-Wno-unreachable-code', '-Wno-unused-function',
-                            # Temporary flags until https://github.com/lexbor/lexbor/pull/125 and
-                            # https://github.com/lexbor/lexbor/pull/135 are released
-                            '-fpermissive', '-Wno-c++11-narrowing'],
+        extra_compile_args=['-std=c++17', f'-O{0 if DEBUG else 3}', '-Wno-deprecated-declarations',
+                            '-Wno-unreachable-code', '-Wno-unused-function'],
         extra_link_args=['-std=c++17']
     ))
     if ASAN:
