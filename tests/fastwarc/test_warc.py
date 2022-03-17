@@ -296,6 +296,7 @@ def test_verify_hex_digests():
                                           + rec.headers['WARC-Block-Digest']
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_invalid_digests():
     content = b'Hello World'
     rec = WarcRecord()
