@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+cython_debug/
 
 # C extensions
 *.so
