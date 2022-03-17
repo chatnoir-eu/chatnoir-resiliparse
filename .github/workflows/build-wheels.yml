@@ -21,7 +21,8 @@ jobs:
       matrix:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
-      CIBW_BUILD: cp3*
+      CIBW_BUILD: "cp3*"
+      CIBW_SKIP: "*-musllinux_*"
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
       CIBW_MANYLINUX_X86_64_IMAGE: webis/resiliparse-manylinux2014_x86_64
@@ -36,12 +37,12 @@ jobs:
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
         delvewheel repair --add-path C:\vcpkg\installed\x64-windows\bin -w {dest_dir} {wheel}
 
+      PYTHONPATH: ../resiliparse:../fastwarc
       CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
       LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
       INCLUDE: C:\vcpkg\installed\x64-windows\include
       LIB: C:\vcpkg\installed\x64-windows\lib
-      PYTHONPATH: ../resiliparse:../fastwarc
-      CIBW_ENVIRONMENT: PYTHONPATH=$PYTHONPATH
+      CIBW_ENVIRONMENT: PYTHONPATH="$PYTHONPATH"
       CIBW_TEST_EXTRAS: all,test
     steps:
       - name: Checkout
@@ -77,7 +78,7 @@ jobs:
         uses: actions/setup-python@v2
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.1.1
+        run: python -m pip install cibuildwheel==2.3.1
 
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
@@ -87,10 +88,9 @@ jobs:
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
         env:
-          CIBW_BEFORE_TEST: |
-            set -e
-            PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
-            python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
+          CIBW_BEFORE_TEST: >-
+            python -c "import sys,glob; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/FastWARC-*cp'+''.join(map(str, sys.version_info[:2]))+'-*.whl')[0])" &&
+            python -m pip install -r fastwarc.txt
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
 
       - name: Upload Wheels
@@ -137,10 +137,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Build Dependencies
-        run: $PYTHON -m pip install cython
-
-      - name: Build Extensions Inline
+      - name: Build Extensions
         run: |
           set -e
           $PYTHON -m pip install -e "fastwarc[all,test]"
@@ -167,12 +164,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Build Dependencies
-        run: $PYTHON -m pip install cython
-
-      - name: Build Extensions Inline
+      - name: Build Extensions
         run: |
           set -e
+          $PYTHON -m pip install cython
           $PYTHON -m pip install -e "fastwarc[all,test]"
           $PYTHON -m pip install -e "resiliparse[all,test]"
 
@@ -208,9 +203,10 @@ jobs:
         run: |
           set -e
 
-          PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
+          
+          PYTHON_ABI="$(python -c "import sys; print(''.join(map(str, sys.version_info[:2])))")"
           find wheelhouse -name "FastWARC-*cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
           find wheelhouse -name "Resiliparse-*cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
 

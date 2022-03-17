@@ -12,5 +12,5 @@ if sys.platform == 'win32' and sys.version_info.minor >= 8:
     # We need this to load linked DLLs from non-standard places (such as Vcpkg), otherwise those
     # DLLs would have to be copied all over the place for running tests.
     for p in os.environ['PATH'].split(';'):
-        if p:
+        if p and os.path.isdir(p):
             os.add_dll_directory(p)
