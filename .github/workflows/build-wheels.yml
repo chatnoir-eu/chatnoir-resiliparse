@@ -55,7 +55,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-4
+          key: ${{ runner.os }}-vcpkg-5
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -82,7 +82,6 @@ jobs:
       - name: Build FastWARC
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
-          CIBW_TEST_COMMAND_WINDOWS: ""
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
       - name: Build Resiliparse
