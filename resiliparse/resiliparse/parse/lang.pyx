@@ -91,7 +91,7 @@ cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):
     lang_vec.resize(vec_len)
     if i > 0:
         for j in range(vec_len):
-            lang_vec[j] = min(255u, count_vec32[j] * 256u / i)
+            lang_vec[j] = <uint8_t>min(255u, count_vec32[j] * 256u / i)
 
     return lang_vec
 
@@ -131,8 +131,8 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
     cdef size_t min_rank = <size_t>-1
     cdef const char* lang = NULL
     cdef vector[lang_rank_t] predicted
-    cdef size_t i
-    cdef size_t rank
+    cdef uint32_t i
+    cdef uint32_t rank
 
     if langs:
         langs = set(langs)
@@ -144,7 +144,7 @@ cpdef detect_fast(str text, size_t cutoff=1200, size_t n_results=1, langs=None):
         rank = cmp_oop_ranks(text_vec.data(), LANGS[i].vec, LANG_VEC_SIZE)
         # Bias rank by position in the language list on short texts with high uncertainty
         if rank > 500 and text_len < 150:
-            rank += min(50u, i * 3)
+            rank += min(50u, i * 3u)
         if rank > cutoff:
             continue
 
@@ -204,8 +204,8 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     agg_vec.resize(vec_len)
 
     cdef lang_vec8_t tmp_vec
-    cdef size_t example_count = 0
-    cdef size_t i
+    cdef uint32_t example_count = 0
+    cdef uint32_t i
     for text in examples:
         tmp_vec = str_to_vec(text, vec_len)
         for i in range(tmp_vec.size()):
@@ -215,6 +215,6 @@ cpdef train_language_examples(examples, size_t vec_len=LANG_VEC_SIZE):
     cdef lang_vec8_t agg_vec8
     agg_vec8.resize(agg_vec.size())
     for i in range(agg_vec.size()):
-        agg_vec8[i] = min(255u, agg_vec[i] / example_count)
+        agg_vec8[i] = <uint8_t>min(255u, agg_vec[i] / example_count)
 
     return agg_vec8

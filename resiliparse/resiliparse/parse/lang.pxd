@@ -61,9 +61,9 @@ cdef inline void shiftleft(Py_UCS4* ustr, int size):
         ustr[i] = ustr[i + 1]
 
 
-cdef inline size_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size):
-    cdef size_t rank = 0
-    cdef size_t i
+cdef inline uint32_t cmp_oop_ranks(const uint8_t* vec1, const uint8_t* vec2, size_t size):
+    cdef uint32_t rank = 0
+    cdef uint32_t i
     for i in range(size):
         if vec1[i] > vec2[i]:
             rank += vec1[i] - vec2[i]

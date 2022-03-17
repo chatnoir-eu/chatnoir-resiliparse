@@ -218,7 +218,7 @@ cdef class FileStream(IOStream):
     cdef void seek(self, size_t offset) except *:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
-        fseek(self.fp, offset, SEEK_SET)
+        fseek(self.fp, <unsigned long>offset, SEEK_SET)
 
     cdef size_t tell(self) except -1:
         if self.fp == NULL:
@@ -328,7 +328,7 @@ cdef class GZipStream(CompressingStream):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf = string()
-        self.working_buf_filled = 0
+        self.working_buf_filled = 0u
         self.initialized = 0
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
@@ -354,10 +354,10 @@ cdef class GZipStream(CompressingStream):
         self.zst.zfree = Z_NULL
         self.zst.next_in = NULL
         self.zst.next_out = NULL
-        self.zst.total_in = 0
-        self.zst.total_out = 0
-        self.zst.avail_in = 0
-        self.zst.avail_out = 0
+        self.zst.total_in = 0u
+        self.zst.total_out = 0u
+        self.zst.avail_in = 0u
+        self.zst.avail_out = 0u
         self.working_buf.clear()
 
         if deflate:
@@ -378,7 +378,7 @@ cdef class GZipStream(CompressingStream):
         """
         self._init_z_stream(deflate)
         self.working_buf.append(initial_data)
-        self.working_buf_filled += initial_data.size()
+        self.working_buf_filled += <unsigned int>initial_data.size()
         self.zst.next_in = <Bytef*>self.working_buf.data()
         self.zst.avail_in = self.working_buf_filled
         self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
@@ -392,14 +392,14 @@ cdef class GZipStream(CompressingStream):
         elif self.initialized == _GZIP_INFLATE:
             inflateEnd(&self.zst)
         self.working_buf.clear()
-        self.working_buf_filled = 0
+        self.working_buf_filled = 0u
         self.initialized = 0
 
     cdef bint _refill_working_buf(self, size_t size) except -1:
         if self.working_buf.size() < size:
             self.working_buf.resize(size)
 
-        self.working_buf_filled = self.raw_stream.read(self.working_buf.data(), size)
+        self.working_buf_filled = <unsigned int>self.raw_stream.read(self.working_buf.data(), size)
         if self.working_buf_filled == 0:
             # EOF
             self._free_z_stream()
@@ -421,7 +421,7 @@ cdef class GZipStream(CompressingStream):
                 return 0
 
         self.zst.next_out = <Bytef*>out
-        self.zst.avail_out = size
+        self.zst.avail_out = <unsigned int>size
         cdef int stream_read_status = Z_STREAM_END
         cdef size_t read_so_far = self.zst.total_in
 
@@ -452,15 +452,15 @@ cdef class GZipStream(CompressingStream):
             self._init_z_stream(True)
 
         self.zst.next_in = <Bytef*>data
-        self.zst.avail_in = size
+        self.zst.avail_in = <unsigned int>size
 
         self.begin_member()
         cdef size_t written = 0
-        cdef size_t bound = max(8192u, deflateBound(&self.zst, size))
+        cdef size_t bound = max(8192u, deflateBound(&self.zst, <unsigned long>size))
         if self.working_buf.size() < bound:
             self.working_buf.resize(bound)
         self.zst.next_out = <Bytef*>self.working_buf.data()
-        self.zst.avail_out = self.working_buf.size()
+        self.zst.avail_out = <unsigned int>self.working_buf.size()
 
         cdef int status = Z_OK
         cdef size_t written_so_far = self.zst.total_out
@@ -488,10 +488,10 @@ cdef class GZipStream(CompressingStream):
         if not self.member_started:
             return 0
 
-        self.zst.avail_in = 0
+        self.zst.avail_in = 0u
         self.zst.next_in = NULL
         self.zst.next_out = <Bytef*>self.working_buf.data()
-        self.zst.avail_out = self.working_buf.size()
+        self.zst.avail_out = <unsigned int>self.working_buf.size()
 
         cdef size_t written_so_far = self.zst.total_out
         cdef int status = deflate(&self.zst, Z_FINISH)
@@ -544,8 +544,8 @@ cdef class LZ4Stream(CompressingStream):
         self.cctx = NULL
         self.dctx = NULL
         self.working_buf = string()
-        self.working_buf_read = 0
-        self.working_buf_filled = 0
+        self.working_buf_read = 0u
+        self.working_buf_filled = 0u
         self.frame_started = False
         self.prefs.compressionLevel = compression_level
         self.prefs.favorDecSpeed = favor_dec_speed
@@ -566,7 +566,7 @@ cdef class LZ4Stream(CompressingStream):
         :param initial_data: data to pre-populate
         """
         self.working_buf.append(initial_data)
-        self.working_buf_filled += initial_data.size()
+        self.working_buf_filled += <unsigned int>initial_data.size()
         self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
 
     cdef size_t read(self, char* out, size_t size) except -1:
@@ -585,7 +585,7 @@ cdef class LZ4Stream(CompressingStream):
 
         while True:
             if self.working_buf_filled == 0 or self.working_buf_read == self.working_buf_filled:
-                self.working_buf_filled = self.raw_stream.read(self.working_buf.data(), size)
+                self.working_buf_filled = <unsigned int>self.raw_stream.read(self.working_buf.data(), size)
                 self.working_buf_read = 0
 
                 if self.working_buf_filled == 0:
@@ -683,7 +683,7 @@ cdef class LZ4Stream(CompressingStream):
 
         if not self.working_buf.empty():
             self.working_buf.clear()
-        self.working_buf_filled = 0
+        self.working_buf_filled = 0u
 
 
     # noinspection PyAttributeOutsideInit

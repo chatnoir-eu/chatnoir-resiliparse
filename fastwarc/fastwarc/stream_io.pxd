@@ -84,7 +84,7 @@ cdef class CompressingStream(IOStream):
 cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
     cdef string working_buf
-    cdef size_t working_buf_filled
+    cdef unsigned int working_buf_filled
     cdef z_stream zst
     cdef char initialized
     cdef size_t stream_pos

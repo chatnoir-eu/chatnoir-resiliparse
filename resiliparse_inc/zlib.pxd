@@ -2,11 +2,11 @@ cdef extern from "<zlib.h>" nogil:
     ctypedef unsigned char Bytef
     ctypedef struct z_stream:
         Bytef* next_in
-        size_t avail_in
-        size_t total_in
+        unsigned int avail_in
+        unsigned long total_in
         Bytef* next_out
-        size_t avail_out
-        size_t total_out
+        unsigned int avail_out
+        unsigned long total_out
         const char* msg
         void* zalloc
         void* zfree
