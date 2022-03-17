@@ -83,7 +83,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
           CIBW_TEST_COMMAND_WINDOWS: ""
-          CIBW_TEST_COMMAND: python -m pytest {project}/tests/fastwarc
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
       - name: Build Resiliparse
         run: python -m cibuildwheel --output-dir wheelhouse resiliparse
@@ -92,9 +92,7 @@ jobs:
             set -e
             PYTHON_ABI="$(python -c "from platform import python_version_tuple as p; print(''.join(p()[:2]))")"
             python -m pip install wheelhouse/FastWARC-*cp$PYTHON_ABI-*.whl
-          CIBW_BEFORE_TEST_WINDOWS: ""
-          CIBW_TEST_COMMAND: python -m pytest {project}/tests/resiliparse
-          CIBW_TEST_COMMAND_WINDOWS: ""
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v2
@@ -152,7 +150,7 @@ jobs:
       - name: Run Tests
         run: |
           export LD_PRELOAD="$(ldconfig -p | grep libasan | head -n1 | awk '{print $4}')"
-          $PYTHON -m pytest --capture=sys tests/
+          $PYTHON -m pytest --capture=sys --verbose tests/
 
   build-coverage:
     runs-on: ubuntu-latest

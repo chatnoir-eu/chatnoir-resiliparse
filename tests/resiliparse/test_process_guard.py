@@ -7,16 +7,18 @@ import warnings
 
 import pytest
 
-from resiliparse.process_guard import InterruptType, ExecutionTimeout, MemoryLimitExceeded, \
-    mem_guard, time_guard, progress
-from resiliparse.itertools import progress_loop
+if platform.system() == 'Windows':
+    pytest.skip('Process Guards are not supported on Windows.', allow_module_level=True)
 
-
-# Skip tests on macOS GitHub CI.
-# GitHub's macOS VM is too slow and we often get race conditions with short timeouts.
+# GitHub's macOS VM is too slow, so we often get race conditions with short timeouts.
 if platform.system() == 'Darwin' and 'CIBW_BUILD' in os.environ:
     pytest.skip('macOS CI detected: Skipping unreliable process guard tests due to CI slowness.',
                 allow_module_level=True)
+
+
+from resiliparse.process_guard import InterruptType, ExecutionTimeout, MemoryLimitExceeded, \
+    mem_guard, time_guard, progress
+from resiliparse.process_guard import progress_loop
 
 
 class SigIntSent(Exception):

@@ -97,6 +97,8 @@ if os.path.isdir(fast_warc_src):
     sys.path.insert(0, fast_warc_src)
 
 resiliparse_extensions = [
+    Extension('resiliparse.itertools',
+              sources=[f'resiliparse/itertools.{cpp_ext}'], **cpp_args),
     Extension('resiliparse.extract.html2text',
               sources=[f'resiliparse/extract/html2text.{cpp_ext}'], libraries=['lexbor', 're2'], **cpp_args),
     Extension('resiliparse.parse.encoding',
@@ -106,16 +108,14 @@ resiliparse_extensions = [
     Extension('resiliparse.parse.http',
               sources=[f'resiliparse/parse/http.{cpp_ext}'], **cpp_args),
     Extension('resiliparse.parse.lang',
-              sources=[f'resiliparse/parse/lang.{cpp_ext}'], **cpp_args)
+              sources=[f'resiliparse/parse/lang.{cpp_ext}'], **cpp_args),
 ]
 if os.name == 'posix':
-    resiliparse_extensions.extend([
+    # Process Guards are unsupported on Windows
+    resiliparse_extensions.append(
         Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.{cpp_ext}'],
-                  libraries=['pthread'], **cpp_args),
-        Extension('resiliparse.itertools', sources=[f'resiliparse/itertools.{cpp_ext}'], **cpp_args)
-    ])
-else:
-    warnings.warn(f"Unsupported platform '{platform.system()}': Building without ProcessGuard extension.")
+                  libraries=['pthread'], **cpp_args)
+    )
 
 if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)

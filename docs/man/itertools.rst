@@ -7,42 +7,7 @@ Resiliparse Itertools
 Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
 
 
-.. _itertools-progress-loops:
-
-Progress Loops
---------------
-Progress loops are a convenience tool for iterating data with an active :class:`.TimeGuard` context. Since running a ``for`` loop in a :class:`.TimeGuard` with progress being reported after each iteration is a very common pattern, you can use the :func:`~.itertools.progress_loop` pass-through generator as a shortcut:
-
-.. code-block:: python
-
-  from time import sleep
-  from resiliparse.itertools import progress_loop
-  from resiliparse.process_guard import time_guard, ExecutionTimeout
-
-  @time_guard(timeout=10)
-  def foo():
-      for _ in progress_loop(range(1000)):
-          try:
-              sleep(0.1)
-          except ExecutionTimeout:
-              break
-
-  foo()
-
-In cases where context auto-detection doesn't work, the active guard context can be passed to the generator via the ``ctx`` parameter:
-
-.. code-block:: python
-
-  with time_guard(timeout=10) as guard:
-      for _ in progress_loop(range(1000), ctx=guard):
-          try:
-              sleep(0.1)
-          except ExecutionTimeout:
-              break
-
-
 .. _itertools-exception-loops:
-
 
 Exception Loops
 ---------------

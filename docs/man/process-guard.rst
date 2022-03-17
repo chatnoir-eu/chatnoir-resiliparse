@@ -6,6 +6,11 @@ Resiliparse Process Guards
 
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding running tasks to stay within pre-defined limits on execution time and memory usage. Process guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
+.. warning::
+
+    Process Guards are only fully supported on Linux. :class:`.TimeGuard` can be used on macOS as well, but is not very well tested. :class:`.MemGuard` is unsupported on any platform other than Linux. The entire Process Guards module is not available on Windows.
+
+
 TimeGuard
 ---------
 
@@ -112,6 +117,39 @@ The :meth:`~.TimeGuard.progress()` function will automatically select the last a
   foo()
 
 
+.. _timeguard-progress-loops:
+
+Progress Loops
+^^^^^^^^^^^^^^
+Progress loops are a convenience tool for iterating data with an active :class:`.TimeGuard` context. Since running a ``for`` loop in a :class:`.TimeGuard` with progress being reported after each iteration is a very common pattern, you can use the :func:`~.process_guard.progress_loop` pass-through generator as a shortcut:
+
+.. code-block:: python
+
+  from time import sleep
+  from resiliparse.process_guard import progress_loop, time_guard, ExecutionTimeout
+
+  @time_guard(timeout=10)
+  def foo():
+      for _ in progress_loop(range(1000)):
+          try:
+              sleep(0.1)
+          except ExecutionTimeout:
+              break
+
+  foo()
+
+In cases where context auto-detection doesn't work, e.g., when using the context manager interface (see below), the active guard context can be passed to the generator via the ``ctx`` parameter:
+
+.. code-block:: python
+
+  with time_guard(timeout=10) as guard:
+      for _ in progress_loop(range(1000), ctx=guard):
+          try:
+              sleep(0.1)
+          except ExecutionTimeout:
+              break
+
+
 .. _timeguard-as-context-manager:
 
 Using TimeGuard as a Context Manager
@@ -169,10 +207,6 @@ MemGuard
 This will raise an exception immediately upon exceeding the pre-defined process memory limit of 50 MiB. If the thread does not react to this exception, the same escalation procedure will kick in as known from :class:`.TimeGuard`. In order for :class:`.MemGuard` to tolerate short spikes above the memory limit, set ``grace_period`` to a positive non-zero value. If memory usage exceeds the limit, a timer will start that expires after ``grace_period`` seconds and triggers the interrupt procedure. If memory usage falls below the threshold during the grace period, the timer is reset.
 
 :class:`.MemGuard` provides the same parameters as :class:`.TimeGuard` for controlling the interrupt escalation behaviour (see: :ref:`timeguard-interrupt-escalation-behaviour`), but the time interval before triggering the next escalation level is independent of the grace period and defaults to five seconds to give the application sufficient time to react and deallocate excess memory. This secondary grace period can be configured with the ``secondary_grace_period`` parameter and must be at least one second.
-
-.. important::
-
-  At the moment, :class:`.MemGuard` is supported only on Linux. Decorating functions with :func:`.mem_guard` is allowed on other platforms as well, but calling them will raise a :exc:`RuntimeError`.
 
 
 Using MemGuard as a Context Manager

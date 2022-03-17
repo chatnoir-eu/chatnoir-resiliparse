@@ -15,27 +15,18 @@
 # distutils: language = c++
 
 import typing as t
-
 from fastwarc.warc cimport ArchiveIterator
-from resiliparse.process_guard cimport progress
 
 
-def progress_loop(it, ctx=None) -> t.Iterable[t.Any]:
+def progress_loop(it, ctx=None):
     """
-    progress_loop(it, ctx=None)
-
-    Wraps an iterator into a pass-through iterator that reports progress
-    to an active :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
-
-    :param it: original iterator
-    :type it: t.Iterable[t.Any]
-    :param ctx: active guard context (will use last global context from stack if unset)
-    :return: wrapped iterator
-    :rtype: t.Iterable[t.Any]
+    .. deprecated:: 0.12.0
+       Use :func:`resiliparse.process_guard.progress_loop` instead.
     """
-    for i in it:
-        yield i
-        progress(ctx)
+    from resiliparse.process_guard import progress_loop as pl
+    import warnings
+    warnings.warn('progress_loop() has moved to resiliparse.progress_guard.', DeprecationWarning)
+    yield from pl(it, ctx)
 
 
 def exc_loop(it):

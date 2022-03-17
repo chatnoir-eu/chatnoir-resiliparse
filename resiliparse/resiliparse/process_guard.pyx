@@ -346,6 +346,24 @@ cpdef progress(ctx=None):
     (<TimeGuard>ctx._guard_self).progress()
 
 
+def progress_loop(it, ctx=None):
+    """
+    progress_loop(it, ctx=None)
+
+    Wraps an iterator into a pass-through iterator that reports progress
+    to an active :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
+
+    :param it: original iterator
+    :type it: t.Iterable[t.Any]
+    :param ctx: active guard context (will use last global context from stack if unset)
+    :return: wrapped iterator
+    :rtype: t.Iterable[t.Any]
+    """
+    for i in it:
+        yield i
+        progress(ctx)
+
+
 @cython.auto_pickle(False)
 cdef class MemGuard(_ResiliparseGuard):
     """
@@ -484,6 +502,11 @@ def mem_guard(size_t max_memory, bint absolute=True, grace_period=0, grace_perio
     seconds to give the application sufficient time to react and deallocate excess memory.
     This secondary grace period can be configured with the ``secondary_grace_period``
     parameter and must be at least one second.
+
+    .. warning::
+
+        :class:`MemGuard` is supported only on Linux. You can decorate functions with it
+        on other platforms, but calling them will raise an error.
 
     :param max_memory: max allowed memory in KiB since context creation before interrupt will be sent
     :type max_memory: int
