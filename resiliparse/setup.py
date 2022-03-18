@@ -59,8 +59,12 @@ if TRACE:
 
 if CXX == 'unix':
     cpp_args.update(dict(
-        extra_compile_args=['-std=c++17', f'-O{0 if DEBUG else 3}', '-Wno-deprecated-declarations',
-                            '-Wall', '-Wno-unreachable-code', '-Wno-unused-function'],
+        extra_compile_args=['-std=c++17',
+                            f'-O{0 if DEBUG else 3}',
+                            '-Wall',
+                            '-Wno-deprecated-declarations',
+                            '-Wno-unreachable-code',
+                            '-Wno-unused-function'],
         extra_link_args=['-std=c++17']
     ))
     if DEBUG:
