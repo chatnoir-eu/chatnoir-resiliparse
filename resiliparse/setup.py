@@ -13,9 +13,7 @@
 # limitations under the License.
 
 from itertools import chain
-import platform
 import os
-import warnings
 import sys
 
 import distutils.ccompiler
@@ -25,7 +23,7 @@ from setuptools import find_packages, setup, Extension
 
 # 1. BOILERPLATE -------------------------------------------------------
 
-VERSION = '0.11.2'
+VERSION = '0.12.0'
 ROOT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
