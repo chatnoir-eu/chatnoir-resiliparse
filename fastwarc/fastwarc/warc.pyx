@@ -686,9 +686,9 @@ cdef class WarcRecord:
     cpdef void init_headers(self, size_t content_length=0, WarcRecordType record_type=no_type, bytes record_urn=None):
         """
         init_headers(self, content_length=0, record_type=no_type, record_urn=None)
-        
+
         Initialize mandatory headers in a fresh :class:`WarcRecord` instance.
-        
+
         :param content_length: WARC record body length in bytes
         :type content_length: int
         :param record_type: WARC-Type
@@ -715,9 +715,9 @@ cdef class WarcRecord:
     cpdef void set_bytes_content(self, bytes b):
         """
         set_bytes_content(self, b)
-        
+
         Set WARC body.
-        
+
         :param b: body as bytes
         :type b: bytes
         """
@@ -729,11 +729,11 @@ cdef class WarcRecord:
     cpdef bint parse_http(self, bint strict_mode=True) except 0:
         """
         parse_http(self, strict_mode=True)
-        
+
         Parse HTTP headers and advance content reader.
-        
+
         It is safe to call this method multiple times, even if the record is not an HTTP record.
-        
+
         :param strict_mode: enforce ``CRLF`` line endings, setting this to ``False`` will allow plain ``LF`` also
         :type: strict_mode: bool
         """
@@ -751,9 +751,9 @@ cdef class WarcRecord:
                        size_t chunk_size=16384) except -1:
         """
         write(self, stream, checksum_data=False, chunk_size=16384)
-        
+
         Write WARC record onto a stream.
-        
+
         :param stream: output stream
         :param checksum_data: add block and payload digest headers
         :type checksum_data: bool
@@ -905,14 +905,14 @@ cdef class WarcRecord:
     cpdef bint freeze(self) except 0:
         """
         freeze(self)
-        
+
         "Freeze" a record by baking in the remaining payload stream contents.
-        
+
         Freezing a record makes the :class:`WarcRecord` instance copyable and reusable by decoupling
         it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
         frozen record maintains an internal buffer the size of the remaining payload stream contents
         at the time of calling ``freeze()``.
-        
+
         Freezing a record will advance the underlying raw stream.
         """
         if self._frozen:
@@ -928,9 +928,9 @@ cdef class WarcRecord:
     cpdef bint verify_block_digest(self, bint consume=False) except -1:
         """
         verify_block_digest(self, consume=False)
-        
+
         Verify whether record block digest is valid.
-        
+
         :param consume: do not create an in-memory copy of the record stream
                         (will fully consume the rest of the record)
         :type consume: bool
@@ -942,9 +942,9 @@ cdef class WarcRecord:
     cpdef bint verify_payload_digest(self, bint consume=False) except -1:
         """
         verify_payload_digest(self, consume=False)
-        
+
         Verify whether record payload digest is valid.
-        
+
         :param consume: do not create an in-memory copy of the record stream
                         (will fully consume the rest of the record)
         :type consume: bool
@@ -961,9 +961,9 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
                                bint strict_mode=True) except -1:
     """
     parse_header_block(reader, target, has_status_line=False, strict_mode=True)
-    
+
     Helper function for parsing WARC or HTTP header blocks.
-    
+
     :param reader: input reader
     :type reader: BufferedReader
     :param target: header map to fill
@@ -1153,7 +1153,7 @@ cdef class ArchiveIterator:
         # Check if record is to be skipped
         skip |= (self.record._record_type & self.record_type_filter) == 0
         skip |= self.max_content_length != strnpos and self.record._content_length > self.max_content_length
-        skip |= self.min_content_length != strnpos and self.record._content_length < self.max_content_length
+        skip |= self.min_content_length != strnpos and self.record._content_length < self.min_content_length
         if not skip and self.func_filter is not None:
             # Execute expensive filters last and only if skip is not already true
             skip |= not self.func_filter(self.record)
@@ -1180,9 +1180,9 @@ cdef class ArchiveIterator:
     cdef bint _set_stream(self, stream) except 0:
         """
         _set_stream(self, stream)
-        
+
         Replace underlying input stream.
-        
+
         This method is for internal use and should not be called by external users.
         """
         if not isinstance(stream, IOStream):
@@ -1201,9 +1201,9 @@ cdef class ArchiveIterator:
 cpdef bint is_warc_10(WarcRecord record):
     """
     is_warc_10(record)
-    
+
     Filter predicate for checking if record is a WARC/1.0 record.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
@@ -1215,9 +1215,9 @@ cpdef bint is_warc_10(WarcRecord record):
 cpdef bint is_warc_11(WarcRecord record):
     """
     is_warc_11(record)
-    
+
     Filter predicate for checking if record is a WARC/1.1 record.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
@@ -1229,9 +1229,9 @@ cpdef bint is_warc_11(WarcRecord record):
 cpdef bint has_block_digest(WarcRecord record):
     """
     has_block_digest(record)
-    
+
     Filter predicate for checking if record has a block digest.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
@@ -1243,9 +1243,9 @@ cpdef bint has_block_digest(WarcRecord record):
 cpdef bint has_payload_digest(WarcRecord record):
     """
     has_payload_digest(record)
-    
+
     Filter predicate for checking if record has a payload digest.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
@@ -1257,9 +1257,9 @@ cpdef bint has_payload_digest(WarcRecord record):
 cpdef bint is_http(WarcRecord record):
     """
     is_http(record)
-    
+
     Filter predicate for checking if record is an HTTP record.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
@@ -1271,9 +1271,9 @@ cpdef bint is_http(WarcRecord record):
 cpdef bint is_concurrent(WarcRecord record):
     """
     is_concurrent(record)
-    
+
     Filter predicate for checking if record is concurrent to another record.
-    
+
     :param record: WARC record
     :type record: WarcRecord
     :rtype: bool
