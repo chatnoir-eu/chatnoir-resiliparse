@@ -349,6 +349,16 @@ def test_record_http_parsing():
         rec.http_headers['Date'] = format_datetime(now_date)
         assert rec.http_date == now_date
 
+        # HTTP Last-Modified
+        if rec.http_headers.get('Last-Modified'):
+            assert rec.http_last_modified
+        else:
+            assert rec.http_last_modified is None
+        rec.http_headers['Last-Modified'] = 'Invalid Date'
+        assert rec.http_last_modified is None
+        rec.http_headers['Last-Modified'] = format_datetime(now_date)
+        assert rec.http_last_modified == now_date
+
         # Content
         assert rec.reader.read(5) != b'HTTP/'
 

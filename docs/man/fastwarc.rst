@@ -186,18 +186,19 @@ The :class:`.ArchiveIterator` returns objects of type :class:`.WarcRecord`, whic
 .. code-block:: python
 
   for record in ArchiveIterator(stream):
-      record.headers            # Dict-like object containing the WARC headers
-      record.record_id          # Shorthand for record.headers['WARC-Record-ID']
-      record.record_type        # Shorthand for record.headers['WARC-Type']
-      record.record_date        # Parsed record.headers['WARC-Date']
-      record.content_length     # Effective record payload length
-      record.stream_pos         # Record start offset in the (uncompressed) stream
-      record.is_http            # Boolean indicating whether record is an HTTP record
-      record.http_headers       # Dict-like object containing the parsed HTTP headers
-      record.http_content_type  # Plain HTTP Content-Type without charset
-      record.http_charset       # HTTP charset from the Content-Type header (if any)
-      record.http_date          # Parsed HTTP Date header
-      record.reader             # A BufferedReader for the record content
+      record.headers              # Dict-like object containing the WARC headers
+      record.record_id            # Shorthand for record.headers['WARC-Record-ID']
+      record.record_type          # Shorthand for record.headers['WARC-Type']
+      record.record_date          # Parsed record.headers['WARC-Date']
+      record.content_length       # Effective record payload length
+      record.stream_pos           # Record start offset in the (uncompressed) stream
+      record.is_http              # Boolean indicating whether record is an HTTP record
+      record.http_headers         # Dict-like object containing the parsed HTTP headers
+      record.http_content_type    # Plain HTTP Content-Type without charset
+      record.http_charset         # HTTP charset from the Content-Type header (if any)
+      record.http_date            # Parsed HTTP Date header
+      record.http_last_modified   # Parsed HTTP Last-Modified header
+      record.reader               # A BufferedReader for the record content
 
       # Read and return up to 1024 bytes from the record stream
       body = record.reader.read(1024)

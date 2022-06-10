@@ -656,6 +656,21 @@ cdef class WarcRecord:
             return None
 
     @property
+    def http_last_modified(self):
+        """
+        Parsed HTTP ``Last-Modified`` header or ``None`` if server did not return a valid HTTP modification date.
+
+        :type: datetime.datetime | None
+        """
+        if not self._http_parsed:
+            return None
+
+        try:
+            return parsedate_to_datetime(self._http_headers.get('Last-Modified', ''))
+        except (ValueError, TypeError):
+            return None
+
+    @property
     def content_length(self) -> int:
         """
         Remaining WARC record length in bytes (not necessarily the same as the ``Content-Length`` header).
