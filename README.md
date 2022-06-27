@@ -106,7 +106,7 @@ If you use FastWARC, you can also cite our [OSSYM 2021 abstract paper](https://a
 ```bibtex
 @InProceedings{bevendorff:2021,
   author =                {Janek Bevendorff and Martin Potthast and Benno Stein},
-  booktitle =             {3nd International Symposium on Open Search Technology (OSSYM 2021)},
+  booktitle =             {3rd International Symposium on Open Search Technology (OSSYM 2021)},
   editor =                {Andreas Wagner and Christian Guetl and Michael Granitzer and Stefan Voigt},
   month =                 oct,
   publisher =             {International Open Search Symposium},
