@@ -131,6 +131,7 @@ setup(
     package_data={'': data_ext},
     ext_modules=fastwarc_extensions,
     install_requires=[
+        'brotli',
         'click',
         'tqdm'
     ],

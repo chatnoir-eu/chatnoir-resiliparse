@@ -3,6 +3,7 @@ import io
 import os
 import tempfile
 
+import brotli
 import lz4.frame
 import pytest
 
@@ -74,7 +75,7 @@ def test_python_io_stream_adapter():
 
 
 # noinspection PyProtectedMember
-def validate_compressing_stream(raw_stream, comp_stream_cls, comp_val_func, decomp_val_func):
+def validate_compressing_stream(raw_stream, comp_stream_cls, comp_val_func, decomp_val_func, raises=True):
     # Compression
     in_value = b'Hello World'
     comp_stream = comp_stream_cls(raw_stream)
@@ -102,11 +103,12 @@ def validate_compressing_stream(raw_stream, comp_stream_cls, comp_val_func, deco
     assert out_value == in_value
 
     # Invalid stream
-    sio._io_stream_py_test_seek(raw_stream, 0)
-    sio._io_stream_py_test_write(raw_stream, b'\x00\x00\x00\x00\x00\x00\x00')
-    with pytest.raises(sio.StreamError):
-        comp_stream = comp_stream_cls(raw_stream)
-        sio._io_stream_py_test_read(comp_stream, 1024)
+    if raises:
+        sio._io_stream_py_test_seek(raw_stream, 0)
+        sio._io_stream_py_test_write(raw_stream, b'\x00\x00\x00\x00\x00\x00\x00')
+        with pytest.raises(sio.StreamError):
+            comp_stream = comp_stream_cls(raw_stream)
+            sio._io_stream_py_test_read(comp_stream, 1024)
 
 
 def test_gzip_stream():
@@ -121,6 +123,14 @@ def test_lz4_stream():
                                 sio.LZ4Stream,
                                 lz4.frame.compress,
                                 lz4.frame.decompress)
+
+
+def test_brotli_stream():
+    validate_compressing_stream(sio.BytesIOStream(b''),
+                                sio.BrotliStream,
+                                brotli.compress,
+                                brotli.decompress,
+                                raises=False)
 
 
 # noinspection PyProtectedMember

@@ -74,7 +74,8 @@ cdef class WarcRecord:
 
     cpdef void init_headers(self, size_t content_length=*, WarcRecordType record_type=*, bytes record_urn=*)
     cpdef void set_bytes_content(self, bytes b)
-    cpdef bint parse_http(self, bint strict_mode=*) except 0
+    cpdef bint parse_http(self, bint strict_mode=*, bint auto_decode=*) except 0
+    cdef bint _init_content_decoder(self) except -1
     cpdef size_t write(self, stream, bint checksum_data=*, bytes payload_digest=*, size_t chunk_size=*) except -1
     cpdef bint freeze(self) except 0
     cpdef bint verify_block_digest(self, bint consume=*) except -1
@@ -96,6 +97,7 @@ cdef class ArchiveIterator:
     cdef object func_filter
     cdef uint16_t record_type_filter
     cdef bint strict_mode
+    cdef bint auto_decode
 
     cdef _NextRecStatus _read_next_record(self) except _NextRecStatus.error
     cdef bint _set_stream(self, stream) except 0

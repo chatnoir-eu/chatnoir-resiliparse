@@ -36,7 +36,8 @@ from resiliparse_inc.cctype cimport isspace
 from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.utility cimport move
 
-from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, IOStream, PythonIOStreamAdapter
+from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, GZipStream, BrotliStream, \
+    IOStream, PythonIOStreamAdapter
 from fastwarc.stream_io import ReaderStaleError
 
 
@@ -741,9 +742,9 @@ cdef class WarcRecord:
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>self._content_length))
         self._stale = False
 
-    cpdef bint parse_http(self, bint strict_mode=True) except 0:
+    cpdef bint parse_http(self, bint strict_mode=True, bint auto_decode=False) except 0:
         """
-        parse_http(self, strict_mode=True)
+        parse_http(self, strict_mode=True, auto_decode=False)
 
         Parse HTTP headers and advance content reader.
 
@@ -751,6 +752,8 @@ cdef class WarcRecord:
 
         :param strict_mode: enforce ``CRLF`` line endings, setting this to ``False`` will allow plain ``LF`` also
         :type: strict_mode: bool
+        :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
+        :type auto_decode: bool
         """
         self._assert_not_stale()
         if self._http_parsed or not self._is_http:
@@ -759,6 +762,54 @@ cdef class WarcRecord:
         cdef size_t num_bytes = parse_header_block(self.reader, self._http_headers, True, strict_mode)
         self._content_length = self._content_length - num_bytes
         self._http_parsed = True
+
+        if auto_decode:
+            self._init_content_decoder()
+
+        return True
+
+    cdef bint _init_content_decoder(self) except -1:
+        """
+        Init content decoder based on the Content-Encoding and Transfer-Encoding headers.
+        """
+        cdef string t_enc = self._http_headers.find_header(b'Transfer-Encoding', b'')
+        cdef string c_enc = self._http_headers.find_header(b'Content-Encoding', b'')
+
+        cdef size_t delim_pos = strnpos
+        cdef size_t prev_delim_pos = 0
+        cdef string enc_name
+
+        cdef string enc
+        cdef size_t i
+        cdef vector[string] encodings
+        for enc in [c_enc, t_enc]:
+            if enc.empty():
+                continue
+
+            delim_pos = strnpos
+            prev_delim_pos = 0
+            self.freeze()
+
+            while True:
+                delim_pos = enc.find(b',', prev_delim_pos)
+                encodings.push_back(strip_str(string(enc, prev_delim_pos, delim_pos)))
+                prev_delim_pos = delim_pos + 1
+                if delim_pos == strnpos:
+                    break
+
+        for i in reversed(range(<size_t>0, encodings.size())):
+            if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
+                self._reader.stream = GZipStream(self._reader.stream)
+            elif encodings[i] == b'deflate':
+                # TODO: implement
+                raise ValueError('Deflate encoding not yet implemented')
+            elif encodings[i] == b'br':
+                self._reader.stream = BrotliStream(self._reader.stream)
+            elif encodings[i] == b'chunked':
+                raise ValueError('Chunked encoding not yet implemented')
+            else:
+                raise ValueError('Unsupported encoding name: ' + encodings[i].decode())
+
         return True
 
     # noinspection PyTypeChecker
@@ -1041,7 +1092,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 cdef class ArchiveIterator:
     """
     __init__(self, stream, record_types=any_type, parse_http=True, min_content_length=-1, max_content_length=-1, \
-             func_filter=None, verify_digests=False, strict_mode=True)
+             func_filter=None, verify_digests=False, strict_mode=True, auto_decode=False)
 
     WARC record stream iterator.
 
@@ -1063,6 +1114,9 @@ cdef class ArchiveIterator:
     :param strict_mode: enforce strict spec compliance (setting this to ``False`` will enable quirks such
                         as ``LF`` instead of ``CRLF`` for headers)
     :type strict_mode: bool
+    :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
+                        (has no effect if ``parse_http`` is ``False``)
+    :type auto_decode: bool
     """
 
     def __init__(self, *args, **kwargs):
@@ -1070,7 +1124,8 @@ cdef class ArchiveIterator:
 
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
                   size_t min_content_length=strnpos, size_t max_content_length=strnpos,
-                  func_filter=None, bint verify_digests=False, bint strict_mode=True):
+                  func_filter=None, bint verify_digests=False, bint strict_mode=True,
+                  bint auto_decode=False):
         self._set_stream(stream)
         self.record = None
         self.iter = None
@@ -1081,6 +1136,7 @@ cdef class ArchiveIterator:
         self.func_filter = func_filter
         self.record_type_filter = record_types
         self.strict_mode = strict_mode
+        self.auto_decode = auto_decode
 
     def __iter__(self) -> t.Iterable[WarcRecord]:
         """
@@ -1188,7 +1244,7 @@ cdef class ArchiveIterator:
             return skip_next
 
         if self.parse_http and self.record._is_http:
-            self.record.parse_http(self.strict_mode)
+            self.record.parse_http(self.strict_mode, self.auto_decode)
 
         return has_next
 

@@ -81,12 +81,27 @@ cdef class CompressingStream(IOStream):
     cdef size_t end_member(self)
 
 
+cdef extern from * nogil:
+    """
+    /* Helper enum for keeping track of current compressing stream state. */
+    enum CompressingStreamState {
+        UNINIT = 0,
+        DECOMPRESSING = 1,
+        COMPRESSING = 2
+    };
+    """
+    ctypedef enum CompressingStreamState:
+        UNINIT,
+        DECOMPRESSING,
+        COMPRESSING
+
+
 cdef class GZipStream(CompressingStream):
     cdef IOStream raw_stream
     cdef string working_buf
     cdef unsigned int working_buf_filled
     cdef z_stream zst
-    cdef char initialized
+    cdef char stream_state
     cdef size_t stream_pos
     cdef bint member_started
     cdef int compression_level
@@ -110,6 +125,16 @@ cdef class LZ4Stream(CompressingStream):
 
     cdef void prepopulate(self, const string& initial_data)
     cdef void _free_ctx(self) nogil
+
+
+cdef class BrotliStream(CompressingStream):
+    cdef IOStream raw_stream
+    cdef size_t quality
+    cdef size_t lgwin
+    cdef size_t lgblock
+    cdef object compressor
+    cdef string working_buf
+    cdef CompressingStreamState stream_state
 
 
 cdef class BufferedReader:

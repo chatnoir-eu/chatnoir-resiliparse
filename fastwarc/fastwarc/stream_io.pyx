@@ -16,12 +16,14 @@
 
 cimport cython
 from cython.operator cimport preincrement as preinc
-from libc.string cimport memchr, memcmp
+from libc.string cimport memchr, memcmp, memcpy
 from libcpp.string cimport npos as strnpos, string
 
 from resiliparse_inc.cstring cimport strerror
 from resiliparse_inc.errno cimport errno
 from resiliparse_inc.stdio cimport fclose, ferror, fflush, fopen, fread, fseek, ftell, fwrite, SEEK_SET
+
+import brotli
 
 
 class FastWARCError(Exception):
@@ -304,10 +306,6 @@ cdef class CompressingStream(IOStream):
         return 0
 
 
-cdef char _GZIP_DEFLATE = 1
-cdef char _GZIP_INFLATE = 2
-
-
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
@@ -329,7 +327,7 @@ cdef class GZipStream(CompressingStream):
         self.member_started = False
         self.working_buf = string()
         self.working_buf_filled = 0u
-        self.initialized = 0
+        self.stream_state = 0
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
 
@@ -346,7 +344,7 @@ cdef class GZipStream(CompressingStream):
         :param deflate: ``True`` for compression context, ``False`` for decompression context.
         """
 
-        if self.initialized:
+        if self.stream_state:
             return
 
         self.zst.opaque = Z_NULL
@@ -362,10 +360,10 @@ cdef class GZipStream(CompressingStream):
 
         if deflate:
             deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
-            self.initialized = _GZIP_DEFLATE
+            self.stream_state = CompressingStreamState.COMPRESSING
         else:
             inflateInit2(&self.zst, 16 + MAX_WBITS)
-            self.initialized = _GZIP_INFLATE
+            self.stream_state = CompressingStreamState.DECOMPRESSING
 
     cdef void prepopulate(self, bint deflate, const string& initial_data):
         """
@@ -385,15 +383,15 @@ cdef class GZipStream(CompressingStream):
 
     cdef void _free_z_stream(self) nogil:
         """Release internal state and reset working buffer."""
-        if not self.initialized:
+        if not self.stream_state:
             return
-        if self.initialized == _GZIP_DEFLATE:
+        if self.stream_state == CompressingStreamState.COMPRESSING:
             deflateEnd(&self.zst)
-        elif self.initialized == _GZIP_INFLATE:
+        elif self.stream_state == CompressingStreamState.DECOMPRESSING:
             inflateEnd(&self.zst)
         self.working_buf.clear()
         self.working_buf_filled = 0u
-        self.initialized = 0
+        self.stream_state = 0
 
     cdef bint _refill_working_buf(self, size_t size) except -1:
         if self.working_buf.size() < size:
@@ -410,10 +408,10 @@ cdef class GZipStream(CompressingStream):
         return True
 
     cdef size_t read(self, char* out, size_t size) except -1:
-        if self.initialized == _GZIP_DEFLATE:
+        if self.stream_state == CompressingStreamState.COMPRESSING:
             raise StreamError('Compression in progress.')
 
-        if not self.initialized:
+        if not self.stream_state:
             self._init_z_stream(False)
 
         if self.zst.avail_in == 0 or self.working_buf.empty():
@@ -445,10 +443,10 @@ cdef class GZipStream(CompressingStream):
         return size - self.zst.avail_out
 
     cdef size_t write(self, const char* data, size_t size) except -1:
-        if self.initialized == _GZIP_INFLATE:
+        if self.stream_state == CompressingStreamState.DECOMPRESSING:
             raise StreamError('Decompression in progress')
 
-        if not self.initialized:
+        if not self.stream_state:
             self._init_z_stream(True)
 
         self.zst.next_in = <Bytef*>data
@@ -686,7 +684,98 @@ cdef class LZ4Stream(CompressingStream):
         self.working_buf_filled = 0u
 
 
-    # noinspection PyAttributeOutsideInit
+
+# noinspection PyAttributeOutsideInit
+@cython.auto_pickle(False)
+cdef class BrotliStream(CompressingStream):
+    """
+    __init__(self, raw_stream, quality=11, lgwin=22, lgblock=0)
+
+    Brotli :class:`IOStream` implementation.
+
+    Implementation relies on Google's ``brotli`` Python package, will be ported to native
+    C version in a later version.
+
+    :param raw_stream: raw data stream
+    :param quality: compression quality (higher quality means better compression, but less speed)
+    :type quality: int
+    :param lgwin: Base 2 logarithm of the sliding window size in the range 16 to 24
+    :type lgwin: int
+    :param lgblock: Base 2 logarithm of the maximum input block size in the range 16 to 24
+                    (will be set based on quality of value is 0)
+    :type lgblock: int
+    """
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __cinit__(self, raw_stream, size_t quality=11, size_t lgwin=22, size_t lgblock=0):
+        self.raw_stream = raw_stream
+        self.quality = quality
+        self.lgwin = lgwin
+        self.lgblock = lgblock
+        self.stream_state = CompressingStreamState.UNINIT
+        self.compressor = None
+
+    cdef size_t begin_member(self):
+        pass
+
+    cdef size_t end_member(self):
+        pass
+
+    cdef size_t read(self, char* out, size_t size) except -1:
+        if self.stream_state == CompressingStreamState.COMPRESSING:
+            raise StreamError('Compression in progress.')
+        elif self.stream_state == 0:
+            self.compressor = brotli.Decompressor()
+            self.stream_state = CompressingStreamState.DECOMPRESSING
+
+        cdef string tmp_buffer
+        tmp_buffer.resize(size)
+        cdef size_t bytes_read = self.raw_stream.read(tmp_buffer.data(), size)
+        tmp_buffer.resize(bytes_read)
+
+        try:
+            self.working_buf.append(<string>self.compressor.process(tmp_buffer))
+        except brotli.error:
+            raise StreamError(f'Not a valid Brotli stream')
+
+        bytes_read = min(self.working_buf.size(), size)
+        memcpy(out, self.working_buf.data(), bytes_read)
+        self.working_buf = self.working_buf.substr(bytes_read)
+        return bytes_read
+
+
+    cdef size_t write(self, const char* data, size_t size) except -1:
+        if self.stream_state == CompressingStreamState.DECOMPRESSING:
+            raise StreamError('Decompression in progress.')
+        elif self.stream_state == 0:
+            self.compressor = brotli.Compressor()
+            self.stream_state = CompressingStreamState.COMPRESSING
+        cdef bytes compressed = self.compressor.process(<bytes>data[:size])
+        return self.raw_stream.write(<char*>compressed, len(compressed))
+
+    cdef size_t tell(self) except -1:
+        return self.raw_stream.tell()
+
+    cdef void seek(self, size_t offset) except *:
+        self.raw_stream.seek(offset)
+
+    cdef void flush(self)  except *:
+        if self.stream_state == CompressingStreamState.COMPRESSING:
+            compressed = self.compressor.flush()
+            self.raw_stream.write(<char*>compressed, len(compressed))
+            self.raw_stream.flush()
+
+    cdef void close(self) except *:
+        if self.stream_state == CompressingStreamState.COMPRESSING:
+            compressed = self.compressor.finish()
+            self.raw_stream.write(<char*>compressed, len(compressed))
+        self.compressor = None
+        self.stream_state = CompressingStreamState.UNINIT
+        self.working_buf.clear()
+
+
+# noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BufferedReader:
     """
