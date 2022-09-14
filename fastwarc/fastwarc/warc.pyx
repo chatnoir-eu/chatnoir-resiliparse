@@ -772,32 +772,35 @@ cdef class WarcRecord:
         """
         Init content decoder based on the Content-Encoding and Transfer-Encoding headers.
         """
-        cdef string t_enc = self._http_headers.find_header(b'Transfer-Encoding', b'')
-        cdef string c_enc = self._http_headers.find_header(b'Content-Encoding', b'')
-
-        cdef size_t delim_pos = strnpos
-        cdef size_t prev_delim_pos = 0
+        cdef size_t delim_pos
+        cdef size_t prev_delim_pos
+        cdef string enc_str
         cdef string enc_name
-
-        cdef string enc
-        cdef size_t i
         cdef vector[string] encodings
-        for enc in (c_enc, t_enc):
-            if enc.empty():
-                continue
+        cdef size_t i
+        for i in range(2):
+            if i == 0:
+                enc_str = self._http_headers.find_header(b'Content-Encoding', b'')
+            else:
+                enc_str = self._http_headers.find_header(b'Transfer-Encoding', b'')
 
-            delim_pos = strnpos
+            delim_pos = 0
             prev_delim_pos = 0
-            self.freeze()
-
-            while True:
-                delim_pos = enc.find(b',', prev_delim_pos)
-                encodings.push_back(strip_str(string(enc, prev_delim_pos, delim_pos)))
+            while not enc_str.empty() and delim_pos != strnpos:
+                delim_pos = enc_str.find(b',', prev_delim_pos)
+                if delim_pos != strnpos:
+                    enc_name = strip_str(enc_str.substr(prev_delim_pos, delim_pos - prev_delim_pos))
+                else:
+                    enc_name = strip_str(enc_str.substr(prev_delim_pos))
+                if not enc_name.empty():
+                    encodings.push_back(enc_name)
                 prev_delim_pos = delim_pos + 1
-                if delim_pos == strnpos:
-                    break
 
-        for i in reversed(range(<size_t>0, encodings.size())):
+        if encodings.empty():
+            return True
+
+        self.freeze()
+        for i in reversed(range(0, encodings.size())):
             if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
                 self._reader.stream = GZipStream(self._reader.stream)
             elif encodings[i] == b'deflate':
@@ -806,9 +809,10 @@ cdef class WarcRecord:
                 self._reader.stream = BrotliStream(self._reader.stream)
             elif encodings[i] == b'chunked':
                 warnings.warn('Chunked encoding not supported, use Resiliparse for decoding payload.')
-                return True
+                return False
             else:
-                warnings.warn('Unsupported encoding name: ' + encodings[i].decode())
+                warnings.warn('Unsupported encoding: ' + encodings[i].decode())
+                return False
 
         return True
 
