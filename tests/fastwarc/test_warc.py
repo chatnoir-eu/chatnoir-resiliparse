@@ -51,40 +51,40 @@ def test_stream_type_auto_detection():
 
 
 def test_transfer_content_encoding():
-    for rec in ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
-                               record_types=response, parse_http=False):
-        raw_content = rec.reader.read()
+    rec = next(ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+                               record_types=response, parse_http=False))
+    raw_content = rec.reader.read()
 
-        for t_enc in (None, b'gzip'):
-            for c_enc in (None, b'gzip', b'br', b'gzip, br'):
-                new_rec = WarcRecord()
-                for k, v in rec.headers.items():
-                    new_rec.headers[k] = v
+    for t_enc in (None, b'gzip'):
+        for c_enc in (None, b'gzip', b'br', b'gzip, br'):
+            new_rec = WarcRecord()
+            for k, v in rec.headers.items():
+                new_rec.headers[k] = v
 
-                http_headers, http_body = raw_content.split(b'\r\n\r\n', 1)
-                http_body_preserved = http_body
-                if t_enc:
-                    http_headers += b'\r\nTransfer-Encoding: ' + t_enc
-                if c_enc:
-                    http_headers += b'\r\nContent-Encoding: ' + c_enc
+            http_headers, http_body = raw_content.split(b'\r\n\r\n', 1)
+            http_body_preserved = http_body
+            if t_enc:
+                http_headers += b'\r\nTransfer-Encoding: ' + t_enc
+            if c_enc:
+                http_headers += b'\r\nContent-Encoding: ' + c_enc
 
-                if c_enc == b'gzip':
-                    http_body = gzip.compress(http_body)
-                elif c_enc == b'br':
-                    http_body = brotli.compress(http_body)
-                elif c_enc == b'gzip, br':
-                    http_body = gzip.compress(http_body)
-                    http_body = brotli.compress(http_body)
+            if c_enc == b'gzip':
+                http_body = gzip.compress(http_body)
+            elif c_enc == b'br':
+                http_body = brotli.compress(http_body)
+            elif c_enc == b'gzip, br':
+                http_body = gzip.compress(http_body)
+                http_body = brotli.compress(http_body)
 
-                if t_enc == b'gzip':
-                    http_body = gzip.compress(http_body)
+            if t_enc == b'gzip':
+                http_body = gzip.compress(http_body)
 
-                bytes_payload = b'\r\n\r\n'.join((http_headers, http_body))
-                new_rec.set_bytes_content(bytes_payload)
+            bytes_payload = b'\r\n\r\n'.join((http_headers, http_body))
+            new_rec.set_bytes_content(bytes_payload)
 
-                new_rec.is_http = True
-                new_rec.parse_http(auto_decode=True)
-                assert new_rec.reader.read() == http_body_preserved
+            new_rec.is_http = True
+            new_rec.parse_http(auto_decode=True)
+            assert new_rec.reader.read() == http_body_preserved
 
 
 def test_archive_iterator_iterator_iface():
