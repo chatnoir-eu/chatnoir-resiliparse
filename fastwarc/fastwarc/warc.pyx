@@ -818,6 +818,8 @@ cdef class WarcRecord:
                 warnings.warn('Unsupported encoding: ' + encodings[i].decode())
                 return False
 
+        self._frozen = False    # Force buffer re-read on next call to freeze()
+
         return True
 
     # noinspection PyTypeChecker
