@@ -742,9 +742,9 @@ cdef class WarcRecord:
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>self._content_length))
         self._stale = False
 
-    cpdef bint parse_http(self, bint strict_mode=True, bint auto_decode=False) except 0:
+    cpdef bint parse_http(self, bint strict_mode=True, str auto_decode='none') except 0:
         """
-        parse_http(self, strict_mode=True, auto_decode=False)
+        parse_http(self, strict_mode=True, auto_decode='none')
 
         Parse HTTP headers and advance content reader.
 
@@ -753,7 +753,8 @@ cdef class WarcRecord:
         :param strict_mode: enforce ``CRLF`` line endings, setting this to ``False`` will allow plain ``LF`` also
         :type: strict_mode: bool
         :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
-        :type auto_decode: bool
+                            (accepted values: ``'none'`` [default], ``'content'``, ``'transfer'``, ``'all'``)
+        :type auto_decode: str
         """
         self._assert_not_stale()
         if self._http_parsed or not self._is_http:
@@ -763,12 +764,12 @@ cdef class WarcRecord:
         self._content_length = self._content_length - num_bytes
         self._http_parsed = True
 
-        if auto_decode:
-            self._init_content_decoder()
+        if auto_decode in ['all', 'content', 'transfer']:
+            self._init_content_decoder(auto_decode)
 
         return True
 
-    cdef bint _init_content_decoder(self) except -1:
+    cdef bint _init_content_decoder(self, str decode_mode) except -1:
         """
         Init content decoder based on the Content-Encoding and Transfer-Encoding headers.
         """
@@ -779,10 +780,12 @@ cdef class WarcRecord:
         cdef vector[string] encodings
         cdef size_t i
         for i in range(2):
-            if i == 0:
+            if i == 0 and decode_mode in ['all', 'content']:
                 enc_str = self._http_headers.find_header(b'Content-Encoding', b'')
-            else:
+            elif i == 1 and decode_mode in ['all', 'transfer']:
                 enc_str = self._http_headers.find_header(b'Transfer-Encoding', b'')
+            else:
+                continue
 
             delim_pos = 0
             prev_delim_pos = 0
@@ -794,6 +797,7 @@ cdef class WarcRecord:
                     enc_name = strip_str(enc_str.substr(prev_delim_pos))
                 if not enc_name.empty():
                     encodings.push_back(enc_name)
+                enc_name.clear()
                 prev_delim_pos = delim_pos + 1
 
         if encodings.empty():
@@ -1096,7 +1100,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 cdef class ArchiveIterator:
     """
     __init__(self, stream, record_types=any_type, parse_http=True, min_content_length=-1, max_content_length=-1, \
-             func_filter=None, verify_digests=False, strict_mode=True, auto_decode=False)
+             func_filter=None, verify_digests=False, strict_mode=True, auto_decode='none')
 
     WARC record stream iterator.
 
@@ -1119,8 +1123,9 @@ cdef class ArchiveIterator:
                         as ``LF`` instead of ``CRLF`` for headers)
     :type strict_mode: bool
     :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
-                        (has no effect if ``parse_http`` is ``False``)
-    :type auto_decode: bool
+                        (accepted values: ``'none'`` [default], ``'content'``, ``'transfer'``, ``'all'``,
+                        has no effect if ``parse_http`` is ``False``)
+    :type auto_decode: str
     """
 
     def __init__(self, *args, **kwargs):
@@ -1129,7 +1134,7 @@ cdef class ArchiveIterator:
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
                   size_t min_content_length=strnpos, size_t max_content_length=strnpos,
                   func_filter=None, bint verify_digests=False, bint strict_mode=True,
-                  bint auto_decode=False):
+                  str auto_decode='none'):
         self._set_stream(stream)
         self.record = None
         self.iter = None
