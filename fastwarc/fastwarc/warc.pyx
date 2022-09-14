@@ -804,6 +804,7 @@ cdef class WarcRecord:
             return True
 
         self.freeze()
+        self._frozen = False    # Force buffer re-read on next call to freeze()
         for i in reversed(range(0, encodings.size())):
             if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
                 self._reader.stream = GZipStream(self._reader.stream)
@@ -817,8 +818,6 @@ cdef class WarcRecord:
             else:
                 warnings.warn('Unsupported encoding: ' + encodings[i].decode())
                 return False
-
-        self._frozen = False    # Force buffer re-read on next call to freeze()
 
         return True
 
