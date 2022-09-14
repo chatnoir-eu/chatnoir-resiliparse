@@ -804,7 +804,6 @@ cdef class WarcRecord:
             return True
 
         self.freeze()
-        self._frozen = False    # Force buffer re-read on next call to freeze()
         for i in reversed(range(0, encodings.size())):
             if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
                 self._reader.stream = GZipStream(self._reader.stream)
@@ -990,13 +989,12 @@ cdef class WarcRecord:
 
         Freezing a record will advance the underlying raw stream.
         """
-        if self._frozen:
-            return True
         self._assert_not_stale()
+
         cdef string buffer = self._reader.read()
-        cdef BytesIOStream stream = BytesIOStream.__new__(BytesIOStream)
-        stream.buffer = move(buffer)
-        self._reader = BufferedReader.__new__(BufferedReader, stream)
+        cdef BytesIOStream bio = BytesIOStream.__new__(BytesIOStream)
+        bio.buffer = move(buffer)
+        self._reader = BufferedReader.__new__(BufferedReader, bio)
         self._frozen = True
         return True
 
