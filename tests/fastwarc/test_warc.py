@@ -6,6 +6,7 @@ import lz4.frame
 import io
 import os
 import pickle
+import zlib
 
 import pytest
 
@@ -55,7 +56,7 @@ def test_transfer_content_encoding():
                                record_types=response, parse_http=False))
     raw_content = rec.reader.read()
 
-    for t_enc in (None, b'gzip'):
+    for t_enc in (None, b'gzip', b'deflate'):
         for c_enc in (None, b'gzip', b'br', b'gzip, br'):
             new_rec = WarcRecord()
             for k, v in rec.headers.items():
@@ -70,6 +71,9 @@ def test_transfer_content_encoding():
 
             if c_enc == b'gzip':
                 http_body = gzip.compress(http_body)
+            elif c_enc == b'deflate':
+                deflate_comp = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS)
+                http_body = deflate_comp.compress(http_body) + deflate_comp.flush()
             elif c_enc == b'br':
                 http_body = brotli.compress(http_body)
             elif c_enc == b'gzip, br':
@@ -78,6 +82,9 @@ def test_transfer_content_encoding():
 
             if t_enc == b'gzip':
                 http_body = gzip.compress(http_body)
+            elif t_enc == b'deflate':
+                deflate_comp = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS)
+                http_body = deflate_comp.compress(http_body) + deflate_comp.flush()
 
             bytes_payload = b'\r\n\r\n'.join((http_headers, http_body))
             new_rec.set_bytes_content(bytes_payload)

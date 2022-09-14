@@ -782,7 +782,7 @@ cdef class WarcRecord:
         cdef string enc
         cdef size_t i
         cdef vector[string] encodings
-        for enc in [c_enc, t_enc]:
+        for enc in (c_enc, t_enc):
             if enc.empty():
                 continue
 
@@ -801,14 +801,14 @@ cdef class WarcRecord:
             if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
                 self._reader.stream = GZipStream(self._reader.stream)
             elif encodings[i] == b'deflate':
-                # TODO: implement
-                raise ValueError('Deflate encoding not yet implemented')
+                self._reader.stream = GZipStream(self._reader.stream, deflate=True)
             elif encodings[i] == b'br':
                 self._reader.stream = BrotliStream(self._reader.stream)
             elif encodings[i] == b'chunked':
-                raise ValueError('Chunked encoding not yet implemented')
+                warnings.warn('Chunked encoding not supported, use Resiliparse for decoding payload.')
+                return True
             else:
-                raise ValueError('Unsupported encoding name: ' + encodings[i].decode())
+                warnings.warn('Unsupported encoding name: ' + encodings[i].decode())
 
         return True
 

@@ -101,6 +101,7 @@ cdef class GZipStream(CompressingStream):
     cdef string working_buf
     cdef unsigned int working_buf_filled
     cdef z_stream zst
+    cdef int window_bits
     cdef char stream_state
     cdef size_t stream_pos
     cdef bint member_started

@@ -1,7 +1,9 @@
+from functools import partial
 import gzip
 import io
 import os
 import tempfile
+import zlib
 
 import brotli
 import lz4.frame
@@ -116,6 +118,21 @@ def test_gzip_stream():
                                 sio.GZipStream,
                                 gzip.compress,
                                 gzip.decompress)
+
+
+def test_deflate_stream():
+    def deflate_compress(data):
+        obj = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS)
+        return obj.compress(data) + obj.flush()
+
+    def deflate_decompress(data):
+        obj = zlib.decompressobj(-zlib.MAX_WBITS)
+        return obj.decompress(data) + obj.flush()
+
+    validate_compressing_stream(sio.BytesIOStream(b''),
+                                partial(sio.GZipStream, deflate=True),
+                                deflate_compress,
+                                deflate_decompress)
 
 
 def test_lz4_stream():

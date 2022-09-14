@@ -310,19 +310,21 @@ cdef class CompressingStream(IOStream):
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     """
-    __init__(self, raw_stream, compression_level=9)
+    __init__(self, raw_stream, compression_level=9, deflate=False)
 
     GZip :class:`IOStream` implementation.
 
     :param raw_stream: raw data stream
     :param compression_level: GZip compression level (for compression only)
     :type compression_level: int
+    :param deflate: use raw deflate and don't read or write gzip header and checksum
+    :type deflate: bool
     """
 
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION):
+    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint deflate=False):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf = string()
@@ -330,6 +332,7 @@ cdef class GZipStream(CompressingStream):
         self.stream_state = 0
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
+        self.window_bits = 16 + MAX_WBITS if not deflate else -MAX_WBITS
 
     def __dealloc__(self):
         self.close()
@@ -359,10 +362,10 @@ cdef class GZipStream(CompressingStream):
         self.working_buf.clear()
 
         if deflate:
-            deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, 16 + MAX_WBITS, 9, Z_DEFAULT_STRATEGY)
+            deflateInit2(&self.zst, self.compression_level, Z_DEFLATED, self.window_bits, 9, Z_DEFAULT_STRATEGY)
             self.stream_state = CompressingStreamState.COMPRESSING
         else:
-            inflateInit2(&self.zst, 16 + MAX_WBITS)
+            inflateInit2(&self.zst, self.window_bits)
             self.stream_state = CompressingStreamState.DECOMPRESSING
 
     cdef void prepopulate(self, bint deflate, const string& initial_data):
