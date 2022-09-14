@@ -1155,13 +1155,13 @@ cdef class ArchiveIterator:
             elif status == eof:
                 return
 
-    def __next__(self) -> t.Iterator[WarcRecord]:
+    def __next__(self) -> WarcRecord:
         """
         __next__(self)
 
-        Return an iterator object for this WARC stream that can be used with ``next()``.
+        Implements an iterator that can be used with ``next()``.
 
-        :rtype: t.Iterator[WarcRecord]
+        :rtype: WarcRecord
         """
         if self.iter is None:
             self.iter = self.__iter__()
