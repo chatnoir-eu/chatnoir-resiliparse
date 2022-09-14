@@ -72,8 +72,7 @@ def test_transfer_content_encoding():
             if c_enc == b'gzip':
                 http_body = gzip.compress(http_body)
             elif c_enc == b'deflate':
-                deflate_comp = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS)
-                http_body = deflate_comp.compress(http_body) + deflate_comp.flush()
+                http_body = zlib.compress(http_body)
             elif c_enc == b'br':
                 http_body = brotli.compress(http_body)
             elif c_enc == b'gzip, br':
@@ -83,8 +82,7 @@ def test_transfer_content_encoding():
             if t_enc == b'gzip':
                 http_body = gzip.compress(http_body)
             elif t_enc == b'deflate':
-                deflate_comp = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS)
-                http_body = deflate_comp.compress(http_body) + deflate_comp.flush()
+                http_body = zlib.compress(http_body)
 
             bytes_payload = b'\r\n\r\n'.join((http_headers, http_body))
             new_rec.set_bytes_content(bytes_payload)

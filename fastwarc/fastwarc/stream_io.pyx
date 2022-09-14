@@ -332,7 +332,7 @@ cdef class GZipStream(CompressingStream):
         self.stream_state = 0
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
-        self.window_bits = 16 + MAX_WBITS if not deflate else -MAX_WBITS
+        self.window_bits = 16 + MAX_WBITS if not deflate else MAX_WBITS
 
     def __dealloc__(self):
         self.close()
