@@ -310,7 +310,7 @@ cdef class CompressingStream(IOStream):
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     """
-    __init__(self, raw_stream, compression_level=9, deflate=False)
+    __init__(self, raw_stream, compression_level=9, zlib=False)
 
     GZip :class:`IOStream` implementation.
 
