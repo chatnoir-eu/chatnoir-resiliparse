@@ -110,6 +110,7 @@ cdef class GZipStream(CompressingStream):
     cdef void prepopulate(self, bint deflate, const string& initial_data)
     cdef void _init_z_stream(self, bint deflate) nogil
     cdef void _free_z_stream(self) nogil
+    cdef void _reinit_z_stream(self, bint deflate) nogil
     cdef bint _refill_working_buf(self, size_t size) except -1
 
 

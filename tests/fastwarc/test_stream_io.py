@@ -121,9 +121,20 @@ def test_gzip_stream():
 
 
 def test_deflate_stream():
+    def zlib_compress(data, wbits=zlib.MAX_WBITS):
+        obj = zlib.compressobj(9, zlib.DEFLATED, wbits)
+        return obj.compress(data) + obj.flush()
+
+    # Test reading and writing deflate with header
     validate_compressing_stream(sio.BytesIOStream(b''),
                                 partial(sio.GZipStream, deflate=True),
-                                zlib.compress,
+                                zlib_compress,
+                                zlib.decompress)
+
+    # Test reading deflate without header
+    validate_compressing_stream(sio.BytesIOStream(b''),
+                                partial(sio.GZipStream, deflate=True),
+                                partial(zlib_compress, wbits=-zlib.MAX_WBITS),
                                 zlib.decompress)
 
 

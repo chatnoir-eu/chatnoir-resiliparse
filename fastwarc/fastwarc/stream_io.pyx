@@ -317,7 +317,7 @@ cdef class GZipStream(CompressingStream):
     :param raw_stream: raw data stream
     :param compression_level: GZip compression level (for compression only)
     :type compression_level: int
-    :param deflate: use raw deflate and don't read or write gzip header and checksum
+    :param deflate: use raw deflate / zlib format instead of gzip
     :type deflate: bool
     """
 
@@ -327,9 +327,8 @@ cdef class GZipStream(CompressingStream):
     def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint deflate=False):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
-        self.working_buf = string()
         self.working_buf_filled = 0u
-        self.stream_state = 0
+        self.stream_state = CompressingStreamState.UNINIT
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
         self.window_bits = 16 + MAX_WBITS if not deflate else MAX_WBITS
@@ -347,7 +346,7 @@ cdef class GZipStream(CompressingStream):
         :param deflate: ``True`` for compression context, ``False`` for decompression context.
         """
 
-        if self.stream_state:
+        if self.stream_state != CompressingStreamState.UNINIT:
             return
 
         self.zst.opaque = Z_NULL
@@ -386,7 +385,7 @@ cdef class GZipStream(CompressingStream):
 
     cdef void _free_z_stream(self) nogil:
         """Release internal state and reset working buffer."""
-        if not self.stream_state:
+        if self.stream_state == CompressingStreamState.UNINIT:
             return
         if self.stream_state == CompressingStreamState.COMPRESSING:
             deflateEnd(&self.zst)
@@ -394,9 +393,23 @@ cdef class GZipStream(CompressingStream):
             inflateEnd(&self.zst)
         self.working_buf.clear()
         self.working_buf_filled = 0u
-        self.stream_state = 0
+        self.stream_state = CompressingStreamState.UNINIT
+
+    cdef void _reinit_z_stream(self, bint deflate) nogil:
+        """Re-initialize zstream, but retain working buffer. Use to restart stream with different window parameters."""
+
+        cdef string working_buf_tmp = self.working_buf.substr(0, self.working_buf_filled)
+        if self.stream_state != CompressingStreamState.UNINIT:
+            self.zst.next_out = NULL
+            self.zst.avail_out = 0u
+            self._free_z_stream()
+        with gil:
+            self.prepopulate(deflate, working_buf_tmp)
 
     cdef bint _refill_working_buf(self, size_t size) except -1:
+        if self.zst.avail_in > 0:
+            return True
+
         if self.working_buf.size() < size:
             self.working_buf.resize(size)
 
@@ -414,8 +427,18 @@ cdef class GZipStream(CompressingStream):
         if self.stream_state == CompressingStreamState.COMPRESSING:
             raise StreamError('Compression in progress.')
 
-        if not self.stream_state:
+        # Init stream if this is the first read
+        if self.stream_state == CompressingStreamState.UNINIT:
             self._init_z_stream(False)
+
+            # If reader is in deflate / zlib format mode, check if first bytes are a zlib header
+            if self.window_bits == MAX_WBITS:
+                if not self._refill_working_buf(size) or self.working_buf.size() < 2:
+                    return 0
+                if not (self.working_buf[0] == b'\x78' and self.working_buf[1] in [b'\x01', b'\xef', b'\x9c', b'\xda']):
+                    # Re-init as "raw" deflate stream if no zlib header found
+                    self.window_bits = -MAX_WBITS
+                    self._reinit_z_stream(False)
 
         if self.zst.avail_in == 0 or self.working_buf.empty():
             if not self._refill_working_buf(size):
