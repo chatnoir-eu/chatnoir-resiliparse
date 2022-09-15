@@ -241,7 +241,7 @@ cdef class WarcHeaderMap:
         if self._status_line.find(<char*>b'HTTP/') != 0:
             return None
         s = self._status_line.split(b' ', 2)
-        if len(s) != 3 or not s[1].isdigit():
+        if len(s) < 2 or not s[1].isdigit():
             return None
         return int(s[1])
 
