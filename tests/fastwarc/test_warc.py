@@ -366,9 +366,12 @@ def test_record_http_parsing():
         assert rec.http_headers
 
         # Headers
-        assert not rec.headers.status_code
+        assert rec.headers.status_code is None
+        assert rec.headers.reason_phrase is None
         assert rec.http_headers.status_code
+        assert rec.http_headers.reason_phrase
         assert str(rec.http_headers.status_code) in rec.http_headers.status_line
+        assert rec.http_headers.reason_phrase in rec.http_headers.status_line
         assert len(rec.http_headers.asdict()) <= len(rec.http_headers.astuples())
 
         # HTTP Content-Type
@@ -412,7 +415,8 @@ def test_record_http_parsing():
         assert rec.http_charset is None
         assert rec.http_date is None
         assert rec.reader.read(5) == b'HTTP/'
-        assert not rec.headers.status_code
+        assert rec.headers.status_code is None
+        assert rec.headers.reason_phrase is None
 
 
 def test_record_content_reader():
@@ -804,6 +808,7 @@ def test_create_new_warc_record():
     assert rec.is_http
     rec.parse_http()
     assert rec.http_headers.status_code == 200
+    assert rec.http_headers.reason_phrase == 'OK'
     assert rec.http_content_type == 'text/html'
     assert rec.http_charset == 'utf-8'
     assert rec.http_headers['X-Multiline-Header'] == 'Hello World'

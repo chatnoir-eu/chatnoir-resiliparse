@@ -245,6 +245,20 @@ cdef class WarcHeaderMap:
             return None
         return int(s[1])
 
+    @property
+    def reason_phrase(self) -> t.Optional[str]:
+        """
+        HTTP reason phrase (unset if header block is not an HTTP header block).
+
+        :type: str or None
+        """
+        if self._status_line.find(<char*>b'HTTP/') != 0:
+            return None
+        s = self._status_line.split(b' ', 3)
+        if len(s) < 3 or not s[1].isdigit():
+            return None
+        return s[2].decode(self._enc, errors='ignore')
+
     def append(self, key not None, value not None):
         """
         append(self, key, value)
