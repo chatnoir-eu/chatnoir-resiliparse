@@ -127,13 +127,13 @@ def test_deflate_stream():
 
     # Test reading and writing deflate with header
     validate_compressing_stream(sio.BytesIOStream(b''),
-                                partial(sio.GZipStream, deflate=True),
+                                partial(sio.GZipStream, zlib=True),
                                 zlib_compress,
                                 zlib.decompress)
 
     # Test reading deflate without header
     validate_compressing_stream(sio.BytesIOStream(b''),
-                                partial(sio.GZipStream, deflate=True),
+                                partial(sio.GZipStream, zlib=True),
                                 partial(zlib_compress, wbits=-zlib.MAX_WBITS),
                                 zlib.decompress)
 

@@ -317,21 +317,21 @@ cdef class GZipStream(CompressingStream):
     :param raw_stream: raw data stream
     :param compression_level: GZip compression level (for compression only)
     :type compression_level: int
-    :param deflate: use raw deflate / zlib format instead of gzip
-    :type deflate: bool
+    :param zlib: use raw deflate / zlib format instead of gzip
+    :type zlib: bool
     """
 
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint deflate=False):
+    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint zlib=False):
         self.raw_stream = wrap_stream(raw_stream)
         self.member_started = False
         self.working_buf_filled = 0u
         self.stream_state = CompressingStreamState.UNINIT
         self.stream_pos = self.raw_stream.tell()
         self.compression_level = compression_level
-        self.window_bits = 16 + MAX_WBITS if not deflate else MAX_WBITS
+        self.window_bits = MAX_WBITS if zlib else 16 + MAX_WBITS
 
     def __dealloc__(self):
         self.close()

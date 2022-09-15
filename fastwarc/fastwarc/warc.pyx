@@ -808,7 +808,7 @@ cdef class WarcRecord:
             if encodings[i] == b'gzip' or encodings[i] == b'x-gzip':
                 self._reader.stream = GZipStream(self._reader.stream)
             elif encodings[i] == b'deflate':
-                self._reader.stream = GZipStream(self._reader.stream, deflate=True)
+                self._reader.stream = GZipStream(self._reader.stream, zlib=True)
             elif encodings[i] == b'br':
                 self._reader.stream = BrotliStream(self._reader.stream)
             elif encodings[i] == b'chunked':
