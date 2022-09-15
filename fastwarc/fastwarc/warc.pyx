@@ -814,6 +814,9 @@ cdef class WarcRecord:
             elif encodings[i] == b'chunked':
                 warnings.warn('Chunked encoding not supported, use Resiliparse for decoding payload.')
                 return False
+            elif encodings[i] == b'identity' or encodings[i] == b'none':
+                # Non-standard in Content-Encoding
+                continue
             else:
                 warnings.warn('Unsupported encoding: ' + encodings[i].decode())
                 return False
