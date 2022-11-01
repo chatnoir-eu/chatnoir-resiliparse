@@ -42,10 +42,11 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
     return return_coll
 
 
-cdef bint init_css_parser(lxb_css_parser_t** parser) except 0:
+cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0:
     parser[0] = lxb_css_parser_create()
     if lxb_css_parser_init(parser[0], NULL, NULL) != LXB_STATUS_OK:
-        raise RuntimeError('Failed to initialize CSS parser.')
+        with gil:
+            raise RuntimeError('Failed to initialize CSS parser.')
     return True
 
 
@@ -55,16 +56,18 @@ cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil:
 
 
 cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
-                             lxb_selectors_t** selectors) except 0:
+                             lxb_selectors_t** selectors) nogil except 0:
     css_selectors[0] = lxb_css_selectors_create()
     if lxb_css_selectors_init(css_selectors[0], 32) != LXB_STATUS_OK:
-        raise RuntimeError('Failed to initialize CSS selectors.')
+        with gil:
+            raise RuntimeError('Failed to initialize CSS selectors.')
 
     lxb_css_parser_selectors_set(parser, css_selectors[0])
 
     selectors[0] = lxb_selectors_create()
     if lxb_selectors_init(selectors[0]) != LXB_STATUS_OK:
-        raise RuntimeError('Failed to initialize elemetn selectors.')
+        with gil:
+            raise RuntimeError('Failed to initialize elemetn selectors.')
 
     return True
 
@@ -81,12 +84,13 @@ cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx
 
 
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
-                                                  size_t selector_len) except NULL:
+                                                  size_t selector_len) nogil except NULL:
     cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(css_parser, selector, selector_len)
     cdef string err
     if css_parser.status != LXB_STATUS_OK:
         lxb_css_log_serialize(css_parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <const lxb_char_t*>b'', 0)
-        raise ValueError(f'CSS parser error: {err.decode().strip()}')
+        with gil:
+            raise ValueError(f'CSS parser error: {err.decode().strip()}')
     return sel_list
 
 

@@ -580,9 +580,16 @@ cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_speci
     return LXB_STATUS_STOP
 
 
-def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_content=False,
-                       bint list_bullets=True,  bint alt_texts=True, bint links=False, bint form_fields=False,
-                       bint noscript=False, bint comments=True, skip_elements=None):
+def extract_plain_text(HTMLTree tree,
+                       bint preserve_formatting=True,
+                       bint main_content=False,
+                       bint list_bullets=True,
+                       bint alt_texts=True,
+                       bint links=False,
+                       bint form_fields=False,
+                       bint noscript=False,
+                       bint comments=True,
+                       skip_elements=None):
     """
     extract_plain_text(tree, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
                        links=True, form_fields=False, noscript=False, comments=None, skip_elements=None)
@@ -595,7 +602,7 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
     ``<pre>``-formatted text will be preserved.
 
     Extraction of particular elements and attributes such as links, alt texts, or form fields
-    can be be configured individually by setting the corresponding parameter to ``True``.
+    can be configured individually by setting the corresponding parameter to ``True``.
     Defaults to ``False`` for most elements (i.e., only basic text will be extracted).
 
     :param tree: HTML DOM tree
@@ -632,7 +639,35 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
     if not noscript:
         skip_selectors.add(b'noscript')
     if not form_fields:
-        skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label',})
+        skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label', })
+    cdef string skip_selector = <string>b','.join(skip_selectors)
+
+    cdef string extracted
+    with nogil:
+        extracted = _extract_plain_text_impl(
+            tree,
+            preserve_formatting,
+            main_content,
+            list_bullets,
+            alt_texts,
+            links,
+            form_fields,
+            noscript,
+            comments,
+            skip_selector)
+    return bytes_to_str(<bytes>extracted).rstrip()
+
+cdef string _extract_plain_text_impl(HTMLTree tree,
+                                     bint preserve_formatting,
+                                     bint main_content,
+                                     bint list_bullets,
+                                     bint alt_texts,
+                                     bint links,
+                                     bint form_fields,
+                                     bint noscript,
+                                     bint comments,
+                                     string skip_selector) nogil:
+    """Internal extractor implementation not requiring GIL."""
 
     cdef ExtractContext ctx
     ctx.root_node = <lxb_dom_node_t*>tree.dom_document.body
@@ -662,8 +697,9 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
 
     cdef lxb_css_selector_list_t* selector_list = NULL
     cdef stl_set[lxb_dom_node_t*] preselected_nodes
-    cdef string main_content_selector = b'.article-body, .articleBody, .contentBody, .article-text, .main-content,' \
-                                        b'.postcontent, .post-content, .single-post, [role="main"]'
+    cdef string main_content_selector = string(b'.article-body, .articleBody, .contentBody, .article-text,'
+                                               b'.main-content, .postcontent, .post-content, .single-post,'
+                                               b'[role="main"]')
 
     try:
         init_css_parser(&css_parser)
@@ -682,8 +718,7 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
             preselected_nodes.clear()
 
         # Select all blacklisted elements and save them in an ordered set
-        combined_skip_sel = b','.join(skip_selectors)
-        selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>combined_skip_sel, len(combined_skip_sel))
+        selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>skip_selector.data(), skip_selector.size())
         lxb_selectors_find(selectors, ctx.root_node, selector_list,
                            <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
     finally:
@@ -698,23 +733,22 @@ def extract_plain_text(HTMLTree tree, bint preserve_formatting=True, bint main_c
 
     cdef vector[shared_ptr[ExtractNode]] extract_nodes
     extract_nodes.reserve(150)
-    with nogil:
-        while ctx.node:
-            # Skip everything except element and text nodes
-            if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
-                is_end_tag = True
-                ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
-                continue
-
-            # Skip blacklisted or non-main-content nodes
-            if preselected_nodes.find(ctx.node) != preselected_nodes.end() or \
-                    (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments)):
-                is_end_tag = True
-                ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
-                continue
-
-            _extract_cb(extract_nodes, ctx, is_end_tag)
-
+    while ctx.node:
+        # Skip everything except element and text nodes
+        if ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT and ctx.node.type != LXB_DOM_NODE_TYPE_TEXT:
+            is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
+            continue
 
-    return bytes_to_str(_serialize_extract_nodes(extract_nodes, ctx.opts)).rstrip()
+        # Skip blacklisted or non-main-content nodes
+        if preselected_nodes.find(ctx.node) != preselected_nodes.end() or \
+                (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments)):
+            is_end_tag = True
+            ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
+            continue
+
+        _extract_cb(extract_nodes, ctx, is_end_tag)
+
+        ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
+
+    return _serialize_extract_nodes(extract_nodes, ctx.opts)

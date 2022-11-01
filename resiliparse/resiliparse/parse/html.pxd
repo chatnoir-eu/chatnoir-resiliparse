@@ -22,13 +22,13 @@ cdef inline bint check_node(DOMNode node):
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
-cdef bint init_css_parser(lxb_css_parser_t** parser) except 0
+cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0
 cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil
 cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
-                             lxb_selectors_t** selectors) except 0
+                             lxb_selectors_t** selectors) nogil except 0
 cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selectors_t* selectors) nogil
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
-                                                  size_t selector_len) except NULL
+                                                  size_t selector_len) nogil except NULL
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*) nogil
