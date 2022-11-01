@@ -46,7 +46,7 @@ jobs:
       CIBW_TEST_EXTRAS: all,test
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Vcpkg
         uses: actions/cache@v2
@@ -94,7 +94,7 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
 
       - name: Upload Wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: ./wheelhouse/*.whl
@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install Build Module
         run: python3 -m pip install build
@@ -115,7 +115,7 @@ jobs:
         run: python3 -m build --sdist --outdir dist resiliparse
 
       - name: Upload Source Dists
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: sdist
           path: ./dist/*.tar.gz
@@ -133,7 +133,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -160,7 +160,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -175,7 +175,7 @@ jobs:
         run: $PYTHON -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: coverage
           path: coverage.xml
@@ -191,7 +191,7 @@ jobs:
     needs: build-wheels
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Download Artifacts
         uses: actions/download-artifact@v2
