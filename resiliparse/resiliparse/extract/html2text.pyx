@@ -15,14 +15,12 @@
 # distutils: language = c++
 
 from cython.operator cimport dereference as deref, preincrement as preinc, predecrement as predec
-from libc.stdint cimport uint32_t
 from libcpp.set cimport set as stl_set
 from libc.string cimport memcpy
 from libcpp.memory cimport make_shared, shared_ptr
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse.parse.encoding import bytes_to_str
 from resiliparse_common.string_util cimport rstrip_str, strip_str
 from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
@@ -649,7 +647,7 @@ def extract_plain_text(HTMLTree tree,
             noscript,
             comments,
             skip_selector)
-    return bytes_to_str(<bytes>extracted).rstrip()
+    return extracted.decode(errors='ignore').rstrip()
 
 cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint preserve_formatting,
