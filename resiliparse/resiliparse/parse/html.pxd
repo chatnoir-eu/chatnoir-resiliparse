@@ -18,7 +18,7 @@ from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.lexbor cimport *
 
 
-cdef inline bint check_node(DOMNode node):
+cdef inline bint check_node(DOMNode node) nogil:
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
@@ -56,16 +56,23 @@ cdef inline StringPiece get_node_attr_sp(lxb_dom_node_t* node, const string& att
 
 cdef string get_node_text(lxb_dom_node_t* node) nogil
 
-cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=*)
-cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
-                                                     size_t init_size=*, bint case_insensitive=*)
-cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=*)
-cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name)
+cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node,
+                                            const char* id_value, size_t id_value_len,
+                                            bint case_insensitive=*) nogil
+cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node,
+                                                     const char* attr_name, size_t attr_name_len,
+                                                     const char* attr_value, size_t attr_value_len,
+                                                     size_t init_size=*, bint case_insensitive=*) nogil
+cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, const char* class_name,
+                                                           size_t class_name_len, size_t init_size=*) nogil
+cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node,
+                                                         const char* tag_name, size_t tag_name_len) nogil
 cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
-                                         bytes selector) except <lxb_dom_node_t*>-1
-cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
-                                                   size_t init_size=*) except <lxb_dom_collection_t*>-1
-cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector)
+                                         const char* selector, size_t select_len) nogil except <lxb_dom_node_t*>-1
+cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree,
+                                                   const char* selector, size_t selector_len,
+                                                   size_t init_size=*) nogil except <lxb_dom_collection_t*>-1
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) nogil
 
 cdef extern from "html.h" nogil:
     cdef lxb_tag_id_t BLOCK_ELEMENTS[]
@@ -87,11 +94,13 @@ cdef class DOMNode:
     cdef DOMElementClassList class_list_singleton
 
     cpdef bint hasattr(self, str attr_name) except -1
-    cdef str _getattr_impl(self, const string& attr_name, bint raise_if_not_exists=*)
+    cdef bint _getattr_impl(self, const char* attr_name, size_t attr_name_len,
+                            const char** attr_out_value, size_t* attr_out_len) nogil except -1
     cpdef str getattr(self, str attr_name, str default_value=*)
-    cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value)  except -1
+    cdef bint _setattr_impl(self, const char* attr_name, size_t attr_name_len,
+                            const char* attr_value, size_t attr_value_len) nogil except -1
     cpdef setattr(self, str attr_name, str attr_value)
-    cdef bint _delattr_impl(self, bytes attr_name)  except -1
+    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) nogil except -1
     cpdef delattr(self, str attr_name)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
@@ -156,6 +165,6 @@ cdef class HTMLTree:
     cpdef DOMNode create_element(self, str tag_name)
     cpdef DOMNode create_text_node(self, str text)
 
-    cdef void init_css_parser(self)
+    cdef void init_css_parser(self) nogil
 
 cdef bint is_block_element(lxb_tag_id_t tag_id) nogil

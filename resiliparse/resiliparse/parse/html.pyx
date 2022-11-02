@@ -67,7 +67,7 @@ cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css
     selectors[0] = lxb_selectors_create()
     if lxb_selectors_init(selectors[0]) != LXB_STATUS_OK:
         with gil:
-            raise RuntimeError('Failed to initialize elemetn selectors.')
+            raise RuntimeError('Failed to initialize element selectors.')
 
     return True
 
@@ -147,7 +147,8 @@ cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
     return text_str
 
 
-cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, bytes class_name, size_t init_size=5):
+cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, const char* class_name,
+                                                           size_t class_name_len, size_t init_size=5) nogil:
     """
     Return a collection of elements matching the given attribute name and value.
 
@@ -155,6 +156,7 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
 
     :param node: anchor node
     :param class_name: class name as UTF-8 bytes
+    :param class_name_len: length of the class name in bytes
     :param init_size: initial collection size
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
@@ -163,7 +165,7 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
         return NULL
 
     cdef lxb_status_t status = lxb_dom_elements_by_class_name(<lxb_dom_element_t*>node, coll,
-                                                              <const lxb_char_t*>class_name, len(class_name))
+                                                              <const lxb_char_t*>class_name, class_name_len)
 
     if status != LXB_STATUS_OK:
         lxb_dom_collection_destroy(coll, True)
@@ -199,23 +201,28 @@ cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* c
     return LEXBOR_ACTION_OK
 
 
-cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node, bytes id_value, bint case_insensitive=False):
+cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node,
+                                            const char* id_value, size_t id_value_len,
+                                            bint case_insensitive=False) nogil:
     """
     Return a pointer to the first element matching the given ID or NULL.
 
     :param node: anchor node
     :param id_value: ID value as UTF-8 bytes
+    :param id_value_len: ID value length in bytes
     :param case_insensitive: match case-insensitive
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
 
-    cdef element_by_id_match_ctx ctx = [<const lxb_char_t*>id_value, len(id_value), NULL]
+    cdef element_by_id_match_ctx ctx = [<const lxb_char_t*>id_value, id_value_len, NULL]
     lxb_dom_node_simple_walk(node, <lxb_dom_node_simple_walker_f>element_by_id_callback, &ctx)
     return ctx.result_node
 
 
-cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes attr_name, bytes attr_value,
-                                                     size_t init_size=5, bint case_insensitive=False):
+cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node,
+                                                     const char* attr_name, size_t attr_name_len,
+                                                     const char* attr_value, size_t attr_value_len,
+                                                     size_t init_size=5, bint case_insensitive=False) nogil:
     """
     Return a collection of elements matching the given attribute name and value.
 
@@ -223,7 +230,9 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes
 
     :param node: anchor node
     :param attr_name: attribute name as UTF-8 bytes
+    :param attr_name_len: length of attribute name in bytes
     :param attr_value: attribute value as UTF-8 bytes
+    :param attr_value_len: attribute value length in bytes
     :param init_size: initial collection size
     :param case_insensitive: match case-insensitive
     :return: pointer to created DOM collection or ``NULL`` if error occurred
@@ -233,8 +242,8 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes
         return NULL
 
     cdef lxb_status_t status = lxb_dom_elements_by_attr(<lxb_dom_element_t*>node, coll,
-                                                        <lxb_char_t*>attr_name, len(attr_name),
-                                                        <lxb_char_t*>attr_value, len(attr_value),
+                                                        <const lxb_char_t*>attr_name, attr_name_len,
+                                                        <const lxb_char_t*>attr_value, attr_value_len,
                                                         case_insensitive)
 
     if status != LXB_STATUS_OK:
@@ -244,7 +253,8 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node, bytes
     return coll
 
 
-cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, bytes tag_name):
+cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, const char* tag_name,
+                                                         size_t tag_name_len) nogil:
     """
     Return a collection of elements matching the given tag name.
 
@@ -252,13 +262,15 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, b
     
     :param node: anchor node
     :param tag_name: tag name as UTF-8 bytes
+    :param tag_name_len: tag name length in bytes
     """
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, 20)
     if not coll:
-        raise RuntimeError('Failed to create DOM collection')
+        with gil:
+            raise RuntimeError('Failed to create DOM collection')
 
     cdef lxb_status_t status = lxb_dom_elements_by_tag_name(<lxb_dom_element_t*>node,
-                                                            coll, <const lxb_char_t*>tag_name, len(tag_name))
+                                                            coll, <const lxb_char_t*>tag_name, tag_name_len)
     return coll
 
 
@@ -275,19 +287,20 @@ cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_cs
 
 
 cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
-                                         bytes selector) except <lxb_dom_node_t*>-1:
+                                         const char* selector, size_t selector_len) nogil except <lxb_dom_node_t*>-1:
     """
     Return a pointer to the first element matching the given CSS selector.
 
     :param node: anchor node
     :param tree: owning HTML tree
     :param selector: CSS selector as UTF-8 bytes
+    :param selector_len: CSS selector length in bytes
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
     tree.init_css_parser()
 
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
-                                                                 <const lxb_char_t*>selector, len(selector))
+                                                                 <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_node_t* result_node = NULL
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_select_callback_single, &result_node) != LXB_STATUS_OK:
@@ -296,8 +309,9 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
     return result_node
 
 
-cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector,
-                                                   size_t init_size=32) except <lxb_dom_collection_t*>-1:
+cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree,
+                                                   const char* selector, size_t selector_len,
+                                                   size_t init_size=32) nogil except <lxb_dom_collection_t*>-1:
     """
     Return a collection of elements matching the given CSS selector.
 
@@ -306,13 +320,14 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
     :param node: anchor node
     :param tree: owning HTML tree
     :param selector: CSS selector as UTF-8 bytes
+    :param selector_len: CSS selector length in bytes
     :param init_size: initial collection size
     :return: pointer to created DOM collection or ``NULL`` if error occurred
     """
     tree.init_css_parser()
 
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
-                                                                 <const lxb_char_t*>selector, len(selector))
+                                                                 <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, init_size)
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_select_callback, coll) != LXB_STATUS_OK:
@@ -327,19 +342,20 @@ cdef inline lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_select
     return LXB_STATUS_STOP
 
 
-cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, bytes selector):
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) nogil:
     """
     Check whether any element in the DOM subtree matches the given CSS selector.
 
     :param node: anchor node
     :param tree: owning HTML tree
     :param selector: CSS selector as bytes
+    :param selector_len: CSS selector length in bytes
     :return: boolean value indicating whether a matching element exists
     """
     tree.init_css_parser()
 
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
-                                                                 <const lxb_char_t*>selector, len(selector))
+                                                                 <const lxb_char_t*>selector, selector_len)
     cdef bint matches = False
     if lxb_selectors_find(tree.selectors, node, sel_list,
                           <lxb_selectors_cb_f>css_match_callback, <void*>&matches) != LXB_STATUS_OK:
@@ -412,7 +428,7 @@ cdef class DOMElementClassList:
             class_name = ' ' + class_name
         new_class_name = new_class_name + class_name.encode()
         # noinspection PyProtectedMember
-        self.node._setattr_impl(b'class', new_class_name)
+        self.node._setattr_impl(<const char*>b'class', 5, <const char*>new_class_name, len(new_class_name))
 
     cpdef void remove(self, str class_name):
         """
@@ -428,7 +444,8 @@ cdef class DOMElementClassList:
 
         cdef list l = [c for c in self._create_list() if c != class_name]
         # noinspection PyProtectedMember
-        self.node._setattr_impl(b'class', b' '.join([c.encode() for c in l]))
+        cdef bytes val = b' '.join([c.encode() for c in l])
+        self.node._setattr_impl(<const char*>b'class', 5, <const char*>val, len(val))
 
     def __contains__(self, item):
         """
@@ -766,7 +783,8 @@ cdef class DOMNode:
 
     @id.setter
     def id(self, str class_name):
-        self._setattr_impl(b'id', class_name.encode())
+        cdef bytes class_name_bytes = class_name.encode()
+        self._setattr_impl(<const char*> b'id', 2, <const char*>class_name_bytes, len(class_name_bytes))
 
     @property
     def class_name(self):
@@ -786,7 +804,8 @@ cdef class DOMNode:
 
     @class_name.setter
     def class_name(self, str class_name):
-        self._setattr_impl(b'class', class_name.encode())
+        cdef bytes class_name_bytes = class_name.encode()
+        self._setattr_impl(<const char*>b'class', 5, <const char*>class_name_bytes, len(class_name_bytes))
 
     @property
     def class_list(self):
@@ -843,25 +862,34 @@ cdef class DOMNode:
         return <bint>lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
                                                    <const lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
-    cdef str _getattr_impl(self, const string& attr_name, bint raise_if_not_exists=True):
+    cdef bint _getattr_impl(self, const char* attr_name, size_t attr_name_len,
+                            const char** attr_out_value, size_t* attr_out_len) nogil except -1:
         """
-        Get an attribute value as string.
+        Get an attribute value as bytes.
+        The output value is owned by the DOM tree, so the caller must not take ownership of the returned pointer!
         
-        :param attr_name: 
-        :return: attribute value or None
-        :raises KeyError: if attribute does not exist
+        :param attr_name: attribute name as UTF-8 bytes
+        :param attr_name_len: attribute name length in bytes
+        :param attr_out_value: value of found attribute or ``NULL`` if attribute not found
+        :param attr_out_len: length of attribute value in bytes
+        :return: True if attribute found
+        :raises ValueError: if node is invalid or not an Element node
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            raise ValueError('Node ist not an Element node.')
+            attr_out_value[0] = NULL
+            attr_out_len[0] = 0
+            with gil:
+                raise ValueError('Node ist not an element node.')
 
-        if raise_if_not_exists and not lxb_dom_element_has_attribute(
-                <lxb_dom_element_t*>self.node, <const lxb_char_t*>attr_name.data(), attr_name.size()):
-            raise KeyError(f'No such attribute: {attr_name.decode()}')
+        if not lxb_dom_element_has_attribute(<lxb_dom_element_t*>self.node,
+                                             <const lxb_char_t*>attr_name, attr_name_len):
+            attr_out_value[0] = NULL
+            attr_out_len[0] = 0
+            return False
 
-        cdef size_t node_attr_len
-        cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
-            <lxb_dom_element_t*>self.node, <const lxb_char_t*>attr_name.data(), attr_name.size(), &node_attr_len)
-        return node_attr_data[:node_attr_len].decode()
+        attr_out_value[0] = <const char*>lxb_dom_element_get_attribute(
+            <lxb_dom_element_t*>self.node, <const lxb_char_t*>attr_name, attr_name_len, attr_out_len)
+        return True
 
     cpdef str getattr(self, str attr_name, str default_value=None):
         """
@@ -872,57 +900,59 @@ cdef class DOMNode:
         :param attr_name: attribute name
         :type attr_name: str
         :param default_value: default value to return if attribute is unset
-        :type default_value: str
+        :type default_value: str or None
         :return: attribute value
-        :rtype: str
-        :raises ValueError: if node is not an Element node
+        :rtype: str or None
+        :raises ValueError: if node is  invalid or not an Element node
         """
-        if not check_node(self):
-            return None
-
-        try:
-            return self._getattr_impl(attr_name.encode())
-        except KeyError:
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef const char* attr_value
+        cdef size_t attr_value_len
+        if not self._getattr_impl(<const char*> attr_name_bytes, len(attr_name_bytes), &attr_value, &attr_value_len):
             return default_value
+        return attr_value[:attr_value_len].decode()
 
     def __getitem__(self, str attr_name):
         """
         __getitem__(self, attr_name)
 
-        Get the value of the an attribute.
+        Get the value of an attribute.
 
         :param attr_name: attribute name
         :rtype: str
         :raises KeyError: if no such attribute exists
         :raises ValueError: if node is not an Element node
         """
-        if not check_node(self):
-            return None
+        cdef str value = self.getattr(attr_name)
+        if value is None:
+            raise KeyError(f'No such attribute: {attr_name}')
+        return value
 
-        return self._getattr_impl(attr_name.encode())
-
-    cdef bint _setattr_impl(self, bytes attr_name, bytes attr_value) except -1:
+    cdef bint _setattr_impl(self, const char* attr_name, size_t attr_name_len,
+                            const char* attr_value, size_t attr_value_len) nogil except -1:
         """
-        Insert or update an attribute with the given value.
+        Insert or update an attribute with the given value. Node must be an element node.
         
         :param attr_name: attribute value
         :param attr_value: attribute name
         :return: attribute value or None
+        :raises ValueError: if node is not an Element node
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            raise ValueError('Node ist not an Element node.')
+            with gil:
+                raise ValueError('Node ist not an Element node.')
 
         # Lexbor's check of existing attributes is buggy
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
-                                                                  <const lxb_char_t*>attr_name, len(attr_name))
+                                                                  <const lxb_char_t*>attr_name, attr_name_len)
 
         if attr:
-            lxb_dom_attr_set_value(attr, <const lxb_char_t*>attr_value, len(attr_value))
+            lxb_dom_attr_set_value(attr, <const lxb_char_t*>attr_value, attr_value_len)
             return True
 
         lxb_dom_element_set_attribute(<lxb_dom_element_t*>self.node,
-                                      <const lxb_char_t*>attr_name, len(attr_name),
-                                      <const lxb_char_t*>attr_value, len(attr_value))
+                                      <const lxb_char_t*>attr_name, attr_name_len,
+                                      <const lxb_char_t*>attr_value, attr_value_len)
         return True
 
     cpdef setattr(self, str attr_name, str attr_value):
@@ -941,7 +971,10 @@ cdef class DOMNode:
         if not check_node(self):
             return
 
-        self._setattr_impl(attr_name.encode(), attr_value.encode())
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef bytes attr_value_bytes = attr_value.encode()
+        self._setattr_impl(<const char*>attr_name_bytes, len(attr_name_bytes),
+                           <const char*>attr_value_bytes, len(attr_value_bytes))
 
     def __setitem__(self, str attr_name, str attr_value):
         """
@@ -956,23 +989,22 @@ cdef class DOMNode:
         :return: attribute value
         :raises ValueError: if node is not an Element node
         """
-        if not check_node(self):
-            return
+        self.setattr(attr_name, attr_value)
 
-        self._setattr_impl(attr_name.encode(), attr_value.encode())
-
-    cdef bint _delattr_impl(self, bytes attr_name) except -1:
+    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) nogil except -1:
         """
         Remove the given attribute.
 
-        :param attr_name: attribute to remove
+        :param attr_name: name of attribute to remove as UTF-8 bytes
+        :param attr_name_len: attribute name length in bytes
         """
         if not check_node(self) or self.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
-            raise ValueError('Node ist not an Element node.')
+            with gil:
+                raise ValueError('Node ist not an Element node.')
 
         cdef lxb_dom_attr_t* attr = lxb_dom_element_attr_is_exist(<lxb_dom_element_t*>self.node,
-                                                                  <const lxb_char_t*>attr_name, len(attr_name))
-        if not attr:
+                                                                  <const lxb_char_t*>attr_name, attr_name_len)
+        if attr == NULL:
             return False
 
         lxb_dom_element_attr_remove(<lxb_dom_element_t*>self.node, attr)
@@ -988,7 +1020,8 @@ cdef class DOMNode:
         :type attr_name: str
         :raises ValueError: if node is not an Element node
         """
-        self._delattr_impl(attr_name.encode())
+        cdef bytes attr_name_bytes = attr_name.encode()
+        self._delattr_impl(<const char*>attr_name_bytes, len(attr_name_bytes))
 
     def __delitem__(self, str attr_name):
         """
@@ -1001,7 +1034,8 @@ cdef class DOMNode:
         :raises ValueError: if node is not an Element node
         :raises KeyError: if node 
         """
-        cdef bint ret = self._delattr_impl(attr_name.encode())
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef bint ret = self._delattr_impl(<const char*>attr_name_bytes, len(attr_name_bytes))
         if not ret:
             raise KeyError(f'No such attribute: {attr_name}')
 
@@ -1017,7 +1051,9 @@ cdef class DOMNode:
         :return: matching element or ``None``
         :rtype: DOMNode or None
         """
-        cdef lxb_dom_node_t* node = query_selector_impl(self.node, self.tree, selector.encode())
+        cdef bytes selector_bytes = selector.encode()
+        cdef lxb_dom_node_t* node = query_selector_impl(self.node, self.tree,
+                                                        <const char*>selector_bytes, len(selector_bytes))
         if not node:
             return None
         return _create_dom_node(self.tree, node)
@@ -1033,7 +1069,9 @@ cdef class DOMNode:
         :return: collection of matching elements
         :rtype: DOMCollection
         """
-        cdef lxb_dom_collection_t* coll = query_selector_all_impl(self.node, self.tree, selector.encode())
+        cdef bytes selector_bytes = selector.encode()
+        cdef lxb_dom_collection_t* coll = query_selector_all_impl(self.node, self.tree,
+                                                                  <const char*>selector_bytes, len(selector_bytes))
         if not coll:
             raise RuntimeError('Failed to match elements by CSS selector')
 
@@ -1052,7 +1090,8 @@ cdef class DOMNode:
         :rtype: bool
         """
         self.tree.init_css_parser()
-        return matches_impl(self.node, self.tree, selector.encode())
+        cdef bytes selector_bytes = selector.encode()
+        return matches_impl(self.node, self.tree, <const char*>selector_bytes, len(selector_bytes))
 
     cpdef DOMCollection get_elements_by_attr(self, str attr_name, str attr_value, bint case_insensitive=False):
         """
@@ -1073,8 +1112,12 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
+        cdef bytes attr_name_bytes = attr_name.encode()
+        cdef bytes attr_value_bytes = attr_value.encode()
         return _create_dom_collection(self.tree,
-                                      get_elements_by_attr_impl(self.node, attr_name.encode(), attr_value.encode(),
+                                      get_elements_by_attr_impl(self.node,
+                                                                <const char*>attr_name_bytes, len(attr_name_bytes),
+                                                                <const char*>attr_value_bytes, len(attr_value_bytes),
                                                                 10, case_insensitive))
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=False):
@@ -1093,7 +1136,10 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        cdef lxb_dom_node_t* result_node = get_element_by_id_impl(self.node, element_id.encode(), case_insensitive)
+        cdef bytes element_id_bytes = element_id.encode()
+        cdef lxb_dom_node_t* result_node = get_element_by_id_impl(self.node,
+                                                                  <const char*>element_id_bytes, len(element_id_bytes),
+                                                                  case_insensitive)
         if not result_node:
             return None
         return _create_dom_node(self.tree, result_node)
@@ -1114,7 +1160,10 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        return _create_dom_collection(self.tree, get_elements_by_class_name_impl(self.node, class_name.encode(), 10))
+        cdef bytes class_name_bytes = class_name.encode()
+        return _create_dom_collection(self.tree, get_elements_by_class_name_impl(self.node,
+                                                                                 <const char*>class_name_bytes,
+                                                                                 len(class_name_bytes), 10))
 
     cpdef DOMCollection get_elements_by_tag_name(self, str tag_name):
         """
@@ -1130,7 +1179,10 @@ cdef class DOMNode:
         if not check_node(self):
             return None
 
-        return _create_dom_collection(self.tree, get_elements_by_tag_name_impl(self.node, tag_name.encode()))
+        cdef bytes tag_name_bytes = tag_name.encode()
+        return _create_dom_collection(self.tree, get_elements_by_tag_name_impl(self.node,
+                                                                               <const char*>tag_name_bytes,
+                                                                               len(tag_name_bytes)))
 
     cpdef DOMNode append_child(self, DOMNode node):
         """
@@ -1345,13 +1397,16 @@ cdef class DOMCollection:
         for i in range(lxb_dom_collection_length(self.coll)):
             node = lxb_dom_collection_node(self.coll, i)
             if func == b'by_attr':
-                matches = get_elements_by_attr_impl(node, attrs[0], attrs[1], attrs[2], attrs[3])
+                matches = get_elements_by_attr_impl(node,
+                                                    <const char*>attrs[0], len(attrs[0]),
+                                                    <const char*>attrs[1], len(attrs[1]),
+                                                    attrs[2], attrs[3])
             if func == b'by_class':
-                matches = get_elements_by_class_name_impl(node, attrs[0], attrs[1])
+                matches = get_elements_by_class_name_impl(node, <const char*>attrs[0], len(attrs[0]), attrs[1])
             elif func == b'by_tag':
-                matches = get_elements_by_tag_name_impl(node, attrs[0])
+                matches = get_elements_by_tag_name_impl(node, <const char*>attrs[0], len(attrs[0]))
             elif func == b'selector_all':
-                matches = query_selector_all_impl(node, self.tree, attrs[0])
+                matches = query_selector_all_impl(node, self.tree, attrs[0], len(attrs[0]))
 
             if matches:
                 _join_collections(joined_coll, matches)
@@ -1380,7 +1435,8 @@ cdef class DOMCollection:
         cdef size_t i = 0
         cdef bytes id_bytes = element_id.encode()
         for i in range(lxb_dom_collection_length(self.coll)):
-            node = get_element_by_id_impl(lxb_dom_collection_node(self.coll, i), id_bytes, case_insensitive)
+            node = get_element_by_id_impl(lxb_dom_collection_node(self.coll, i),
+                                          <const char*>id_bytes, len(id_bytes), case_insensitive)
             if node:
                 return _create_dom_node(self.tree, node)
 
@@ -1455,7 +1511,8 @@ cdef class DOMCollection:
         cdef size_t i = 0
         cdef bytes selector_bytes = selector.encode()
         for i in range(lxb_dom_collection_length(self.coll)):
-            node = query_selector_impl(lxb_dom_collection_node(self.coll, i), self.tree, selector_bytes)
+            node = query_selector_impl(lxb_dom_collection_node(self.coll, i), self.tree,
+                                       selector_bytes, len(selector_bytes))
             if node:
                 return _create_dom_node(self.tree, node)
 
@@ -1494,7 +1551,8 @@ cdef class DOMCollection:
         cdef size_t i = 0
         cdef bytes selector_bytes = selector.encode()
         for i in range(lxb_dom_collection_length(self.coll)):
-            if matches_impl(lxb_dom_collection_node(self.coll, i), self.tree, selector_bytes):
+            if matches_impl(lxb_dom_collection_node(self.coll, i), self.tree,
+                            <const char*>selector_bytes, len(selector_bytes)):
                 return True
 
         return False
@@ -1639,7 +1697,7 @@ cdef class HTMLTree:
             self.css_selectors = NULL
 
     # noinspection PyAttributeOutsideInit
-    cdef inline void init_css_parser(self):
+    cdef inline void init_css_parser(self) nogil:
         """
         Initialize CSS selector if not already initialized.
         """
