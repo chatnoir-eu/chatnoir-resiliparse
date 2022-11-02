@@ -734,4 +734,4 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         _extract_cb(extract_nodes, ctx, is_end_tag)
         ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
-    return _serialize_extract_nodes(extract_nodes, ctx.opts)
+    return rstrip_str(_serialize_extract_nodes(extract_nodes, ctx.opts))
