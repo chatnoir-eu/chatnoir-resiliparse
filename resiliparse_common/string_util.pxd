@@ -15,6 +15,7 @@
 # distutils: language = c++
 
 from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
+from libc.string cimport memmove
 from libcpp.string cimport string
 from resiliparse_inc.cctype cimport isspace, tolower
 
@@ -40,29 +41,23 @@ cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
     return rstrip_c_str(s_ptr, lstrip_c_str(s_ptr, l))
 
 
-# cdef inline string lstrip_str(const string& s) nogil:
-#     """Strip leading white space from a C++ string."""
-#     cdef const char* start = s.data()
-#     cdef size_t l = lstrip_c_str(&start, s.size())
-#     if start == s.data():
-#         return s
-#     return string(start, l)
-
-
-cdef inline string rstrip_str(const string& s) nogil:
-    """Strip leading white space from a C++ string."""
+cdef inline string rstrip_str(string&& s) nogil:
+    """Strip trailing white space from a C++ string in-place."""
     cdef const char* start = s.data()
     cdef size_t l = rstrip_c_str(&start, s.size())
-    if l == s.size():
-        return s
-    return string(start, l)
+    if l != s.size():
+        s.resize(l)
+    return s
 
 
-cdef inline string strip_str(const string& s) nogil:
-    """Strip leading and trailing white space from a C++ string."""
+cdef inline string strip_str(string&& s) nogil:
+    """Strip leading and trailing white space from a C++ string in-place."""
     cdef const char* start = s.data()
     cdef size_t l = strip_c_str(&start, s.size())
-    return string(start, l)
+    if l != s.size():
+        memmove(s.data(), start, l)
+        s.resize(l)
+    return s
 
 
 cdef inline string str_to_lower(string s) nogil:

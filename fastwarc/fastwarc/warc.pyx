@@ -85,7 +85,7 @@ cdef WarcRecordType _str_record_type_to_enum(const string& record_type) nogil:
 
 
 class CaseInsensitiveStr(str):
-    """Case insensitive str implementation for use as dict key."""
+    """Case-insensitive str implementation for use as dict key."""
 
     def __hash__(self):
         return hash(self.casefold())
@@ -616,7 +616,7 @@ cdef class WarcRecord:
         if content_type.empty():
             return None
 
-        content_type = strip_str(content_type.substr(0, content_type.find(<char*>b';')))
+        content_type = strip_str(move(content_type.substr(0, content_type.find(<char*>b';'))))
         return content_type.decode(self._http_headers._enc, errors='ignore')
 
     @property
@@ -646,7 +646,7 @@ cdef class WarcRecord:
         if pos_end != strnpos:
             pos_end = pos_end - pos
 
-        self._http_charset = str_to_lower(strip_str(content_type.substr(pos, pos_end)))
+        self._http_charset = str_to_lower(strip_str(move(content_type.substr(pos, pos_end))))
         try:
             codecs.lookup(self._http_charset.decode(errors='ignore'))
         except LookupError:
@@ -806,9 +806,9 @@ cdef class WarcRecord:
             while not enc_str.empty() and delim_pos != strnpos:
                 delim_pos = enc_str.find(b',', prev_delim_pos)
                 if delim_pos != strnpos:
-                    enc_name = strip_str(enc_str.substr(prev_delim_pos, delim_pos - prev_delim_pos))
+                    enc_name = strip_str(move(enc_str.substr(prev_delim_pos, delim_pos - prev_delim_pos)))
                 else:
-                    enc_name = strip_str(enc_str.substr(prev_delim_pos))
+                    enc_name = strip_str(move(enc_str.substr(prev_delim_pos)))
                 if not enc_name.empty():
                     encodings.push_back(enc_name)
                 enc_name.clear()
@@ -1083,11 +1083,11 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 
         if isspace(line[0]):
             # Continuation line
-            target.add_continuation(strip_str(line))
+            target.add_continuation(strip_str(line.substr()))
             continue
 
         if has_status_line:
-            target.set_status_line(strip_str(line))
+            target.set_status_line(strip_str(line.substr()))
             has_status_line = False
             continue
 
@@ -1095,7 +1095,7 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
         delim_ptr = <const char*>memchr(str_start, <int>b':', line.size())
         if delim_ptr == NULL:
             # Invalid header, try to preserve it as best we can
-            target.add_continuation(strip_str(line))
+            target.add_continuation(strip_str(line.substr()))
         else:
             str_len = strip_c_str(&str_start, delim_ptr - str_start)
             header_key = string(str_start, str_len)
@@ -1216,7 +1216,7 @@ cdef class ArchiveIterator:
                 self.record._stream_pos = self.reader.tell()
                 continue
 
-            version_line = strip_str(version_line)
+            version_line = strip_str(move(version_line))
             if version_line.substr(0, 7) in [b'WARC/1.', b'WARC/0.']:
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)

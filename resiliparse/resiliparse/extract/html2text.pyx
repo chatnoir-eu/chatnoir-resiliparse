@@ -26,6 +26,7 @@ from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
 from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
+from resiliparse_inc.utility cimport move
 
 
 cdef extern from * nogil:
@@ -255,7 +256,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
 
         element_text = deref(current_node.text_contents)
         if not current_node.is_pre or current_node.is_end_tag:
-            element_text = rstrip_str(element_text)
+            element_text = rstrip_str(move(element_text))
 
         if element_text.empty():
             continue
@@ -647,7 +648,7 @@ def extract_plain_text(HTMLTree tree,
             noscript,
             comments,
             skip_selector)
-    return extracted.decode(errors='ignore').rstrip()
+    return extracted.decode(errors='ignore')
 
 cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint preserve_formatting,
