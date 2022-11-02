@@ -569,12 +569,6 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     return True
 
 
-cdef inline lxb_status_t _collect_selected_nodes_cb(lxb_dom_node_t *node,
-                                                    lxb_css_selector_specificity_t *spec, void *ctx) nogil:
-    (<stl_set[lxb_dom_node_t*]*>ctx).insert(node)
-    return LXB_STATUS_OK
-
-
 cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec, void *ctx) nogil:
     (<bint*>ctx)[0] = True
     return LXB_STATUS_STOP
@@ -691,39 +685,30 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
         ctx.node = ctx.root_node
 
-    cdef lxb_css_parser_t* css_parser = NULL
-    cdef lxb_css_selectors_t* css_selectors = NULL
-    cdef lxb_selectors_t* selectors = NULL
-
-    cdef lxb_css_selector_list_t* selector_list = NULL
-    cdef stl_set[lxb_dom_node_t*] preselected_nodes
-    cdef string main_content_selector = string(b'.article-body, .articleBody, .contentBody, .article-text,'
-                                               b'.main-content, .postcontent, .post-content, .single-post,'
-                                               b'[role="main"]')
-
-    try:
-        init_css_parser(&css_parser)
-        init_css_selectors(css_parser, &css_selectors, &selectors)
-
-        if main_content:
-            # Opportunistically try to find general main content zone
-            selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>main_content_selector.data(),
-                                                main_content_selector.size())
-            lxb_selectors_find(selectors, ctx.root_node, selector_list,
-                               <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
-            if preselected_nodes.size() == 1:
+    cdef string main_content_selector
+    cdef lxb_dom_collection_t* root_candidates = NULL
+    if main_content:
+        main_content_selector = string(b'.article-body, .articleBody, .contentBody, .article-text,'
+                                       b'.main-content, .postcontent, .post-content, .single-post,'
+                                       b'[role="main"]')
+        root_candidates = query_selector_all_impl(ctx.node, tree,
+                                                  main_content_selector.data(), main_content_selector.size(), 5)
+        if root_candidates != NULL:
+            if lxb_dom_collection_length(root_candidates) == 1:
                 # Use result only if there is exactly one match
-                ctx.root_node = deref(preselected_nodes.begin())
+                ctx.root_node = lxb_dom_collection_node(root_candidates, 0)
                 ctx.node = ctx.root_node
-            preselected_nodes.clear()
+            lxb_dom_collection_destroy(root_candidates, True)
+            root_candidates = NULL
 
-        # Select all blacklisted elements and save them in an ordered set
-        selector_list = parse_css_selectors(css_parser, <const lxb_char_t*>skip_selector.data(), skip_selector.size())
-        lxb_selectors_find(selectors, ctx.root_node, selector_list,
-                           <lxb_selectors_cb_f>_collect_selected_nodes_cb, &preselected_nodes)
-    finally:
-        destroy_css_selectors(css_selectors, selectors)
-        destroy_css_parser(css_parser)
+    # Select all blacklisted elements and store them in a set
+    cdef lxb_dom_collection_t* blacklist_coll = query_selector_all_impl(ctx.root_node, tree,
+                                                                        skip_selector.data(), skip_selector.size(), 30)
+    cdef stl_set[lxb_dom_node_t*] blacklisted_nodes
+    if blacklist_coll != NULL:
+        for i in range(lxb_dom_collection_length(blacklist_coll)):
+            blacklisted_nodes.insert(lxb_dom_collection_node(blacklist_coll, i))
+        lxb_dom_collection_destroy(blacklist_coll, True)
 
     cdef size_t base_depth = 0
     cdef lxb_dom_node_t* pnode = ctx.node
@@ -741,14 +726,13 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
             continue
 
         # Skip blacklisted or non-main-content nodes
-        if preselected_nodes.find(ctx.node) != preselected_nodes.end() or \
+        if blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
                 (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments)):
             is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
 
         _extract_cb(extract_nodes, ctx, is_end_tag)
-
         ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
     return _serialize_extract_nodes(extract_nodes, ctx.opts)
