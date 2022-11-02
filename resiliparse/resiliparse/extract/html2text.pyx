@@ -21,7 +21,7 @@ from libcpp.memory cimport make_shared, shared_ptr
 from libcpp.string cimport string, to_string
 from libcpp.vector cimport vector
 
-from resiliparse_common.string_util cimport rstrip_str, strip_str
+from resiliparse_common.string_util cimport rstrip_str, strip_str, strip_sv
 from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
@@ -163,7 +163,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         last_node.collapse_margins = False
 
     elif ctx.opts.links and is_end_tag and ctx.node.local_name == LXB_TAG_A:
-        element_text_sv = get_node_attr_sv(ctx.node, b'href')
+        element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'href'))
         if not element_text_sv.empty():
             element_text.append(b' (')
             element_text.append(<string>element_text_sv)
@@ -187,12 +187,12 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         return
 
     elif ctx.opts.form_fields and ctx.node.local_name == LXB_TAG_INPUT:
-        element_text_sv = get_node_attr_sv(ctx.node, b'type')
+        element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'type'))
         if element_text_sv.empty() or element_text_sv not in \
                 [b'checkbox', b'color', b'file', b'hidden', b'radio', b'reset']:
-            element_text_sv = get_node_attr_sv(ctx.node, b'value')
+            element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'value'))
             if element_text_sv.empty():
-                element_text_sv = get_node_attr_sv(ctx.node, b'placeholder')
+                element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'placeholder'))
             if not element_text_sv.empty():
                 _ensure_text_contents(extract_nodes)
                 element_text.append(b'[ ')
@@ -433,21 +433,21 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
         return False
 
     # rel attributes
-    cdef string_view rel_attr = get_node_attr_sv(node, b'rel')
+    cdef string_view rel_attr = strip_sv(get_node_attr_sv(node, b'rel'))
     if not rel_attr.empty() and rel_attr in [b'author', b'icon', b'search', b'prev', b'next', b'tag']:
         return False
 
     # itemprop attributes
-    cdef string_view itemprop_attr = get_node_attr_sv(node, b'itemprop')
+    cdef string_view itemprop_attr = strip_sv(get_node_attr_sv(node, b'itemprop'))
     if not itemprop_attr.empty() and itemprop_attr in [b'datePublished', b'author', b'url']:
         return False
 
     # ARIA hidden
-    if get_node_attr_sv(node, b'aria-hidden') == b'true':
+    if strip_sv(get_node_attr_sv(node, b'aria-hidden')) == b'true':
         return False
 
     # ARIA expanded
-    if get_node_attr_sv(node, b'aria-expanded') == b'false':
+    if strip_sv(get_node_attr_sv(node, b'aria-expanded')) == b'false':
         return False
 
 
@@ -508,7 +508,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
         return True
 
     # ARIA roles
-    cdef string_view role_attr = get_node_attr_sv(node, b'role')
+    cdef string_view role_attr = strip_sv(get_node_attr_sv(node, b'role'))
     if rel_attr == b'main':
         return True
     if not role_attr.empty() and blacklist_aria_roles.find(<string>role_attr) != blacklist_aria_roles.end():

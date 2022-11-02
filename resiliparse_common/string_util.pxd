@@ -17,6 +17,7 @@
 from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
 from libc.string cimport memmove
 from libcpp.string cimport string
+from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.cctype cimport isspace, tolower
 
 
@@ -57,6 +58,17 @@ cdef inline string strip_str(string&& s) nogil:
     if l != s.size():
         memmove(s.data(), start, l)
         s.resize(l)
+    return s
+
+
+cdef inline string_view strip_sv(string_view s) nogil:
+    """Strip leading and trailing white space from a C++ string_view."""
+    cdef const char* start = s.data()
+    cdef size_t l = strip_c_str(&start, s.size())
+    if start != s.data():
+        s.remove_prefix(start - s.data())
+    if l != s.size():
+        s.remove_suffix(s.size() - l)
     return s
 
 
