@@ -6,6 +6,7 @@ on:
       - '*'
     branches:
       - develop
+      - ci/*
 
   pull_request:
     types:
@@ -27,8 +28,12 @@ jobs:
       CIBW_BUILD_FRONTEND: build
       CIBW_MANYLINUX_X86_64_IMAGE: webis/resiliparse-manylinux2014_x86_64
 
-#      CIBW_ARCHS_MACOS: universal2
-      MACOSX_DEPLOYMENT_TARGET: "10.14"
+      CIBW_TEST_EXTRAS: all,test
+      CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
+
+      CIBW_ENVIRONMENT: PYTHONPATH="$PYTHONPATH"
+
+      CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
         DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-listdeps {wheel} &&
         DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
@@ -38,12 +43,10 @@ jobs:
         delvewheel repair --add-path C:\vcpkg\installed\x64-windows\bin -w {dest_dir} {wheel}
 
       PYTHONPATH: ../resiliparse:../fastwarc
-      CPATH: /usr/local/share/vcpkg/installed/x64-osx/include
-      LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib
+      CPATH: /usr/local/share/vcpkg/installed/x64-osx/include:/usr/local/share/vcpkg/installed/arm64-osx/include
+      LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib:/usr/local/share/vcpkg/installed/arm64-osx/lib
       INCLUDE: C:\vcpkg\installed\x64-windows\include
       LIB: C:\vcpkg\installed\x64-windows\lib
-      CIBW_ENVIRONMENT: PYTHONPATH="$PYTHONPATH"
-      CIBW_TEST_EXTRAS: all,test
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -56,23 +59,35 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-6
+          key: ${{ runner.os }}-vcpkg-8     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -e
+          
+          PKG_LIST="lz4 lexbor uchardet zlib re2"
+          
+          # MacOS
           if [ -d /usr/local/share/vcpkg/ports ]; then
             cp -rv .vcpkg/ports/* /usr/local/share/vcpkg/ports
+            
+            export VCPKG_DEFAULT_TRIPLET=x64-osx
+            vcpkg install $PKG_LIST
+            
+            export VCPKG_DEFAULT_TRIPLET=arm64-osx
+            vcpkg install $PKG_LIST
+            
+          # Windows
           elif [ -d /c/vcpkg ]; then
             cp -rv .vcpkg/ports/* /c/vcpkg/ports
             export VCPKG_DEFAULT_TRIPLET=x64-windows
+            vcpkg install $PKG_LIST
+          
           else
             exit 1
           fi
-
-          vcpkg install lz4 lexbor uchardet zlib re2
 
       - name: Set up Python
         uses: actions/setup-python@v4
