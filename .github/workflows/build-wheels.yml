@@ -23,7 +23,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_BUILD: "cp3*"
-      CIBW_SKIP: "cp36* cp311* *-musllinux_*"
+      CIBW_SKIP: "cp36* *-musllinux_*"
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
       CIBW_MANYLINUX_X86_64_IMAGE: webis/resiliparse-manylinux2014_x86_64

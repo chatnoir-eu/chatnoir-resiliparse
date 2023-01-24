@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from apache_beam.coders import *
 from apache_beam.coders import StrUtf8Coder as _StrUtf8Coder
 from resiliparse.parse.encoding import bytes_to_str
 

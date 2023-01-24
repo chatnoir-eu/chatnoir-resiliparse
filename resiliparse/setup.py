@@ -126,13 +126,15 @@ if os.name == 'posix':
 if USE_CYTHON:
     resiliparse_extensions = cythonize(resiliparse_extensions, **cython_args)
 
-
-extras_require = {
+beam_extras_require = {
     'beam': [
         'apache_beam[aws]>=2.37.0',
         'boto3>=1.9',
         'elasticsearch>=7.0.0'
-    ],
+    ]
+} if sys.version_info[1] <= 10 else {}      # Beam only supported on <= Python 3.10
+extras_require = {
+    **beam_extras_require,
     'cli': [
         'click',
         'joblib',
