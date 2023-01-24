@@ -19,7 +19,7 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.filesystem import CompressionTypes, FileMetadata, CompressedFile
 from apache_beam.io.restriction_trackers import OffsetRange, OffsetRestrictionTracker
 
-from resiliparse.beam import coders
+from resiliparse.beam.coders import StrUtf8Coder
 from resiliparse.beam.fileio import MatchFiles
 
 
@@ -59,7 +59,7 @@ class ReadFromText(beam.PTransform):
                  desired_split_size: int = DEFAULT_DESIRED_SPLIT_SIZE,
                  min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
                  compression_type: CompressionTypes = CompressionTypes.AUTO,
-                 coder: coders.Coder = coders.StrUtf8Coder()):
+                 coder: beam.coders = StrUtf8Coder()):
         super().__init__()
         self._transform = MatchFiles(file_pattern, empty_match_treatment, shuffle_names)
         self._transform |= beam.ParDo(_GenSplits(desired_split_size, min_split_size, compression_type))
@@ -94,7 +94,7 @@ class ReadAllFromText(beam.PTransform):
                  desired_split_size: int = DEFAULT_DESIRED_SPLIT_SIZE,
                  min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
                  compression_type: CompressionTypes = CompressionTypes.AUTO,
-                 coder: coders.Coder = coders.StrUtf8Coder()):
+                 coder: beam.coders.Coder = StrUtf8Coder()):
         super().__init__()
         self._transform = beam.ParDo(_GenSplits(desired_split_size, min_split_size, compression_type))
         if shuffle_names:
