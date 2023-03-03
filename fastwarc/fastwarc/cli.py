@@ -280,7 +280,7 @@ def index(infiles, output, fields, preserve_multi_header):
                 prev_record = record
 
             if prev_record is not None:
-                _index_record(output, fields, preserve_multi_header, prev_record, prev_record.reader.tell(), infile)
+                _index_record(output, fields, preserve_multi_header, prev_record, stream.tell(), infile)
 
 
 boto3 = None
