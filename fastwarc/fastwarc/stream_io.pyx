@@ -127,63 +127,6 @@ cdef class IOStream:
         pass
 
 
-def _io_stream_py_test_read(IOStream stream, size_t size):
-    """
-    io_stream_py_test_read(stream, size)
-
-    Test interface for :meth:`IOStream.read`.
-    """
-    cdef bytearray buf = bytearray(size)
-    size = stream.read_(<char*>buf, size)
-    return buf[:size], size
-
-
-def _io_stream_py_test_write(IOStream stream, bytes data):
-    """
-    io_stream_py_test_write(stream, data)
-
-    Test interface for :meth:`IOStream.write`.
-    """
-    size = stream.write_(<const char*>data, len(data))
-    return size
-
-
-def _io_stream_py_test_tell(IOStream stream):
-    """
-    io_stream_py_test_tell(stream)
-
-    Test interface for :meth:`IOStream.tell`.
-    """
-    return stream.tell()
-
-
-def _io_stream_py_test_seek(IOStream stream, size_t offset):
-    """
-    io_stream_py_test_seek(stream, offset)
-
-    Test interface for :meth:`IOStream.seek`.
-    """
-    stream.seek(offset)
-
-
-def _io_stream_py_test_flush(IOStream stream):
-    """
-    io_stream_py_test_flush(stream)
-
-    Test interface for :meth:`IOStream.flush`.
-    """
-    stream.flush()
-
-
-def _io_stream_py_test_close(IOStream stream):
-    """
-    io_stream_py_test_close(stream)
-
-    Test interface for :meth:`IOStream.close`.
-    """
-    stream.close()
-
-
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
