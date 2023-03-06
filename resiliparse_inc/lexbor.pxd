@@ -409,7 +409,7 @@ cdef extern from "<lexbor/css/css.h>" nogil:
     ctypedef lxb_status_t (*lexbor_serialize_cb_f)(const lxb_char_t *data, size_t len, void *ctx)
 
     lxb_css_parser_t * lxb_css_parser_create()
-    lxb_status_t lxb_css_parser_init(lxb_css_parser_t *parser, lxb_css_syntax_tokenizer_t *tkz, lexbor_mraw_t *mraw)
+    lxb_status_t lxb_css_parser_init(lxb_css_parser_t *parser, lxb_css_syntax_tokenizer_t *tkz)
     lxb_css_parser_t * lxb_css_parser_destroy(lxb_css_parser_t *parser, bint self_destroy)
     lxb_status_t lxb_css_log_serialize(lxb_css_log_t *log, lexbor_serialize_cb_f cb, void *ctx,
                                        const lxb_char_t *indent, size_t indent_length)
@@ -640,10 +640,10 @@ cdef extern from "<lexbor/selectors/selectors.h>" nogil:
                                                 void *ctx)
 
     lxb_css_selectors_t * lxb_css_selectors_create()
-    lxb_status_t lxb_css_selectors_init(lxb_css_selectors_t *selectors, size_t prepare_count)
+    lxb_status_t lxb_css_selectors_init(lxb_css_selectors_t *selectors)
     void lxb_css_parser_selectors_set(lxb_css_parser_t *parser, lxb_css_selectors_t *selectors)
     lxb_css_selector_list_t * lxb_css_selectors_parse(lxb_css_parser_t *parser, const lxb_char_t *data, size_t length)
-    lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint with_memory, bint self_destroy)
+    lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint self_destroy)
     void lxb_css_selector_list_destroy_memory(lxb_css_selector_list_t *list)
 
     lxb_selectors_t * lxb_selectors_create()

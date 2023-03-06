@@ -44,7 +44,7 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
 
 cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0:
     parser[0] = lxb_css_parser_create()
-    if lxb_css_parser_init(parser[0], NULL, NULL) != LXB_STATUS_OK:
+    if lxb_css_parser_init(parser[0], NULL) != LXB_STATUS_OK:
         with gil:
             raise RuntimeError('Failed to initialize CSS parser.')
     return True
@@ -58,7 +58,7 @@ cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil:
 cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
                              lxb_selectors_t** selectors) nogil except 0:
     css_selectors[0] = lxb_css_selectors_create()
-    if lxb_css_selectors_init(css_selectors[0], 32) != LXB_STATUS_OK:
+    if lxb_css_selectors_init(css_selectors[0]) != LXB_STATUS_OK:
         with gil:
             raise RuntimeError('Failed to initialize CSS selectors.')
 
@@ -76,7 +76,7 @@ cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selector
     if selectors:
         lxb_selectors_destroy(selectors, True)
     if css_selectors:
-        lxb_css_selectors_destroy(css_selectors, True, True)
+        lxb_css_selectors_destroy(css_selectors, True)
 
 
 cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx) nogil:
