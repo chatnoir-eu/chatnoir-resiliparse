@@ -573,7 +573,7 @@ cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_speci
     return LXB_STATUS_STOP
 
 
-def extract_plain_text(HTMLTree tree,
+def extract_plain_text(html,
                        bint preserve_formatting=True,
                        bint main_content=False,
                        bint list_bullets=True,
@@ -584,7 +584,7 @@ def extract_plain_text(HTMLTree tree,
                        bint comments=True,
                        skip_elements=None):
     """
-    extract_plain_text(tree, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
+    extract_plain_text(html, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
                        links=True, form_fields=False, noscript=False, comments=None, skip_elements=None)
 
     Perform a simple plain-text extraction from the given DOM node and its children.
@@ -598,8 +598,8 @@ def extract_plain_text(HTMLTree tree,
     can be configured individually by setting the corresponding parameter to ``True``.
     Defaults to ``False`` for most elements (i.e., only basic text will be extracted).
 
-    :param tree: HTML DOM tree
-    :type tree: DOMNode
+    :param html: HTML as DOM tree or Unicode string
+    :type html: HTMLTree or str
     :param preserve_formatting: preserve basic block-level formatting
     :type preserve_formatting: bool
     :param main_content: apply simple heuristics for extracting only "main-content" elements
@@ -621,6 +621,15 @@ def extract_plain_text(HTMLTree tree,
     :return: extracted plain text
     :rtype: str
     """
+
+    cdef HTMLTree tree
+    if isinstance(html, str):
+        tree = HTMLTree.parse(html)
+    elif isinstance(html, HTMLTree):
+        tree = <HTMLTree>html
+    else:
+        raise TypeError('Parameter "html" is neither string nor HTMLTree.')
+
     if not check_node(tree.body):
         return ''
 

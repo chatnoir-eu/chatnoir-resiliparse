@@ -12,7 +12,6 @@ The simplest and fastest way to convert an HTML page to plain text is to use the
 
 .. code-block:: python
 
-    from resiliparse.parse.html import HTMLTree
     from resiliparse.extract.html2text import extract_plain_text
 
     html = """<!doctype html>
@@ -48,8 +47,7 @@ The simplest and fastest way to convert an HTML page to plain text is to use the
     </body>
     </html>"""
 
-    tree = HTMLTree.parse(html)
-    print(extract_plain_text(tree))
+    print(extract_plain_text(html))
 
 Output:
 
@@ -66,16 +64,18 @@ Output:
     Some image
     Copyright (C) 2021 Foo Bar
 
+Instead of the raw HTML as a string, you can also pass an :class:`~resiliparse.parse.html.HTMLTree` instance.
+
 For customization of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts several parameters controlling individual aspects of its output, such as the extraction of ``alt`` texts (enabled by default), link ``href`` targets, form fields, or ``noscript`` elements.
 
 .. code-block:: python
 
     # Without alt texts:
-    extract_plain_text(tree, alt_texts=False)
+    extract_plain_text(html, alt_texts=False)
     # Skips: "Some image"
 
     # With href targets:
-    extract_plain_text(tree, links=True)
+    extract_plain_text(html, links=True)
     # Adds:
     #   • Index (/)
     #   • Contact (/contact)
@@ -83,12 +83,12 @@ For customization of the generated plain text, the function :func:`~.extract.htm
     # foo Link (#foo)
 
     # With form fields:
-    extract_plain_text(tree, form_fields=True)
+    extract_plain_text(html, form_fields=True)
     # Adds:
     # [ Some text ] [ Insert text ]
 
     # With noscript
-    extract_plain_text(tree, noscript=True)
+    extract_plain_text(html, noscript=True)
     # Adds:
     # Sorry, your browser doesn't support JavaScript!
 
@@ -96,7 +96,7 @@ If you don't like list bullets, you can turn them off as well:
 
 .. code-block:: python
 
-    print(extract_plain_text(tree, list_bullets=False))
+    print(extract_plain_text(html, list_bullets=False))
 
 Output:
 
@@ -118,7 +118,7 @@ If you want the most compact extraction possible without any formatting, set ``p
 
 .. code-block:: python
 
-    print(extract_plain_text(tree, preserve_formatting=False))
+    print(extract_plain_text(html, preserve_formatting=False))
 
 Output:
 
@@ -133,7 +133,7 @@ HTML2Text can also do very simple and fast rule-based main content extraction (a
 
 .. code-block:: python
 
-    print(extract_plain_text(tree, main_content=True))
+    print(extract_plain_text(html, main_content=True))
 
 Output:
 
@@ -150,7 +150,7 @@ Of course, the same options for adjusting the output as above can be applied her
 
 .. code-block:: python
 
-    print(extract_plain_text(tree,
+    print(extract_plain_text(html,
                              main_content=True,
                              alt_texts=False,
                              preserve_formatting=False,
