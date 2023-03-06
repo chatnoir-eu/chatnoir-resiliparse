@@ -21,6 +21,7 @@ cdef class EncodingDetector:
 
     cpdef void update(self, const string& data)
     cpdef str encoding(self, bint html5_compatible=*)
+    cpdef void reset(self)
 
 cpdef str detect_encoding(bytes data, size_t max_len=*, bint html5_compatible=*, bint from_html_meta=*)
 cpdef str bytes_to_str(bytes data, str encoding=*, str errors=*, fallback_encodings=*, bint strip_bom=*)

@@ -163,6 +163,14 @@ cdef class EncodingDetector:
 
         return enc
 
+    cpdef void reset(self):
+        """
+        reset(self)
+        
+        Manually reset the encoding detector state.
+        """
+        uchardet_reset(self.d)
+
     def __dealloc__(self):
         if self.d != NULL:
             uchardet_delete(self.d)
