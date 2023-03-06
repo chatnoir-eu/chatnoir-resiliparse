@@ -8,7 +8,7 @@ def test_encoding_detection():
     assert det.encoding() == 'utf-16-le'
     det.update(b'\xff\xfeH\x00e\x00l\x00l\x00o\x00 \x00W\x00o\x00r\x00l\x00d\x00')
     assert det.encoding(html5_compatible=False) == 'utf-16'
-    det.update(b'Autres temps, autres m\x9curs.')
+    det.update(b'Mieux vaut \xeatre seul que mal accompagn\xe9.')
     assert det.encoding() == 'cp1252'
 
     assert detect_encoding(b'\xc3\xa4\xc3\xb6\xc3\xbc') == 'utf-8'
