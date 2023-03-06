@@ -14,55 +14,54 @@ import fastwarc.stream_io as sio
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
 
 
-# noinspection PyProtectedMember
 def validate_stream_io(stream):
-    data = b'Hello World'
-    size = sio._io_stream_py_test_write(stream, data)
-    assert size == len(data)
+    # Use context manager interface
+    with stream:
+        data = b'Hello World'
+        size = stream.write(data)
+        assert size == len(data)
 
-    sio._io_stream_py_test_flush(stream)
-    assert sio._io_stream_py_test_tell(stream) == len(data)
-    sio._io_stream_py_test_seek(stream, 0)
-    assert sio._io_stream_py_test_tell(stream) == 0
+        stream.flush()
+        assert stream.tell() == len(data)
+        stream.seek(0)
+        assert stream.tell() == 0
 
-    data_read, size = sio._io_stream_py_test_read(stream, len(data))
-    assert data_read == data
-    assert size == len(data)
+        data_read = stream.read(len(data))
+        assert data_read == data
 
-    data_read, size = sio._io_stream_py_test_read(stream, 1)
-    assert data_read == b''
-    assert size == 0
+        data_read = stream.read(1)
+        assert data_read == b''
 
-    sio._io_stream_py_test_seek(stream, data.index(b' ') + 1)
-    assert sio._io_stream_py_test_tell(stream) == data.index(b' ') + 1
-    data_read, size = sio._io_stream_py_test_read(stream, 1000)
-    assert data_read == b'World'
-    assert size == 5
+        stream.seek(data.index(b' ') + 1)
+        assert stream.tell() == data.index(b' ') + 1
+        data_read = stream.read(1000)
+        assert data_read == b'World'
 
-    sio._io_stream_py_test_close(stream)
+    # Stream is closed
     with pytest.raises(ValueError):
-        sio._io_stream_py_test_write(stream, b'abc')
-
-    with pytest.raises(ValueError):
-        sio._io_stream_py_test_seek(stream, 0)
+        stream.write(b'abc')
 
     with pytest.raises(ValueError):
-        sio._io_stream_py_test_tell(stream)
+        stream.seek(0)
+
+    with pytest.raises(ValueError):
+        stream.tell()
+
+    # Calling close() once more should not raise an error
+    stream.close()
 
 
 def test_file_stream():
     stream = sio.FileStream(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb')
-    data, size = sio._io_stream_py_test_read(stream, 5)
-    assert size == 5
+    data = stream.read(5)
     assert data == b'WARC/'
 
-    data, size = sio._io_stream_py_test_read(stream, 3)
-    assert size == 3
+    data = stream.read(3)
     assert data == b'1.0'
 
-    sio._io_stream_py_test_close(stream)
+    stream.close()
     with pytest.raises(ValueError):
-        sio._io_stream_py_test_read(stream, 1)
+        stream.read(1)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         validate_stream_io(sio.FileStream(os.path.join(tmpdir, 'testfile.txt'), 'w+'))
@@ -81,36 +80,33 @@ def validate_compressing_stream(raw_stream, comp_stream_cls, comp_val_func, deco
     # Compression
     in_value = b'Hello World'
     comp_stream = comp_stream_cls(raw_stream)
-    sio._io_stream_py_test_write(comp_stream, in_value)
-    sio._io_stream_py_test_flush(comp_stream)
-    sio._io_stream_py_test_close(comp_stream)
+    comp_stream.write(in_value)
+    comp_stream.flush()
+    comp_stream.close()
 
     # Decompression
-    sio._io_stream_py_test_seek(raw_stream, 0)
-    out_value, out_size = sio._io_stream_py_test_read(raw_stream, 1024)
-    assert out_size != len(in_value)
+    raw_stream.seek(0)
+    out_value = raw_stream.read(1024)
     assert out_value != in_value
     assert decomp_val_func(out_value) == in_value
 
-    sio._io_stream_py_test_seek(raw_stream, 0)
+    raw_stream.seek(0)
     comp_stream = comp_stream_cls(raw_stream)
-    out_value, out_size = sio._io_stream_py_test_read(comp_stream, 1024)
-    assert out_size == len(in_value)
+    out_value = comp_stream.read(1024)
     assert out_value == in_value
 
     # Data compressed by external compressor
     comp_stream = comp_stream_cls(sio.BytesIOStream(comp_val_func(in_value)))
-    out_value, out_size = sio._io_stream_py_test_read(comp_stream, 1024)
-    assert out_size == len(in_value)
+    out_value = comp_stream.read(1024)
     assert out_value == in_value
 
     # Invalid stream
     if raises:
-        sio._io_stream_py_test_seek(raw_stream, 0)
-        sio._io_stream_py_test_write(raw_stream, b'\x00\x00\x00\x00\x00\x00\x00')
+        raw_stream.seek(0)
+        raw_stream.write(b'\x00\x00\x00\x00\x00\x00\x00')
         with pytest.raises(sio.StreamError):
             comp_stream = comp_stream_cls(raw_stream)
-            sio._io_stream_py_test_read(comp_stream, 1024)
+            comp_stream.read(1024)
 
 
 def test_gzip_stream():

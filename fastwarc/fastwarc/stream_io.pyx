@@ -51,22 +51,79 @@ cdef class IOStream:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    def read(self, size_t size):
+        """
+        read(self, size)
+
+        Read ``size`` bytes from stream.
+
+        :param size: bytes to read
+        :type size: int
+        :return: read bytes
+        :rtype: bytearray
+        """
+        cdef bytearray buf = bytearray(size)
+        size = self.read_(<char*>buf, size)
+        return buf[:size]
+
+    cdef size_t read_(self, char* out, size_t size) except -1:
+        """Internal C interface for :meth:`read`."""
         pass
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
+        """Internal C interface for :meth:`write`."""
         pass
 
-    cdef void seek(self, size_t offset) except *:
+    def write(self, bytes data):
+        """
+        write(self, data)
+
+        Write bytes to stream.
+
+        :param data: data to write
+        :type data: bytes
+        :return: number of bytes written
+        :rtype: int
+        """
+        size = self.write_(<const char*>data, len(data))
+        return size
+
+    cpdef void seek(self, size_t offset) except *:
+        """
+        seek(self, offset)
+        
+        Seek to specified offset.
+        
+        :param offset: seek offset
+        :type offset: int
+        """
         pass
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
+        """
+        tell(self)
+        
+        Return current stream offset.
+        
+        :return: stream offset
+        :rtype: int
+        """
         pass
 
-    cdef void flush(self) except *:
+    cpdef void flush(self) except *:
+        """
+        flush(self)
+        
+        Flush stream buffer.
+        """
         pass
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
+        """
+        close(self)
+        
+        Close the stream.
+        """
         pass
 
 
@@ -77,7 +134,7 @@ def _io_stream_py_test_read(IOStream stream, size_t size):
     Test interface for :meth:`IOStream.read`.
     """
     cdef bytearray buf = bytearray(size)
-    size = stream.read(<char*>buf, size)
+    size = stream.read_(<char*>buf, size)
     return buf[:size], size
 
 
@@ -87,7 +144,7 @@ def _io_stream_py_test_write(IOStream stream, bytes data):
 
     Test interface for :meth:`IOStream.write`.
     """
-    size = stream.write(<const char*>data, len(data))
+    size = stream.write_(<const char*>data, len(data))
     return size
 
 
@@ -146,17 +203,17 @@ cdef class BytesIOStream(IOStream):
         if initial_data is not None:
             self.buffer = initial_data
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
         if self.pos == strnpos:
             raise ValueError('Trying I/O on closed file.')
         return self.pos
 
-    cdef void seek(self, size_t offset) except *:
+    cpdef void seek(self, size_t offset) except *:
         if self.pos == strnpos:
             raise ValueError('Trying I/O on closed file.')
         self.pos = min(self.buffer.size(), offset)
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    cdef size_t read_(self, char* out, size_t size) except -1:
         if self.pos == strnpos:
             raise ValueError('Trying I/O on closed file.')
         if self.pos >= self.buffer.size():
@@ -167,7 +224,7 @@ cdef class BytesIOStream(IOStream):
         self.seek(self.pos + size)
         return size
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
         if self.pos == strnpos:
             raise ValueError('Trying I/O on closed file.')
         if self.pos + size > self.buffer.size():
@@ -176,11 +233,11 @@ cdef class BytesIOStream(IOStream):
         self.pos += size
         return size
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
         self.buffer.clear()
         self.pos = strnpos
 
-    cdef inline string getvalue(self):
+    cpdef string getvalue(self):
         return self.buffer
 
 
@@ -201,15 +258,15 @@ cdef class FileStream(IOStream):
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, str filename=None, str mode='rb'):
+    def __cinit__(self, str filename, str mode='rb'):
         self.fp = NULL
         if filename:
-            self.open(filename.encode(), mode.encode())
+            self.open_(filename.encode(), mode.encode())
 
     def __dealloc__(self):
         self.close()
 
-    cdef void open(self, char* path, char* mode=b'rb') except *:
+    cdef void open_(self, char* path, char* mode=b'rb') except *:
         if self.fp != NULL:
             self.close()
 
@@ -217,17 +274,17 @@ cdef class FileStream(IOStream):
         if self.fp == NULL:
             raise StreamError(strerror(errno).decode())
 
-    cdef void seek(self, size_t offset) except *:
+    cpdef void seek(self, size_t offset) except *:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
         fseek(self.fp, <unsigned long>offset, SEEK_SET)
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
         return ftell(self.fp)
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    cdef size_t read_(self, char* out, size_t size) except -1:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
         cdef size_t bytes_read
@@ -238,7 +295,7 @@ cdef class FileStream(IOStream):
                     raise StreamError('Error reading file')
             return bytes_read
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
         cdef size_t w = fwrite(data, sizeof(char), size, self.fp)
@@ -246,12 +303,12 @@ cdef class FileStream(IOStream):
             raise StreamError('Error writing file')
         return w
 
-    cdef void flush(self) except *:
+    cpdef void flush(self) except *:
         if self.fp == NULL:
             raise ValueError('Trying I/O on closed file.')
         fflush(self.fp)
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
         if self.fp != NULL:
             fclose(self.fp)
             self.fp = NULL
@@ -272,6 +329,33 @@ cdef class PythonIOStreamAdapter(IOStream):
 
     def __cinit__(self, py_stream):
         self.py_stream = py_stream
+
+    cdef size_t read_(self, char* out, size_t size) except -1:
+        cdef bytes data = self.py_stream.read(size)
+        size = min(<size_t>len(data), size)
+        memcpy(out, <char*>data, size * sizeof(char))
+        return size
+
+    cdef size_t write_(self, const char* data, size_t size) except -1:
+        return self.py_stream.write(data[:size])
+
+    cpdef size_t tell(self) except -1:
+        return self.py_stream.tell()
+
+    cpdef void seek(self, size_t offset) except *:
+        self.py_stream.seek(offset)
+
+    cpdef void flush(self) except *:
+        self.py_stream.flush()
+
+    cpdef void close(self) except *:
+        if self.py_stream is None:
+            return
+        try:
+            self.py_stream.close()
+        except ValueError:
+            # Ignore if already closed
+            pass
 
 
 cpdef IOStream wrap_stream(raw_stream):
@@ -297,12 +381,22 @@ cpdef IOStream wrap_stream(raw_stream):
 cdef class CompressingStream(IOStream):
     """Base class for compressed :class:`IOStream` types."""
 
-    cdef size_t begin_member(self):
-        """Begin compression member/frame (if not already started)."""
+    cpdef size_t begin_member(self):
+        """
+        Begin compression member / frame (if not already started).
+        
+        :return: bytes written
+        :rtype: int
+        """
         return 0
 
-    cdef size_t end_member(self):
-        """End compression member/frame (if one has been started)."""
+    cpdef size_t end_member(self):
+        """
+        End compression member / frame (if one has been started).
+        
+        :return: bytes written
+        :rtype: int
+        """
         return 0
 
 
@@ -336,7 +430,7 @@ cdef class GZipStream(CompressingStream):
     def __dealloc__(self):
         self.close()
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
         return self.stream_pos
 
     cdef void _init_z_stream(self, bint deflate) nogil:
@@ -367,14 +461,18 @@ cdef class GZipStream(CompressingStream):
             inflateInit2(&self.zst, self.window_bits)
             self.stream_state = CompressingStreamState.DECOMPRESSING
 
-    cdef void prepopulate(self, bint deflate, const string& initial_data):
+    cpdef void prepopulate(self, bint deflate, const string& initial_data):
         """
+        prepopulate(self, initial_data)
+        
         Fill internal working buffer with initial data.
         Use if some initial data of the stream have already been consumed (e.g., for stream content negotiation).
         Has to be called before the first :meth:`read()`.
         
         :param deflate: ``True`` if ``data`` is uncompressed, ``False`` if ``data`` is compressed GZip data. 
+        :type deflate: int
         :param initial_data: data to pre-populate
+        :type initial_data: bytes
         """
         self._init_z_stream(deflate)
         self.working_buf.append(initial_data)
@@ -413,7 +511,7 @@ cdef class GZipStream(CompressingStream):
         if self.working_buf.size() < size:
             self.working_buf.resize(size)
 
-        self.working_buf_filled = <unsigned int>self.raw_stream.read(self.working_buf.data(), size)
+        self.working_buf_filled = <unsigned int>self.raw_stream.read_(self.working_buf.data(), size)
         if self.working_buf_filled == 0:
             # EOF
             self._free_z_stream()
@@ -423,7 +521,7 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_in = self.working_buf_filled
         return True
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    cdef size_t read_(self, char* out, size_t size) except -1:
         if self.stream_state == CompressingStreamState.COMPRESSING:
             raise StreamError('Compression in progress.')
 
@@ -468,7 +566,7 @@ cdef class GZipStream(CompressingStream):
 
         return size - self.zst.avail_out
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
         if self.stream_state == CompressingStreamState.DECOMPRESSING:
             raise StreamError('Decompression in progress')
 
@@ -502,13 +600,13 @@ cdef class GZipStream(CompressingStream):
         if written == 0:
             return 0
 
-        return self.raw_stream.write(self.working_buf.data(), written)
+        return self.raw_stream.write_(self.working_buf.data(), written)
 
-    cdef size_t begin_member(self):
+    cpdef size_t begin_member(self):
         self.member_started = True
         return 0
 
-    cdef size_t end_member(self):
+    cpdef size_t end_member(self):
         if not self.member_started:
             return 0
 
@@ -534,13 +632,13 @@ cdef class GZipStream(CompressingStream):
 
         if written == 0:
             return 0
-        return self.raw_stream.write(self.working_buf.data(), written)
+        return self.raw_stream.write_(self.working_buf.data(), written)
 
-    cdef void flush(self) except *:
+    cpdef void flush(self) except *:
         self.end_member()
         self.raw_stream.flush()
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
         self.end_member()
         self._free_z_stream()
 
@@ -578,22 +676,25 @@ cdef class LZ4Stream(CompressingStream):
     def __dealloc__(self):
         self.close()
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
         return self.stream_pos
 
-    cdef void prepopulate(self, const string& initial_data):
+    cpdef void prepopulate(self, const string& initial_data):
         """
+        prepopulate(self, initial_data)
+        
         Fill internal working buffer with initial data.
         Use if some initial data of the stream have already been consumed (e.g., for stream content negotiation).
         Has to be called before the first :meth:`read()`.
         
         :param initial_data: data to pre-populate
+        :type initial_data: bytes
         """
         self.working_buf.append(initial_data)
         self.working_buf_filled += <unsigned int>initial_data.size()
         self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    cdef size_t read_(self, char* out, size_t size) except -1:
         if self.cctx != NULL:
             raise StreamError('Compression in progress.')
 
@@ -609,7 +710,7 @@ cdef class LZ4Stream(CompressingStream):
 
         while True:
             if self.working_buf_filled == 0 or self.working_buf_read == self.working_buf_filled:
-                self.working_buf_filled = <unsigned int>self.raw_stream.read(self.working_buf.data(), size)
+                self.working_buf_filled = <unsigned int>self.raw_stream.read_(self.working_buf.data(), size)
                 self.working_buf_read = 0
 
                 if self.working_buf_filled == 0:
@@ -634,7 +735,7 @@ cdef class LZ4Stream(CompressingStream):
 
         return out_buf_consumed
 
-    cdef size_t begin_member(self):
+    cpdef size_t begin_member(self):
         if self.frame_started:
             return 0
 
@@ -648,9 +749,9 @@ cdef class LZ4Stream(CompressingStream):
                                                  self.working_buf.size(), &self.prefs)
         self.frame_started = True
 
-        return self.raw_stream.write(self.working_buf.data(), written)
+        return self.raw_stream.write_(self.working_buf.data(), written)
 
-    cdef size_t end_member(self):
+    cpdef size_t end_member(self):
         if self.cctx == NULL or not self.frame_started:
             return 0
 
@@ -661,9 +762,9 @@ cdef class LZ4Stream(CompressingStream):
                 self.working_buf.resize(buf_needed)
             written = LZ4F_compressEnd(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
             self.frame_started = False
-        return self.raw_stream.write(self.working_buf.data(), written)
+        return self.raw_stream.write_(self.working_buf.data(), written)
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
         if self.dctx != NULL:
             raise StreamError('Decompression in progress.')
 
@@ -675,9 +776,9 @@ cdef class LZ4Stream(CompressingStream):
         cdef size_t written = LZ4F_compressUpdate(self.cctx, self.working_buf.data(), self.working_buf.size(),
                                                   data, size, NULL)
         self.stream_pos += written
-        return self.raw_stream.write(self.working_buf.data(), written) + header_bytes_written
+        return self.raw_stream.write_(self.working_buf.data(), written) + header_bytes_written
 
-    cdef void flush(self) except *:
+    cpdef void flush(self) except *:
         if self.cctx == NULL:
             return
 
@@ -686,11 +787,11 @@ cdef class LZ4Stream(CompressingStream):
             self.working_buf.resize(buf_needed)
 
         cdef size_t written = LZ4F_flush(self.cctx, self.working_buf.data(), self.working_buf.size(), NULL)
-        self.raw_stream.write(self.working_buf.data(), written)
+        self.raw_stream.write_(self.working_buf.data(), written)
         self.stream_pos += written
         self.raw_stream.flush()
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
         if self.cctx != NULL:
             self.end_member()
 
@@ -742,13 +843,13 @@ cdef class BrotliStream(CompressingStream):
         self.stream_state = CompressingStreamState.UNINIT
         self.compressor = None
 
-    cdef size_t begin_member(self):
+    cpdef size_t begin_member(self):
         pass
 
-    cdef size_t end_member(self):
+    cpdef size_t end_member(self):
         pass
 
-    cdef size_t read(self, char* out, size_t size) except -1:
+    cdef size_t read_(self, char* out, size_t size) except -1:
         if self.stream_state == CompressingStreamState.COMPRESSING:
             raise StreamError('Compression in progress.')
         elif self.stream_state == 0:
@@ -757,7 +858,7 @@ cdef class BrotliStream(CompressingStream):
 
         cdef string tmp_buffer
         tmp_buffer.resize(size)
-        cdef size_t bytes_read = self.raw_stream.read(tmp_buffer.data(), size)
+        cdef size_t bytes_read = self.raw_stream.read_(tmp_buffer.data(), size)
         tmp_buffer.resize(bytes_read)
 
         try:
@@ -771,31 +872,31 @@ cdef class BrotliStream(CompressingStream):
         return bytes_read
 
 
-    cdef size_t write(self, const char* data, size_t size) except -1:
+    cdef size_t write_(self, const char* data, size_t size) except -1:
         if self.stream_state == CompressingStreamState.DECOMPRESSING:
             raise StreamError('Decompression in progress.')
         elif self.stream_state == 0:
             self.compressor = brotli.Compressor()
             self.stream_state = CompressingStreamState.COMPRESSING
         cdef bytes compressed = self.compressor.process(<bytes>data[:size])
-        return self.raw_stream.write(<char*>compressed, len(compressed))
+        return self.raw_stream.write_(<char*>compressed, len(compressed))
 
-    cdef size_t tell(self) except -1:
+    cpdef size_t tell(self) except -1:
         return self.raw_stream.tell()
 
-    cdef void seek(self, size_t offset) except *:
+    cpdef void seek(self, size_t offset) except *:
         self.raw_stream.seek(offset)
 
-    cdef void flush(self)  except *:
+    cpdef void flush(self)  except *:
         if self.stream_state == CompressingStreamState.COMPRESSING:
             compressed = self.compressor.flush()
-            self.raw_stream.write(<char*>compressed, len(compressed))
+            self.raw_stream.write_(<char*>compressed, len(compressed))
             self.raw_stream.flush()
 
-    cdef void close(self) except *:
+    cpdef void close(self) except *:
         if self.stream_state == CompressingStreamState.COMPRESSING:
             compressed = self.compressor.finish()
-            self.raw_stream.write(<char*>compressed, len(compressed))
+            self.raw_stream.write_(<char*>compressed, len(compressed))
         self.compressor = None
         self.stream_state = CompressingStreamState.UNINIT
         self.working_buf.clear()
@@ -872,7 +973,7 @@ cdef class BufferedReader:
         if self.buf_view.size() > 0:
             return True if self.limit == strnpos else self.limit > self.limit_consumed
 
-        cdef size_t bytes_read = self.stream.read(self.buf.data(), self.buf.size())
+        cdef size_t bytes_read = self.stream.read_(self.buf.data(), self.buf.size())
         self.buf_view = string_view(self.buf.data(), bytes_read)
 
         if self.buf_view.size() == 0:

@@ -378,16 +378,16 @@ cdef class WarcHeaderMap:
         """Write header block into stream."""
         cdef size_t bytes_written = 0
         if not self._status_line.empty():
-            bytes_written += stream.write(self._status_line.data(), self._status_line.size())
-            bytes_written += stream.write(<char*>b'\r\n', 2)
+            bytes_written += stream.write_(self._status_line.data(), self._status_line.size())
+            bytes_written += stream.write_(<char*>b'\r\n', 2)
 
         cdef vector[str_pair].iterator it = self._headers.begin()
         while it != self._headers.end():
             if not deref(it)[0].empty():
-                bytes_written += stream.write(deref(it)[0].data(), deref(it)[0].size())
-                bytes_written += stream.write(<char*>b': ', 2)
-            bytes_written += stream.write(deref(it)[1].data(), deref(it)[1].size())
-            bytes_written += stream.write(<char*>b'\r\n', 2)
+                bytes_written += stream.write_(deref(it)[0].data(), deref(it)[0].size())
+                bytes_written += stream.write_(<char*>b': ', 2)
+            bytes_written += stream.write_(deref(it)[1].data(), deref(it)[1].size())
+            bytes_written += stream.write_(<char*>b'\r\n', 2)
             inc(it)
         return bytes_written
 
@@ -869,7 +869,7 @@ cdef class WarcRecord:
 
         if self._http_parsed:
             self._http_headers.write(block_buf)
-            block_buf.write(<char*>b'\r\n', 2)
+            block_buf.write_(<char*>b'\r\n', 2)
 
             if checksum_data:
                 block_hash.update(block_buf.getvalue())
@@ -884,7 +884,7 @@ cdef class WarcRecord:
                 block_hash.update(payload_data.data()[:payload_data.size()])
                 if payload_hash is not None:
                     payload_hash.update(payload_data.data()[:payload_data.size()])
-            block_buf.write(payload_data.data(), payload_data.size())
+            block_buf.write_(payload_data.data(), payload_data.size())
 
         self._headers.set_header(<char*>b'Content-Length', to_string(<long int>block_buf.tell()))
         if payload_hash:
@@ -926,11 +926,11 @@ cdef class WarcRecord:
             raise TypeError(f"Object of type '{type(in_stream).__name__}' is not a valid stream.")
 
         bytes_written += self._headers.write(out_stream_wrapped)
-        bytes_written += out_stream_wrapped.write(b'\r\n', 2)
+        bytes_written += out_stream_wrapped.write_(b'\r\n', 2)
 
         if write_payload_headers and self._http_parsed:
             bytes_written += self._http_headers.write(out_stream_wrapped)
-            bytes_written += out_stream_wrapped.write(b'\r\n', 2)
+            bytes_written += out_stream_wrapped.write_(b'\r\n', 2)
 
         cdef string buffer
         cdef size_t bytes_read = 0
@@ -941,12 +941,12 @@ cdef class WarcRecord:
             else:
                 if buffer.size() < chunk_size:
                     buffer.resize(chunk_size)
-                bytes_read = in_stream_wrapped.read(buffer.data(), chunk_size)
+                bytes_read = in_stream_wrapped.read_(buffer.data(), chunk_size)
             if bytes_read == 0:
                 break
-            bytes_written += out_stream_wrapped.write(buffer.data(), bytes_read)
+            bytes_written += out_stream_wrapped.write_(buffer.data(), bytes_read)
 
-        bytes_written += out_stream_wrapped.write(b'\r\n\r\n', 4)
+        bytes_written += out_stream_wrapped.write_(b'\r\n\r\n', 4)
 
         if compress_member_started:
             bytes_written += (<CompressingStream>out_stream_wrapped).end_member()
