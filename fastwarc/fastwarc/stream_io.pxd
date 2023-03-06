@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import cython
+
 from libc.stdio cimport FILE
-from libc.string cimport memcpy
 from libcpp.string cimport string
 
 from resiliparse_inc.zlib cimport *
