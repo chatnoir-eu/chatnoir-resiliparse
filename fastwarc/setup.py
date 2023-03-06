@@ -14,6 +14,7 @@
 
 from itertools import chain
 import os
+import platform
 import sys
 
 import distutils.ccompiler
@@ -72,6 +73,14 @@ if CXX == 'unix':
     if ASAN:
         cpp_args['extra_compile_args'].append('-fsanitize=address')
         cpp_args['extra_link_args'].append('-fsanitize=address')
+    if os.getenv('CIBUILDWHEEL'):
+        # Programmatically set correct include and library paths for macOS CI cross-compilation
+        arch = os.getenv('_PYTHON_HOST_PLATFORM', '').split('-')[-1] or platform.processor()
+        arch = arch.replace('x86_64', 'x64')
+        if arch in ['x64', 'arm64']:
+            cpp_args['extra_compile_args'].append(f'-I/usr/local/share/vcpkg/installed/{arch}-osx/include')
+            cpp_args['extra_link_args'].append(f'-L/usr/local/share/vcpkg/installed/{arch}-osx/lib')
+
 elif CXX == 'msvc':
     cpp_args.update(dict(
         extra_compile_args=['/std:c++latest', '/W3'],

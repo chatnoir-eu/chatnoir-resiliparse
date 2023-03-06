@@ -23,7 +23,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_BUILD: "cp3*"
-      CIBW_SKIP: "cp36* *-musllinux_*"
+      CIBW_SKIP: "cp36* cp37* *-musllinux_*"
       CIBW_ARCHS: native
       CIBW_BUILD_FRONTEND: build
       CIBW_MANYLINUX_X86_64_IMAGE: webis/resiliparse-manylinux2014_x86_64
@@ -31,22 +31,25 @@ jobs:
       CIBW_TEST_EXTRAS: all,test
       CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
 
+      PYTHONPATH: ../resiliparse:../fastwarc
       CIBW_ENVIRONMENT: PYTHONPATH="$PYTHONPATH"
 
+      # macOS build env vars
       CIBW_ARCHS_MACOS: "x86_64 arm64"
+      CIBW_ENVIRONMENT_MACOS: >-
+        LIBRARY_PATH_x86_64="/usr/local/share/vcpkg/installed/x64-osx/lib"
+        LIBRARY_PATH_arm64="/usr/local/share/vcpkg/installed/arm64-osx/lib"
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-        DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-listdeps {wheel} &&
-        DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
+        DYLD_LIBRARY_PATH=$LIBRARY_PATH_{delocate_archs} delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
+#      MACOSX_DEPLOYMENT_TARGET: "11.0"
 
+      # Windows build env vars
       CIBW_BEFORE_BUILD_WINDOWS: "pip install delvewheel"
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
         delvewheel repair --add-path C:\vcpkg\installed\x64-windows\bin -w {dest_dir} {wheel}
-
-      PYTHONPATH: ../resiliparse:../fastwarc
-      CPATH: /usr/local/share/vcpkg/installed/x64-osx/include:/usr/local/share/vcpkg/installed/arm64-osx/include
-      LIBRARY_PATH: /usr/local/share/vcpkg/installed/x64-osx/lib:/usr/local/share/vcpkg/installed/arm64-osx/lib
       INCLUDE: C:\vcpkg\installed\x64-windows\include
       LIB: C:\vcpkg\installed\x64-windows\lib
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -59,7 +62,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-8     # INCREMENT ME!!
+          key: ${{ runner.os }}-vcpkg-10     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -222,7 +225,7 @@ jobs:
 
           python -m pip install twine
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
-          
+
           PYTHON_ABI="$(python -c "import sys; print(''.join(map(str, sys.version_info[:2])))")"
           find wheelhouse -name "FastWARC-*cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
           find wheelhouse -name "Resiliparse-*cp$PYTHON_ABI-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
