@@ -334,6 +334,8 @@ cdef class CompressingStream(IOStream):
 
     cpdef size_t begin_member(self):
         """
+        begin_member(self)
+        
         Begin compression member / frame (if not already started).
         
         :return: bytes written
@@ -343,6 +345,8 @@ cdef class CompressingStream(IOStream):
 
     cpdef size_t end_member(self):
         """
+        end_member(self)
+        
         End compression member / frame (if one has been started).
         
         :return: bytes written
