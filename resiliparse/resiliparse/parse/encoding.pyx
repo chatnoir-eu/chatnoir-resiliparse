@@ -178,9 +178,9 @@ def __chardet_exit():
     __chardet = None
 
 
-cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible=True, bint from_html_meta=False):
+cpdef str detect_encoding(bytes data, size_t max_len=131072, bint html5_compatible=True, bint from_html_meta=False):
     """
-    detect_encoding(data, max_len=4096, html5_compatible=True, from_html_meta=False)
+    detect_encoding(data, max_len=131072, html5_compatible=True, from_html_meta=False)
 
     Detect the encoding of a byte string. This is a convenience wrapper around :class:`EncodingDetector`
     that uses a single global instance.
@@ -189,7 +189,7 @@ cpdef str detect_encoding(bytes data, size_t max_len=4096, bint html5_compatible
     bytes to prevent slow-downs and keep memory usage low. If the string is longer than this limit, only
     the ``max_len / 2`` bytes from the start and from the end of the string will be used. This is a tradeoff
     between performance and accuracy. If you need higher accuracy, increase the limit to feed more data
-    into the :class:`EncodingDetector`.
+    into the :class:`EncodingDetector` (the default should be more than enough in most cases).
 
     The :class:`EncodingDetector` relies on `uchardet` as its encoding detection engine. If the
     input string is an HTML document, you can also use the available information from the HTML meta charset
