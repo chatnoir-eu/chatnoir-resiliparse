@@ -181,6 +181,14 @@ cdef class BytesIOStream(IOStream):
         self.pos = strnpos
 
     cpdef string getvalue(self):
+        """
+        getvalue(self)
+        
+        Get buffer value.
+        
+        :return: buffer value
+        :rtype: bytes
+        """
         return self.buffer
 
 
