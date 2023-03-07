@@ -1,0 +1,4 @@
+recursive-include fastwarc *.pyx *.pxd *.h
+recursive-exclude fastwarc *.cpp
+graft resiliparse_common
+graft resiliparse_inc

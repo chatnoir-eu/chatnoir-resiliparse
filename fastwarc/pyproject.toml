@@ -1,6 +1,59 @@
 [build-system]
-requires = [
-    "setuptools>=18.0",
-    "Cython>=0.29.24"
-]
+requires = ["setuptools>=65.0", "Cython>=0.29.33"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "FastWARC"
+version = "0.14.2"
+description = "A high-performance WARC parsing library for Python written in C++/Cython."
+authors = [
+  { name = "Janek Bevendorff" }
+]
+license = { text = "Apache License 2.0" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "brotli",
+  "click",
+  "tqdm"
+]
+
+[project.urls]
+repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse"
+homepage = "https://resiliparse.chatnoir.eu"
+documentation = "https://resiliparse.chatnoir.eu"
+
+[project.optional-dependencies]
+all = []
+test = [
+  "pytest>=7.2.2",
+  "pytest-cov>=4.0.0",
+  "lz4"
+]
+
+[tool.setuptools.packages.find]
+include = ["fastwarc*"]
+
+[tool.cibuildwheel]
+archs = "native"
+build = "cp3*"
+build-frontend = "build"
+test-extras = ["all", "test"]
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_x86_64"
+
+  [tool.cibuildwheel.overrides.environment]
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/x64-osx/lib"
+  CPATH = "/usr/local/share/vcpkg/installed/x64-osx/include"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_arm64"
+
+  [tool.cibuildwheel.overrides.environment]
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/arm64-osx/lib"
+  CPATH = "/usr/local/share/vcpkg/installed/arm64-osx/include"
+
+[tool.cibuildwheel.windows.environment]
+INCLUDE = 'C:\\vcpkg\\installed\\x64-windows\\include'
+LIB = 'C:\\vcpkg\\installed\\x64-windows\\lib'

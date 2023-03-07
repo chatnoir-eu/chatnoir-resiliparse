@@ -23,10 +23,10 @@ sys.path.extend([
 # -- Project information -----------------------------------------------------
 
 project = 'ChatNoir Resiliparse'
-copyright = '2021, Janek Bevendorff'
+copyright = '2023, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = re.search(r"^VERSION\s*=\s*'([\d.]+)'$",
-                    open(os.path.join(src_dir, 'resiliparse', 'setup.py')).read(), re.M).group(1)
+release = re.search(r'^version\s*=\s*"([\d.]+)"$',
+                    open(os.path.join(src_dir, 'resiliparse', 'pyproject.toml')).read(), re.M).group(1)
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------

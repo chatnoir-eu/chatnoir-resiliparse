@@ -11,7 +11,7 @@ if platform.system() == 'Windows':
     pytest.skip('Process Guards are not supported on Windows.', allow_module_level=True)
 
 # GitHub's macOS VM is too slow, so we often get race conditions with short timeouts.
-if platform.system() == 'Darwin' and 'CIBW_BUILD' in os.environ:
+if platform.system() == 'Darwin' and 'CIBUILDWHEEL' in os.environ:
     pytest.skip('macOS CI detected: Skipping unreliable process guard tests due to CI slowness.',
                 allow_module_level=True)
 

@@ -1,6 +1,73 @@
 [build-system]
-requires = [
-    "setuptools>=18.0",
-    "Cython>=0.29.24"
-]
+requires = ["setuptools>=65.0", "Cython>=0.29.33"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "Resiliparse"
+version = "0.14.2"
+description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
+authors = [
+  { name = "Janek Bevendorff" }
+]
+license = { text = "Apache License 2.0" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "fastwarc==0.14.2"
+]
+
+[project.urls]
+repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse"
+homepage = "https://resiliparse.chatnoir.eu"
+documentation = "https://resiliparse.chatnoir.eu"
+
+[project.optional-dependencies]
+all = [
+  "resiliparse[beam,cli]"
+]
+beam = [
+  "apache_beam[aws]>=2.37.0; python_version<'3.11'",
+  "boto3>=1.9",
+  "elasticsearch>=7.0.0"
+]
+cli = [
+  "click",
+  "joblib",
+  "tqdm"
+]
+cli-benchmark = [
+  "beautifulsoup4",
+  "langid",
+  "selectolax"
+]
+test = [
+  "pytest>=7.2.2",
+  "pytest-cov>=4.0.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["resiliparse*"]
+
+[tool.cibuildwheel]
+archs = "native"
+build = "cp3*"
+build-frontend = "build"
+test-extras = ["all", "test"]
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_x86_64"
+
+  [tool.cibuildwheel.overrides.environment]
+  CPATH = "/usr/local/share/vcpkg/installed/x64-osx/include"
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/x64-osx/lib"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_arm64"
+
+  [tool.cibuildwheel.overrides.environment]
+  CPATH = "/usr/local/share/vcpkg/installed/arm64-osx/include"
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/arm64-osx/lib"
+
+[tool.cibuildwheel.windows.environment]
+INCLUDE = 'C:\\vcpkg\\installed\\x64-windows\\include'
+LIB = 'C:\\vcpkg\\installed\\x64-windows\\lib'
