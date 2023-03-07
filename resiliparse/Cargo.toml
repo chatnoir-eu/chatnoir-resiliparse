@@ -1,0 +1,12 @@
+[package]
+name = "resiliparse"
+version = "0.14.2"
+edition = "2021"
+
+[lib]
+name = "resiliparse"
+path = "rs/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.18.1", features = ["extension-module"] }
