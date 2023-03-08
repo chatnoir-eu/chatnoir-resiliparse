@@ -3,5 +3,3 @@ recursive-include fastwarc *.pxd
 recursive-exclude resiliparse *.cpp
 graft resiliparse_common
 graft resiliparse_inc
-include Cargo.toml
-graft rs

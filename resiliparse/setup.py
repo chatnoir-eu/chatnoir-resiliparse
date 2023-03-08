@@ -22,7 +22,6 @@ from Cython.Build import cythonize
 from Cython.Distutils.build_ext import new_build_ext as build_ext
 import distutils.ccompiler
 from setuptools import Extension, setup
-from setuptools_rust import Binding, RustExtension
 
 TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
@@ -115,12 +114,8 @@ if fastwarc_headers:
     os.makedirs(os.path.join(ROOT_DIR, 'fastwarc'), exist_ok=True)
     [shutil.copy2(f, os.path.join(ROOT_DIR, 'fastwarc')) for f in fastwarc_headers]
 
-if os.getenv('CARGO_HOME'):
-    os.environ['PATH'] = os.pathsep.join([os.path.join(os.getenv('CARGO_HOME'), 'bin'), os.environ['PATH']])
-
 setup(
     ext_modules=get_ext_modules(),
-    rust_extensions=[RustExtension('resiliparse.rust_test', binding=Binding.PyO3)],
     cmdclass=dict(build_ext=build_ext),
     exclude_package_data={
         '': [] if 'sdist' in sys.argv else ['*.pxd', '*.pxi', '*.pyx', '*.h', '*.cpp']
