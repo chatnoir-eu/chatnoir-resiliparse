@@ -115,6 +115,9 @@ if fastwarc_headers:
     os.makedirs(os.path.join(ROOT_DIR, 'fastwarc'), exist_ok=True)
     [shutil.copy2(f, os.path.join(ROOT_DIR, 'fastwarc')) for f in fastwarc_headers]
 
+if os.getenv('CARGO_HOME'):
+    os.environ['PATH'] = os.pathsep.join([os.path.join(os.getenv('CARGO_HOME'), 'bin'), os.environ['PATH']])
+
 setup(
     ext_modules=get_ext_modules(),
     rust_extensions=[RustExtension('resiliparse.rust_test', binding=Binding.PyO3)],
