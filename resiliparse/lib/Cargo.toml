@@ -1,0 +1,14 @@
+[package]
+name = "resiliparse_lib"
+publish = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Common Rust modules for Resiliparse"
+
+[lib]
+name = "resiliparse_common"
+path = "lib.rs"
+
+[build-dependencies]
+bindgen = "^0.64.0"

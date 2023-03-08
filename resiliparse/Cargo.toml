@@ -1,12 +1,14 @@
-[package]
-name = "resiliparse"
-version = "0.14.2"
+[workspace]
+members = [
+  "lib"
+]
+
+[workspace.package]
+version = "0.0.0"
 edition = "2021"
+publish = false
+description = "Resiliparse Rust bindings"
+authors = ["Janek Bevendorff"]
 
-[lib]
-name = "resiliparse"
-path = "rs/lib.rs"
-crate-type = ["cdylib"]
-
-[dependencies]
-pyo3 = { version = "0.18.1", features = ["extension-module"] }
+[workspace.dependencies]
+pyo3 = { version = "^0.18.1", features = ["extension-module"] }
