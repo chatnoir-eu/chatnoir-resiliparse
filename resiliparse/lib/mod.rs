@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(non_camel_case_types)]
-#![allow(non_upper_case_globals)]
-#![allow(dead_code)]
+mod third_party;
 
-pub(crate) mod lexbor;
+pub mod parse;
