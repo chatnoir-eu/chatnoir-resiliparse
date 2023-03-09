@@ -8,7 +8,7 @@ description = "Common Rust modules for Resiliparse"
 
 [lib]
 name = "resiliparse_common"
-path = "lib.rs"
+path = "mod.rs"
 
 [build-dependencies]
 bindgen = "^0.64.0"
