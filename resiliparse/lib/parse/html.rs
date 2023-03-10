@@ -36,7 +36,7 @@ impl Drop for HTMLTreeRc {
 
 /// HTML DOM tree.
 pub struct HTMLTree {
-    html_document: Rc<HTMLTreeRc>
+    tree_rc: Rc<HTMLTreeRc>
 }
 
 impl From<&[u8]> for HTMLTree {
@@ -49,7 +49,7 @@ impl From<&[u8]> for HTMLTree {
             lxb_html_document_parse(doc_ptr, value.as_ptr(), value.len());
         }
 
-        HTMLTree { html_document: Rc::new(HTMLTreeRc { html_document: doc_ptr }) }
+        HTMLTree { tree_rc: Rc::new(HTMLTreeRc { html_document: doc_ptr }) }
     }
 }
 
@@ -96,7 +96,37 @@ impl From<&String> for HTMLTree {
 }
 
 impl HTMLTree {
+    fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
+        if self.tree_rc.html_document.is_null()  {
+            None
+        } else {
+            unsafe { Some(&mut *self.tree_rc.html_document) }
+        }
+    }
 
+    pub fn document(&self) -> Option<DOMNode> {
+        Some(DOMNode::new(
+            &self.tree_rc,
+            addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t))
+    }
+
+    pub fn head(&self) -> Option<DOMNode> {
+        let head = self.get_html_document_raw()?.head as *mut lxb_dom_node_t;
+        if head.is_null() {
+            None
+        } else {
+            Some(DOMNode::new(&self.tree_rc, head))
+        }
+    }
+
+    pub fn body(&self) -> Option<DOMNode> {
+        let body = self.get_html_document_raw()?.body as *mut lxb_dom_node_t;
+        if body.is_null() {
+            None
+        } else {
+            Some(DOMNode::new(&self.tree_rc, body))
+        }
+    }
 }
 
 #[derive(PartialEq, Eq)]
