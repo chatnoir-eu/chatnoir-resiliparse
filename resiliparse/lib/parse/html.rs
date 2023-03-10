@@ -51,9 +51,30 @@ impl From<&[u8]> for HTMLTree {
     }
 }
 
+impl From<Vec<u8>> for HTMLTree {
+    #[inline]
+    fn from(value: Vec<u8>) -> Self {
+        value.as_slice().into()
+    }
+}
+
+impl From<&Vec<u8>> for HTMLTree {
+    #[inline]
+    fn from(value: &Vec<u8>) -> Self {
+        value.as_slice().into()
+    }
+}
+
 impl From<&str> for HTMLTree {
     #[inline]
     fn from(value: &str) -> Self {
+        value.as_bytes().into()
+    }
+}
+
+impl From<String> for HTMLTree {
+    #[inline]
+    fn from(value: String) -> Self {
         value.as_bytes().into()
     }
 }
@@ -67,7 +88,7 @@ impl From<&String> for HTMLTree {
 
 impl HTMLTree {
     #[inline]
-    pub fn from_bytes(html: &[u8]) -> HTMLTree {
+    pub fn from_bytes(html: &Vec<u8>) -> HTMLTree {
         html.into()
     }
 
@@ -351,75 +372,45 @@ impl DOMNode {
     }
 }
 
-// Collection of DOM nodes that are the result set of an element matching operation.
-//
-// A node collection is only valid for as long as the owning :class:`HTMLTree` is alive
-// and the DOM tree hasn't been modified. Do not access :class:`DOMCollection` instances
-// after any sort of DOM tree manipulation.
-// pub struct DOMCollection<'a> {
-//     tree: &'a HTMLTree,
-//     coll: *mut lxb_dom_collection_t
-// }
-//
-// impl<'a> DOMCollection<'_> {
-//     fn new(tree: &HTMLTree, coll: *mut lxb_dom_collection_t) -> DOMCollection {
-//         DOMCollection { tree, coll }
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::parse::html::HTMLTree;
 
-// cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collection_t* coll):
-//     cdef DOMCollection return_coll = DOMCollection.__new__(DOMCollection, tree)
-//     return_coll.coll = coll
-//     return return_coll
-//
-//
-// cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0:
-//     parser[0] = lxb_css_parser_create()
-//     if lxb_css_parser_init(parser[0], NULL) != LXB_STATUS_OK:
-//         with gil:
-//             raise RuntimeError('Failed to initialize CSS parser.')
-//     return True
-//
-//
-// cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil:
-//     if parser:
-//         lxb_css_parser_destroy(parser, True)
-//
-//
-// cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
-//                              lxb_selectors_t** selectors) nogil except 0:
-//     css_selectors[0] = lxb_css_selectors_create()
-//     if lxb_css_selectors_init(css_selectors[0]) != LXB_STATUS_OK:
-//         with gil:
-//             raise RuntimeError('Failed to initialize CSS selectors.')
-//
-//     lxb_css_parser_selectors_set(parser, css_selectors[0])
-//
-//     selectors[0] = lxb_selectors_create()
-//     if lxb_selectors_init(selectors[0]) != LXB_STATUS_OK:
-//         with gil:
-//             raise RuntimeError('Failed to initialize element selectors.')
-//
-//     return True
-//
-//
-// cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selectors_t* selectors) nogil:
-//     if selectors:
-//         lxb_selectors_destroy(selectors, True)
-//     if css_selectors:
-//         lxb_css_selectors_destroy(css_selectors, True)
-//
-//
-// cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx) nogil:
-//     (<string*>ctx).append(<const char*>data, len)
-//
-//
-// cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
-//                                                   size_t selector_len) nogil except NULL:
-//     cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(css_parser, selector, selector_len)
-//     cdef string err
-//     if css_parser.status != LXB_STATUS_OK:
-//         lxb_css_log_serialize(css_parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <const lxb_char_t*>b'', 0)
-//         with gil:
-//             raise ValueError(f'CSS parser error: {err.decode().strip()}')
-//     return sel_list
+    const HTML: &str = r#"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Example page</title>
+  </head>
+  <body>
+    <main id="foo">
+      <p id="a">Hello <span class="bar">world</span>!</p>
+      <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
+     </main>
+     <!-- A comment -->
+  </body>
+</html>"#;
+
+    #[test]
+    fn parse_from_str() {
+        let _tree = HTMLTree::from(HTML);
+        HTMLTree::from_str(HTML);
+    }
+
+    #[test]
+    fn parse_from_slice_u8() {
+        let _tree = HTMLTree::from(HTML.as_bytes());
+    }
+
+    #[test]
+    fn parse_from_vec_u8() {
+        let _tree = HTMLTree::from(HTML.to_owned().into_bytes());
+        HTMLTree::from_bytes(&HTML.to_owned().into_bytes());
+    }
+
+    #[test]
+    fn parse_from_string() {
+        let _tree = HTMLTree::from(HTML.to_owned());
+        HTMLTree::from_string(&HTML.to_owned());
+    }
+}

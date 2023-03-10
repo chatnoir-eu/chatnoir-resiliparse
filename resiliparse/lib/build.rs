@@ -17,6 +17,7 @@ use std::path::PathBuf;
 extern crate bindgen;
 
 fn main() {
+    println!("cargo:rustc-link-lib=lexbor");
     println!("cargo:rerun-if-changed=third_party/lexbor.h");
     bindgen::Builder::default()
         .header("third_party/lexbor.h")
