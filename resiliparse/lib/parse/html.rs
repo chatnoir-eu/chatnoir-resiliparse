@@ -40,6 +40,8 @@ pub struct HTMLTree {
 }
 
 impl From<&[u8]> for HTMLTree {
+    /// Decode a raw HTML byte string and parse it into a DOM tree.
+    /// The bytes must be a valid UTF-8 encoding.
     fn from(value: &[u8]) -> Self {
         let doc_ptr;
         unsafe {
@@ -52,6 +54,8 @@ impl From<&[u8]> for HTMLTree {
 }
 
 impl From<Vec<u8>> for HTMLTree {
+    /// Decode a raw HTML byte string and parse it into a DOM tree.
+    /// The bytes must be a valid UTF-8 encoding.
     #[inline]
     fn from(value: Vec<u8>) -> Self {
         value.as_slice().into()
@@ -59,6 +63,8 @@ impl From<Vec<u8>> for HTMLTree {
 }
 
 impl From<&Vec<u8>> for HTMLTree {
+    /// Decode a raw HTML byte string and parse it into a DOM tree.
+    /// The bytes must be a valid UTF-8 encoding.
     #[inline]
     fn from(value: &Vec<u8>) -> Self {
         value.as_slice().into()
@@ -66,6 +72,7 @@ impl From<&Vec<u8>> for HTMLTree {
 }
 
 impl From<&str> for HTMLTree {
+    /// Parse HTML from a Unicode string slice into a DOM tree.
     #[inline]
     fn from(value: &str) -> Self {
         value.as_bytes().into()
@@ -73,6 +80,7 @@ impl From<&str> for HTMLTree {
 }
 
 impl From<String> for HTMLTree {
+    /// Parse HTML from a Unicode String into a DOM tree.
     #[inline]
     fn from(value: String) -> Self {
         value.as_bytes().into()
@@ -80,6 +88,7 @@ impl From<String> for HTMLTree {
 }
 
 impl From<&String> for HTMLTree {
+    /// Parse HTML from a Unicode String into a DOM tree.
     #[inline]
     fn from(value: &String) -> Self {
         value.as_bytes().into()
@@ -87,20 +96,7 @@ impl From<&String> for HTMLTree {
 }
 
 impl HTMLTree {
-    #[inline]
-    pub fn from_bytes(html: &Vec<u8>) -> HTMLTree {
-        html.into()
-    }
 
-    #[inline]
-    pub fn from_str(html: &str) -> HTMLTree {
-        html.into()
-    }
-
-    #[inline]
-    pub fn from_string(html: &String) -> HTMLTree {
-        html.into()
-    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -393,24 +389,20 @@ mod tests {
 
     #[test]
     fn parse_from_str() {
-        let _tree = HTMLTree::from(HTML);
-        HTMLTree::from_str(HTML);
-    }
-
-    #[test]
-    fn parse_from_slice_u8() {
-        let _tree = HTMLTree::from(HTML.as_bytes());
-    }
-
-    #[test]
-    fn parse_from_vec_u8() {
-        let _tree = HTMLTree::from(HTML.to_owned().into_bytes());
-        HTMLTree::from_bytes(&HTML.to_owned().into_bytes());
+        let _tree1 = HTMLTree::from(HTML);
+        let _tree2 = HTMLTree::from("<html></html>");
     }
 
     #[test]
     fn parse_from_string() {
-        let _tree = HTMLTree::from(HTML.to_owned());
-        HTMLTree::from_string(&HTML.to_owned());
+        let _tree1 = HTMLTree::from(HTML.to_owned());
+        let _tree2 = HTMLTree::from(&HTML.to_owned());
+    }
+
+    #[test]
+    fn parse_from_bytes() {
+        let _tree1 = HTMLTree::from(HTML.to_owned().into_bytes());
+        let _tree2 = HTMLTree::from(&HTML.to_owned().into_bytes());
+        let _tree3 = HTMLTree::from(HTML.as_bytes());
     }
 }
