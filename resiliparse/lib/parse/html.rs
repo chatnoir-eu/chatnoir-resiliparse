@@ -14,15 +14,66 @@
 
 #![allow(dead_code)]
 
-use std::slice;
+use std::{ptr, slice};
 use std::ptr::addr_of_mut;
 use std::rc::{Rc, Weak};
 
 use crate::third_party::lexbor::*;
 
-/// DOM tree.
+/// Internal heap-allocated and reference-counted HTMLTree.
+struct HTMLTreeRc {
+    html_document: *mut lxb_html_document_t
+}
+
+impl Drop for HTMLTreeRc {
+    fn drop(&mut self) {
+        if !self.html_document.is_null() {
+            unsafe { lxb_html_document_destroy(self.html_document); }
+            self.html_document = ptr::null_mut();
+        }
+    }
+}
+
+/// HTML DOM tree.
 pub struct HTMLTree {
-    dom_document: lxb_dom_document
+    html_document: Rc<HTMLTreeRc>
+}
+
+impl From<&[u8]> for HTMLTree {
+    fn from(value: &[u8]) -> Self {
+        let value_ptr = value.as_ptr();
+        let doc_ptr = ptr::null_mut();
+        unsafe { lxb_html_document_parse(doc_ptr, value_ptr, value.len()); }
+
+        let tree = Rc::new(HTMLTreeRc { html_document: doc_ptr });
+        HTMLTree { html_document: tree }
+    }
+}
+
+impl From<&str> for HTMLTree {
+    fn from(value: &str) -> Self {
+        value.as_bytes().into()
+    }
+}
+
+impl From<&String> for HTMLTree {
+    fn from(value: &String) -> Self {
+        value.as_bytes().into()
+    }
+}
+
+impl HTMLTree {
+    pub fn from_bytes(html: &[u8]) -> HTMLTree {
+        html.into()
+    }
+
+    pub fn from_str(html: &str) -> HTMLTree {
+        html.into()
+    }
+
+    pub fn from_string(html: &String) -> HTMLTree {
+        html.into()
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -66,12 +117,12 @@ impl From<lxb_dom_node_type_t> for NodeType {
 
 /// DOM node.
 pub struct DOMNode {
-    tree: Weak<HTMLTree>,
+    tree: Weak<HTMLTreeRc>,
     node: *mut lxb_dom_node_t
 }
 
 impl DOMNode {
-    fn new(tree: &Rc<HTMLTree>, node: *mut lxb_dom_node_t) -> DOMNode {
+    fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> DOMNode {
         DOMNode { tree: Rc::downgrade(tree), node }
     }
 
