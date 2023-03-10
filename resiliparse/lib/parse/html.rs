@@ -41,12 +41,13 @@ pub struct HTMLTree {
 
 impl From<&[u8]> for HTMLTree {
     fn from(value: &[u8]) -> Self {
-        let value_ptr = value.as_ptr();
-        let doc_ptr = ptr::null_mut();
-        unsafe { lxb_html_document_parse(doc_ptr, value_ptr, value.len()); }
+        let doc_ptr;
+        unsafe {
+            doc_ptr = lxb_html_document_create();
+            lxb_html_document_parse(doc_ptr, value.as_ptr(), value.len());
+        }
 
-        let tree = Rc::new(HTMLTreeRc { html_document: doc_ptr });
-        HTMLTree { html_document: tree }
+        HTMLTree { html_document: Rc::new(HTMLTreeRc { html_document: doc_ptr }) }
     }
 }
 
