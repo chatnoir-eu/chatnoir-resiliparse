@@ -122,8 +122,8 @@ pub struct DOMNode {
 }
 
 impl DOMNode {
-    fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> DOMNode {
-        DOMNode { tree: Rc::downgrade(tree), node }
+    fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Self {
+        Self { tree: Rc::downgrade(tree), node }
     }
 
     /// DOM node type.
@@ -148,31 +148,31 @@ impl DOMNode {
     }
 
     /// First child element of this DOM node.
-    pub fn first_child(&self) -> Option<DOMNode> {
+    pub fn first_child(&self) -> Option<Self> {
         let t = self.tree.upgrade()?;
         unsafe {
             if (*self.node).first_child.is_null() {
                 None
             } else {
-                Some(DOMNode::new(&t, (*self.node).first_child))
+                Some(Self::new(&t, (*self.node).first_child))
             }
         }
     }
 
     /// Last child element of this DOM node.
-    pub fn last_child(&self) -> Option<DOMNode> {
+    pub fn last_child(&self) -> Option<Self> {
         let t = self.tree.upgrade()?;
         unsafe {
             if (*self.node).last_child.is_null() {
                 None
             } else {
-                Some(DOMNode::new(&t, (*self.node).last_child))
+                Some(Self::new(&t, (*self.node).last_child))
             }
         }
     }
 
     /// First element child of this DOM node.
-    pub fn first_element_child(&self) -> Option<DOMNode> {
+    pub fn first_element_child(&self) -> Option<Self> {
         let mut child = self.first_child()?;
         loop {
             if child.node_type() == NodeType::Element {
@@ -183,7 +183,7 @@ impl DOMNode {
     }
 
     /// Last element child element of this DOM node.
-    pub fn last_element_child(&self) -> Option<DOMNode> {
+    pub fn last_element_child(&self) -> Option<Self> {
         let mut child = self.last_child()?;
         loop {
             if child.node_type() == NodeType::Element {
@@ -194,7 +194,7 @@ impl DOMNode {
     }
 
     /// List of child nodes.
-    pub fn child_nodes(&self) -> Vec<DOMNode> {
+    pub fn child_nodes(&self) -> Vec<Self> {
         let mut nodes = Vec::new();
         let mut child = self.first_child();
         while let Some(c) = child {
@@ -205,7 +205,7 @@ impl DOMNode {
     }
 
     /// List of child element nodes.
-    pub fn child_element_nodes(&self) -> Vec<DOMNode> {
+    pub fn child_element_nodes(&self) -> Vec<Self> {
         let mut nodes = Vec::new();
         let mut child = self.first_element_child();
         while let Some(c) = child {
@@ -216,11 +216,11 @@ impl DOMNode {
     }
 
     /// Parent of this node.
-    pub fn parent(&self) -> Option<DOMNode> {
+    pub fn parent(&self) -> Option<Self> {
         let t = self.tree.upgrade()?;
         unsafe {
             if !(*self.node).parent.is_null() {
-                Some(DOMNode::new(&t, (*self.node).parent))
+                Some(Self::new(&t, (*self.node).parent))
             } else {
                 None
             }
@@ -228,11 +228,11 @@ impl DOMNode {
     }
 
     /// Next sibling node.
-    pub fn next_sibling(&self) -> Option<DOMNode> {
+    pub fn next_sibling(&self) -> Option<Self> {
         let t = self.tree.upgrade()?;
         unsafe {
             if !(*self.node).next.is_null() {
-                Some(DOMNode::new(&t, (*self.node).next))
+                Some(Self::new(&t, (*self.node).next))
             } else {
                 None
             }
@@ -240,11 +240,11 @@ impl DOMNode {
     }
 
     /// Previous sibling node.
-    pub fn prev_sibling(&self) -> Option<DOMNode> {
+    pub fn prev_sibling(&self) -> Option<Self> {
         let t = self.tree.upgrade()?;
         unsafe {
             if !(*self.node).prev.is_null() {
-                Some(DOMNode::new(&t, (*self.node).prev))
+                Some(Self::new(&t, (*self.node).prev))
             } else {
                 None
             }
@@ -252,7 +252,7 @@ impl DOMNode {
     }
 
     /// Next sibling element node.
-    pub fn next_element_sibling(&self) -> Option<DOMNode> {
+    pub fn next_element_sibling(&self) -> Option<Self> {
         loop {
             let s = self.next_sibling()?;
             if s.node_type() == NodeType::Element {
@@ -262,7 +262,7 @@ impl DOMNode {
     }
 
     /// Previous sibling element node.
-    pub fn prev_element_sibling(&self) -> Option<DOMNode> {
+    pub fn prev_element_sibling(&self) -> Option<Self> {
         loop {
             let s = self.prev_sibling()?;
             if s.node_type() == NodeType::Element {
@@ -305,7 +305,7 @@ impl DOMNode {
         self.outer_text()
     }
 
-    fn serialize_node(node: &DOMNode) -> Option<String> {
+    fn serialize_node(node: &Self) -> Option<String> {
         node.tree.upgrade()?;
 
         let out_html;
@@ -321,14 +321,14 @@ impl DOMNode {
     /// Outer HTML of this DOM node and its children.
     #[inline]
     pub fn outer_html(&self) -> Option<String> {
-        DOMNode::serialize_node(self)
+        Self::serialize_node(self)
     }
 
     /// Inner HTML of this DOM node's children.
     pub fn inner_html(&self) -> Option<String> {
         self.child_nodes()
             .into_iter()
-            .flat_map(|c| DOMNode::serialize_node(&c))
+            .flat_map(|c| Self::serialize_node(&c))
             .reduce(|a, b| a + &b)
     }
 }
