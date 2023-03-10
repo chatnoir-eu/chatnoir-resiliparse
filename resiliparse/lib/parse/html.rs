@@ -97,13 +97,14 @@ impl From<&String> for HTMLTree {
 
 impl HTMLTree {
     fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
-        if self.tree_rc.html_document.is_null()  {
-            None
-        } else {
+        if !self.tree_rc.html_document.is_null()  {
             unsafe { Some(&mut *self.tree_rc.html_document) }
+        } else {
+            None
         }
     }
 
+    #[inline]
     pub fn document(&self) -> Option<DOMNode> {
         Some(DOMNode::new(
             &self.tree_rc,
@@ -112,19 +113,33 @@ impl HTMLTree {
 
     pub fn head(&self) -> Option<DOMNode> {
         let head = self.get_html_document_raw()?.head as *mut lxb_dom_node_t;
-        if head.is_null() {
-            None
-        } else {
+        if !head.is_null() {
             Some(DOMNode::new(&self.tree_rc, head))
+        } else {
+            None
         }
     }
 
     pub fn body(&self) -> Option<DOMNode> {
         let body = self.get_html_document_raw()?.body as *mut lxb_dom_node_t;
-        if body.is_null() {
-            None
-        } else {
+        if !body.is_null() {
             Some(DOMNode::new(&self.tree_rc, body))
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn title(&self) -> Option<String> {
+        unsafe { Some(self.title_unsafe()?.to_owned()) }
+    }
+
+    pub unsafe fn title_unsafe(&self) -> Option<&str> {
+        let mut title_len = 0;
+        let cdata = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(title_len));
+        match title_len {
+            0 => None,
+            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, title_len)))
         }
     }
 }
@@ -339,11 +354,9 @@ impl DOMNode {
     /// Node text value.
     pub unsafe fn value_unsafe(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        unsafe {
-            let cdata = self.node as *const lxb_dom_character_data_t;
-            Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
-                (*cdata).data.data.cast(), (*cdata).data.length)))
-        }
+        let cdata = self.node as *const lxb_dom_character_data_t;
+        Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
+            (*cdata).data.data.cast(), (*cdata).data.length)))
     }
 
     /// Text contents of this DOM node and its children.
