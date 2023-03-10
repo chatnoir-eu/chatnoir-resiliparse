@@ -97,36 +97,22 @@ impl From<&String> for HTMLTree {
 
 impl HTMLTree {
     fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
-        if !self.tree_rc.html_document.is_null()  {
-            unsafe { Some(&mut *self.tree_rc.html_document) }
-        } else {
-            None
-        }
+        unsafe { self.tree_rc.html_document.as_mut() }
     }
 
     #[inline]
     pub fn document(&self) -> Option<DOMNode> {
-        Some(DOMNode::new(
+        DOMNode::new(
             &self.tree_rc,
-            addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t))
+            addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)
     }
 
     pub fn head(&self) -> Option<DOMNode> {
-        let head = self.get_html_document_raw()?.head as *mut lxb_dom_node_t;
-        if !head.is_null() {
-            Some(DOMNode::new(&self.tree_rc, head))
-        } else {
-            None
-        }
+        DOMNode::new(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
     }
 
     pub fn body(&self) -> Option<DOMNode> {
-        let body = self.get_html_document_raw()?.body as *mut lxb_dom_node_t;
-        if !body.is_null() {
-            Some(DOMNode::new(&self.tree_rc, body))
-        } else {
-            None
-        }
+        DOMNode::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
     }
 
     #[inline]
@@ -191,8 +177,11 @@ pub struct DOMNode {
 
 impl DOMNode {
     #[inline]
-    fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Self {
-        Self { tree: Rc::downgrade(tree), node }
+    fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Self> {
+        if node.is_null() {
+            return None;
+        }
+        Some(Self { tree: Rc::downgrade(tree), node })
     }
 
     /// DOM node type.
@@ -223,26 +212,13 @@ impl DOMNode {
 
     /// First child element of this DOM node.
     pub fn first_child(&self) -> Option<Self> {
-        let t = self.tree.upgrade()?;
-        unsafe {
-            if (*self.node).first_child.is_null() {
-                None
-            } else {
-                Some(Self::new(&t, (*self.node).first_child))
-            }
-        }
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.first_child) }
     }
 
     /// Last child element of this DOM node.
     pub fn last_child(&self) -> Option<Self> {
-        let t = self.tree.upgrade()?;
-        unsafe {
-            if (*self.node).last_child.is_null() {
-                None
-            } else {
-                Some(Self::new(&t, (*self.node).last_child))
-            }
-        }
+        self.tree.upgrade()?;
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
     }
 
     /// First element child of this DOM node.
@@ -291,38 +267,17 @@ impl DOMNode {
 
     /// Parent of this node.
     pub fn parent(&self) -> Option<Self> {
-        let t = self.tree.upgrade()?;
-        unsafe {
-            if !(*self.node).parent.is_null() {
-                Some(Self::new(&t, (*self.node).parent))
-            } else {
-                None
-            }
-        }
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
     }
 
     /// Next sibling node.
     pub fn next_sibling(&self) -> Option<Self> {
-        let t = self.tree.upgrade()?;
-        unsafe {
-            if !(*self.node).next.is_null() {
-                Some(Self::new(&t, (*self.node).next))
-            } else {
-                None
-            }
-        }
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
     }
 
     /// Previous sibling node.
     pub fn prev_sibling(&self) -> Option<Self> {
-        let t = self.tree.upgrade()?;
-        unsafe {
-            if !(*self.node).prev.is_null() {
-                Some(Self::new(&t, (*self.node).prev))
-            } else {
-                None
-            }
-        }
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
     }
 
     /// Next sibling element node.
@@ -372,7 +327,7 @@ impl DOMNode {
             let mut l = 0;
             let t = lxb_dom_node_text_content(self.node, &mut l);
             out_text = std::str::from_utf8_unchecked(slice::from_raw_parts(t.cast(), l)).to_string();
-            lxb_dom_document_destroy_text_noi((*self.node).owner_document, t);
+            lxb_dom_document_destroy_text_noi(self.node.as_ref()?.owner_document, t);
         }
         Some(out_text)
     }
@@ -391,7 +346,7 @@ impl DOMNode {
             let h = lexbor_str_create();
             lxb_html_serialize_tree_str(node.node, h);
             out_html = std::str::from_utf8_unchecked(slice::from_raw_parts((*h).data.cast(), (*h).length)).to_string();
-            lexbor_str_destroy(h, (*(*node.node).owner_document).text, true);
+            lexbor_str_destroy(h, node.node.as_ref()?.owner_document.as_ref()?.text, true);
         }
         Some(out_html)
     }
