@@ -268,6 +268,7 @@ impl DOMNode {
     }
 
     /// Outer HTML of this DOM node and its children.
+    #[inline]
     pub fn outer_html(&self) -> Option<String> {
         DOMNode::serialize_node(self)
     }
@@ -275,8 +276,8 @@ impl DOMNode {
     /// Inner HTML of this DOM node's children.
     pub fn inner_html(&self) -> Option<String> {
         self.child_nodes()
-            .iter()
-            .map(|c|  DOMNode::serialize_node(&c).unwrap_or_else(|| String::new()))
+            .into_iter()
+            .flat_map(|c| DOMNode::serialize_node(&c))
             .reduce(|a, b| a + &b)
     }
 }
