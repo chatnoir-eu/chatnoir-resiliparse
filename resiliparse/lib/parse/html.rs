@@ -51,26 +51,31 @@ impl From<&[u8]> for HTMLTree {
 }
 
 impl From<&str> for HTMLTree {
+    #[inline]
     fn from(value: &str) -> Self {
         value.as_bytes().into()
     }
 }
 
 impl From<&String> for HTMLTree {
+    #[inline]
     fn from(value: &String) -> Self {
         value.as_bytes().into()
     }
 }
 
 impl HTMLTree {
+    #[inline]
     pub fn from_bytes(html: &[u8]) -> HTMLTree {
         html.into()
     }
 
+    #[inline]
     pub fn from_str(html: &str) -> HTMLTree {
         html.into()
     }
 
+    #[inline]
     pub fn from_string(html: &String) -> HTMLTree {
         html.into()
     }
@@ -122,6 +127,7 @@ pub struct DOMNode {
 }
 
 impl DOMNode {
+    #[inline]
     fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Self {
         Self { tree: Rc::downgrade(tree), node }
     }
@@ -135,7 +141,12 @@ impl DOMNode {
     }
 
     /// DOM element tag or node name.
-    pub fn tag(&self) -> Option<&str> {
+    pub fn tag(&self) -> Option<String> {
+        unsafe { Some(self.tag_unsafe()?.to_owned()) }
+    }
+
+    /// DOM element tag or node name.
+    pub unsafe fn tag_unsafe(&self) -> Option<&str> {
         self.tree.upgrade()?;
         unsafe {
             let mut size = 0;
@@ -272,7 +283,13 @@ impl DOMNode {
     }
 
     /// Node text value.
-    pub fn value(&self) -> Option<&str> {
+    #[inline]
+    pub fn value(&self) -> Option<String> {
+        unsafe { Some(self.value_unsafe()?.to_owned()) }
+    }
+
+    /// Node text value.
+    pub unsafe fn value_unsafe(&self) -> Option<&str> {
         self.tree.upgrade()?;
         unsafe {
             let cdata = self.node as *const lxb_dom_character_data_t;
@@ -286,7 +303,7 @@ impl DOMNode {
         self.tree.upgrade()?;
 
         if self.node_type() == NodeType::Text {
-            return Some(self.value()?.to_string());
+            return self.value();
         }
 
         let out_text;
