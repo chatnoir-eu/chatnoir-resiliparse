@@ -15,10 +15,86 @@
 #![allow(dead_code)]
 
 use std::{ptr, slice};
+use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
 use std::ptr::addr_of_mut;
 use std::rc::{Rc, Weak};
+use std::vec::IntoIter;
 
 use crate::third_party::lexbor::*;
+
+
+/// ParentNode mixin trait.
+pub trait ParentNode {
+    fn first_element_child(&self) -> Option<Node>;
+    fn last_element_child(&self) -> Option<Node>;
+    fn child_element_nodes(&self) -> Vec<Node>;
+    fn child_element_count(&self) -> usize;
+    fn prepend(&self, node: &Node);
+    fn append(&self, node: &Node);
+    fn replace_children(&self, node: &[Node]);
+
+    fn query_selector(&self, selectors: &str) -> Option<Node>;
+    fn query_selector_all(&self, selectors: &str) -> Collection;
+}
+
+/// NonElementParentNode mixin trait.
+pub trait NonElementParentNode {
+    fn get_element_by_id(element_id: &str) -> Option<Node>;
+}
+
+/// ChildNode mixin trait.
+pub trait ChildNode {
+    fn before(&self, node: &Node);
+    fn after(&self, node: &Node);
+    fn replace_with(&self, node: &Node);
+    fn remove(&self);
+}
+
+/// NonDocumentTypeChildNode mixin trait.
+pub trait NonDocumentTypeChildNode {
+    fn previous_element_sibling(&self) -> Option<Node>;
+    fn next_element_sibling(&self) -> Option<Node>;
+}
+
+/// HTML Element mixin trait.
+pub trait Element {
+    unsafe fn tag_name_unchecked(&self) -> Option<&str>;
+    unsafe fn local_name_unchecked(&self) -> Option<&str>;
+    unsafe fn id_unchecked(&self) -> Option<&str>;
+    unsafe fn name_unchecked(&self) -> Option<&str>;
+    unsafe fn class_name_unchecked(&self) -> Option<&str>;
+    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str>;
+
+    fn tag_name(&self) -> Option<String>;
+    fn local_name(&self) -> Option<String>;
+    fn id(&self) -> Option<String>;
+    fn name(&self) -> Option<String>;
+    fn class_name(&self) -> Option<String>;
+    fn class_list(&self) -> Vec<String>;
+
+    fn attribute(&self, qualified_name: &str) -> Option<String>;
+    fn attribute_names(&self) -> Vec<String>;
+    fn set_attribute(&self, qualified_name: &str, value: &str);
+    fn remove_attribute(&self, qualified_name: &str);
+    fn has_attribute(&self, qualified_name: &str) -> bool;
+
+    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection;
+    fn elements_by_class_name(&self, class_names: &str) -> Collection;
+}
+
+/// NodeList mixin trait.
+pub trait NodeList {
+    fn item(&self, index: isize) -> Option<&Node>;
+    fn item_mut(&mut self, index: isize) -> Option<&mut Node>;
+    fn len(&self) -> usize;
+}
+
+/// HTMLCollection mixin trait.
+pub trait HTMLCollection {
+    fn named_item(&self, name: &str) -> Option<&Node>;
+    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node>;
+}
 
 /// Internal heap-allocated and reference-counted HTMLTree.
 struct HTMLTreeRc {
@@ -101,26 +177,26 @@ impl HTMLTree {
     }
 
     #[inline]
-    pub fn document(&self) -> Option<DOMNode> {
-        DOMNode::new(
+    pub fn document(&self) -> Option<Node> {
+        Node::new(
             &self.tree_rc,
             addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)
     }
 
-    pub fn head(&self) -> Option<DOMNode> {
-        DOMNode::new(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
+    pub fn head(&self) -> Option<Node> {
+        Node::new(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
     }
 
-    pub fn body(&self) -> Option<DOMNode> {
-        DOMNode::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
+    pub fn body(&self) -> Option<Node> {
+        Node::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
     }
 
     #[inline]
     pub fn title(&self) -> Option<String> {
-        unsafe { Some(self.title_unsafe()?.to_owned()) }
+        unsafe { Some(self.title_unchecked()?.to_owned()) }
     }
 
-    pub unsafe fn title_unsafe(&self) -> Option<&str> {
+    pub unsafe fn title_unchecked(&self) -> Option<&str> {
         let mut title_len = 0;
         let cdata = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(title_len));
         match title_len {
@@ -169,19 +245,141 @@ impl From<lxb_dom_node_type_t> for NodeType {
     }
 }
 
-/// DOM node.
-pub struct DOMNode {
-    tree: Weak<HTMLTreeRc>,
-    node: *mut lxb_dom_node_t
+pub struct Document {
 }
 
-impl DOMNode {
+pub struct DocumentType {
+    name: String,
+    public_id: String,
+    system_id: String
+}
+
+impl Document {
+    fn doctype(&self) -> Option<DocumentType> {
+        todo!()
+    }
+
+    fn document_element(&self) -> Option<Node> {
+        todo!()
+    }
+
+    fn elements_by_tag_name(&self) -> Collection {
+        todo!()
+    }
+
+    fn elements_by_class_name(&self) -> Collection {
+        todo!()
+    }
+
+    fn create_element(&self, local_name: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn create_text_node(&self, data: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn create_cdata_section(&self, data: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn create_comment(&self, data: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn create_attribute(&self, data: &str) -> Option<Node> {
+        todo!()
+    }
+}
+
+impl ParentNode for Document {
+    #[inline]
+    fn first_element_child(&self) -> Option<Node> {
+        self.document_element()?.first_element_child()
+    }
+
+    #[inline]
+    fn last_element_child(&self) -> Option<Node> {
+        self.document_element()?.last_element_child()
+    }
+
+    fn child_element_nodes(&self) -> Vec<Node> {
+        if let Some(d) = self.document_element() {
+            d.child_element_nodes()
+        } else {
+            Vec::default()
+        }
+    }
+
+    #[inline]
+    fn child_element_count(&self) -> usize {
+        if let Some(d) = self.document_element() {
+            d.child_element_count()
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    fn prepend(&self, node: &Node) {
+        if let Some(d) = self.document_element() {
+            d.prepend(node)
+        }
+    }
+
+    #[inline]
+    fn append(&self, node: &Node) {
+        if let Some(d) = self.document_element() {
+            d.append(node)
+        }
+    }
+
+    #[inline]
+    fn replace_children(&self, nodes: &[Node]) {
+        if let Some(d) = self.document_element() {
+            d.replace_children(nodes)
+        }
+    }
+
+    #[inline]
+    fn query_selector(&self, selectors: &str) -> Option<Node> {
+        self.document_element()?.query_selector(selectors)
+    }
+
+    #[inline]
+    fn query_selector_all(&self, selectors: &str) -> Collection {
+        if let Some(d) = self.document_element() {
+            d.query_selector_all(selectors)
+        } else {
+            Collection::default()
+        }
+    }
+}
+
+
+/// DOM node.
+pub struct Node {
+    tree: Weak<HTMLTreeRc>,
+    node: *mut lxb_dom_node_t,
+}
+
+impl Node {
     #[inline]
     fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Self> {
         if node.is_null() {
             return None;
         }
         Some(Self { tree: Rc::downgrade(tree), node })
+    }
+
+    #[inline]
+    unsafe fn lxb_str_to_slice<T>(&self, lxb_fn: unsafe extern "C" fn(*mut T, *mut usize) -> *const lxb_char_t) -> Option<&str> {
+        let mut size = 0;
+        let name = lxb_fn(self.node as *mut T, addr_of_mut!(size));
+        match size {
+            0 => None,
+            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(name.cast(), size)))
+        }
     }
 
     /// DOM node type.
@@ -192,22 +390,14 @@ impl DOMNode {
         }
     }
 
-    /// DOM element tag or node name.
-    pub fn tag(&self) -> Option<String> {
-        unsafe { Some(self.tag_unsafe()?.to_owned()) }
+    pub unsafe fn node_name_unchecked(&self) -> Option<&str> {
+        self.tree.upgrade()?;
+        self.lxb_str_to_slice(lxb_dom_node_name)
     }
 
     /// DOM element tag or node name.
-    pub unsafe fn tag_unsafe(&self) -> Option<&str> {
-        self.tree.upgrade()?;
-        unsafe {
-            let mut size = 0;
-            let name= lxb_dom_node_name(self.node, addr_of_mut!(size));
-            match size {
-                0 => None,
-                _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(name.cast(), size)))
-            }
-        }
+    pub fn node_name(&self) -> Option<String> {
+        unsafe { Some(self.node_name_unchecked()?.to_owned()) }
     }
 
     /// First child element of this DOM node.
@@ -221,28 +411,6 @@ impl DOMNode {
         unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
     }
 
-    /// First element child of this DOM node.
-    pub fn first_element_child(&self) -> Option<Self> {
-        let mut child = self.first_child()?;
-        loop {
-            if child.node_type() == NodeType::Element {
-                return Some(child);
-            }
-            child = child.next_sibling()?;
-        }
-    }
-
-    /// Last element child element of this DOM node.
-    pub fn last_element_child(&self) -> Option<Self> {
-        let mut child = self.last_child()?;
-        loop {
-            if child.node_type() == NodeType::Element {
-                return Some(child);
-            }
-            child = child.prev_sibling()?;
-        }
-    }
-
     /// List of child nodes.
     pub fn child_nodes(&self) -> Vec<Self> {
         let mut nodes = Vec::new();
@@ -254,20 +422,14 @@ impl DOMNode {
         nodes
     }
 
-    /// List of child element nodes.
-    pub fn child_element_nodes(&self) -> Vec<Self> {
-        let mut nodes = Vec::new();
-        let mut child = self.first_element_child();
-        while let Some(c) = child {
-            child = c.next_element_sibling();
-            nodes.push(c);
-        }
-        nodes
-    }
-
     /// Parent of this node.
     pub fn parent(&self) -> Option<Self> {
         unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
+    }
+
+    /// Previous sibling node.
+    pub fn previous_sibling(&self) -> Option<Self> {
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
     }
 
     /// Next sibling node.
@@ -275,39 +437,15 @@ impl DOMNode {
         unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
     }
 
-    /// Previous sibling node.
-    pub fn prev_sibling(&self) -> Option<Self> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
-    }
-
-    /// Next sibling element node.
-    pub fn next_element_sibling(&self) -> Option<Self> {
-        loop {
-            let s = self.next_sibling()?;
-            if s.node_type() == NodeType::Element {
-                return Some(s);
-            }
-        }
-    }
-
-    /// Previous sibling element node.
-    pub fn prev_element_sibling(&self) -> Option<Self> {
-        loop {
-            let s = self.prev_sibling()?;
-            if s.node_type() == NodeType::Element {
-                return Some(s);
-            }
-        }
-    }
 
     /// Node text value.
     #[inline]
     pub fn value(&self) -> Option<String> {
-        unsafe { Some(self.value_unsafe()?.to_owned()) }
+        unsafe { Some(self.value_unchecked()?.to_owned()) }
     }
 
     /// Node text value.
-    pub unsafe fn value_unsafe(&self) -> Option<&str> {
+    pub unsafe fn value_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
         let cdata = self.node as *const lxb_dom_character_data_t;
         Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
@@ -363,6 +501,296 @@ impl DOMNode {
             .into_iter()
             .flat_map(|c| Self::serialize_node(&c))
             .reduce(|a, b| a + &b)
+    }
+}
+
+macro_rules! check_element {
+    ($self:ident) => {
+        if !$self.tree.upgrade().is_some() || $self.node_type() != NodeType::Element {
+            return None;
+        }
+    }
+}
+
+impl Element for Node {
+    /// DOM element tag or node name.
+    unsafe fn tag_name_unchecked(&self) -> Option<&str> {
+        check_element!(self);
+        self.lxb_str_to_slice(lxb_dom_element_tag_name)
+    }
+
+    unsafe fn local_name_unchecked(&self) -> Option<&str> {
+        check_element!(self);
+        self.lxb_str_to_slice(lxb_dom_element_local_name)
+    }
+
+    unsafe fn id_unchecked(&self) -> Option<&str> {
+        check_element!(self);
+        self.lxb_str_to_slice(lxb_dom_element_id_noi)
+    }
+
+    #[inline]
+    unsafe fn name_unchecked(&self) -> Option<&str> {
+        self.attribute_unchecked("name")
+    }
+
+    unsafe fn class_name_unchecked(&self) -> Option<&str> {
+        check_element!(self);
+        self.lxb_str_to_slice(lxb_dom_element_class_noi)
+    }
+
+    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> {
+        check_element!(self);
+        let mut size = 0;
+        let name = lxb_dom_element_get_attribute(
+            self.node as *mut lxb_dom_element_t,
+            qualified_name.as_ptr() as *const lxb_char_t,
+            qualified_name.len(),
+            addr_of_mut!(size));
+        match size {
+            0 => None,
+            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(name.cast(), size)))
+        }
+    }
+
+    /// DOM element tag or node name.
+    #[inline]
+    fn tag_name(&self) -> Option<String> {
+        unsafe { Some(self.tag_name_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn local_name(&self) -> Option<String> {
+        unsafe { Some(self.local_name_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn id(&self) -> Option<String> {
+        unsafe { Some(self.id_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn name(&self) -> Option<String> {
+        unsafe { Some(self.name_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn class_name(&self) -> Option<String> {
+        unsafe { Some(self.class_name_unchecked()?.to_owned()) }
+    }
+
+    fn class_list(&self) -> Vec<String> {
+        todo!();
+        // check_element!(self);
+        // let Some(cls) = {
+        //     unsafe { self.class_name_unchecked() }
+        // } else {
+        //     return Vec::default();
+        // };
+        // let mut v= Vec::new();
+        // cls.split_ascii_whitespace().flat_map(|c| v.push(c.to_owned())).collect();
+        // v
+    }
+
+    fn attribute(&self, qualified_name: &str) -> Option<String> {
+        todo!()
+    }
+
+    fn attribute_names(&self) -> Vec<String> {
+        todo!()
+    }
+
+    fn set_attribute(&self, qualified_name: &str, value: &str) {
+        todo!()
+    }
+
+    fn remove_attribute(&self, qualified_name: &str) {
+        todo!()
+    }
+
+    fn has_attribute(&self, qualified_name: &str) -> bool {
+        todo!()
+    }
+
+    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection {
+        todo!()
+    }
+
+    fn elements_by_class_name(&self, class_names: &str) -> Collection {
+        todo!()
+    }
+}
+
+impl NonDocumentTypeChildNode for Node {
+    /// Previous sibling element node.
+    fn previous_element_sibling(&self) -> Option<Self> {
+        loop {
+            let s = self.previous_sibling()?;
+            if s.node_type() == NodeType::Element {
+                return Some(s);
+            }
+        }
+    }
+
+    /// Next sibling element node.
+    fn next_element_sibling(&self) -> Option<Self> {
+        loop {
+            let s = self.next_sibling()?;
+            if s.node_type() == NodeType::Element {
+                return Some(s);
+            }
+        }
+    }
+}
+
+impl ParentNode for Node {
+    /// First element child of this DOM node.
+    fn first_element_child(&self) -> Option<Self> {
+        let mut child = self.first_child()?;
+        loop {
+            if child.node_type() == NodeType::Element {
+                return Some(child);
+            }
+            child = child.next_sibling()?;
+        }
+    }
+
+    /// Last element child element of this DOM node.
+    fn last_element_child(&self) -> Option<Self> {
+        let mut child = self.last_child()?;
+        loop {
+            if child.node_type() == NodeType::Element {
+                return Some(child);
+            }
+            child = child.previous_sibling()?;
+        }
+    }
+
+    /// List of child element nodes.
+    fn child_element_nodes(&self) -> Vec<Node> {
+        let mut nodes = Vec::new();
+        let mut child = self.first_element_child();
+        while let Some(c) = child {
+            child = c.next_element_sibling();
+            nodes.push(c);
+        }
+        nodes
+    }
+
+    fn child_element_count(&self) -> usize {
+        let mut child = self.first_element_child();
+        let mut count = 0;
+        while let Some(c) = child {
+            child = c.next_element_sibling();
+            count += 1;
+        }
+        count
+    }
+
+    fn prepend(&self, node: &Node) {
+        todo!()
+    }
+
+    fn append(&self, node: &Node) {
+        todo!()
+    }
+
+    fn replace_children(&self, node: &[Node]) {
+        todo!()
+    }
+
+    fn query_selector(&self, selectors: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn query_selector_all(&self, selectors: &str) -> Collection {
+        todo!()
+    }
+}
+
+
+pub struct Collection {
+    items: Vec<Node>,
+}
+
+impl Default for Collection {
+    fn default() -> Self {
+        Collection { items: Vec::new() }
+    }
+}
+
+impl Collection {
+    unsafe fn from_unchecked(tree: &Rc<HTMLTreeRc>, coll: *mut lxb_dom_collection_t) -> Self {
+        if coll.is_null() {
+            return Self::default();
+        }
+        let mut v = Vec::new();
+        v.reserve(lxb_dom_collection_length_noi(coll));
+        for i in 0..lxb_dom_collection_length_noi(coll) {
+            v.push(Node::new(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
+        }
+        Self { items: v }
+    }
+
+    #[inline]
+    fn wrap_index(&self, index: isize) -> usize {
+        if index >= 0 {
+            index as usize
+        } else {
+            (index % self.len() as isize) as usize
+        }
+    }
+}
+
+impl Deref for Collection {
+    type Target = Vec<Node>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl DerefMut for Collection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.items
+    }
+}
+
+impl NodeList for Collection {
+    #[inline]
+    fn item(&self, index: isize) -> Option<&Node> {
+        self.items.get(self.wrap_index(index))
+    }
+
+    #[inline]
+    fn item_mut(&mut self, index: isize) -> Option<&mut Node> {
+        let idx_wrapped = self.wrap_index(index);
+        self.items.get_mut(idx_wrapped)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+}
+
+impl HTMLCollection for Collection {
+    fn named_item(&self, name: &str) -> Option<&Node> {
+        for e in &self.items {
+            if e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some() {
+                return Some(e)
+            }
+        }
+        None
+    }
+
+    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node> {
+        for e in &mut self.items {
+            if e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some() {
+                return Some(e)
+            }
+        }
+        None
     }
 }
 
