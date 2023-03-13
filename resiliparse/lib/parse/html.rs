@@ -30,9 +30,9 @@ pub trait ParentNode {
     fn last_element_child(&self) -> Option<Node>;
     fn child_element_nodes(&self) -> Vec<Node>;
     fn child_element_count(&self) -> usize;
-    fn prepend(&self, node: &Node);
-    fn append(&self, node: &Node);
-    fn replace_children(&self, node: &[Node]);
+    fn prepend(&mut self, node: &Node);
+    fn append(&mut self, node: &Node);
+    fn replace_children(&mut self, node: &[&Node]);
 
     fn query_selector(&self, selectors: &str) -> Option<Node>;
     fn query_selector_all(&self, selectors: &str) -> Collection;
@@ -45,16 +45,107 @@ pub trait NonElementParentNode {
 
 /// ChildNode mixin trait.
 pub trait ChildNode {
-    fn before(&self, node: &Node);
-    fn after(&self, node: &Node);
-    fn replace_with(&self, node: &Node);
-    fn remove(&self);
+    fn before(&mut self, node: &Node);
+    fn after(&mut self, node: &Node);
+    fn replace_with(&mut self, node: &Node);
+    fn remove(&mut self);
 }
 
 /// NonDocumentTypeChildNode mixin trait.
 pub trait NonDocumentTypeChildNode {
     fn previous_element_sibling(&self) -> Option<Node>;
     fn next_element_sibling(&self) -> Option<Node>;
+}
+
+pub struct DOMTokenList<'a> {
+    node: &'a Node,
+    values: Vec<String>
+}
+
+impl<'a> DOMTokenList<'_> {
+    fn item(&mut self, index: isize) -> Option<String> {
+        let l = self.len();
+        Some(self.values().get(wrap_index(l, index))?.clone())
+    }
+
+    fn update_node(&mut self) {
+        todo!()
+        // self.node.set_value(self.values.join(" "))
+    }
+
+    fn sync(&mut self) {
+        self.values = self.value().split_ascii_whitespace().map(|s| String::from(s)).collect();
+    }
+
+    fn contains(&mut self, token: &str) -> bool {
+        self.values().iter().find(|s| s.as_str() == token).is_some()
+    }
+
+    fn add(&mut self, tokens: &[&str]) {
+        self.sync();
+        for t in tokens {
+            if !self.contains(t) {
+                self.values.push((*t).to_owned());
+            }
+        }
+        self.update_node();
+    }
+
+    fn remove(&mut self, tokens: &[&str]) {
+        self.sync();
+        let mut v = self.values.clone();
+        for t in tokens {
+            v = v.into_iter().filter(|s: &String| s != t.to_owned()).collect();
+        }
+        self.values = v;
+        self.update_node();
+    }
+
+    fn replace(&mut self, old_token: &str, new_token: &str) {
+        self.sync();
+        self.values
+            .iter_mut()
+            .for_each(|s: &mut String| {
+                if s.as_str() == old_token {
+                    *s = new_token.to_owned();
+                }
+            });
+        self.update_node();
+    }
+
+    fn toggle(&mut self, token: &str, force: Option<bool>) {
+        if let Some(f) = force {
+            if f {
+                self.add(&[token]);
+            } else {
+                self.remove(&[token])
+            }
+            return;
+        }
+
+        if self.contains(token) {
+            self.remove(&[token]);
+        } else {
+            self.add(&[token]);
+        }
+        self.update_node();
+    }
+
+    #[inline]
+    fn value(&mut self) -> String {
+        self.node.value().unwrap_or(String::default())
+    }
+
+    #[inline]
+    fn values(&mut self) -> &[String] {
+        self.sync();
+        self.values.as_slice()
+    }
+
+    #[inline]
+    fn len(&mut self) -> usize {
+        self.values().len()
+    }
 }
 
 /// HTML Element mixin trait.
@@ -71,12 +162,12 @@ pub trait Element {
     fn id(&self) -> Option<String>;
     fn name(&self) -> Option<String>;
     fn class_name(&self) -> Option<String>;
-    fn class_list(&self) -> Vec<String>;
+    fn class_list(&self) -> DOMTokenList;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
     fn attribute_names(&self) -> Vec<String>;
-    fn set_attribute(&self, qualified_name: &str, value: &str);
-    fn remove_attribute(&self, qualified_name: &str);
+    fn set_attribute(&mut self, qualified_name: &str, value: &str);
+    fn remove_attribute(&mut self, qualified_name: &str);
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> Collection;
@@ -321,22 +412,22 @@ impl ParentNode for Document {
     }
 
     #[inline]
-    fn prepend(&self, node: &Node) {
-        if let Some(d) = self.document_element() {
+    fn prepend(&mut self, node: &Node) {
+        if let Some(mut d) = self.document_element() {
             d.prepend(node)
         }
     }
 
     #[inline]
-    fn append(&self, node: &Node) {
-        if let Some(d) = self.document_element() {
+    fn append(&mut self, node: &Node) {
+        if let Some(mut d) = self.document_element() {
             d.append(node)
         }
     }
 
     #[inline]
-    fn replace_children(&self, nodes: &[Node]) {
-        if let Some(d) = self.document_element() {
+    fn replace_children(&mut self, nodes: &[&Node]) {
+        if let Some(mut d) = self.document_element() {
             d.replace_children(nodes)
         }
     }
@@ -579,8 +670,8 @@ impl Element for Node {
         unsafe { Some(self.class_name_unchecked()?.to_owned()) }
     }
 
-    fn class_list(&self) -> Vec<String> {
-        todo!();
+    fn class_list(&self) -> DOMTokenList {
+        todo!()
         // check_element!(self);
         // let Some(cls) = {
         //     unsafe { self.class_name_unchecked() }
@@ -600,11 +691,11 @@ impl Element for Node {
         todo!()
     }
 
-    fn set_attribute(&self, qualified_name: &str, value: &str) {
+    fn set_attribute(&mut self, qualified_name: &str, value: &str) {
         todo!()
     }
 
-    fn remove_attribute(&self, qualified_name: &str) {
+    fn remove_attribute(&mut self, qualified_name: &str) {
         todo!()
     }
 
@@ -687,16 +778,37 @@ impl ParentNode for Node {
         count
     }
 
-    fn prepend(&self, node: &Node) {
-        todo!()
+    fn prepend(&mut self, node: &Node) {
+        if self.tree.upgrade().is_none() | self.node.is_null() || node.node.is_null() {
+            return;
+        }
+        if let Some(mut fc) = self.first_child() {
+            fc.before(node);
+        } else {
+            self.replace_children(&[node]);
+        }
     }
 
-    fn append(&self, node: &Node) {
-        todo!()
+    fn append(&mut self, node: &Node) {
+        if self.tree.upgrade().is_none() | self.node.is_null() || node.node.is_null() {
+            return;
+        }
+        if let Some(mut lc) = self.last_child() {
+            lc.after(node);
+        } else {
+            self.replace_children(&[node]);
+        }
     }
 
-    fn replace_children(&self, node: &[Node]) {
-        todo!()
+    fn replace_children(&mut self, nodes: &[&Node]) {
+        if self.tree.upgrade().is_none() || self.node.is_null() || nodes.len() == 0 {
+            return;
+        }
+        unsafe { lxb_dom_node_replace_all(self.node, nodes[0].node); }
+        nodes.iter()
+            .skip(1)
+            .filter(|n: &&&Node| !n.node.is_null())
+            .for_each(|n: &&Node| self.after(n));
     }
 
     fn query_selector(&self, selectors: &str) -> Option<Node> {
@@ -705,6 +817,39 @@ impl ParentNode for Node {
 
     fn query_selector_all(&self, selectors: &str) -> Collection {
         todo!()
+    }
+}
+
+impl ChildNode for Node {
+    fn before(&mut self, node: &Node) {
+        if self.tree.upgrade().is_none() || self.node.is_null() || node.node.is_null() {
+            return;
+        }
+        unsafe { lxb_dom_node_insert_before(self.node, node.node) }
+    }
+
+    fn after(&mut self, node: &Node) {
+        if self.tree.upgrade().is_none() || self.node.is_null() || node.node.is_null() {
+            return;
+        }
+        unsafe { lxb_dom_node_insert_after(self.node, node.node) }
+    }
+
+    fn replace_with(&mut self, node: &Node) {
+        if self.tree.upgrade().is_none() || self.node.is_null() || node.node.is_null() {
+            return;
+        }
+        unsafe { lxb_dom_node_insert_before(self.node, node.node) }
+        self.remove();
+    }
+
+    fn remove(&mut self) {
+        if self.tree.upgrade().is_none() || self.node.is_null() {
+            return;
+        }
+        unsafe { lxb_dom_node_remove(self.node); }
+        self.node = ptr::null_mut();
+        self.tree = Weak::default();
     }
 }
 
@@ -720,7 +865,7 @@ impl Default for Collection {
 }
 
 impl Collection {
-    unsafe fn from_unchecked(tree: &Rc<HTMLTreeRc>, coll: *mut lxb_dom_collection_t) -> Self {
+    unsafe fn new_unchecked(tree: &Rc<HTMLTreeRc>, coll: *mut lxb_dom_collection_t) -> Self {
         if coll.is_null() {
             return Self::default();
         }
@@ -731,40 +876,40 @@ impl Collection {
         }
         Self { items: v }
     }
-
-    #[inline]
-    fn wrap_index(&self, index: isize) -> usize {
-        if index >= 0 {
-            index as usize
-        } else {
-            (index % self.len() as isize) as usize
-        }
-    }
 }
 
 impl Deref for Collection {
-    type Target = Vec<Node>;
+    type Target = [Node];
 
     fn deref(&self) -> &Self::Target {
-        &self.items
+        self.items.as_slice()
     }
 }
 
 impl DerefMut for Collection {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.items
+        self.items.as_mut_slice()
+    }
+}
+
+#[inline]
+fn wrap_index(max_idx: usize, index: isize) -> usize {
+    if index >= 0 {
+        index as usize
+    } else {
+        (index % max_idx as isize) as usize
     }
 }
 
 impl NodeList for Collection {
     #[inline]
     fn item(&self, index: isize) -> Option<&Node> {
-        self.items.get(self.wrap_index(index))
+        self.items.get(wrap_index(self.len(), index))
     }
 
     #[inline]
     fn item_mut(&mut self, index: isize) -> Option<&mut Node> {
-        let idx_wrapped = self.wrap_index(index);
+        let idx_wrapped = wrap_index(self.len(), index);
         self.items.get_mut(idx_wrapped)
     }
 
@@ -776,21 +921,13 @@ impl NodeList for Collection {
 
 impl HTMLCollection for Collection {
     fn named_item(&self, name: &str) -> Option<&Node> {
-        for e in &self.items {
-            if e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some() {
-                return Some(e)
-            }
-        }
-        None
+        self.iter()
+            .find(|e: &&Node| e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some())
     }
 
     fn named_item_mut(&mut self, name: &str) -> Option<&mut Node> {
-        for e in &mut self.items {
-            if e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some() {
-                return Some(e)
-            }
-        }
-        None
+        self.iter_mut()
+            .find(|e: &&mut Node| e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some())
     }
 }
 
