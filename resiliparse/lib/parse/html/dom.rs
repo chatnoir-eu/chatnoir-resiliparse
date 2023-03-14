@@ -19,9 +19,28 @@ use std::cell::{Ref, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
+use crate::parse::html;
 
 use crate::third_party::lexbor::*;
 
+
+#[derive(PartialEq, Eq)]
+pub enum NodeType {
+    Element,
+    Attribute,
+    Text,
+    CDataSection,
+    EntityReference,
+    Entity,
+    ProcessingInstruction,
+    Comment,
+    Document,
+    DocumentType,
+    DocumentFragment,
+    Notation,
+    LastEntry,
+    Undefined
+}
 
 /// ParentNode mixin trait.
 pub trait ParentNode {
@@ -54,6 +73,46 @@ pub trait ChildNode {
 pub trait NonDocumentTypeChildNode {
     fn previous_element_sibling(&self) -> Option<Node>;
     fn next_element_sibling(&self) -> Option<Node>;
+}
+
+
+/// HTML Element mixin trait.
+pub trait Element {
+    unsafe fn tag_name_unchecked(&self) -> Option<&str>;
+    unsafe fn local_name_unchecked(&self) -> Option<&str>;
+    unsafe fn id_unchecked(&self) -> Option<&str>;
+    unsafe fn name_unchecked(&self) -> Option<&str>;
+    unsafe fn class_name_unchecked(&self) -> Option<&str>;
+    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str>;
+
+    fn tag_name(&self) -> Option<String>;
+    fn local_name(&self) -> Option<String>;
+    fn id(&self) -> Option<String>;
+    fn name(&self) -> Option<String>;
+    fn class_name(&self) -> Option<String>;
+    fn class_list(&self) -> DOMTokenList;
+
+    fn attribute(&self, qualified_name: &str) -> Option<String>;
+    fn attribute_names(&self) -> Vec<String>;
+    fn set_attribute(&mut self, qualified_name: &str, value: &str);
+    fn remove_attribute(&mut self, qualified_name: &str);
+    fn has_attribute(&self, qualified_name: &str) -> bool;
+
+    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection;
+    fn elements_by_class_name(&self, class_names: &str) -> Collection;
+}
+
+/// NodeList mixin trait.
+pub trait NodeList {
+    fn item(&self, index: isize) -> Option<&Node>;
+    fn item_mut(&mut self, index: isize) -> Option<&mut Node>;
+    fn len(&self) -> usize;
+}
+
+/// HTMLCollection mixin trait.
+pub trait HTMLCollection {
+    fn named_item(&self, name: &str) -> Option<&Node>;
+    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node>;
 }
 
 pub struct DOMTokenList<'a> {
@@ -152,44 +211,6 @@ impl<'a> DOMTokenList<'a> {
 }
 
 
-/// HTML Element mixin trait.
-pub trait Element {
-    unsafe fn tag_name_unchecked(&self) -> Option<&str>;
-    unsafe fn local_name_unchecked(&self) -> Option<&str>;
-    unsafe fn id_unchecked(&self) -> Option<&str>;
-    unsafe fn name_unchecked(&self) -> Option<&str>;
-    unsafe fn class_name_unchecked(&self) -> Option<&str>;
-    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str>;
-
-    fn tag_name(&self) -> Option<String>;
-    fn local_name(&self) -> Option<String>;
-    fn id(&self) -> Option<String>;
-    fn name(&self) -> Option<String>;
-    fn class_name(&self) -> Option<String>;
-    fn class_list(&self) -> DOMTokenList;
-
-    fn attribute(&self, qualified_name: &str) -> Option<String>;
-    fn attribute_names(&self) -> Vec<String>;
-    fn set_attribute(&mut self, qualified_name: &str, value: &str);
-    fn remove_attribute(&mut self, qualified_name: &str);
-    fn has_attribute(&self, qualified_name: &str) -> bool;
-
-    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection;
-    fn elements_by_class_name(&self, class_names: &str) -> Collection;
-}
-
-/// NodeList mixin trait.
-pub trait NodeList {
-    fn item(&self, index: isize) -> Option<&Node>;
-    fn item_mut(&mut self, index: isize) -> Option<&mut Node>;
-    fn len(&self) -> usize;
-}
-
-/// HTMLCollection mixin trait.
-pub trait HTMLCollection {
-    fn named_item(&self, name: &str) -> Option<&Node>;
-    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node>;
-}
 
 /// Internal heap-allocated and reference-counted HTMLTree.
 struct HTMLTreeRc {
@@ -299,24 +320,6 @@ impl HTMLTree {
     pub fn title(&self) -> Option<String> {
         unsafe { Some(self.title_unchecked()?.to_owned()) }
     }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum NodeType {
-    Element,
-    Attribute,
-    Text,
-    CDataSection,
-    EntityReference,
-    Entity,
-    ProcessingInstruction,
-    Comment,
-    Document,
-    DocumentType,
-    DocumentFragment,
-    Notation,
-    LastEntry,
-    Undefined
 }
 
 impl From<lxb_dom_node_type_t::Type> for NodeType {
@@ -638,138 +641,6 @@ unsafe fn slice_from_lxb_str_cb<'a, T>(
     match size {
         0 => None,
         _ => Some(str_from_lxb_char_t(name, size))
-    }
-}
-
-fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
-    let mut ctx = WalkCtx { text: String::new() };
-    unsafe { dom_node_walk(node, node_format_cb_begin, node_format_cb_end, &mut ctx); }
-    ctx.text
-}
-
-struct WalkCtx {
-    text: String,
-}
-
-type WalkCbFn = unsafe fn(*mut lxb_dom_node_t, &mut WalkCtx) -> lexbor_action_t::Type;
-
-
-unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: WalkCbFn, ctx: &mut WalkCtx) {
-    use lexbor_action_t::*;
-    if root.is_null() {
-        return;
-    }
-
-    let mut action: lexbor_action_t::Type;
-    let mut node = (*root).first_child;
-
-    while !node.is_null() {
-        action = begin_fn(node, ctx);
-        if action == LEXBOR_ACTION_STOP {
-            return;
-        }
-        if !(*node).first_child.is_null() && action != LEXBOR_ACTION_NEXT {
-            node = (*node).first_child;
-        } else {
-            while node != root && (*node).next.is_null() {
-                end_fn(node, ctx);
-                node = (*node).parent;
-            }
-            if node == root {
-                break;
-            }
-            node = (*node).next;
-        }
-    }
-}
-
-fn is_block_element(local_name: lxb_dom_node_type_t::Type) -> bool {
-    use lxb_tag_id_enum_t::*;
-    match local_name {
-        LXB_TAG_ADDRESS | LXB_TAG_ARTICLE | LXB_TAG_ASIDE | LXB_TAG_BLOCKQUOTE | LXB_TAG_CANVAS |
-        LXB_TAG_DD | LXB_TAG_DIV | LXB_TAG_DL | LXB_TAG_DT | LXB_TAG_FIELDSET | LXB_TAG_FIGCAPTION |
-        LXB_TAG_FIGURE | LXB_TAG_FOOTER | LXB_TAG_FORM | LXB_TAG_H1 | LXB_TAG_H2 | LXB_TAG_H3 |
-        LXB_TAG_H4 | LXB_TAG_H5 | LXB_TAG_H6 | LXB_TAG_HEADER | LXB_TAG_HR | LXB_TAG_LI |
-        LXB_TAG_MAIN | LXB_TAG_NAV | LXB_TAG_NOSCRIPT | LXB_TAG_OL | LXB_TAG_P |
-        LXB_TAG_PRE | LXB_TAG_SECTION | LXB_TAG_TABLE | LXB_TAG_TFOOT | LXB_TAG_UL | LXB_TAG_VIDEO => true,
-        _ => false
-    }
-}
-
-unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
-    use lexbor_action_t::*;
-    use lxb_dom_node_type_t::*;
-
-    if node.is_null() {
-        return LEXBOR_ACTION_STOP;
-    }
-
-    if (*node).type_ == LXB_DOM_NODE_TYPE_TEXT {
-        let s = collapse_whitespace(str_from_dom_node(node));
-        if ctx.text.chars().last().unwrap_or(' ').is_ascii_whitespace() {
-            ctx.text.push_str(s.trim_start());
-        } else {
-            ctx.text.push_str(s.as_str());
-        }
-        return LEXBOR_ACTION_OK;
-    }
-    if (*node).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
-        return LEXBOR_ACTION_NEXT;
-    }
-
-    use lxb_tag_id_enum_t::*;
-    let lname = (*node).local_name as lxb_dom_node_type_t::Type;
-    match lname {
-        LXB_TAG_SCRIPT | LXB_TAG_STYLE | LXB_TAG_NOSCRIPT => LEXBOR_ACTION_NEXT,
-        LXB_TAG_PRE => {
-            let mut l = 0;
-            let t = lxb_dom_node_text_content(node, &mut l);
-            ctx.text.push_str(str_from_lxb_char_t(t, l));
-            lxb_dom_document_destroy_text_noi((*node).owner_document, t);
-            LEXBOR_ACTION_NEXT
-        },
-        LXB_TAG_BR => {
-            ctx.text.push('\n');
-            LEXBOR_ACTION_NEXT
-        },
-        _ => {
-            insert_block(lname, &mut ctx.text);
-            LEXBOR_ACTION_OK
-        }
-    }
-}
-
-unsafe fn node_format_cb_end(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
-    use lexbor_action_t::*;
-    if node.is_null() {
-        return LEXBOR_ACTION_STOP;
-    }
-    insert_block((*node).local_name as lxb_dom_node_type_t::Type, &mut ctx.text);
-    LEXBOR_ACTION_OK
-}
-
-fn collapse_whitespace(s: &str) -> String {
-    let mut last_char = 'x';
-    s.chars()
-        .into_iter()
-        .map(|c| if c.is_ascii_whitespace() { ' ' } else { c })
-        .filter(|c| {
-            let keep = c != &' ' || last_char != ' ';
-            last_char = c.clone();
-            keep
-        })
-        .collect()
-}
-
-#[inline]
-fn insert_block(tag_name: lxb_dom_node_type_t::Type, text: &mut String) {
-    if !is_block_element(tag_name) {
-        return
-    }
-    text.truncate(text.trim_end_matches(|c: char| c.is_ascii_whitespace()).len());
-    text.push('\n');
-    if tag_name == lxb_tag_id_enum_t::LXB_TAG_P {
-        text.push('\n');
     }
 }
 
@@ -1103,7 +974,7 @@ impl HTMLCollection for Collection {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse::html::HTMLTree;
+    use crate::parse::html::dom::HTMLTree;
 
     const HTML: &str = r#"<!doctype html>
 <html lang="en">
