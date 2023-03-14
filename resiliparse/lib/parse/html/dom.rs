@@ -19,9 +19,9 @@ use std::cell::{Ref, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
-use crate::parse::html;
 
 use crate::third_party::lexbor::*;
+use super::serialize::node_format_visible_text;
 
 
 #[derive(PartialEq, Eq)]
@@ -611,7 +611,7 @@ macro_rules! check_element {
 
 
 #[inline]
-unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
+pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
     if size > 0 {
         std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size))
     } else {
@@ -620,18 +620,18 @@ unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a 
 }
 
 #[inline]
-unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
+pub(super) unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
     str_from_lxb_char_t((*s).data, (*s).length)
 }
 
 #[inline]
-unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
+pub(super) unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
     let cdata = node as *const lxb_dom_character_data_t;
     str_from_lxb_str_t(addr_of!((*cdata).data))
 }
 
 #[inline]
-unsafe fn slice_from_lxb_str_cb<'a, T>(
+pub(super) unsafe fn slice_from_lxb_str_cb<'a, T>(
     node: *mut lxb_dom_node_t, lxb_fn: unsafe extern "C" fn(*mut T, *mut usize) -> *const lxb_char_t) -> Option<&'a str> {
     if node.is_null() {
         return None;
