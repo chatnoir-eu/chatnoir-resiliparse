@@ -17,9 +17,8 @@
 use std::{ptr, slice};
 use std::cell::{Ref, RefCell};
 use std::ops::{Deref, DerefMut};
-use std::ptr::addr_of_mut;
+use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
-use std::vec::IntoIter;
 
 use crate::third_party::lexbor::*;
 
@@ -137,7 +136,7 @@ impl<'a> DOMTokenList<'a> {
 
     #[inline]
     fn value(&self) -> String {
-        self.node.value().unwrap_or(String::default())
+        self.node.node_value().unwrap_or(String::default())
     }
 
     #[inline]
@@ -287,18 +286,18 @@ impl HTMLTree {
         Node::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
     }
 
+    pub unsafe fn title_unchecked(&self) -> Option<&str> {
+        let mut size = 0;
+        let t = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(size));
+        match size {
+            0 => None,
+            _ => Some(str_from_lxb_char_t(t, size))
+        }
+    }
+
     #[inline]
     pub fn title(&self) -> Option<String> {
         unsafe { Some(self.title_unchecked()?.to_owned()) }
-    }
-
-    pub unsafe fn title_unchecked(&self) -> Option<&str> {
-        let mut title_len = 0;
-        let cdata = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(title_len));
-        match title_len {
-            0 => None,
-            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, title_len)))
-        }
     }
 }
 
@@ -320,22 +319,23 @@ pub enum NodeType {
     Undefined
 }
 
-impl From<lxb_dom_node_type_t> for NodeType {
-    fn from(value: lxb_dom_node_type_t) -> Self {
+impl From<lxb_dom_node_type_t::Type> for NodeType {
+    fn from(value: lxb_dom_node_type_t::Type) -> Self {
+        use lxb_dom_node_type_t::*;
         match value {
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT => NodeType::Element,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ATTRIBUTE => NodeType::Attribute,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_TEXT => NodeType::Text,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_CDATA_SECTION => NodeType::CDataSection,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ENTITY_REFERENCE => NodeType::EntityReference,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ENTITY => NodeType::Entity,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => NodeType::ProcessingInstruction,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_COMMENT => NodeType::Comment,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT => NodeType::Document,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => NodeType::DocumentType,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => NodeType::DocumentFragment,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_NOTATION => NodeType::Notation,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_LAST_ENTRY => NodeType::LastEntry,
+            LXB_DOM_NODE_TYPE_ELEMENT => NodeType::Element,
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => NodeType::Attribute,
+            LXB_DOM_NODE_TYPE_TEXT => NodeType::Text,
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => NodeType::CDataSection,
+            LXB_DOM_NODE_TYPE_ENTITY_REFERENCE => NodeType::EntityReference,
+            LXB_DOM_NODE_TYPE_ENTITY => NodeType::Entity,
+            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => NodeType::ProcessingInstruction,
+            LXB_DOM_NODE_TYPE_COMMENT => NodeType::Comment,
+            LXB_DOM_NODE_TYPE_DOCUMENT => NodeType::Document,
+            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => NodeType::DocumentType,
+            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => NodeType::DocumentFragment,
+            LXB_DOM_NODE_TYPE_NOTATION => NodeType::Notation,
+            LXB_DOM_NODE_TYPE_LAST_ENTRY => NodeType::LastEntry,
             _ => NodeType::Undefined,
         }
     }
@@ -468,16 +468,6 @@ impl Node {
         Some(Self { tree: Rc::downgrade(tree), node })
     }
 
-    #[inline]
-    unsafe fn lxb_str_to_slice<T>(&self, lxb_fn: unsafe extern "C" fn(*mut T, *mut usize) -> *const lxb_char_t) -> Option<&str> {
-        let mut size = 0;
-        let name = lxb_fn(self.node as *mut T, addr_of_mut!(size));
-        match size {
-            0 => None,
-            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(name.cast(), size)))
-        }
-    }
-
     /// DOM node type.
     pub fn node_type(&self) -> NodeType {
         match self.tree.upgrade() {
@@ -488,7 +478,7 @@ impl Node {
 
     pub unsafe fn node_name_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        self.lxb_str_to_slice(lxb_dom_node_name)
+        slice_from_lxb_str_cb(self.node, lxb_dom_node_name)
     }
 
     /// DOM element tag or node name.
@@ -533,43 +523,51 @@ impl Node {
         unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
     }
 
-
     /// Node text value.
     #[inline]
-    pub fn value(&self) -> Option<String> {
-        unsafe { Some(self.value_unchecked()?.to_owned()) }
+    pub fn node_value(&self) -> Option<String> {
+        unsafe { Some(self.node_value_unchecked()?.to_owned()) }
     }
 
     /// Node text value.
-    pub unsafe fn value_unchecked(&self) -> Option<&str> {
+    pub unsafe fn node_value_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
         let cdata = self.node as *const lxb_dom_character_data_t;
-        Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
-            (*cdata).data.data.cast(), (*cdata).data.length)))
+        Some(str_from_lxb_str_t(addr_of!((*cdata).data)))
     }
 
     /// Text contents of this DOM node and its children.
-    pub fn outer_text(&self) -> Option<String> {
+    pub fn text_content(&self) -> Option<String> {
         self.tree.upgrade()?;
 
         if self.node_type() == NodeType::Text {
-            return self.value();
+            return self.node_value();
         }
 
         let out_text;
         unsafe {
             let mut l = 0;
             let t = lxb_dom_node_text_content(self.node, &mut l);
-            out_text = std::str::from_utf8_unchecked(slice::from_raw_parts(t.cast(), l)).to_string();
+            out_text = str_from_lxb_char_t(t, l).to_string();
             lxb_dom_document_destroy_text_noi(self.node.as_ref()?.owner_document, t);
         }
         Some(out_text)
     }
 
-    /// Text contents of this DOM node and its children.
+    /// Visible text contents of this DOM node and its children.
+    #[inline]
+    pub fn outer_text(&self) -> Option<String> {
+        self.inner_text()
+    }
+
+    /// Visible text contents of this DOM node and its children.
     #[inline]
     pub fn inner_text(&self) -> Option<String> {
-        self.outer_text()
+        self.tree.upgrade()?;
+        match self.node_type() {
+            NodeType::Element => Some(node_format_visible_text(self.node)),
+            _ => None
+        }
     }
 
     fn serialize_node(node: &Self) -> Option<String> {
@@ -577,10 +575,10 @@ impl Node {
 
         let out_html;
         unsafe {
-            let h = lexbor_str_create();
-            lxb_html_serialize_tree_str(node.node, h);
-            out_html = std::str::from_utf8_unchecked(slice::from_raw_parts((*h).data.cast(), (*h).length)).to_string();
-            lexbor_str_destroy(h, node.node.as_ref()?.owner_document.as_ref()?.text, true);
+            let s = lexbor_str_create();
+            lxb_html_serialize_tree_str(node.node, s);
+            out_html = str_from_lxb_str_t(s).to_string();
+            lexbor_str_destroy(s, node.node.as_ref()?.owner_document.as_ref()?.text, true);
         }
         Some(out_html)
     }
@@ -608,21 +606,188 @@ macro_rules! check_element {
     }
 }
 
+
+#[inline]
+unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
+    if size > 0 {
+        std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size))
+    } else {
+        ""
+    }
+}
+
+#[inline]
+unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
+    str_from_lxb_char_t((*s).data, (*s).length)
+}
+
+#[inline]
+unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
+    let cdata = node as *const lxb_dom_character_data_t;
+    str_from_lxb_str_t(addr_of!((*cdata).data))
+}
+
+#[inline]
+unsafe fn slice_from_lxb_str_cb<'a, T>(
+    node: *mut lxb_dom_node_t, lxb_fn: unsafe extern "C" fn(*mut T, *mut usize) -> *const lxb_char_t) -> Option<&'a str> {
+    if node.is_null() {
+        return None;
+    }
+    let mut size = 0;
+    let name = lxb_fn(node as *mut T, addr_of_mut!(size));
+    match size {
+        0 => None,
+        _ => Some(str_from_lxb_char_t(name, size))
+    }
+}
+
+fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
+    let mut ctx = WalkCtx { text: String::new() };
+    unsafe { dom_node_walk(node, node_format_cb_begin, node_format_cb_end, &mut ctx); }
+    ctx.text
+}
+
+struct WalkCtx {
+    text: String,
+}
+
+type WalkCbFn = unsafe fn(*mut lxb_dom_node_t, &mut WalkCtx) -> lexbor_action_t::Type;
+
+
+unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: WalkCbFn, ctx: &mut WalkCtx) {
+    use lexbor_action_t::*;
+    if root.is_null() {
+        return;
+    }
+
+    let mut action: lexbor_action_t::Type;
+    let mut node = (*root).first_child;
+
+    while !node.is_null() {
+        action = begin_fn(node, ctx);
+        if action == LEXBOR_ACTION_STOP {
+            return;
+        }
+        if !(*node).first_child.is_null() && action != LEXBOR_ACTION_NEXT {
+            node = (*node).first_child;
+        } else {
+            while node != root && (*node).next.is_null() {
+                end_fn(node, ctx);
+                node = (*node).parent;
+            }
+            if node == root {
+                break;
+            }
+            node = (*node).next;
+        }
+    }
+}
+
+fn is_block_element(local_name: lxb_dom_node_type_t::Type) -> bool {
+    use lxb_tag_id_enum_t::*;
+    match local_name {
+        LXB_TAG_ADDRESS | LXB_TAG_ARTICLE | LXB_TAG_ASIDE | LXB_TAG_BLOCKQUOTE | LXB_TAG_CANVAS |
+        LXB_TAG_DD | LXB_TAG_DIV | LXB_TAG_DL | LXB_TAG_DT | LXB_TAG_FIELDSET | LXB_TAG_FIGCAPTION |
+        LXB_TAG_FIGURE | LXB_TAG_FOOTER | LXB_TAG_FORM | LXB_TAG_H1 | LXB_TAG_H2 | LXB_TAG_H3 |
+        LXB_TAG_H4 | LXB_TAG_H5 | LXB_TAG_H6 | LXB_TAG_HEADER | LXB_TAG_HR | LXB_TAG_LI |
+        LXB_TAG_MAIN | LXB_TAG_NAV | LXB_TAG_NOSCRIPT | LXB_TAG_OL | LXB_TAG_P |
+        LXB_TAG_PRE | LXB_TAG_SECTION | LXB_TAG_TABLE | LXB_TAG_TFOOT | LXB_TAG_UL | LXB_TAG_VIDEO => true,
+        _ => false
+    }
+}
+
+unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
+    use lexbor_action_t::*;
+    use lxb_dom_node_type_t::*;
+
+    if node.is_null() {
+        return LEXBOR_ACTION_STOP;
+    }
+
+    if (*node).type_ == LXB_DOM_NODE_TYPE_TEXT {
+        let s = collapse_whitespace(str_from_dom_node(node));
+        if ctx.text.chars().last().unwrap_or(' ').is_ascii_whitespace() {
+            ctx.text.push_str(s.trim_start());
+        } else {
+            ctx.text.push_str(s.as_str());
+        }
+        return LEXBOR_ACTION_OK;
+    }
+    if (*node).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
+        return LEXBOR_ACTION_NEXT;
+    }
+
+    use lxb_tag_id_enum_t::*;
+    let lname = (*node).local_name as lxb_dom_node_type_t::Type;
+    match lname {
+        LXB_TAG_SCRIPT | LXB_TAG_STYLE | LXB_TAG_NOSCRIPT => LEXBOR_ACTION_NEXT,
+        LXB_TAG_PRE => {
+            let mut l = 0;
+            let t = lxb_dom_node_text_content(node, &mut l);
+            ctx.text.push_str(str_from_lxb_char_t(t, l));
+            lxb_dom_document_destroy_text_noi((*node).owner_document, t);
+            LEXBOR_ACTION_NEXT
+        },
+        LXB_TAG_BR => {
+            ctx.text.push('\n');
+            LEXBOR_ACTION_NEXT
+        },
+        _ => {
+            insert_block(lname, &mut ctx.text);
+            LEXBOR_ACTION_OK
+        }
+    }
+}
+
+unsafe fn node_format_cb_end(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
+    use lexbor_action_t::*;
+    if node.is_null() {
+        return LEXBOR_ACTION_STOP;
+    }
+    insert_block((*node).local_name as lxb_dom_node_type_t::Type, &mut ctx.text);
+    LEXBOR_ACTION_OK
+}
+
+fn collapse_whitespace(s: &str) -> String {
+    let mut last_char = 'x';
+    s.chars()
+        .into_iter()
+        .map(|c| if c.is_ascii_whitespace() { ' ' } else { c })
+        .filter(|c| {
+            let keep = c != &' ' || last_char != ' ';
+            last_char = c.clone();
+            keep
+        })
+        .collect()
+}
+
+#[inline]
+fn insert_block(tag_name: lxb_dom_node_type_t::Type, text: &mut String) {
+    if !is_block_element(tag_name) {
+        return
+    }
+    text.truncate(text.trim_end_matches(|c: char| c.is_ascii_whitespace()).len());
+    text.push('\n');
+    if tag_name == lxb_tag_id_enum_t::LXB_TAG_P {
+        text.push('\n');
+    }
+}
+
 impl Element for Node {
     /// DOM element tag or node name.
     unsafe fn tag_name_unchecked(&self) -> Option<&str> {
         check_element!(self);
-        self.lxb_str_to_slice(lxb_dom_element_tag_name)
+        slice_from_lxb_str_cb(self.node, lxb_dom_element_tag_name)
     }
 
     unsafe fn local_name_unchecked(&self) -> Option<&str> {
         check_element!(self);
-        self.lxb_str_to_slice(lxb_dom_element_local_name)
+        slice_from_lxb_str_cb(self.node, lxb_dom_element_local_name)
     }
 
     unsafe fn id_unchecked(&self) -> Option<&str> {
         check_element!(self);
-        self.lxb_str_to_slice(lxb_dom_element_id_noi)
+        slice_from_lxb_str_cb(self.node, lxb_dom_element_id_noi)
     }
 
     #[inline]
@@ -632,7 +797,7 @@ impl Element for Node {
 
     unsafe fn class_name_unchecked(&self) -> Option<&str> {
         check_element!(self);
-        self.lxb_str_to_slice(lxb_dom_element_class_noi)
+        slice_from_lxb_str_cb(self.node, lxb_dom_element_class_noi)
     }
 
     unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> {
@@ -645,7 +810,7 @@ impl Element for Node {
             addr_of_mut!(size));
         match size {
             0 => None,
-            _ => Some(std::str::from_utf8_unchecked(slice::from_raw_parts(name.cast(), size)))
+            _ => Some(str_from_lxb_char_t(name, size))
         }
     }
 
