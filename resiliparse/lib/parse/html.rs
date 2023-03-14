@@ -15,7 +15,7 @@
 #![allow(dead_code)]
 
 use std::{ptr, slice};
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::ptr::addr_of_mut;
 use std::rc::{Rc, Weak};
@@ -58,12 +58,16 @@ pub trait NonDocumentTypeChildNode {
 }
 
 pub struct DOMTokenList<'a> {
-    node: &'a Node,
-    values: Vec<String>
+    node: &'a mut Node,
+    values: RefCell<Vec<String>>,
 }
 
-impl<'a> DOMTokenList<'_> {
-    fn item(&mut self, index: isize) -> Option<String> {
+impl<'a> DOMTokenList<'a> {
+    fn new(node: &'a mut Node) -> Self {
+        Self { node, values: RefCell::new(Vec::new()) }
+    }
+
+    fn item(&self, index: isize) -> Option<String> {
         let l = self.len();
         Some(self.values().get(wrap_index(l, index))?.clone())
     }
@@ -73,37 +77,37 @@ impl<'a> DOMTokenList<'_> {
         // self.node.set_value(self.values.join(" "))
     }
 
-    fn sync(&mut self) {
-        self.values = self.value().split_ascii_whitespace().map(|s| String::from(s)).collect();
+    fn sync(&self) {
+        self.values.replace(self.value().split_ascii_whitespace().map(|s| String::from(s)).collect());
     }
 
-    fn contains(&mut self, token: &str) -> bool {
-        self.values().iter().find(|s| s.as_str() == token).is_some()
+    fn contains(&self, token: &str) -> bool {
+        self.values().iter().find(|s: &&String| s.as_str() == token).is_some()
     }
 
     fn add(&mut self, tokens: &[&str]) {
         self.sync();
-        for t in tokens {
+        tokens.iter().for_each(|t: &&str| {
             if !self.contains(t) {
-                self.values.push((*t).to_owned());
+                self.values.borrow_mut().push((*t).to_owned());
             }
-        }
+        });
         self.update_node();
     }
 
     fn remove(&mut self, tokens: &[&str]) {
         self.sync();
-        let mut v = self.values.clone();
+        let mut v = self.values.borrow().clone();
         for t in tokens {
             v = v.into_iter().filter(|s: &String| s != t.to_owned()).collect();
         }
-        self.values = v;
+        self.values.replace(v);
         self.update_node();
     }
 
     fn replace(&mut self, old_token: &str, new_token: &str) {
         self.sync();
-        self.values
+        self.values.borrow_mut()
             .iter_mut()
             .for_each(|s: &mut String| {
                 if s.as_str() == old_token {
@@ -132,21 +136,22 @@ impl<'a> DOMTokenList<'_> {
     }
 
     #[inline]
-    fn value(&mut self) -> String {
+    fn value(&self) -> String {
         self.node.value().unwrap_or(String::default())
     }
 
     #[inline]
-    fn values(&mut self) -> &[String] {
+    fn values(&self) -> Ref<Vec<String>> {
         self.sync();
-        self.values.as_slice()
+        self.values.borrow()
     }
 
     #[inline]
-    fn len(&mut self) -> usize {
+    fn len(&self) -> usize {
         self.values().len()
     }
 }
+
 
 /// HTML Element mixin trait.
 pub trait Element {
