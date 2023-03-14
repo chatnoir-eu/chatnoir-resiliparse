@@ -14,3 +14,4 @@
 
 pub mod dom;
 pub mod serialize;
+pub mod tree;
