@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 use crate::parse::html::dom::{str_from_dom_node, str_from_lxb_char_t};
 use crate::third_party::lexbor::*;
-
 
 pub(super) fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
     let mut ctx = WalkCtx { text: String::new() };
