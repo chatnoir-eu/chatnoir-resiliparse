@@ -16,7 +16,7 @@ use std::ptr;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
 
-use crate::parse::html::dom::{Node, str_from_lxb_char_t};
+use crate::parse::html::dom::{Node, NodeBase, str_from_lxb_char_t};
 use crate::third_party::lexbor::*;
 
 
@@ -102,17 +102,17 @@ impl HTMLTree {
 
     #[inline]
     pub fn document(&self) -> Option<Node> {
-        Node::new(
+        NodeBase::new(
             &self.tree_rc,
             addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)
     }
 
     pub fn head(&self) -> Option<Node> {
-        Node::new(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
+        NodeBase::new(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
     }
 
     pub fn body(&self) -> Option<Node> {
-        Node::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
+        NodeBase::new(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
     }
 
     pub unsafe fn title_unchecked(&self) -> Option<&str> {

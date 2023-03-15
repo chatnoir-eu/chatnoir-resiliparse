@@ -22,25 +22,111 @@ use std::rc::{Rc, Weak};
 
 use crate::third_party::lexbor::*;
 use super::serialize::node_format_visible_text;
-use super::tree::{HTMLTree, HTMLTreeRc};
+use super::tree::{HTMLTreeRc};
 
 
-#[derive(PartialEq, Eq)]
-pub enum NodeType {
-    Element,
-    Attribute,
-    Text,
-    CDataSection,
-    EntityReference,
-    Entity,
-    ProcessingInstruction,
-    Comment,
-    Document,
-    DocumentType,
-    DocumentFragment,
-    Notation,
-    LastEntry,
-    Undefined
+pub enum Node {
+    Element(ElementNode),
+    Attr(AttrNode),
+    // Text(TextNode),
+    // CDataSection(CDataSectionNode),
+    // ProcessingInstruction(ProcessingInstructionNode),
+    // Comment(CommentNode),
+    Document(DocumentNode),
+    DocumentType(DocumentTypeNode),
+    // DocumentFragment(DocumentFragmentNode)
+}
+
+impl Deref for Node {
+    type Target = NodeBase;
+
+    fn deref(&self) -> &Self::Target {
+        match &self {
+            Node::Element(n) => n,
+            Node::Attr(n) => n,
+            // Node::Text(n) => n,
+            // Node::CDataSection(n) => n,
+            // Node::ProcessingInstruction(n) => n,
+            // Node::Comment(n) => n,
+            Node::Document(n) => n,
+            Node::DocumentType(n) => n,
+            // Node::DocumentFragment(n) => n
+        }
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        &self as &NodeBase == &other as &NodeBase
+    }
+}
+
+impl Eq for Node {}
+
+impl PartialEq<NodeBase> for Node {
+    fn eq(&self, other: &NodeBase) -> bool {
+        &self as &NodeBase == other
+    }
+}
+
+impl PartialEq<&NodeBase> for Node {
+    fn eq(&self, other: &&NodeBase) -> bool {
+        &self as &NodeBase == *other
+    }
+}
+
+/// Base DOM node.
+pub trait NodeInterface {
+    unsafe fn node_name_unchecked(&self) -> Option<&str>;
+    unsafe fn node_value_unchecked(&self) -> Option<&str>;
+
+    fn node_name(&self) -> Option<String>;
+
+    fn owner_document(&self) -> Option<DocumentNode>;
+    fn parent_node(&self) -> Option<Node>;
+    fn parent_element(&self) -> Option<ElementNode>;
+    fn has_child_nodes(&self) -> bool;
+    fn child_nodes(&self) -> Vec<Node>;
+    fn first_child(&self) -> Option<Node>;
+    fn last_child(&self) -> Option<Node>;
+    fn previous_sibling(&self) -> Option<Node>;
+    fn next_sibling(&self) -> Option<Node>;
+
+    fn node_value(&self) -> Option<String>;
+    fn text_content(&self) -> Option<String>;
+
+    fn contains(&self, node: &Node) -> bool;
+
+    fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node>;
+    fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
+    fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node>;
+    fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
+}
+
+/// DocumentType node.
+pub trait DocumentType {
+    unsafe fn name_unchecked(&self) -> Option<&str>;
+    unsafe fn public_id_unchecked(&self) -> Option<&str>;
+    unsafe fn system_id_unchecked(&self) -> Option<&str>;
+
+    fn name(&self) -> Option<String>;
+    fn public_id(&self) -> Option<String>;
+    fn system_id(&self) -> Option<String>;
+}
+
+/// Document node.
+pub trait Document {
+    fn doctype(&self) -> Option<DocumentTypeNode>;
+    fn document_element(&self) -> Option<DocumentNode>;
+
+    fn elements_by_tag_name(&self) -> NodeList;
+    fn elements_by_class_name(&self) -> NodeList;
+
+    fn create_element(&mut self, local_name: &str) -> Option<ElementNode>;
+    // fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
+    // fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode>;
+    // fn create_comment(&mut self, data: &str) -> Option<CommentNode>;
+    fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode>;
 }
 
 /// ParentNode mixin trait.
@@ -49,12 +135,12 @@ pub trait ParentNode {
     fn last_element_child(&self) -> Option<Node>;
     fn child_element_nodes(&self) -> Vec<Node>;
     fn child_element_count(&self) -> usize;
-    fn prepend(&mut self, node: &Node);
-    fn append(&mut self, node: &Node);
-    fn replace_children(&mut self, node: &[&Node]);
+    fn prepend(&mut self, nodes: &[&Node]);
+    fn append(&mut self, nodes: &[&Node]);
+    fn replace_children(&mut self, nodes: &[&Node]);
 
     fn query_selector(&self, selectors: &str) -> Option<Node>;
-    fn query_selector_all(&self, selectors: &str) -> Collection;
+    fn query_selector_all(&self, selectors: &str) -> NodeList;
 }
 
 /// NonElementParentNode mixin trait.
@@ -94,128 +180,418 @@ pub trait Element {
     fn class_list(&self) -> DOMTokenList;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
-    fn attributeNode(&self, qualified_name: &str) -> Option<Attr>;
+    fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode>;
     fn attribute_names(&self) -> Vec<String>;
     fn set_attribute(&mut self, qualified_name: &str, value: &str);
     fn remove_attribute(&mut self, qualified_name: &str);
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection;
-    fn elements_by_class_name(&self, class_names: &str) -> Collection;
+    fn elements_by_tag_name(&self, qualified_name: &str) -> NodeList;
+    fn elements_by_class_name(&self, class_names: &str) -> NodeList;
 }
 
-/// NodeList mixin trait.
-pub trait NodeList {
-    fn item(&self, index: isize) -> Option<&Node>;
-    fn item_mut(&mut self, index: isize) -> Option<&mut Node>;
-    fn len(&self) -> usize;
+pub trait Attr {
+    unsafe fn name_unchecked(&self) -> Option<&str>;
+    unsafe fn local_name_unchecked(&self) -> Option<&str>;
+    unsafe fn value_unchecked(&self) -> Option<&str>;
+
+    fn local_name(&self) -> Option<String>;
+    fn name(&self) -> Option<String>;
+    fn value(&self) -> Option<String>;
+
+    fn owner_element(&self) -> Option<Node>;
 }
 
-/// HTMLCollection mixin trait.
-pub trait HTMLCollection {
-    fn named_item(&self, name: &str) -> Option<&Node>;
-    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node>;
-}
-
-impl From<lxb_dom_node_type_t::Type> for NodeType {
-    fn from(value: lxb_dom_node_type_t::Type) -> Self {
-        use lxb_dom_node_type_t::*;
-        match value {
-            LXB_DOM_NODE_TYPE_ELEMENT => NodeType::Element,
-            LXB_DOM_NODE_TYPE_ATTRIBUTE => NodeType::Attribute,
-            LXB_DOM_NODE_TYPE_TEXT => NodeType::Text,
-            LXB_DOM_NODE_TYPE_CDATA_SECTION => NodeType::CDataSection,
-            LXB_DOM_NODE_TYPE_ENTITY_REFERENCE => NodeType::EntityReference,
-            LXB_DOM_NODE_TYPE_ENTITY => NodeType::Entity,
-            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => NodeType::ProcessingInstruction,
-            LXB_DOM_NODE_TYPE_COMMENT => NodeType::Comment,
-            LXB_DOM_NODE_TYPE_DOCUMENT => NodeType::Document,
-            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => NodeType::DocumentType,
-            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => NodeType::DocumentFragment,
-            LXB_DOM_NODE_TYPE_NOTATION => NodeType::Notation,
-            LXB_DOM_NODE_TYPE_LAST_ENTRY => NodeType::LastEntry,
-            _ => NodeType::Undefined,
+macro_rules! check_node {
+    ($self: ident) => {
+        if $self.tree.upgrade().is_none() || $self.node.is_null() {
+            return Default::default();
         }
     }
 }
 
-pub struct DocumentType {
-    name: String,
-    public_id: String,
-    system_id: String
+macro_rules! derive_node_deref {
+    ($Self: ident, $EnumType: ident, $node_base_field: ident) => {
+        impl Deref for $Self {
+            type Target = NodeBase;
+
+            #[inline]
+            fn deref(&self) -> &Self::Target {
+                &self.$node_base_field
+            }
+        }
+
+        impl DerefMut for $Self {
+            #[inline]
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.$node_base_field
+            }
+        }
+
+        impl From<Node> for $Self {
+            fn from(value: Node) -> $Self {
+                match value {
+                    Node::$EnumType(d) => d,
+                    _ => panic!("Illegal DOM Node type coercion.")
+                }
+            }
+        }
+
+        impl From<$Self> for Node {
+            fn from(value: $Self) -> Node {
+                Node::$EnumType(value)
+            }
+        }
+    }
 }
 
-pub struct Document {
+macro_rules! derive_node_new {
+    ($Self: ident, $EnumType: ident, $node_base_field: ident) => {
+        impl $Self {
+            fn new($node_base_field: NodeBase) -> Option<Node> {
+                Some(Node::$EnumType($Self { $node_base_field }))
+            }
+        }
+    }
+}
+
+/// Base DOM node implementation.
+pub struct NodeBase {
     tree: Weak<HTMLTreeRc>,
-    doc_type: DocumentType,
-    document_element: *mut lxb_dom_document_t,
+    node: *mut lxb_dom_node_t,
 }
 
-impl Document {
-    fn doctype(&self) -> Option<&DocumentType> {
+impl PartialEq for NodeBase {
+    fn eq(&self, other: &Self) -> bool {
+        self.node == other.node
+    }
+}
+
+impl Eq for NodeBase {}
+
+impl NodeBase {
+    pub(super) fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Node> {
+        if node.is_null() {
+            return None;
+        }
+        let base = Self { tree: Rc::downgrade(tree), node };
+        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+        match unsafe { (*node).type_ } {
+            LXB_DOM_NODE_TYPE_ELEMENT => ElementNode::new(base),
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => AttrNode::new(base),
+            // LXB_DOM_NODE_TYPE_TEXT => TextNode::new(base),
+            // LXB_DOM_NODE_TYPE_CDATA_SECTION => CDataSectionNode::new(base),
+            // LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => ProcessingInstructionNode::new(base),
+            // LXB_DOM_NODE_TYPE_COMMENT => CommentNode::new(base),
+            LXB_DOM_NODE_TYPE_DOCUMENT => DocumentNode::new(base),
+            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => DocumentTypeNode::new(base),
+            // LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => DocumentFragmentNode::new(base),
+            _ => None
+        }
+    }
+
+    fn serialize_node(node: &Self) -> Option<String> {
+        node.tree.upgrade()?;
+
+        let out_html;
+        unsafe {
+            let s = lexbor_str_create();
+            lxb_html_serialize_tree_str(node.node, s);
+            out_html = str_from_lxb_str_t(s).to_string();
+            lexbor_str_destroy(s, node.node.as_ref()?.owner_document.as_ref()?.text, true);
+        }
+        Some(out_html)
+    }
+}
+
+impl NodeInterface for NodeBase {
+    unsafe fn node_name_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        Some(&self.doc_type)
+        str_from_lxb_str_cb(self.node, lxb_dom_node_name)
     }
 
-    fn document_element(&self) -> Option<Node> {
-        Node::new(&self.tree.upgrade()?, self.document_element.cast())
+    /// Node text value.
+    unsafe fn node_value_unchecked(&self) -> Option<&str> {
+        self.tree.upgrade()?;
+        let cdata = self.node as *const lxb_dom_character_data_t;
+        Some(str_from_lxb_str_t(addr_of!((*cdata).data)))
     }
 
-    fn elements_by_tag_name(&self) -> Collection {
+    /// DOM element tag or node name.
+    fn node_name(&self) -> Option<String> {
+        unsafe { Some(self.node_name_unchecked()?.to_owned()) }
+    }
+
+    fn owner_document(&self) -> Option<DocumentNode> {
         todo!()
     }
 
-    fn elements_by_class_name(&self) -> Collection {
+    /// Parent of this node.
+    fn parent_node(&self) -> Option<Node> {
+        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
+    }
+
+    fn parent_element(&self) -> Option<ElementNode> {
+        None
+    }
+
+    fn has_child_nodes(&self) -> bool {
         todo!()
     }
 
-    fn create_element(&mut self, local_name: &str) -> Option<Node> {
+    /// List of child nodes.
+    fn child_nodes(&self) -> Vec<Node> {
+        let mut nodes = Vec::new();
+        let mut child = self.first_child();
+        while let Some(c) = child {
+            child = c.next_sibling();
+            nodes.push(c);
+        }
+        nodes
+    }
+
+    /// First child element of this DOM node.
+    fn first_child(&self) -> Option<Node> {
+        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.first_child) }
+    }
+
+    /// Last child element of this DOM node.
+    fn last_child(&self) -> Option<Node> {
+        self.tree.upgrade()?;
+        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
+    }
+
+    /// Previous sibling node.
+    fn previous_sibling(&self) -> Option<Node> {
+        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
+    }
+
+    /// Next sibling node.
+    fn next_sibling(&self) -> Option<Node> {
+        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
+    }
+
+    /// Node text value.
+    #[inline]
+    fn node_value(&self) -> Option<String> {
+        unsafe { Some(self.node_value_unchecked()?.to_owned()) }
+    }
+
+    /// Text contents of this DOM node and its children.
+    fn text_content(&self) -> Option<String> {
+        self.tree.upgrade()?;
+
+        let out_text;
+        unsafe {
+            let mut l = 0;
+            let t = lxb_dom_node_text_content(self.node, &mut l);
+            out_text = str_from_lxb_char_t(t, l).to_string();
+            lxb_dom_document_destroy_text_noi(self.node.as_ref()?.owner_document, t);
+        }
+        Some(out_text)
+    }
+
+    fn contains(&self, node: &Node) -> bool {
+        check_node!(self);
+        todo!()
+    }
+
+    fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+        check_node!(self);
+        if let Some(c) = child {
+            if c.parent_node()? != self || node.contains(c) {
+                return None;
+            }
+            if node == c {
+                return Some(node);
+            }
+            unsafe { lxb_dom_node_insert_before(c.node, node.node) }
+            Some(node)
+        } else {
+            self.append_child(node)
+        }
+    }
+
+    fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+        check_node!(self);
+        unsafe { lxb_dom_node_insert_child(self.node, node.node); }
+        Some(node)
+    }
+
+    fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
+        check_node!(self);
+        if child.parent_node()? != self {
+            return None;
+        }
+        if node == child {
+            return Some(node);
+        }
+        self.insert_before(node, Some(child))?;
+        self.remove_child(child)?;
+        Some(node)
+    }
+
+    fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+        check_node!(self);
+        if node.parent_node()? != self {
+            return None;
+        }
+        unsafe { lxb_dom_node_remove(node.node); }
+        Some(node)
+    }
+
+    // /// Visible text contents of this DOM node and its children.
+    // #[inline]
+    // fn outer_text(&self) -> Option<String> {
+    //     self.inner_text()
+    // }
+    //
+    // /// Visible text contents of this DOM node and its children.
+    // #[inline]
+    // fn inner_text(&self) -> Option<String> {
+    //     self.tree.upgrade()?;
+    //     match self.node_type() {
+    //         NodeType::Element => Some(node_format_visible_text(self.node)),
+    //         _ => None
+    //     }
+    // }
+    //
+    // /// Outer HTML of this DOM node and its children.
+    // #[inline]
+    // fn outer_html(&self) -> Option<String> {
+    //     Self::serialize_node(self)
+    // }
+    //
+    // /// Inner HTML of this DOM node's children.
+    // fn inner_html(&self) -> Option<String> {
+    //     self.child_nodes()
+    //         .into_iter()
+    //         .flat_map(|c| Self::serialize_node(&c))
+    //         .reduce(|a, b| a + &b)
+    // }
+}
+
+pub struct DocumentTypeNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(DocumentTypeNode, DocumentType, node_base);
+derive_node_new!(DocumentTypeNode, DocumentType, node_base);
+
+impl DocumentType for DocumentTypeNode {
+    unsafe fn name_unchecked(&self) -> Option<&str> {
+        check_node!(self);
+        str_from_lxb_str_cb(self.node, lxb_dom_document_type_name_noi)
+    }
+
+    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+        check_node!(self);
+        str_from_lxb_str_cb(self.node, lxb_dom_document_type_public_id_noi)
+    }
+
+    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+        check_node!(self);
+        str_from_lxb_str_cb(self.node, lxb_dom_document_type_system_id_noi)
+    }
+
+    #[inline]
+    fn name(&self) -> Option<String> {
+        unsafe { Some(self.name_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn public_id(&self) -> Option<String> {
+        unsafe { Some(self.public_id_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn system_id(&self) -> Option<String> {
+        unsafe { Some(self.system_id_unchecked()?.to_owned()) }
+    }
+}
+
+pub struct DocumentNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(DocumentNode, Document, node_base);
+derive_node_new!(DocumentNode, Document, node_base);
+
+impl DocumentNode {
+    fn document_element_ptr(&self) -> *mut lxb_dom_document_t {
+        unsafe { (*self.node_base.node).owner_document }
+    }
+}
+
+impl Document for DocumentNode {
+    fn doctype(&self) -> Option<DocumentTypeNode> {
+        let tree = self.tree.upgrade()?;
+        if self.document_element_ptr().is_null() {
+            return None;
+        }
+        let doctype = unsafe { (*self.document_element_ptr()).doctype };
+        Some(NodeBase::new(&tree, doctype.cast())?.into())
+    }
+
+    fn document_element(&self) -> Option<DocumentNode> {
+        Some(NodeBase::new(&self.tree.upgrade()?, self.document_element_ptr().cast())?.into())
+    }
+
+    fn elements_by_tag_name(&self) -> NodeList {
+        todo!()
+    }
+
+    fn elements_by_class_name(&self) -> NodeList {
+        todo!()
+    }
+
+    fn create_element(&mut self, local_name: &str) -> Option<ElementNode> {
         let element = unsafe {
             lxb_dom_document_create_element(
-                self.document_element, local_name.as_ptr(), local_name.len(), ptr::null_mut())
+                self.document_element_ptr(), local_name.as_ptr(), local_name.len(), ptr::null_mut())
         };
         if !element.is_null() {
-            Node::new(&self.tree.upgrade()?, element.cast())
+            Some(NodeBase::new(&self.tree.upgrade()?, element.cast())?.into())
         } else {
             None
         }
     }
 
-    fn create_text_node(&mut self, data: &str) -> Option<Node> {
-        let text = unsafe {
-            lxb_dom_document_create_text_node(self.document_element, data.as_ptr(), data.len())
-        };
-        if !text.is_null() {
-            Node::new(&self.tree.upgrade()?, text.cast())
-        } else {
-            None
-        }
-    }
+    // fn create_text_node(&mut self, data: &str) -> Option<Node> {
+    //     let text = unsafe {
+    //         lxb_dom_document_create_text_node(self.document_element, data.as_ptr(), data.len())
+    //     };
+    //     if !text.is_null() {
+    //         NodeBase::new(&self.tree.upgrade()?, text.cast())
+    //     } else {
+    //         None
+    //     }
+    // }
+    //
+    // fn create_cdata_section(&mut self, data: &str) -> Option<Node> {
+    //     let cdata = unsafe {
+    //         lxb_dom_document_create_cdata_section(self.document_element, data.as_ptr(), data.len())
+    //     };
+    //     if !cdata.is_null() {
+    //         NodeBase::new(&self.tree.upgrade()?, cdata.cast())
+    //     } else {
+    //         None
+    //     }
+    // }
+    //
+    // fn create_comment(&mut self, data: &str) -> Option<Node> {
+    //     let comment = unsafe {
+    //         lxb_dom_document_create_comment(self.document_element, data.as_ptr(), data.len())
+    //     };
+    //     if !comment.is_null() {
+    //         NodeBase::new(&self.tree.upgrade()?, comment.cast())
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    fn create_cdata_section(&mut self, data: &str) -> Option<Node> {
-        let cdata = unsafe {
-            lxb_dom_document_create_cdata_section(self.document_element, data.as_ptr(), data.len())
-        };
-        if !cdata.is_null() {
-            Node::new(&self.tree.upgrade()?, cdata.cast())
-        } else {
-            None
-        }
-    }
-
-    fn create_comment(&mut self, data: &str) -> Option<Node> {
-        let comment = unsafe {
-            lxb_dom_document_create_comment(self.document_element, data.as_ptr(), data.len())
-        };
-        if !comment.is_null() {
-            Node::new(&self.tree.upgrade()?, comment.cast())
-        } else {
-            None
-        }
-    }
-
-    fn create_attribute(&mut self, local_name: &str) -> Option<Node> {
-        let attr = unsafe { lxb_dom_attr_interface_create(self.document_element) };
+    fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode> {
+        let attr = unsafe { lxb_dom_attr_interface_create(self.document_element_ptr()) };
         if attr.is_null() {
             return None;
         }
@@ -226,11 +602,11 @@ impl Document {
             unsafe { lxb_dom_attr_interface_destroy(attr); }
             return None;
         }
-        Node::new(&self.tree.upgrade()?, attr.cast())
+        Some(NodeBase::new(&self.tree.upgrade()?, attr.cast())?.into())
     }
 }
 
-impl ParentNode for Document {
+impl ParentNode for DocumentNode {
     #[inline]
     fn first_element_child(&self) -> Option<Node> {
         self.document_element()?.first_element_child()
@@ -259,16 +635,16 @@ impl ParentNode for Document {
     }
 
     #[inline]
-    fn prepend(&mut self, node: &Node) {
+    fn prepend(&mut self, nodes: &[&Node]) {
         if let Some(mut d) = self.document_element() {
-            d.prepend(node)
+            d.prepend(nodes)
         }
     }
 
     #[inline]
-    fn append(&mut self, node: &Node) {
+    fn append(&mut self, nodes: &[&Node]) {
         if let Some(mut d) = self.document_element() {
-            d.append(node)
+            d.append(nodes)
         }
     }
 
@@ -285,11 +661,11 @@ impl ParentNode for Document {
     }
 
     #[inline]
-    fn query_selector_all(&self, selectors: &str) -> Collection {
+    fn query_selector_all(&self, selectors: &str) -> NodeList {
         if let Some(d) = self.document_element() {
             d.query_selector_all(selectors)
         } else {
-            Collection::default()
+            NodeList::default()
         }
     }
 }
@@ -304,14 +680,14 @@ impl<'a> DOMTokenList<'a> {
         Self { node, values: RefCell::new(Vec::new()) }
     }
 
-    fn item(&self, index: isize) -> Option<String> {
-        let l = self.len();
-        Some(self.values().get(wrap_index(l, index))?.clone())
+    fn item(&self, index: usize) -> Option<String> {
+        Some(self.values().get(index)?.to_owned())
     }
 
     fn update_node(&mut self) {
-        let v = self.value();
-        unsafe { lxb_dom_node_text_content_set(self.node.node, v.as_ptr(), v.len()); }
+        todo!()
+        // let v = self.value();
+        // unsafe { lxb_dom_node_text_content_set(self.node.node, v.as_ptr(), v.len()); }
     }
 
     fn sync(&self) {
@@ -374,7 +750,8 @@ impl<'a> DOMTokenList<'a> {
 
     #[inline]
     fn value(&self) -> String {
-        self.node.node_value().unwrap_or(String::default())
+        todo!()
+        // self.node.node_value().unwrap_or(String::default())
     }
 
     #[inline]
@@ -389,215 +766,27 @@ impl<'a> DOMTokenList<'a> {
     }
 }
 
-/// DOM node.
-pub struct Node {
-    tree: Weak<HTMLTreeRc>,
-    node: *mut lxb_dom_node_t,
+pub struct ElementNode {
+    node_base: NodeBase
 }
 
-impl Node {
-    #[inline]
-    pub(super) fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Self> {
-        if node.is_null() {
-            return None;
-        }
-        Some(Self { tree: Rc::downgrade(tree), node })
-    }
+derive_node_deref!(ElementNode, Element, node_base);
+derive_node_new!(ElementNode, Element, node_base);
 
-    /// DOM node type.
-    pub fn node_type(&self) -> NodeType {
-        match self.tree.upgrade() {
-            Some(_) => unsafe { (*self.node).type_.into() },
-            _ => NodeType::Undefined
-        }
-    }
-
-    pub unsafe fn node_name_unchecked(&self) -> Option<&str> {
-        self.tree.upgrade()?;
-        str_from_lxb_str_cb(self.node, lxb_dom_node_name)
-    }
-
-    /// DOM element tag or node name.
-    pub fn node_name(&self) -> Option<String> {
-        unsafe { Some(self.node_name_unchecked()?.to_owned()) }
-    }
-
-    /// First child element of this DOM node.
-    pub fn first_child(&self) -> Option<Self> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.first_child) }
-    }
-
-    /// Last child element of this DOM node.
-    pub fn last_child(&self) -> Option<Self> {
-        self.tree.upgrade()?;
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
-    }
-
-    /// List of child nodes.
-    pub fn child_nodes(&self) -> Vec<Self> {
-        let mut nodes = Vec::new();
-        let mut child = self.first_child();
-        while let Some(c) = child {
-            child = c.next_sibling();
-            nodes.push(c);
-        }
-        nodes
-    }
-
-    /// Parent of this node.
-    pub fn parent(&self) -> Option<Self> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
-    }
-
-    /// Previous sibling node.
-    pub fn previous_sibling(&self) -> Option<Self> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
-    }
-
-    /// Next sibling node.
-    pub fn next_sibling(&self) -> Option<Self> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
-    }
-
-    /// Node text value.
-    #[inline]
-    pub fn node_value(&self) -> Option<String> {
-        unsafe { Some(self.node_value_unchecked()?.to_owned()) }
-    }
-
-    /// Node text value.
-    pub unsafe fn node_value_unchecked(&self) -> Option<&str> {
-        self.tree.upgrade()?;
-        let cdata = self.node as *const lxb_dom_character_data_t;
-        Some(str_from_lxb_str_t(addr_of!((*cdata).data)))
-    }
-
-    /// Text contents of this DOM node and its children.
-    pub fn text_content(&self) -> Option<String> {
-        self.tree.upgrade()?;
-
-        if self.node_type() == NodeType::Text {
-            return self.node_value();
-        }
-
-        let out_text;
-        unsafe {
-            let mut l = 0;
-            let t = lxb_dom_node_text_content(self.node, &mut l);
-            out_text = str_from_lxb_char_t(t, l).to_string();
-            lxb_dom_document_destroy_text_noi(self.node.as_ref()?.owner_document, t);
-        }
-        Some(out_text)
-    }
-
-    /// Visible text contents of this DOM node and its children.
-    #[inline]
-    pub fn outer_text(&self) -> Option<String> {
-        self.inner_text()
-    }
-
-    /// Visible text contents of this DOM node and its children.
-    #[inline]
-    pub fn inner_text(&self) -> Option<String> {
-        self.tree.upgrade()?;
-        match self.node_type() {
-            NodeType::Element => Some(node_format_visible_text(self.node)),
-            _ => None
-        }
-    }
-
-    fn serialize_node(node: &Self) -> Option<String> {
-        node.tree.upgrade()?;
-
-        let out_html;
-        unsafe {
-            let s = lexbor_str_create();
-            lxb_html_serialize_tree_str(node.node, s);
-            out_html = str_from_lxb_str_t(s).to_string();
-            lexbor_str_destroy(s, node.node.as_ref()?.owner_document.as_ref()?.text, true);
-        }
-        Some(out_html)
-    }
-
-    /// Outer HTML of this DOM node and its children.
-    #[inline]
-    pub fn outer_html(&self) -> Option<String> {
-        Self::serialize_node(self)
-    }
-
-    /// Inner HTML of this DOM node's children.
-    pub fn inner_html(&self) -> Option<String> {
-        self.child_nodes()
-            .into_iter()
-            .flat_map(|c| Self::serialize_node(&c))
-            .reduce(|a, b| a + &b)
-    }
-}
-
-macro_rules! check_node {
-    ($self:ident) => {
-        if $self.tree.upgrade().is_none() || $self.node.is_null() {
-            return Default::default();
-        }
-    }
-}
-
-macro_rules! check_element {
-    ($self:ident) => {
-        if !$self.tree.upgrade().is_some() || $self.node_type() != NodeType::Element {
-            return Default::default();
-        }
-    }
-}
-
-#[inline]
-pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
-    if size > 0 {
-        std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size))
-    } else {
-        ""
-    }
-}
-
-#[inline]
-pub(super) unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
-    str_from_lxb_char_t((*s).data, (*s).length)
-}
-
-#[inline]
-pub(super) unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
-    let cdata = node as *const lxb_dom_character_data_t;
-    str_from_lxb_str_t(addr_of!((*cdata).data))
-}
-
-#[inline]
-pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
-    node: *mut Node, lxb_fn: unsafe extern "C" fn(*mut Fn, *mut usize) -> *const lxb_char_t) -> Option<&'a str> {
-    if node.is_null() {
-        return None;
-    }
-    let mut size = 0;
-    let name = lxb_fn(node.cast(), addr_of_mut!(size));
-    match size {
-        0 => None,
-        _ => Some(str_from_lxb_char_t(name, size))
-    }
-}
-
-impl Element for Node {
+impl Element for ElementNode {
     /// DOM element tag or node name.
     unsafe fn tag_name_unchecked(&self) -> Option<&str> {
-        check_element!(self);
+        check_node!(self);
         str_from_lxb_str_cb(self.node, lxb_dom_element_tag_name)
     }
 
     unsafe fn local_name_unchecked(&self) -> Option<&str> {
-        check_element!(self);
+        check_node!(self);
         str_from_lxb_str_cb(self.node, lxb_dom_element_local_name)
     }
 
     unsafe fn id_unchecked(&self) -> Option<&str> {
-        check_element!(self);
+        check_node!(self);
         str_from_lxb_str_cb(self.node, lxb_dom_element_id_noi)
     }
 
@@ -607,12 +796,12 @@ impl Element for Node {
     }
 
     unsafe fn class_name_unchecked(&self) -> Option<&str> {
-        check_element!(self);
+        check_node!(self);
         str_from_lxb_str_cb(self.node, lxb_dom_element_class_noi)
     }
 
     unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> {
-        check_element!(self);
+        check_node!(self);
         let mut size = 0;
         let name = lxb_dom_element_get_attribute(
             self.node.cast(),
@@ -626,7 +815,7 @@ impl Element for Node {
     }
 
     unsafe fn attribute_names_unchecked(&self) -> Vec<&str> {
-        check_element!(self);
+        check_node!(self);
         let mut attr =  lxb_dom_element_first_attribute_noi(self.node.cast());
         let mut name_vec = Vec::new();
         while !attr.is_null() {
@@ -666,7 +855,7 @@ impl Element for Node {
 
     fn class_list(&self) -> DOMTokenList {
         todo!()
-        // check_element!(self);
+        // check_node!(self);
         // let Some(cls) = {
         //     unsafe { self.class_name_unchecked() }
         // } else {
@@ -681,10 +870,10 @@ impl Element for Node {
         unsafe { Some(self.attribute_unchecked(qualified_name)?.to_owned()) }
     }
 
-    fn attributeNode(&self, qualified_name: &str) -> Option<Attr> {
-        check_element!(self);
-        Attr::new(&self.tree.upgrade()?, unsafe { lxb_dom_element_attr_by_name(
-            self.node.cast(), qualified_name.as_ptr(), qualified_name.len()) })
+    fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode> {
+        check_node!(self);
+        Some(NodeBase::new(&self.tree.upgrade()?, unsafe { lxb_dom_element_attr_by_name(
+            self.node.cast(), qualified_name.as_ptr(), qualified_name.len()) }.cast())?.into())
     }
 
     fn attribute_names(&self) -> Vec<String> {
@@ -692,7 +881,7 @@ impl Element for Node {
     }
 
     fn set_attribute(&mut self, qualified_name: &str, value: &str) {
-        check_element!(self);
+        check_node!(self);
         unsafe {
              lxb_dom_element_set_attribute(self.node.cast(),
                                            qualified_name.as_ptr(), qualified_name.len(),
@@ -701,7 +890,7 @@ impl Element for Node {
     }
 
     fn remove_attribute(&mut self, qualified_name: &str) {
-        check_element!(self);
+        check_node!(self);
         unsafe {
              lxb_dom_element_remove_attribute(
                  self.node.cast(), qualified_name.as_ptr(), qualified_name.len());
@@ -709,61 +898,39 @@ impl Element for Node {
     }
 
     fn has_attribute(&self, qualified_name: &str) -> bool {
-        check_element!(self);
+        check_node!(self);
         unsafe { lxb_dom_element_has_attribute(self.node.cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> Collection {
-        check_element!(self);
+    fn elements_by_tag_name(&self, qualified_name: &str) -> NodeList {
+        check_node!(self);
         todo!()
     }
 
-    fn elements_by_class_name(&self, class_names: &str) -> Collection {
-        check_element!(self);
+    fn elements_by_class_name(&self, class_names: &str) -> NodeList {
+        check_node!(self);
         todo!()
     }
 }
 
-impl NonDocumentTypeChildNode for Node {
-    /// Previous sibling element node.
-    fn previous_element_sibling(&self) -> Option<Self> {
-        loop {
-            let s = self.previous_sibling()?;
-            if s.node_type() == NodeType::Element {
-                return Some(s);
-            }
-        }
-    }
-
-    /// Next sibling element node.
-    fn next_element_sibling(&self) -> Option<Self> {
-        loop {
-            let s = self.next_sibling()?;
-            if s.node_type() == NodeType::Element {
-                return Some(s);
-            }
-        }
-    }
-}
-
-impl ParentNode for Node {
+impl ParentNode for ElementNode {
     /// First element child of this DOM node.
-    fn first_element_child(&self) -> Option<Self> {
+    fn first_element_child(&self) -> Option<Node> {
         let mut child = self.first_child()?;
         loop {
-            if child.node_type() == NodeType::Element {
-                return Some(child);
+            match child {
+                Node::Element(c) => return Some(c.into()),
+                _ => { child = child.next_sibling()? }
             }
-            child = child.next_sibling()?;
         }
     }
 
     /// Last element child element of this DOM node.
-    fn last_element_child(&self) -> Option<Self> {
+    fn last_element_child(&self) -> Option<Node> {
         let mut child = self.last_child()?;
         loop {
-            if child.node_type() == NodeType::Element {
-                return Some(child);
+            if let Node::Element(c) = child {
+                return Some(c.into());
             }
             child = child.previous_sibling()?;
         }
@@ -790,52 +957,39 @@ impl ParentNode for Node {
         count
     }
 
-    fn prepend(&mut self, node: &Node) {
+    fn prepend(&mut self, nodes: &[&Node]) {
         check_node!(self);
-        if node.node.is_null() {
-            return;
-        }
-        if let Some(mut fc) = self.first_child() {
-            fc.before(node);
-        } else {
-            self.replace_children(&[node]);
-        }
+
+        nodes.iter().rev().for_each(|n: &&Node| {
+            self.insert_before(n, self.first_child().as_ref());
+        });
     }
 
-    fn append(&mut self, node: &Node) {
+    fn append(&mut self, nodes: &[&Node]) {
         check_node!(self);
-        if node.node.is_null() {
-            return;
-        }
-        if let Some(mut lc) = self.last_child() {
-            lc.after(node);
-        } else {
-            self.replace_children(&[node]);
-        }
+        nodes.iter().for_each(|n: &&Node| {
+            self.append_child(n);
+        });
     }
 
     fn replace_children(&mut self, nodes: &[&Node]) {
         check_node!(self);
-        if nodes.is_empty() {
-            return;
+        while let Some(c) = self.first_child() {
+            self.remove_child(&c);
         }
-        unsafe { lxb_dom_node_replace_all(self.node, nodes[0].node); }
-        nodes.iter()
-            .skip(1)
-            .filter(|n: &&&Node| !n.node.is_null())
-            .for_each(|n: &&Node| self.after(n));
+        self.append(nodes);
     }
 
     fn query_selector(&self, selectors: &str) -> Option<Node> {
         todo!()
     }
 
-    fn query_selector_all(&self, selectors: &str) -> Collection {
+    fn query_selector_all(&self, selectors: &str) -> NodeList {
         todo!()
     }
 }
 
-impl ChildNode for Node {
+impl ChildNode for ElementNode {
     fn before(&mut self, node: &Node) {
         check_node!(self);
         if node.node.is_null() {
@@ -869,73 +1023,87 @@ impl ChildNode for Node {
     }
 }
 
-pub struct Attr {
-    tree: Weak<HTMLTreeRc>,
-    attr: *mut lxb_dom_attr_t
-}
-
-impl Attr {
-    fn new(tree: &Rc<HTMLTreeRc>, attr: *mut lxb_dom_attr_t) -> Option<Attr> {
-        if !attr.is_null() {
-            Some(Attr { tree: Rc::downgrade(&tree), attr })
-        } else {
-            None
+impl NonDocumentTypeChildNode for Node {
+    /// Previous sibling element node.
+    fn previous_element_sibling(&self) -> Option<Node> {
+        loop {
+            if let Node::Element(s) = self.previous_sibling()? {
+                return Some(s.into());
+            }
         }
     }
 
-    pub unsafe fn local_name_unchecked(&self) -> Option<&str> {
+    /// Next sibling element node.
+    fn next_element_sibling(&self) -> Option<Node> {
+        loop {
+            if let Node::Element(s) = self.next_sibling()? {
+                return Some(s.into());
+            }
+        }
+    }
+}
+
+pub struct AttrNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(AttrNode, Attr, node_base);
+derive_node_new!(AttrNode, Attr, node_base);
+
+impl Attr for AttrNode {
+    unsafe fn name_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        str_from_lxb_str_cb(self.attr, lxb_dom_attr_local_name_noi)
+        str_from_lxb_str_cb(self.node_base.node, lxb_dom_attr_qualified_name)
     }
 
-    pub unsafe fn name_unchecked(&self) -> Option<&str> {
+    unsafe fn local_name_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        str_from_lxb_str_cb(self.attr, lxb_dom_attr_qualified_name)
+        str_from_lxb_str_cb(self.node_base.node, lxb_dom_attr_local_name_noi)
     }
 
-    pub unsafe fn value_unchecked(&self) -> Option<&str> {
+    unsafe fn value_unchecked(&self) -> Option<&str> {
         self.tree.upgrade()?;
-        str_from_lxb_str_cb(self.attr, lxb_dom_attr_value_noi)
+        str_from_lxb_str_cb(self.node_base.node, lxb_dom_attr_value_noi)
     }
 
     #[inline]
-    pub fn local_name(&self) -> Option<String> {
+    fn local_name(&self) -> Option<String> {
         unsafe { Some(self.local_name_unchecked()?.to_owned()) }
     }
 
     #[inline]
-    pub fn name(&self) -> Option<String> {
+    fn name(&self) -> Option<String> {
         unsafe { Some(self.name_unchecked()?.to_owned()) }
     }
 
     #[inline]
-    pub fn value(&self) -> Option<String> {
+    fn value(&self) -> Option<String> {
         unsafe { Some(self.value_unchecked()?.to_owned()) }
     }
 
-    pub fn owner_element(&self) -> Option<Node> {
+    fn owner_element(&self) -> Option<Node> {
         let tree = self.tree.upgrade()?;
         unsafe {
-            if self.attr.is_null() || (*self.attr).owner.is_null() {
+            let attr = self.node_base.node as *mut lxb_dom_attr_t;
+            if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            Node::new(&tree, (*self.attr).owner.cast())
+            NodeBase::new(&tree, (*attr).owner.cast())
         }
     }
 }
 
-
-pub struct Collection {
+pub struct NodeList {
     items: Vec<Node>,
 }
 
-impl Default for Collection {
+impl Default for NodeList {
     fn default() -> Self {
-        Collection { items: Vec::new() }
+        NodeList { items: Vec::new() }
     }
 }
 
-impl Collection {
+impl NodeList {
     unsafe fn new_unchecked(tree: &Rc<HTMLTreeRc>, coll: *mut lxb_dom_collection_t) -> Self {
         if coll.is_null() {
             return Self::default();
@@ -943,13 +1111,50 @@ impl Collection {
         let mut v = Vec::new();
         v.reserve(lxb_dom_collection_length_noi(coll));
         for i in 0..lxb_dom_collection_length_noi(coll) {
-            v.push(Node::new(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
+            v.push(NodeBase::new(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
         }
         Self { items: v }
     }
+
+    #[inline]
+    fn item(&self, index: usize) -> Option<&Node> {
+        self.items.get(index)
+    }
+
+    #[inline]
+    fn item_mut(&mut self, index: usize) -> Option<&mut Node> {
+        self.items.get_mut(index)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    fn named_item(&self, name: &str) -> Option<&Node> {
+        self.iter()
+            .find(|n: &&Node| {
+                match n {
+                    Node::Element(e) =>
+                        e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some(),
+                    _ => false
+                }
+            })
+    }
+
+    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node> {
+        self.iter_mut()
+            .find(|n: &&mut Node| {
+                match n {
+                    Node::Element(e) =>
+                        e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some(),
+                    _ => false
+                }
+            })
+    }
 }
 
-impl Deref for Collection {
+impl Deref for NodeList {
     type Target = [Node];
 
     fn deref(&self) -> &Self::Target {
@@ -957,54 +1162,49 @@ impl Deref for Collection {
     }
 }
 
-impl DerefMut for Collection {
+impl DerefMut for NodeList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.items.as_mut_slice()
     }
 }
 
 #[inline]
-fn wrap_index(max_idx: usize, index: isize) -> usize {
-    if index >= 0 {
-        index as usize
+pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
+    if size > 0 {
+        std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size))
     } else {
-        (index % max_idx as isize) as usize
+        ""
     }
 }
 
-impl NodeList for Collection {
-    #[inline]
-    fn item(&self, index: isize) -> Option<&Node> {
-        self.items.get(wrap_index(self.len(), index))
-    }
-
-    #[inline]
-    fn item_mut(&mut self, index: isize) -> Option<&mut Node> {
-        let idx_wrapped = wrap_index(self.len(), index);
-        self.items.get_mut(idx_wrapped)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.items.len()
-    }
+#[inline]
+pub(super) unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
+    str_from_lxb_char_t((*s).data, (*s).length)
 }
 
-impl HTMLCollection for Collection {
-    fn named_item(&self, name: &str) -> Option<&Node> {
-        self.iter()
-            .find(|e: &&Node| e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some())
-    }
+#[inline]
+pub(super) unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
+    let cdata = node as *const lxb_dom_character_data_t;
+    str_from_lxb_str_t(addr_of!((*cdata).data))
+}
 
-    fn named_item_mut(&mut self, name: &str) -> Option<&mut Node> {
-        self.iter_mut()
-            .find(|e: &&mut Node| e.id().filter(|i| i == name).is_some() || e.name().filter(|n| n == name).is_some())
+#[inline]
+pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
+    node: *mut Node, lxb_fn: unsafe extern "C" fn(*mut Fn, *mut usize) -> *const lxb_char_t) -> Option<&'a str> {
+    if node.is_null() {
+        return None;
+    }
+    let mut size = 0;
+    let name = lxb_fn(node.cast(), addr_of_mut!(size));
+    match size {
+        0 => None,
+        _ => Some(str_from_lxb_char_t(name, size))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parse::html::dom::HTMLTree;
+    use crate::parse::html::tree::HTMLTree;
 
     const HTML: &str = r#"<!doctype html>
 <html lang="en">
