@@ -28,13 +28,13 @@ use super::tree::{HTMLTreeRc};
 pub enum Node {
     Element(ElementNode),
     Attr(AttrNode),
-    // Text(TextNode),
-    // CDataSection(CDataSectionNode),
-    // ProcessingInstruction(ProcessingInstructionNode),
-    // Comment(CommentNode),
+    Text(TextNode),
+    CDataSection(CDataSectionNode),
+    ProcessingInstruction(ProcessingInstructionNode),
+    Comment(CommentNode),
     Document(DocumentNode),
     DocumentType(DocumentTypeNode),
-    // DocumentFragment(DocumentFragmentNode)
+    DocumentFragment(DocumentFragmentNode)
 }
 
 impl PartialEq<NodeBase> for Node {
@@ -62,13 +62,13 @@ impl Deref for Node {
         match &self {
             Node::Element(n) => &n.node_base,
             Node::Attr(n) => &n.node_base,
-            // Node::Text(n) => &n.node_base,
-            // Node::CDataSection(n) => &n.node_base,
-            // Node::ProcessingInstruction(n) => &n.node_base,
-            // Node::Comment(n) => &n.node_base,
+            Node::Text(n) => &n.node_base,
+            Node::CDataSection(n) => &n.node_base,
+            Node::ProcessingInstruction(n) => &n.node_base,
+            Node::Comment(n) => &n.node_base,
             Node::Document(n) => &n.node_base,
             Node::DocumentType(n) => &n.node_base,
-            // Node::DocumentFragment(n) => &n.node_base
+            Node::DocumentFragment(n) => &n.node_base
         }
     }
 }
@@ -125,9 +125,9 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn elements_by_class_name(&self) -> HTMLCollection;
 
     fn create_element(&mut self, local_name: &str) -> Option<ElementNode>;
-    // fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
-    // fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode>;
-    // fn create_comment(&mut self, data: &str) -> Option<CommentNode>;
+    fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
+    fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode>;
+    fn create_comment(&mut self, data: &str) -> Option<CommentNode>;
     fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode>;
 }
 
@@ -315,13 +315,13 @@ impl NodeBase {
         match unsafe { (*node).type_ } {
             LXB_DOM_NODE_TYPE_ELEMENT => ElementNode::new(base),
             LXB_DOM_NODE_TYPE_ATTRIBUTE => AttrNode::new(base),
-            // LXB_DOM_NODE_TYPE_TEXT => TextNode::new(base),
-            // LXB_DOM_NODE_TYPE_CDATA_SECTION => CDataSectionNode::new(base),
-            // LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => ProcessingInstructionNode::new(base),
-            // LXB_DOM_NODE_TYPE_COMMENT => CommentNode::new(base),
+            LXB_DOM_NODE_TYPE_TEXT => TextNode::new(base),
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => CDataSectionNode::new(base),
+            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => ProcessingInstructionNode::new(base),
+            LXB_DOM_NODE_TYPE_COMMENT => CommentNode::new(base),
             LXB_DOM_NODE_TYPE_DOCUMENT => DocumentNode::new(base),
             LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => DocumentTypeNode::new(base),
-            // LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => DocumentFragmentNode::new(base),
+            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => DocumentFragmentNode::new(base),
             _ => None
         }
     }
@@ -588,6 +588,7 @@ derive_node_deref!(DocumentNode, Document, node_base);
 derive_node_new!(DocumentNode, Document, node_base);
 
 impl DocumentNode {
+    #[inline]
     fn document_element_ptr(&self) -> *mut lxb_dom_document_t {
         unsafe { (*self.node_base.node).owner_document }
     }
@@ -620,45 +621,29 @@ impl Document for DocumentNode {
             lxb_dom_document_create_element(
                 self.document_element_ptr(), local_name.as_ptr(), local_name.len(), ptr::null_mut())
         };
-        if !element.is_null() {
-            Some(NodeBase::new(&self.tree.upgrade()?, element.cast())?.into())
-        } else {
-            None
-        }
+        Some(NodeBase::new(&self.tree.upgrade()?, element.cast())?.into())
     }
 
-    // fn create_text_node(&mut self, data: &str) -> Option<Node> {
-    //     let text = unsafe {
-    //         lxb_dom_document_create_text_node(self.document_element, data.as_ptr(), data.len())
-    //     };
-    //     if !text.is_null() {
-    //         NodeBase::new(&self.tree.upgrade()?, text.cast())
-    //     } else {
-    //         None
-    //     }
-    // }
-    //
-    // fn create_cdata_section(&mut self, data: &str) -> Option<Node> {
-    //     let cdata = unsafe {
-    //         lxb_dom_document_create_cdata_section(self.document_element, data.as_ptr(), data.len())
-    //     };
-    //     if !cdata.is_null() {
-    //         NodeBase::new(&self.tree.upgrade()?, cdata.cast())
-    //     } else {
-    //         None
-    //     }
-    // }
-    //
-    // fn create_comment(&mut self, data: &str) -> Option<Node> {
-    //     let comment = unsafe {
-    //         lxb_dom_document_create_comment(self.document_element, data.as_ptr(), data.len())
-    //     };
-    //     if !comment.is_null() {
-    //         NodeBase::new(&self.tree.upgrade()?, comment.cast())
-    //     } else {
-    //         None
-    //     }
-    // }
+    fn create_text_node(&mut self, data: &str) -> Option<TextNode> {
+        let text = unsafe {
+            lxb_dom_document_create_text_node(self.document_element_ptr(), data.as_ptr(), data.len())
+        };
+        Some(NodeBase::new(&self.tree.upgrade()?, text.cast())?.into())
+    }
+
+    fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode> {
+        let cdata = unsafe {
+            lxb_dom_document_create_cdata_section(self.document_element_ptr(), data.as_ptr(), data.len())
+        };
+        Some(NodeBase::new(&self.tree.upgrade()?, cdata.cast())?.into())
+    }
+
+    fn create_comment(&mut self, data: &str) -> Option<CommentNode> {
+        let comment = unsafe {
+            lxb_dom_document_create_comment(self.document_element_ptr(), data.as_ptr(), data.len())
+        };
+        Some(NodeBase::new(&self.tree.upgrade()?, comment.cast())?.into())
+    }
 
     fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode> {
         let attr = unsafe { lxb_dom_attr_interface_create(self.document_element_ptr()) };
@@ -756,7 +741,12 @@ impl NonElementParentNode for DocumentNode {
 
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct DocumentFragmentNode {}
+pub struct DocumentFragmentNode {
+    node_base: NodeBase
+}
+
+derive_node_deref!(DocumentFragmentNode, DocumentFragment, node_base);
+derive_node_new!(DocumentFragmentNode, DocumentFragment, node_base);
 
 impl DocumentFragment for DocumentFragmentNode {}
 
@@ -805,6 +795,7 @@ impl NonElementParentNode for DocumentFragmentNode {
         todo!()
     }
 }
+
 
 // ------------------------------------------ Element impl -----------------------------------------
 
@@ -1171,13 +1162,293 @@ impl Attr for AttrNode {
 // -------------------------------------------- Text impl ------------------------------------------
 
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct TextNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(TextNode, Text, node_base);
+derive_node_new!(TextNode, Text, node_base);
+
+impl Text for TextNode {}
+
+impl CharacterData for TextNode {
+    fn len(&self) -> usize {
+        todo!()
+    }
+
+    fn data(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
+        todo!()
+    }
+
+    fn append_data(&self, data: &str) {
+        todo!()
+    }
+
+    fn insert_data(&self, offset: usize, data: &str) {
+        todo!()
+    }
+
+    fn delete_data(&self, offset: usize, count: usize) {
+        todo!()
+    }
+
+    fn replace_data(&self, offset: usize, count: usize, data: &str) {
+        todo!()
+    }
+}
+
+impl ChildNode for TextNode {
+    fn before(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn after(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn replace_with(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn remove(&mut self) {
+        todo!()
+    }
+}
+
+impl NonDocumentTypeChildNode for TextNode {
+    fn previous_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+
+    fn next_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+}
+
+
 // ---------------------------------------- CDataSection impl --------------------------------------
+
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CDataSectionNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(CDataSectionNode, CDataSection, node_base);
+derive_node_new!(CDataSectionNode, CDataSection, node_base);
+
+impl CDataSection for CDataSectionNode {}
+
+impl CharacterData for CDataSectionNode {
+    fn len(&self) -> usize {
+        todo!()
+    }
+
+    fn data(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
+        todo!()
+    }
+
+    fn append_data(&self, data: &str) {
+        todo!()
+    }
+
+    fn insert_data(&self, offset: usize, data: &str) {
+        todo!()
+    }
+
+    fn delete_data(&self, offset: usize, count: usize) {
+        todo!()
+    }
+
+    fn replace_data(&self, offset: usize, count: usize, data: &str) {
+        todo!()
+    }
+}
+
+impl ChildNode for CDataSectionNode {
+    fn before(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn after(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn replace_with(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn remove(&mut self) {
+        todo!()
+    }
+}
+
+impl NonDocumentTypeChildNode for CDataSectionNode {
+    fn previous_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+
+    fn next_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+}
 
 
 // ----------------------------------- ProcessingInstruction impl ----------------------------------
 
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProcessingInstructionNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(ProcessingInstructionNode, ProcessingInstruction, node_base);
+derive_node_new!(ProcessingInstructionNode, ProcessingInstruction, node_base);
+
+impl ProcessingInstruction for ProcessingInstructionNode {
+    fn target(&self) -> Option<String> {
+        todo!()
+    }
+}
+
+impl CharacterData for ProcessingInstructionNode {
+    fn len(&self) -> usize {
+        todo!()
+    }
+
+    fn data(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
+        todo!()
+    }
+
+    fn append_data(&self, data: &str) {
+        todo!()
+    }
+
+    fn insert_data(&self, offset: usize, data: &str) {
+        todo!()
+    }
+
+    fn delete_data(&self, offset: usize, count: usize) {
+        todo!()
+    }
+
+    fn replace_data(&self, offset: usize, count: usize, data: &str) {
+        todo!()
+    }
+}
+
+impl ChildNode for ProcessingInstructionNode {
+    fn before(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn after(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn replace_with(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn remove(&mut self) {
+        todo!()
+    }
+}
+
+impl NonDocumentTypeChildNode for ProcessingInstructionNode {
+    fn previous_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+
+    fn next_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+}
+
+
 // ------------------------------------------ Comment impl -----------------------------------------
+
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CommentNode {
+    node_base: NodeBase,
+}
+
+derive_node_deref!(CommentNode, Comment, node_base);
+derive_node_new!(CommentNode, Comment, node_base);
+
+impl Comment for CommentNode {}
+
+impl CharacterData for CommentNode {
+    fn len(&self) -> usize {
+        todo!()
+    }
+
+    fn data(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
+        todo!()
+    }
+
+    fn append_data(&self, data: &str) {
+        todo!()
+    }
+
+    fn insert_data(&self, offset: usize, data: &str) {
+        todo!()
+    }
+
+    fn delete_data(&self, offset: usize, count: usize) {
+        todo!()
+    }
+
+    fn replace_data(&self, offset: usize, count: usize, data: &str) {
+        todo!()
+    }
+}
+
+impl ChildNode for CommentNode {
+    fn before(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn after(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn replace_with(&mut self, node: &Node) {
+        todo!()
+    }
+
+    fn remove(&mut self) {
+        todo!()
+    }
+}
+
+impl NonDocumentTypeChildNode for CommentNode {
+    fn previous_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+
+    fn next_element_sibling(&self) -> Option<Node> {
+        todo!()
+    }
+}
 
 
 // --------------------------------- NodeList / HTMLCollection impl --------------------------------
