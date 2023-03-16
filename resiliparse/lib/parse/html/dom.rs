@@ -15,11 +15,10 @@
 #![allow(dead_code)]
 
 use std::{ptr, slice, vec};
-use std::cell::{Ref, RefCell, RefMut};
+use std::collections::{HashSet};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
-use std::result::IntoIter;
 
 use crate::third_party::lexbor::*;
 use super::serialize::node_format_visible_text;
@@ -61,19 +60,18 @@ impl Deref for Node {
 
     fn deref(&self) -> &Self::Target {
         match &self {
-            Node::Element(n) => n,
-            Node::Attr(n) => n,
-            // Node::Text(n) => n,
-            // Node::CDataSection(n) => n,
-            // Node::ProcessingInstruction(n) => n,
-            // Node::Comment(n) => n,
-            Node::Document(n) => n,
-            Node::DocumentType(n) => n,
-            // Node::DocumentFragment(n) => n
+            Node::Element(n) => &n.node_base,
+            Node::Attr(n) => &n.node_base,
+            // Node::Text(n) => &n.node_base,
+            // Node::CDataSection(n) => &n.node_base,
+            // Node::ProcessingInstruction(n) => &n.node_base,
+            // Node::Comment(n) => &n.node_base,
+            Node::Document(n) => &n.node_base,
+            Node::DocumentType(n) => &n.node_base,
+            // Node::DocumentFragment(n) => &n.node_base
         }
     }
 }
-
 
 /// Base DOM node.
 pub trait NodeInterface {
@@ -236,8 +234,8 @@ pub trait ProcessingInstruction: CharacterData {
 pub trait Comment: CharacterData {}
 
 macro_rules! check_node {
-    ($self: ident) => {
-        if $self.tree.upgrade().is_none() || $self.node.is_null() {
+    ($node: expr) => {
+        if $node.tree.upgrade().is_none() || $node.node.is_null() {
             return Default::default();
         }
     }
@@ -1254,7 +1252,7 @@ impl<'a, T> NodeListGeneric<'a, T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a NodeListGeneric<'a, T> {
+impl<T> IntoIterator for &NodeListGeneric<'_, T> {
     type Item = Node;
     type IntoIter = vec::IntoIter<Node>;
 
@@ -1270,68 +1268,59 @@ type HTMLCollection<'a> = NodeListGeneric<'a, ElementNode>;
 // ---------------------------------------- DOMTokenList impl --------------------------------------
 
 
-// #[derive(Clone, PartialEq, Eq)]
 pub struct DOMTokenList<'a> {
-    node: &'a mut Node,
-    values: RefCell<Vec<String>>,
+    node: &'a mut Node
 }
 
 impl<'a> DOMTokenList<'a> {
     fn new(node: &'a mut Node) -> Self {
-        Self { node, values: RefCell::new(Vec::new()) }
+        Self { node }
     }
 
     fn item(&self, index: usize) -> Option<String> {
         Some(self.values().get(index)?.to_owned())
     }
 
-    fn update_node(&mut self) {
-        todo!()
-        // let v = self.value();
-        // unsafe { lxb_dom_node_text_content_set(self.node.node, v.as_ptr(), v.len()); }
+    fn update_node(&mut self, values: &Vec<String>) {
+        let v = values.join(" ");
+        unsafe { lxb_dom_node_text_content_set(self.node.node, v.as_ptr(), v.len()); }
     }
 
-    fn sync(&self) {
-        self.values.replace(self.value().split_ascii_whitespace().map(|s| String::from(s)).collect());
+    pub fn contains(&self, token: &str) -> bool {
+        self.iter().find(|s: &String| s.as_str() == token).is_some()
     }
 
-    fn contains(&self, token: &str) -> bool {
-        self.values().iter().find(|s: &&String| s.as_str() == token).is_some()
-    }
-
-    fn add(&mut self, tokens: &[&str]) {
-        self.sync();
+    pub fn add(&mut self, tokens: &[&str]) {
+        let mut values = self.values();
         tokens.iter().for_each(|t: &&str| {
-            if !self.contains(t) {
-                self.values.borrow_mut().push((*t).to_owned());
+            let t_owned = (*t).to_owned();
+            if !values.contains(&t_owned) {
+                values.push(t_owned);
             }
         });
-        self.update_node();
+        self.update_node(&values);
     }
 
-    fn remove(&mut self, tokens: &[&str]) {
-        self.sync();
-        let mut v = self.values.borrow().clone();
-        for t in tokens {
-            v = v.into_iter().filter(|s: &String| s != t.to_owned()).collect();
-        }
-        self.values.replace(v);
-        self.update_node();
+    pub fn remove(&mut self, tokens: &[&str]) {
+        self.update_node(&self
+            .iter()
+            .filter(|t: &String| !tokens.contains(&t.as_str()))
+            .collect()
+        );
     }
 
-    fn replace(&mut self, old_token: &str, new_token: &str) {
-        self.sync();
-        self.values.borrow_mut()
-            .iter_mut()
-            .for_each(|s: &mut String| {
-                if s.as_str() == old_token {
-                    *s = new_token.to_owned();
-                }
-            });
-        self.update_node();
+    pub fn replace(&mut self, old_token: &str, new_token: &str) {
+        self.update_node(&self
+            .iter()
+            .map(|t: String| {
+                if t == old_token { new_token.to_owned() }
+                else { t }
+            })
+            .collect()
+        );
     }
 
-    fn toggle(&mut self, token: &str, force: Option<bool>) {
+    pub fn toggle(&mut self, token: &str, force: Option<bool>) {
         if let Some(f) = force {
             if f {
                 self.add(&[token]);
@@ -1346,24 +1335,47 @@ impl<'a> DOMTokenList<'a> {
         } else {
             self.add(&[token]);
         }
-        self.update_node();
     }
 
     #[inline]
-    fn value(&self) -> String {
-        todo!()
-        // self.node.node_value().unwrap_or(String::default())
+    pub fn value(&self) -> String {
+        self.node.node_value().unwrap_or_else(|| String::new())
+    }
+
+    pub fn values(&self) -> Vec<String> {
+        let mut h = HashSet::new();
+        self.value().split_ascii_whitespace()
+            .filter(|&v| h.insert(v))
+            .map(String::from)
+            .collect()
     }
 
     #[inline]
-    fn values(&self) -> Ref<Vec<String>> {
-        self.sync();
-        self.values.borrow()
+    pub fn iter(&self) -> vec::IntoIter<String> {
+        self.values().into_iter()
     }
 
     #[inline]
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.values().len()
+    }
+}
+
+impl IntoIterator for DOMTokenList<'_> {
+    type Item = String;
+    type IntoIter = vec::IntoIter<String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl IntoIterator for &DOMTokenList<'_> {
+    type Item = String;
+    type IntoIter = vec::IntoIter<String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
