@@ -39,19 +39,7 @@ pub enum Node {
 
 impl PartialEq<NodeBase> for Node {
     fn eq(&self, other: &NodeBase) -> bool {
-        self == other
-    }
-}
-
-impl PartialEq<&NodeBase> for Node {
-    fn eq(&self, other: &&NodeBase) -> bool {
-        self == *other
-    }
-}
-
-impl PartialEq<NodeBase> for &Node {
-    fn eq(&self, other: &NodeBase) -> bool {
-        *self == other
+        **self == *other
     }
 }
 
@@ -99,6 +87,9 @@ pub trait NodeInterface {
     fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
     fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node>;
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
+
+    fn iter(&self) -> NodeIterator;
+    fn iter_elements(&self) -> ElementIterator;
 }
 
 /// DocumentType node.
@@ -305,9 +296,15 @@ pub struct NodeBase {
     node: *mut lxb_dom_node_t,
 }
 
-impl PartialEq for NodeBase {
+impl PartialEq<NodeBase> for NodeBase {
     fn eq(&self, other: &Self) -> bool {
         self.node == other.node
+    }
+}
+
+impl PartialEq<Node> for NodeBase {
+    fn eq(&self, other: &Node) -> bool {
+        self.node == (*other).node
     }
 }
 
@@ -348,18 +345,16 @@ impl NodeBase {
         }
         Some(out_html)
     }
-}
 
-impl NodeBase {
     unsafe fn insert_before_unchecked<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
         if let Some(c) = child {
-            if c.parent_node()? != self || node.contains(c) {
+            if c.parent_node()? != *self || node.contains(c) {
                 return None;
             }
             if node == c {
                 return Some(node);
             }
-            lxb_dom_node_insert_before(c.node, node.node)
+            lxb_dom_node_insert_before(c.node, node.node);
             Some(node)
         } else {
             self.append_child_unchecked(node)
@@ -372,7 +367,7 @@ impl NodeBase {
     }
 
     unsafe fn replace_child_unchecked<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
-        if child.parent_node()? != self {
+        if child.parent_node()? != *self {
             return None;
         }
         if node == child {
@@ -384,11 +379,22 @@ impl NodeBase {
     }
 
     unsafe fn remove_child_unchecked<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-        if node.parent_node()? != self {
+        if node.parent_node()? != *self {
             return None;
         }
         lxb_dom_node_remove(node.node);
         Some(node)
+    }
+
+    #[inline]
+    unsafe fn owner_document_ptr(&self) -> Option<*mut lxb_dom_document_t> {
+        let d = unsafe { self.node.as_ref()? }.owner_document;
+        if !d.is_null() { Some(d) }
+        else { None }
+    }
+
+    unsafe fn iter_raw(&self) -> NodeIteratorRaw {
+        NodeIteratorRaw::new(self.node)
     }
 }
 
@@ -432,7 +438,8 @@ impl NodeInterface for NodeBase {
 
     fn owner_document(&self) -> Option<DocumentNode> {
         check_node!(self);
-        todo!()
+        let d = unsafe { self.owner_document_ptr()? };
+        Some(Self::create_node(&self.tree.upgrade()?, d.cast())?.into())
     }
 
     /// Parent of this node.
@@ -449,12 +456,21 @@ impl NodeInterface for NodeBase {
         }
     }
 
+    #[inline]
     fn has_child_nodes(&self) -> bool {
-        todo!()
+        self.first_child().is_some()
     }
 
     fn contains(&self, node: &Node) -> bool {
-        todo!()
+        check_nodes!(self, node);
+        if self == node {
+            return true;
+        }
+        unsafe {
+            self.iter_raw()
+                .find(|&n| n == node.node)
+                .is_some()
+        }
     }
 
     /// List of child nodes.
@@ -472,27 +488,27 @@ impl NodeInterface for NodeBase {
 
     /// First child element of this DOM node.
     fn first_child(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.first_child })
+        Self::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.first_child })
     }
 
     /// Last child element of this DOM node.
     fn last_child(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.last_child })
+        Self::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.last_child })
     }
 
     /// Previous sibling node.
     fn previous_sibling(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.prev })
+        Self::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.prev })
     }
 
     /// Next sibling node.
     fn next_sibling(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.next })
+        Self::create_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.next })
     }
 
     fn clone_node(&self, deep: bool) -> Option<Node> {
         check_node!(self);
-        NodeBase::create_node(&self.tree.upgrade()?, unsafe { lxb_dom_node_clone(self.node, deep) })
+        Self::create_node(&self.tree.upgrade()?, unsafe { lxb_dom_node_clone(self.node, deep) })
     }
 
     fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
@@ -517,6 +533,14 @@ impl NodeInterface for NodeBase {
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         unsafe { self.remove_child_unchecked(&node) }
+    }
+
+    fn iter(&self) -> NodeIterator {
+        NodeIterator::new(&self)
+    }
+
+    fn iter_elements(&self) -> ElementIterator {
+        ElementIterator::new(&self)
     }
 
     // /// Visible text contents of this DOM node and its children.
@@ -548,6 +572,94 @@ impl NodeInterface for NodeBase {
     //         .flat_map(|c| Self::serialize_node(&c))
     //         .reduce(|a, b| a + &b)
     // }
+}
+
+struct NodeIteratorRaw {
+    root: *mut lxb_dom_node_t,
+    node: *mut lxb_dom_node_t,
+}
+
+impl NodeIteratorRaw {
+    unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
+        if root.is_null() || unsafe { (*root).first_child }.is_null() {
+            Self { root: ptr::null_mut(), node: ptr::null_mut() }
+        } else {
+            Self { root, node: unsafe { (*root).first_child } }
+        }
+    }
+}
+
+impl Iterator for NodeIteratorRaw {
+    type Item = *mut lxb_dom_node_t;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.node.is_null() {
+            return None;
+        }
+
+        let return_node = self.node;
+        unsafe {
+            if !(*self.node).first_child.is_null() {
+                self.node = (*self.node).first_child;
+            } else {
+                while self.node != self.root && !(*self.node).next.is_null() {
+                    self.node = (*self.node).parent;
+                }
+                if self.node == self.root {
+                    return None;
+                }
+                self.node = (*self.node).next;
+            }
+        }
+        Some(return_node)
+    }
+}
+
+pub struct NodeIterator<'a> {
+    root: &'a NodeBase,
+    iterator_raw: NodeIteratorRaw
+}
+
+impl<'a> NodeIterator<'a> {
+    fn new(root: &'a NodeBase) -> Self {
+        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node) } }
+    }
+}
+
+impl Iterator for NodeIterator<'_> {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        NodeBase::create_node(&self.root.tree.upgrade()?, self.iterator_raw.next()?)
+    }
+}
+
+pub struct ElementIterator<'a> {
+    root: &'a NodeBase,
+    iterator_raw: NodeIteratorRaw
+}
+
+impl<'a> ElementIterator<'a> {
+    fn new(root: &'a NodeBase) -> Self {
+        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node) } }
+    }
+}
+
+impl Iterator for ElementIterator<'_> {
+    type Item = ElementNode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let tree = &self.root.tree.upgrade()?;
+        while let next = unsafe { self.iterator_raw.next()?.as_ref()? } {
+            if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
+                continue
+            }
+            if let Some(Node::Element(e)) = NodeBase::create_node(tree, self.iterator_raw.next()?) {
+                return Some(e)
+            }
+        }
+        None
+    }
 }
 
 
@@ -616,21 +728,12 @@ impl ChildNode for DocumentTypeNode {
 
 define_node_type!(DocumentNode, Document);
 
-impl DocumentNode {
-    #[inline]
-    unsafe fn document_element_ptr(&self) -> Option<*mut lxb_dom_document_t> {
-        let d = self.node_base.node.as_ref()?.owner_document;
-        if !d.is_null() { Some(d) }
-        else { None }
-    }
-}
-
 impl Document for DocumentNode {
     fn doctype(&self) -> Option<DocumentTypeNode> {
         check_node!(self);
         unsafe {
             let tree = self.tree.upgrade()?;
-            let doctype = (*self.document_element_ptr()?).doctype;
+            let doctype = (*self.owner_document_ptr()?).doctype;
             Some(NodeBase::create_node(&tree, doctype.cast())?.into())
         }
     }
@@ -638,7 +741,7 @@ impl Document for DocumentNode {
     fn document_element(&self) -> Option<DocumentNode> {
         check_node!(self);
         unsafe {
-            Some(NodeBase::create_node(&self.tree.upgrade()?, self.document_element_ptr()?.cast())?.into())
+            Some(NodeBase::create_node(&self.tree.upgrade()?, self.owner_document_ptr()?.cast())?.into())
         }
     }
 
@@ -654,7 +757,7 @@ impl Document for DocumentNode {
         check_node!(self);
         let element = unsafe {
             lxb_dom_document_create_element(
-                self.document_element_ptr()?, local_name.as_ptr(), local_name.len(), ptr::null_mut())
+                self.owner_document_ptr()?, local_name.as_ptr(), local_name.len(), ptr::null_mut())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, element.cast())?.into())
     }
@@ -662,7 +765,7 @@ impl Document for DocumentNode {
     fn create_text_node(&mut self, data: &str) -> Option<TextNode> {
         check_node!(self);
         let text = unsafe {
-            lxb_dom_document_create_text_node(self.document_element_ptr()?, data.as_ptr(), data.len())
+            lxb_dom_document_create_text_node(self.owner_document_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, text.cast())?.into())
     }
@@ -670,7 +773,7 @@ impl Document for DocumentNode {
     fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode> {
         check_node!(self);
         let cdata = unsafe {
-            lxb_dom_document_create_cdata_section(self.document_element_ptr()?, data.as_ptr(), data.len())
+            lxb_dom_document_create_cdata_section(self.owner_document_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, cdata.cast())?.into())
     }
@@ -678,14 +781,14 @@ impl Document for DocumentNode {
     fn create_comment(&mut self, data: &str) -> Option<CommentNode> {
         check_node!(self);
         let comment = unsafe {
-            lxb_dom_document_create_comment(self.document_element_ptr()?, data.as_ptr(), data.len())
+            lxb_dom_document_create_comment(self.owner_document_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, comment.cast())?.into())
     }
 
     fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode> {
         check_node!(self);
-        let attr = unsafe { lxb_dom_attr_interface_create(self.document_element_ptr()?) };
+        let attr = unsafe { lxb_dom_attr_interface_create(self.owner_document_ptr()?) };
         if attr.is_null() {
             return None;
         }
