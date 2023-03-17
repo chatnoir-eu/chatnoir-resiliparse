@@ -241,6 +241,19 @@ macro_rules! check_node {
     }
 }
 
+macro_rules! check_nodes {
+    ($node1: expr, $node2: expr) => {
+        {
+            let t1 = $node1.tree.upgrade();
+            let t2 = $node2.tree.upgrade();
+            if t1.is_none() || t2.is_none() || !Rc::ptr_eq(&t1.unwrap(), &t2.unwrap())
+                || $node1.node.is_null() || $node2.node.is_null() {
+                return Default::default();
+            }
+        }
+    }
+}
+
 macro_rules! define_node_type {
     ($Self: ident, $EnumType: ident) => {
         #[derive(Clone, PartialEq, Eq)]
@@ -441,7 +454,10 @@ impl NodeInterface for NodeBase {
     }
 
     fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
-        check_node!(self);
+        check_nodes!(self, node);
+        if child.is_some() {
+            check_nodes!(node, child.unwrap());
+        }
         if let Some(c) = child {
             if c.parent_node()? != self || node.contains(c) {
                 return None;
@@ -457,13 +473,14 @@ impl NodeInterface for NodeBase {
     }
 
     fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-        check_node!(self);
+        check_nodes!(self, node);
         unsafe { lxb_dom_node_insert_child(self.node, node.node); }
         Some(node)
     }
 
     fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
-        check_node!(self);
+        check_nodes!(self, node);
+        check_nodes!(node, child);
         if child.parent_node()? != self {
             return None;
         }
@@ -476,7 +493,7 @@ impl NodeInterface for NodeBase {
     }
 
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-        check_node!(self);
+        check_nodes!(self, node);
         if node.parent_node()? != self {
             return None;
         }
@@ -583,8 +600,10 @@ define_node_type!(DocumentNode, Document);
 
 impl DocumentNode {
     #[inline]
-    unsafe fn document_element_ptr(&self) -> *mut lxb_dom_document_t {
-        (*self.node_base.node).owner_document
+    unsafe fn document_element_ptr(&self) -> Option<*mut lxb_dom_document_t> {
+        let d = self.node_base.node.as_ref()?.owner_document;
+        if !d.is_null() { Some(d) }
+        else { None }
     }
 }
 
@@ -593,10 +612,7 @@ impl Document for DocumentNode {
         check_node!(self);
         unsafe {
             let tree = self.tree.upgrade()?;
-            if self.document_element_ptr().is_null() {
-                return None;
-            }
-            let doctype = (*self.document_element_ptr()).doctype;
+            let doctype = (*self.document_element_ptr()?).doctype;
             Some(NodeBase::create_node(&tree, doctype.cast())?.into())
         }
     }
@@ -604,7 +620,7 @@ impl Document for DocumentNode {
     fn document_element(&self) -> Option<DocumentNode> {
         check_node!(self);
         unsafe {
-            Some(NodeBase::create_node(&self.tree.upgrade()?, self.document_element_ptr().cast())?.into())
+            Some(NodeBase::create_node(&self.tree.upgrade()?, self.document_element_ptr()?.cast())?.into())
         }
     }
 
@@ -620,7 +636,7 @@ impl Document for DocumentNode {
         check_node!(self);
         let element = unsafe {
             lxb_dom_document_create_element(
-                self.document_element_ptr(), local_name.as_ptr(), local_name.len(), ptr::null_mut())
+                self.document_element_ptr()?, local_name.as_ptr(), local_name.len(), ptr::null_mut())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, element.cast())?.into())
     }
@@ -628,7 +644,7 @@ impl Document for DocumentNode {
     fn create_text_node(&mut self, data: &str) -> Option<TextNode> {
         check_node!(self);
         let text = unsafe {
-            lxb_dom_document_create_text_node(self.document_element_ptr(), data.as_ptr(), data.len())
+            lxb_dom_document_create_text_node(self.document_element_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, text.cast())?.into())
     }
@@ -636,7 +652,7 @@ impl Document for DocumentNode {
     fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode> {
         check_node!(self);
         let cdata = unsafe {
-            lxb_dom_document_create_cdata_section(self.document_element_ptr(), data.as_ptr(), data.len())
+            lxb_dom_document_create_cdata_section(self.document_element_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, cdata.cast())?.into())
     }
@@ -644,14 +660,14 @@ impl Document for DocumentNode {
     fn create_comment(&mut self, data: &str) -> Option<CommentNode> {
         check_node!(self);
         let comment = unsafe {
-            lxb_dom_document_create_comment(self.document_element_ptr(), data.as_ptr(), data.len())
+            lxb_dom_document_create_comment(self.document_element_ptr()?, data.as_ptr(), data.len())
         };
         Some(NodeBase::create_node(&self.tree.upgrade()?, comment.cast())?.into())
     }
 
     fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode> {
         check_node!(self);
-        let attr = unsafe { lxb_dom_attr_interface_create(self.document_element_ptr()) };
+        let attr = unsafe { lxb_dom_attr_interface_create(self.document_element_ptr()?) };
         if attr.is_null() {
             return None;
         }
