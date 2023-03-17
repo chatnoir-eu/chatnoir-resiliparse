@@ -241,21 +241,26 @@ macro_rules! check_node {
     }
 }
 
-macro_rules! derive_node_deref {
-    ($Self: ident, $EnumType: ident, $node_base_field: ident) => {
+macro_rules! define_node_type {
+    ($Self: ident, $EnumType: ident) => {
+        #[derive(Clone, PartialEq, Eq)]
+        pub struct $Self {
+            node_base: NodeBase
+        }
+
         impl Deref for $Self {
             type Target = NodeBase;
 
             #[inline]
             fn deref(&self) -> &Self::Target {
-                &self.$node_base_field
+                &self.node_base
             }
         }
 
         impl DerefMut for $Self {
             #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.$node_base_field
+                &mut self.node_base
             }
         }
 
@@ -271,16 +276,6 @@ macro_rules! derive_node_deref {
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
                 Node::$EnumType(value)
-            }
-        }
-    }
-}
-
-macro_rules! derive_node_new {
-    ($Self: ident, $EnumType: ident, $node_base_field: ident) => {
-        impl $Self {
-            fn new($node_base_field: NodeBase) -> Option<Node> {
-                Some(Node::$EnumType($Self { $node_base_field }))
             }
         }
     }
@@ -306,22 +301,24 @@ impl PartialEq for NodeBase {
 impl Eq for NodeBase {}
 
 impl NodeBase {
-    pub(super) fn new(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Node> {
+    pub(super) fn create_node(tree: &Rc<HTMLTreeRc>, node: *mut lxb_dom_node_t) -> Option<Node> {
         if node.is_null() {
             return None;
         }
-        let base = Self { tree: Rc::downgrade(tree), node };
+        let node_base = Self { tree: Rc::downgrade(tree), node };
         use crate::third_party::lexbor::lxb_dom_node_type_t::*;
         match unsafe { (*node).type_ } {
-            LXB_DOM_NODE_TYPE_ELEMENT => ElementNode::new(base),
-            LXB_DOM_NODE_TYPE_ATTRIBUTE => AttrNode::new(base),
-            LXB_DOM_NODE_TYPE_TEXT => TextNode::new(base),
-            LXB_DOM_NODE_TYPE_CDATA_SECTION => CDataSectionNode::new(base),
-            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => ProcessingInstructionNode::new(base),
-            LXB_DOM_NODE_TYPE_COMMENT => CommentNode::new(base),
-            LXB_DOM_NODE_TYPE_DOCUMENT => DocumentNode::new(base),
-            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => DocumentTypeNode::new(base),
-            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => DocumentFragmentNode::new(base),
+            LXB_DOM_NODE_TYPE_ELEMENT => Some(Node::Element(ElementNode { node_base })),
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(Node::Attr(AttrNode { node_base })),
+            LXB_DOM_NODE_TYPE_TEXT => Some(Node::Text(TextNode { node_base })),
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(Node::CDataSection(CDataSectionNode { node_base })),
+            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => Some(Node::ProcessingInstruction(
+                ProcessingInstructionNode { node_base })),
+            LXB_DOM_NODE_TYPE_COMMENT => Some(Node::Comment(CommentNode { node_base })),
+            LXB_DOM_NODE_TYPE_DOCUMENT => Some(Node::Document(DocumentNode { node_base })),
+            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => Some(Node::DocumentType(DocumentTypeNode { node_base })),
+            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => Some(Node::DocumentFragment(
+                DocumentFragmentNode { node_base })),
             _ => None
         }
     }
@@ -384,7 +381,7 @@ impl NodeInterface for NodeBase {
 
     /// Parent of this node.
     fn parent_node(&self) -> Option<Node> {
-        unsafe { Self::new(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
+        unsafe { Self::create_node(&self.tree.upgrade()?, self.node.as_ref()?.parent) }
     }
 
     fn parent_element(&self) -> Option<ElementNode> {
@@ -415,23 +412,23 @@ impl NodeInterface for NodeBase {
 
     /// First child element of this DOM node.
     fn first_child(&self) -> Option<Node> {
-        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.first_child) }
+        unsafe { NodeBase::create_node(&self.tree.upgrade()?, self.node.as_ref()?.first_child) }
     }
 
     /// Last child element of this DOM node.
     fn last_child(&self) -> Option<Node> {
         self.tree.upgrade()?;
-        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
+        unsafe { NodeBase::create_node(&self.tree.upgrade()?, self.node.as_ref()?.last_child) }
     }
 
     /// Previous sibling node.
     fn previous_sibling(&self) -> Option<Node> {
-        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
+        unsafe { NodeBase::create_node(&self.tree.upgrade()?, self.node.as_ref()?.prev) }
     }
 
     /// Next sibling node.
     fn next_sibling(&self) -> Option<Node> {
-        unsafe { NodeBase::new(&self.tree.upgrade()?, self.node.as_ref()?.next) }
+        unsafe { NodeBase::create_node(&self.tree.upgrade()?, self.node.as_ref()?.next) }
     }
 
     fn clone_node(&self) -> Option<Node> {
@@ -517,13 +514,7 @@ impl NodeInterface for NodeBase {
 // --------------------------------------- DocumentType impl ---------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct DocumentTypeNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(DocumentTypeNode, DocumentType, node_base);
-derive_node_new!(DocumentTypeNode, DocumentType, node_base);
+define_node_type!(DocumentTypeNode, DocumentType);
 
 impl DocumentType for DocumentTypeNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
@@ -579,13 +570,7 @@ impl ChildNode for DocumentTypeNode {
 // ----------------------------------------- Document impl -----------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct DocumentNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(DocumentNode, Document, node_base);
-derive_node_new!(DocumentNode, Document, node_base);
+define_node_type!(DocumentNode, Document);
 
 impl DocumentNode {
     #[inline]
@@ -601,11 +586,11 @@ impl Document for DocumentNode {
             return None;
         }
         let doctype = unsafe { (*self.document_element_ptr()).doctype };
-        Some(NodeBase::new(&tree, doctype.cast())?.into())
+        Some(NodeBase::create_node(&tree, doctype.cast())?.into())
     }
 
     fn document_element(&self) -> Option<DocumentNode> {
-        Some(NodeBase::new(&self.tree.upgrade()?, self.document_element_ptr().cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, self.document_element_ptr().cast())?.into())
     }
 
     fn elements_by_tag_name(&self) -> HTMLCollection {
@@ -621,28 +606,28 @@ impl Document for DocumentNode {
             lxb_dom_document_create_element(
                 self.document_element_ptr(), local_name.as_ptr(), local_name.len(), ptr::null_mut())
         };
-        Some(NodeBase::new(&self.tree.upgrade()?, element.cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, element.cast())?.into())
     }
 
     fn create_text_node(&mut self, data: &str) -> Option<TextNode> {
         let text = unsafe {
             lxb_dom_document_create_text_node(self.document_element_ptr(), data.as_ptr(), data.len())
         };
-        Some(NodeBase::new(&self.tree.upgrade()?, text.cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, text.cast())?.into())
     }
 
     fn create_cdata_section(&mut self, data: &str) -> Option<CDataSectionNode> {
         let cdata = unsafe {
             lxb_dom_document_create_cdata_section(self.document_element_ptr(), data.as_ptr(), data.len())
         };
-        Some(NodeBase::new(&self.tree.upgrade()?, cdata.cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, cdata.cast())?.into())
     }
 
     fn create_comment(&mut self, data: &str) -> Option<CommentNode> {
         let comment = unsafe {
             lxb_dom_document_create_comment(self.document_element_ptr(), data.as_ptr(), data.len())
         };
-        Some(NodeBase::new(&self.tree.upgrade()?, comment.cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, comment.cast())?.into())
     }
 
     fn create_attribute(&mut self, local_name: &str) -> Option<AttrNode> {
@@ -657,7 +642,7 @@ impl Document for DocumentNode {
             unsafe { lxb_dom_attr_interface_destroy(attr); }
             return None;
         }
-        Some(NodeBase::new(&self.tree.upgrade()?, attr.cast())?.into())
+        Some(NodeBase::create_node(&self.tree.upgrade()?, attr.cast())?.into())
     }
 }
 
@@ -740,13 +725,7 @@ impl NonElementParentNode for DocumentNode {
 // ------------------------------------- DocumentFragment impl -------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct DocumentFragmentNode {
-    node_base: NodeBase
-}
-
-derive_node_deref!(DocumentFragmentNode, DocumentFragment, node_base);
-derive_node_new!(DocumentFragmentNode, DocumentFragment, node_base);
+define_node_type!(DocumentFragmentNode, DocumentFragment);
 
 impl DocumentFragment for DocumentFragmentNode {}
 
@@ -800,13 +779,7 @@ impl NonElementParentNode for DocumentFragmentNode {
 // ------------------------------------------ Element impl -----------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct ElementNode {
-    node_base: NodeBase
-}
-
-derive_node_deref!(ElementNode, Element, node_base);
-derive_node_new!(ElementNode, Element, node_base);
+define_node_type!(ElementNode, Element);
 
 impl Element for ElementNode {
     /// DOM element tag or node name.
@@ -902,7 +875,7 @@ impl Element for ElementNode {
 
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode> {
         check_node!(self);
-        Some(NodeBase::new(&self.tree.upgrade()?, unsafe { lxb_dom_element_attr_by_name(
+        Some(NodeBase::create_node(&self.tree.upgrade()?, unsafe { lxb_dom_element_attr_by_name(
             self.node.cast(), qualified_name.as_ptr(), qualified_name.len()) }.cast())?.into())
     }
 
@@ -1107,13 +1080,7 @@ impl NonDocumentTypeChildNode for ElementNode {
 // ------------------------------------------- Attr impl -------------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct AttrNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(AttrNode, Attr, node_base);
-derive_node_new!(AttrNode, Attr, node_base);
+define_node_type!(AttrNode, Attr);
 
 impl Attr for AttrNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
@@ -1153,7 +1120,7 @@ impl Attr for AttrNode {
             if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            NodeBase::new(&tree, (*attr).owner.cast())
+            NodeBase::create_node(&tree, (*attr).owner.cast())
         }
     }
 }
@@ -1162,13 +1129,7 @@ impl Attr for AttrNode {
 // -------------------------------------------- Text impl ------------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct TextNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(TextNode, Text, node_base);
-derive_node_new!(TextNode, Text, node_base);
+define_node_type!(TextNode, Text);
 
 impl Text for TextNode {}
 
@@ -1234,13 +1195,7 @@ impl NonDocumentTypeChildNode for TextNode {
 // ---------------------------------------- CDataSection impl --------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct CDataSectionNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(CDataSectionNode, CDataSection, node_base);
-derive_node_new!(CDataSectionNode, CDataSection, node_base);
+define_node_type!(CDataSectionNode, CDataSection);
 
 impl CDataSection for CDataSectionNode {}
 
@@ -1306,13 +1261,7 @@ impl NonDocumentTypeChildNode for CDataSectionNode {
 // ----------------------------------- ProcessingInstruction impl ----------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct ProcessingInstructionNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(ProcessingInstructionNode, ProcessingInstruction, node_base);
-derive_node_new!(ProcessingInstructionNode, ProcessingInstruction, node_base);
+define_node_type!(ProcessingInstructionNode, ProcessingInstruction);
 
 impl ProcessingInstruction for ProcessingInstructionNode {
     fn target(&self) -> Option<String> {
@@ -1382,13 +1331,7 @@ impl NonDocumentTypeChildNode for ProcessingInstructionNode {
 // ------------------------------------------ Comment impl -----------------------------------------
 
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct CommentNode {
-    node_base: NodeBase,
-}
-
-derive_node_deref!(CommentNode, Comment, node_base);
-derive_node_new!(CommentNode, Comment, node_base);
+define_node_type!(CommentNode, Comment);
 
 impl Comment for CommentNode {}
 
@@ -1480,7 +1423,7 @@ impl<'a, T> NodeListGeneric<'a, T> {
         let mut v = Vec::new();
         v.reserve(lxb_dom_collection_length_noi(coll));
         for i in 0..lxb_dom_collection_length_noi(coll) {
-            v.push(NodeBase::new(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
+            v.push(NodeBase::create_node(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
         }
         Self { live: None, items: v }
     }
