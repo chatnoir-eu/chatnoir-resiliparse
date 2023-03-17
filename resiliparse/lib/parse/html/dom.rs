@@ -145,9 +145,9 @@ pub trait NonElementParentNode {
 
 /// ChildNode mixin trait.
 pub trait ChildNode {
-    fn before(&mut self, node: &Node);
-    fn after(&mut self, node: &Node);
-    fn replace_with(&mut self, node: &Node);
+    fn before(&mut self, nodes: &[&Node]);
+    fn after(&mut self, nodes: &[&Node]);
+    fn replace_with(&mut self, nodes: &[&Node]);
     fn remove(&mut self);
 }
 
@@ -171,7 +171,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn local_name(&self) -> Option<String>;
     fn id(&self) -> Option<String>;
     fn class_name(&self) -> Option<String>;
-    fn class_list(&self) -> DOMTokenList;
+    fn class_list(&mut self) -> DOMTokenList;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode>;
@@ -238,7 +238,7 @@ macro_rules! check_nodes {
             let t1 = $node1.tree.upgrade();
             let t2 = $node2.tree.upgrade();
             if t1.is_none() || t2.is_none() || !Rc::ptr_eq(&t1.unwrap(), &t2.unwrap())
-                || $node1.node.is_null() || $node2.node.is_null() {
+                || $node1.node.is_null() || $node2.node.is_null() || $node1 == $node2 {
                 return Default::default();
             }
         }
@@ -515,6 +515,9 @@ impl NodeInterface for NodeBase {
         check_nodes!(self, node);
         if child.is_some() {
             check_nodes!(node, child.unwrap());
+            if self == child.unwrap() {
+                return None;
+            }
         }
         unsafe { self.insert_before_unchecked(&node, child) }
     }
@@ -666,6 +669,48 @@ impl Iterator for ElementIterator<'_> {
 // --------------------------------------- DocumentType impl ---------------------------------------
 
 
+macro_rules! define_child_node_impl {
+    ($Self: ident) => {
+        impl ChildNode for $Self {
+            fn before(&mut self, nodes: &[&Node]) {
+                if let Some(p) = &self.parent_node() {
+                    let anchor = Some(Node::from(self.clone()));
+                    nodes.iter().for_each(|&n| {
+                        p.insert_before(n, anchor.as_ref());
+                    });
+                }
+            }
+
+            fn after(&mut self, nodes: &[&Node]) {
+                if let Some(p) = &self.parent_node() {
+                    if let Some(next) = self.next_sibling() {
+                        let anchor = Some(next);
+                        nodes.iter().for_each(|&n| {
+                            p.insert_before(n, anchor.as_ref());
+                        });
+                    } else {
+                        nodes.iter().for_each(|&n| {
+                            p.append_child(n);
+                        });
+                    }
+                }
+            }
+
+            fn replace_with(&mut self, nodes: &[&Node]) {
+                self.before(nodes);
+                self.remove();
+            }
+
+            fn remove(&mut self) {
+                check_node!(self);
+                unsafe { lxb_dom_node_remove(self.node); }
+                self.node = ptr::null_mut();
+                self.tree = Weak::default();
+            }
+        }
+    }
+}
+
 define_node_type!(DocumentTypeNode, DocumentType);
 
 impl DocumentType for DocumentTypeNode {
@@ -700,27 +745,7 @@ impl DocumentType for DocumentTypeNode {
     }
 }
 
-impl ChildNode for DocumentTypeNode {
-    fn before(&mut self, node: &Node) {
-        check_node!(self);
-        todo!()
-    }
-
-    fn after(&mut self, node: &Node) {
-        check_node!(self);
-        todo!()
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        check_node!(self);
-        todo!()
-    }
-
-    fn remove(&mut self) {
-        check_node!(self);
-        todo!()
-    }
-}
+define_child_node_impl!(DocumentTypeNode);
 
 
 // ----------------------------------------- Document impl -----------------------------------------
@@ -1011,17 +1036,8 @@ impl Element for ElementNode {
         unsafe { Some(self.class_name_unchecked()?.to_owned()) }
     }
 
-    fn class_list(&self) -> DOMTokenList {
-        todo!()
-        // check_node!(self);
-        // let Some(cls) = {
-        //     unsafe { self.class_name_unchecked() }
-        // } else {
-        //     return Vec::default();
-        // };
-        // let mut v= Vec::new();
-        // cls.split_ascii_whitespace().flat_map(|c| v.push(c.to_owned())).collect();
-        // v
+    fn class_list(&mut self) -> DOMTokenList {
+        DOMTokenList::new(self)
     }
 
     fn attribute(&self, qualified_name: &str) -> Option<String> {
@@ -1146,13 +1162,13 @@ impl ParentNode for ElementNode {
     }
 
     fn prepend(&mut self, nodes: &[&Node]) {
-        nodes.iter().rev().for_each(|n: &&Node| {
+        nodes.iter().rev().for_each(|&n| {
             self.insert_before(n, self.first_child().as_ref());
         });
     }
 
     fn append(&mut self, nodes: &[&Node]) {
-        nodes.iter().for_each(|n: &&Node| {
+        nodes.iter().for_each(|&n| {
             self.append_child(n);
         });
     }
@@ -1173,39 +1189,8 @@ impl ParentNode for ElementNode {
     }
 }
 
-impl ChildNode for ElementNode {
-    fn before(&mut self, node: &Node) {
-        check_node!(self);
-        if node.node.is_null() {
-            return;
-        }
-        unsafe { lxb_dom_node_insert_before(self.node, node.node) }
-    }
+define_child_node_impl!(ElementNode);
 
-    fn after(&mut self, node: &Node) {
-        check_node!(self);
-        if node.node.is_null() {
-            return;
-        }
-        unsafe { lxb_dom_node_insert_after(self.node, node.node) }
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        check_node!(self);
-        if node.node.is_null() {
-            return;
-        }
-        unsafe { lxb_dom_node_insert_before(self.node, node.node) }
-        self.remove();
-    }
-
-    fn remove(&mut self) {
-        check_node!(self);
-        unsafe { lxb_dom_node_remove(self.node); }
-        self.node = ptr::null_mut();
-        self.tree = Weak::default();
-    }
-}
 
 impl NonDocumentTypeChildNode for ElementNode {
     /// Previous sibling element node.
@@ -1314,23 +1299,8 @@ impl CharacterData for TextNode {
     }
 }
 
-impl ChildNode for TextNode {
-    fn before(&mut self, node: &Node) {
-        todo!()
-    }
 
-    fn after(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn remove(&mut self) {
-        todo!()
-    }
-}
+define_child_node_impl!(TextNode);
 
 impl NonDocumentTypeChildNode for TextNode {
     fn previous_element_sibling(&self) -> Option<Node> {
@@ -1380,23 +1350,7 @@ impl CharacterData for CDataSectionNode {
     }
 }
 
-impl ChildNode for CDataSectionNode {
-    fn before(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn after(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn remove(&mut self) {
-        todo!()
-    }
-}
+define_child_node_impl!(CDataSectionNode);
 
 impl NonDocumentTypeChildNode for CDataSectionNode {
     fn previous_element_sibling(&self) -> Option<Node> {
@@ -1450,23 +1404,7 @@ impl CharacterData for ProcessingInstructionNode {
     }
 }
 
-impl ChildNode for ProcessingInstructionNode {
-    fn before(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn after(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn remove(&mut self) {
-        todo!()
-    }
-}
+define_child_node_impl!(ProcessingInstructionNode);
 
 impl NonDocumentTypeChildNode for ProcessingInstructionNode {
     fn previous_element_sibling(&self) -> Option<Node> {
@@ -1516,23 +1454,8 @@ impl CharacterData for CommentNode {
     }
 }
 
-impl ChildNode for CommentNode {
-    fn before(&mut self, node: &Node) {
-        todo!()
-    }
 
-    fn after(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn replace_with(&mut self, node: &Node) {
-        todo!()
-    }
-
-    fn remove(&mut self) {
-        todo!()
-    }
-}
+define_child_node_impl!(CommentNode);
 
 impl NonDocumentTypeChildNode for CommentNode {
     fn previous_element_sibling(&self) -> Option<Node> {
@@ -1634,12 +1557,12 @@ type HTMLCollection<'a> = NodeListGeneric<'a, ElementNode>;
 
 
 pub struct DOMTokenList<'a> {
-    node: &'a mut Node
+    element: &'a ElementNode,
 }
 
 impl<'a> DOMTokenList<'a> {
-    fn new(node: &'a mut Node) -> Self {
-        Self { node }
+    fn new(element: &'a ElementNode) -> Self {
+        Self { element }
     }
 
     fn item(&self, index: usize) -> Option<String> {
@@ -1647,8 +1570,8 @@ impl<'a> DOMTokenList<'a> {
     }
 
     fn update_node(&mut self, values: &Vec<String>) {
-        let v = values.join(" ");
-        unsafe { lxb_dom_node_text_content_set(self.node.node, v.as_ptr(), v.len()); }
+        todo!()
+        // self.element.set_class_name(values.join(" ").as_str());
     }
 
     pub fn contains(&self, token: &str) -> bool {
@@ -1704,7 +1627,7 @@ impl<'a> DOMTokenList<'a> {
 
     #[inline]
     pub fn value(&self) -> String {
-        self.node.node_value().unwrap_or_else(|| String::new())
+        self.element.class_name().unwrap_or_else(|| String::new())
     }
 
     pub fn values(&self) -> Vec<String> {
