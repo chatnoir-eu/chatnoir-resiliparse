@@ -350,6 +350,48 @@ impl NodeBase {
     }
 }
 
+impl NodeBase {
+    unsafe fn insert_before_unchecked<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+        if let Some(c) = child {
+            if c.parent_node()? != self || node.contains(c) {
+                return None;
+            }
+            if node == c {
+                return Some(node);
+            }
+            lxb_dom_node_insert_before(c.node, node.node)
+            Some(node)
+        } else {
+            self.append_child_unchecked(node)
+        }
+    }
+
+    unsafe fn append_child_unchecked<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+        lxb_dom_node_insert_child(self.node, node.node);
+        Some(node)
+    }
+
+    unsafe fn replace_child_unchecked<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
+        if child.parent_node()? != self {
+            return None;
+        }
+        if node == child {
+            return Some(node);
+        }
+        self.insert_before_unchecked(node, Some(child))?;
+        self.remove_child_unchecked(child)?;
+        Some(node)
+    }
+
+    unsafe fn remove_child_unchecked<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+        if node.parent_node()? != self {
+            return None;
+        }
+        lxb_dom_node_remove(node.node);
+        Some(node)
+    }
+}
+
 impl NodeInterface for NodeBase {
     unsafe fn node_name_unchecked(&self) -> Option<&str> {
         str_from_lxb_str_cb(self.node, lxb_dom_node_name)
@@ -458,47 +500,23 @@ impl NodeInterface for NodeBase {
         if child.is_some() {
             check_nodes!(node, child.unwrap());
         }
-        if let Some(c) = child {
-            if c.parent_node()? != self || node.contains(c) {
-                return None;
-            }
-            if node == c {
-                return Some(node);
-            }
-            unsafe { lxb_dom_node_insert_before(c.node, node.node) }
-            Some(node)
-        } else {
-            self.append_child(node)
-        }
+        unsafe { self.insert_before_unchecked(&node, child) }
     }
 
     fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        unsafe { lxb_dom_node_insert_child(self.node, node.node); }
-        Some(node)
+        unsafe { self.append_child_unchecked(&node) }
     }
 
     fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         check_nodes!(node, child);
-        if child.parent_node()? != self {
-            return None;
-        }
-        if node == child {
-            return Some(node);
-        }
-        self.insert_before(node, Some(child))?;
-        self.remove_child(child)?;
-        Some(node)
+        unsafe { self.replace_child_unchecked(&node, &child) }
     }
 
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        if node.parent_node()? != self {
-            return None;
-        }
-        unsafe { lxb_dom_node_remove(node.node); }
-        Some(node)
+        unsafe { self.remove_child_unchecked(&node) }
     }
 
     // /// Visible text contents of this DOM node and its children.
