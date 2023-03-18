@@ -262,13 +262,28 @@ pub trait Attr: NodeInterface {
 }
 
 pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
-    fn len(&self) -> usize;
-    fn data(&self) -> Option<String>;
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String>;
-    fn append_data(&self, data: &str);
-    fn insert_data(&self, offset: usize, data: &str);
-    fn delete_data(&self, offset: usize, count: usize);
-    fn replace_data(&self, offset: usize, count: usize, data:& str);
+    fn len(&self) -> usize {
+        self.node_value().unwrap_or_else(|| String::new()).len()
+    }
+    #[inline]
+    fn data(&self) -> Option<String> {
+        self.node_value()
+    }
+    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
+        Some(String::from(&self.data()?[offset..offset + count]))
+    }
+    fn append_data(&self, data: &str) {
+        todo!()
+    }
+    fn insert_data(&self, offset: usize, data: &str) {
+        todo!()
+    }
+    fn delete_data(&self, offset: usize, count: usize) {
+        todo!()
+    }
+    fn replace_data(&self, offset: usize, count: usize, data:& str) {
+        todo!()
+    }
 }
 
 pub trait Text: CharacterData {}
@@ -1336,35 +1351,7 @@ define_node_type!(TextNode, Text);
 
 impl Text for TextNode {}
 
-impl CharacterData for TextNode {
-    fn len(&self) -> usize {
-        todo!()
-    }
-
-    fn data(&self) -> Option<String> {
-        todo!()
-    }
-
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        todo!()
-    }
-
-    fn append_data(&self, data: &str) {
-        todo!()
-    }
-
-    fn insert_data(&self, offset: usize, data: &str) {
-        todo!()
-    }
-
-    fn delete_data(&self, offset: usize, count: usize) {
-        todo!()
-    }
-
-    fn replace_data(&self, offset: usize, count: usize, data: &str) {
-        todo!()
-    }
-}
+impl CharacterData for TextNode {}
 
 impl ChildNode for TextNode {}
 
@@ -1386,35 +1373,7 @@ define_node_type!(CDataSectionNode, CDataSection);
 
 impl CDataSection for CDataSectionNode {}
 
-impl CharacterData for CDataSectionNode {
-    fn len(&self) -> usize {
-        todo!()
-    }
-
-    fn data(&self) -> Option<String> {
-        todo!()
-    }
-
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        todo!()
-    }
-
-    fn append_data(&self, data: &str) {
-        todo!()
-    }
-
-    fn insert_data(&self, offset: usize, data: &str) {
-        todo!()
-    }
-
-    fn delete_data(&self, offset: usize, count: usize) {
-        todo!()
-    }
-
-    fn replace_data(&self, offset: usize, count: usize, data: &str) {
-        todo!()
-    }
-}
+impl CharacterData for CDataSectionNode {}
 
 impl ChildNode for CDataSectionNode {}
 
@@ -1440,35 +1399,7 @@ impl ProcessingInstruction for ProcessingInstructionNode {
     }
 }
 
-impl CharacterData for ProcessingInstructionNode {
-    fn len(&self) -> usize {
-        todo!()
-    }
-
-    fn data(&self) -> Option<String> {
-        todo!()
-    }
-
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        todo!()
-    }
-
-    fn append_data(&self, data: &str) {
-        todo!()
-    }
-
-    fn insert_data(&self, offset: usize, data: &str) {
-        todo!()
-    }
-
-    fn delete_data(&self, offset: usize, count: usize) {
-        todo!()
-    }
-
-    fn replace_data(&self, offset: usize, count: usize, data: &str) {
-        todo!()
-    }
-}
+impl CharacterData for ProcessingInstructionNode {}
 
 impl ChildNode for ProcessingInstructionNode {}
 
@@ -1490,35 +1421,7 @@ define_node_type!(CommentNode, Comment);
 
 impl Comment for CommentNode {}
 
-impl CharacterData for CommentNode {
-    fn len(&self) -> usize {
-        todo!()
-    }
-
-    fn data(&self) -> Option<String> {
-        todo!()
-    }
-
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        todo!()
-    }
-
-    fn append_data(&self, data: &str) {
-        todo!()
-    }
-
-    fn insert_data(&self, offset: usize, data: &str) {
-        todo!()
-    }
-
-    fn delete_data(&self, offset: usize, count: usize) {
-        todo!()
-    }
-
-    fn replace_data(&self, offset: usize, count: usize, data: &str) {
-        todo!()
-    }
-}
+impl CharacterData for CommentNode {}
 
 impl ChildNode for CommentNode {}
 
