@@ -59,15 +59,14 @@ unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: W
 
 fn is_block_element(local_name: lxb_tag_id_enum_t::Type) -> bool {
     use lxb_tag_id_enum_t::*;
-    match local_name {
+    matches!(
+        local_name,
         LXB_TAG_ADDRESS | LXB_TAG_ARTICLE | LXB_TAG_ASIDE | LXB_TAG_BLOCKQUOTE | LXB_TAG_CANVAS |
         LXB_TAG_DD | LXB_TAG_DIV | LXB_TAG_DL | LXB_TAG_DT | LXB_TAG_FIELDSET | LXB_TAG_FIGCAPTION |
         LXB_TAG_FIGURE | LXB_TAG_FOOTER | LXB_TAG_FORM | LXB_TAG_H1 | LXB_TAG_H2 | LXB_TAG_H3 |
         LXB_TAG_H4 | LXB_TAG_H5 | LXB_TAG_H6 | LXB_TAG_HEADER | LXB_TAG_HR | LXB_TAG_LI |
         LXB_TAG_MAIN | LXB_TAG_NAV | LXB_TAG_NOSCRIPT | LXB_TAG_OL | LXB_TAG_P |
-        LXB_TAG_PRE | LXB_TAG_SECTION | LXB_TAG_TABLE | LXB_TAG_TFOOT | LXB_TAG_UL | LXB_TAG_VIDEO => true,
-        _ => false
-    }
+        LXB_TAG_PRE | LXB_TAG_SECTION | LXB_TAG_TABLE | LXB_TAG_TFOOT | LXB_TAG_UL | LXB_TAG_VIDEO)
 }
 
 unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
