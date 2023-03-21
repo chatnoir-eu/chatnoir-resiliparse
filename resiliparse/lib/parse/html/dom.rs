@@ -47,7 +47,7 @@ impl Deref for Node {
     type Target = NodeBase;
 
     fn deref(&self) -> &Self::Target {
-        match &self {
+        match self {
             Node::Element(n) => &n.node_base,
             Node::Attr(n) => &n.node_base,
             Node::Text(n) => &n.node_base,
@@ -58,6 +58,61 @@ impl Deref for Node {
             Node::DocumentType(n) => &n.node_base,
             Node::DocumentFragment(n) => &n.node_base
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NodeRef<'a> {
+    Element(&'a ElementNode),
+    Attr(&'a AttrNode),
+    Text(&'a TextNode),
+    CDataSection(&'a CDataSectionNode),
+    ProcessingInstruction(&'a ProcessingInstructionNode),
+    Comment(&'a CommentNode),
+    Document(&'a DocumentNode),
+    DocumentType(&'a DocumentTypeNode),
+    DocumentFragment(&'a DocumentFragmentNode),
+    Undefined(&'a NodeBase)
+}
+
+impl<'a> Deref for NodeRef<'a> {
+    type Target = NodeBase;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            NodeRef::Element(n) => &n.node_base,
+            NodeRef::Attr(n) => &n.node_base,
+            NodeRef::Text(n) => &n.node_base,
+            NodeRef::CDataSection(n) => &n.node_base,
+            NodeRef::ProcessingInstruction(n) => &n.node_base,
+            NodeRef::Comment(n) => &n.node_base,
+            NodeRef::Document(n) => &n.node_base,
+            NodeRef::DocumentType(n) => &n.node_base,
+            NodeRef::DocumentFragment(n) => &n.node_base,
+            NodeRef::Undefined(n) => n,
+        }
+    }
+}
+
+impl<'a> From<&'a Node> for NodeRef<'a> {
+    fn from(value: &'a Node) -> Self {
+        match value {
+            Node::Element(n) => NodeRef::Element(n),
+            Node::Attr(n) => NodeRef::Attr(n),
+            Node::Text(n) => NodeRef::Text(n),
+            Node::CDataSection(n) => NodeRef::CDataSection(n),
+            Node::ProcessingInstruction(n) => NodeRef::ProcessingInstruction(n),
+            Node::Comment(n) => NodeRef::Comment(n),
+            Node::Document(n) => NodeRef::Document(n),
+            Node::DocumentType(n) => NodeRef::DocumentType(n),
+            Node::DocumentFragment(n) => NodeRef::DocumentFragment(n)
+        }
+    }
+}
+
+impl PartialEq<NodeBase> for NodeRef<'_> {
+    fn eq(&self, other: &NodeBase) -> bool {
+        **self == *other
     }
 }
 
@@ -89,7 +144,8 @@ pub trait NodeInterface {
 
     fn upcast(&self) -> &NodeBase;
     fn upcast_mut(&mut self) -> &mut NodeBase;
-    fn as_node(&self) -> Node;
+    fn into_node(&self) -> Node;
+    fn as_noderef(&self) -> NodeRef;
 
     fn node_name(&self) -> Option<String>;
     fn node_value(&self) -> Option<String>;
@@ -108,9 +164,9 @@ pub trait NodeInterface {
     fn next_sibling(&self) -> Option<Node>;
     fn clone_node(&self, deep: bool) -> Option<Node>;
 
-    fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node>;
+    fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node>;
     fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
-    fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node>;
+    fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node>;
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
 
     fn iter(&self) -> NodeIterator;
@@ -151,28 +207,95 @@ pub trait DocumentFragment: DocumentOrShadowRoot + ParentNode + NonElementParent
 
 /// ParentNode mixin trait.
 pub trait ParentNode: NodeInterface {
-    fn children(&self) -> HTMLCollection;
-    fn first_element_child(&self) -> Option<Node>;
-    fn last_element_child(&self) -> Option<Node>;
-    fn child_element_count(&self) -> usize;
-    fn prepend(&mut self, nodes: &[&Node]);
-    fn append(&mut self, nodes: &[&Node]);
-    fn replace_children(&mut self, nodes: &[&Node]);
 
-    fn query_selector(&self, selectors: &str) -> Option<Node>;
-    fn query_selector_all(&self, selectors: &str) -> NodeList;
+    /// List of child element nodes.
+    fn children(&self) -> HTMLCollection {
+        if let NodeRef::Element(e) = self.as_noderef() {
+            HTMLCollection::new_live(&e, |s| {
+                let mut nodes: Vec<Node> = Vec::new();
+                let mut child = s.first_element_child();
+                while let Some(Node::Element(c)) = child {
+                    child = c.next_element_sibling();
+                    nodes.push(c.into());
+                }
+                nodes
+            })
+        } else {
+            HTMLCollection::default()
+        }
+    }
+
+    /// First element child of this DOM node.
+    fn first_element_child(&self) -> Option<Node> {
+        let mut child = self.first_child()?;
+        loop {
+            match child {
+                Node::Element(c) => return Some(c.into()),
+                _ => { child = child.next_sibling()? }
+            }
+        }
+    }
+
+    /// Last element child element of this DOM node.
+    fn last_element_child(&self) -> Option<Node> {
+        let mut child = self.last_child()?;
+        loop {
+            if let Node::Element(c) = child {
+                return Some(c.into());
+            }
+            child = child.previous_sibling()?;
+        }
+    }
+
+    fn child_element_count(&self) -> usize {
+        let mut child = self.first_element_child();
+        let mut count = 0;
+        while let Some(Node::Element(c)) = child {
+            child = c.next_element_sibling();
+            count += 1;
+        }
+        count
+    }
+
+    fn prepend(&mut self, nodes: &[&Node]) {
+        let fc = self.first_child();
+        nodes.iter().rev().for_each(|&n| {
+            self.insert_before(n, fc.as_ref());
+        });
+    }
+
+    fn append(&mut self, nodes: &[&Node]) {
+        nodes.iter().for_each(|&n| {
+            self.append_child(n);
+        });
+    }
+
+    fn replace_children(&mut self, nodes: &[&Node]) {
+        while let Some(c) = self.first_child() {
+            self.remove_child(&c);
+        }
+        self.append(nodes);
+    }
+
+    fn query_selector(&self, selectors: &str) -> Option<Node> {
+        todo!()
+    }
+
+    fn query_selector_all(&self, selectors: &str) -> NodeList {
+        todo!()
+    }
 }
 
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
-    fn get_element_by_id(element_id: &str) -> Option<Node>;
+    fn get_element_by_id(&self, element_id: &str) -> Option<Node>;
 }
 
 /// ChildNode mixin trait.
 pub trait ChildNode: NodeInterface {
     fn before(&mut self, nodes: &[&Node]) {
         if let Some(p) = &self.parent_node() {
-            let anchor = Some(self.as_node());
+            let anchor = self.parent_node();
             nodes.iter().for_each(|&n| {
                 p.insert_before(n, anchor.as_ref());
             });
@@ -181,16 +304,10 @@ pub trait ChildNode: NodeInterface {
 
     fn after(&mut self, nodes: &[&Node]) {
         if let Some(p) = &self.parent_node() {
-            if let Some(next) = self.next_sibling() {
-                let anchor = Some(next);
-                nodes.iter().for_each(|&n| {
-                    p.insert_before(n, anchor.as_ref());
-                });
-            } else {
-                nodes.iter().for_each(|&n| {
-                    p.append_child(n);
-                });
-            }
+            let anchor = self.next_sibling();
+            nodes.iter().for_each(|&n| {
+                p.insert_before(n, anchor.as_ref());
+            });
         }
     }
 
@@ -329,7 +446,9 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn upcast_mut(&mut self) -> &mut NodeBase { &mut self.node_base }
             #[inline(always)]
-            fn as_node(&self) -> Node { Node::$EnumType(self.clone()) }
+            fn into_node(&self) -> Node { Node::$EnumType(self.clone()) }
+            #[inline(always)]
+            fn as_noderef(&self) -> NodeRef { NodeRef::$EnumType(self) }
 
             #[inline(always)]
             fn node_name(&self) -> Option<String> { self.node_base.node_name() }
@@ -348,7 +467,7 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn has_child_nodes(&self) -> bool { self.node_base.has_child_nodes() }
             #[inline(always)]
-            fn contains(&self, node: &Node) -> bool { self.node_base.contains(&node) }
+            fn contains(&self, node: &Node) -> bool { self.node_base.contains(node) }
             #[inline(always)]
             fn child_nodes(&self) -> NodeList { self.node_base.child_nodes() }
             #[inline(always)]
@@ -363,17 +482,17 @@ macro_rules! define_node_type {
             fn clone_node(&self, deep: bool) -> Option<Node> { self.node_base.clone_node(deep) }
 
             #[inline(always)]
-            fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
-                self.node_base.insert_before(&node, child) }
+            fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
+                self.node_base.insert_before(node, child) }
             #[inline(always)]
             fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-                self.node_base.append_child(&node) }
+                self.node_base.append_child(node) }
             #[inline(always)]
-            fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
-                self.node_base.replace_child(&node, &child) }
+            fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+                self.node_base.replace_child(node, child) }
             #[inline(always)]
             fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-                self.node_base.remove_child(&node) }
+                self.node_base.remove_child(node) }
 
             #[inline(always)]
             fn iter(&self) -> NodeIterator { self.node_base.iter() }
@@ -416,7 +535,19 @@ impl PartialEq<NodeBase> for NodeBase {
 
 impl PartialEq<Node> for NodeBase {
     fn eq(&self, other: &Node) -> bool {
-        self.node == (*other).node
+        (*self).node == (**other).node
+    }
+}
+
+impl PartialEq<NodeRef<'_>> for NodeBase {
+    fn eq(&self, other: &NodeRef<'_>) -> bool {
+        (*self).node == (**other).node
+    }
+}
+
+impl PartialEq<NodeRef<'_>> for &NodeBase {
+    fn eq(&self, other: &NodeRef<'_>) -> bool {
+        (**self).node == (**other).node
     }
 }
 
@@ -478,7 +609,7 @@ impl NodeBase {
         Some(node)
     }
 
-    unsafe fn replace_child_unchecked<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
+    unsafe fn replace_child_unchecked<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
         if child.parent_node()? != *self {
             return None;
         }
@@ -529,8 +660,12 @@ impl NodeInterface for NodeBase {
         self
     }
 
-    fn as_node(&self) -> Node {
+    fn into_node(&self) -> Node {
         NodeBase::create_node(&self.tree.upgrade().unwrap(), self.node).unwrap()
+    }
+
+    fn as_noderef(&self) -> NodeRef {
+        NodeRef::Undefined(self)
     }
 
     /// DOM element tag or node name.
@@ -635,31 +770,31 @@ impl NodeInterface for NodeBase {
         Self::create_node(&self.tree.upgrade()?, unsafe { lxb_dom_node_clone(self.node, deep) })
     }
 
-    fn insert_before<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+    fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
         check_nodes!(self, node);
         if child.is_some() {
-            check_nodes!(node, child.unwrap());
-            if self == child.unwrap() {
+            check_nodes!(node, child?);
+            if self == child? {
                 return None;
             }
         }
-        unsafe { self.insert_before_unchecked(&node, child) }
+        unsafe { self.insert_before_unchecked(node, child) }
     }
 
     fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        unsafe { self.append_child_unchecked(&node) }
+        unsafe { self.append_child_unchecked(node) }
     }
 
-    fn replace_child<'a>(&self, node: &'a Node, child: &Node) -> Option<&'a Node> {
+    fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         check_nodes!(node, child);
-        unsafe { self.replace_child_unchecked(&node, &child) }
+        unsafe { self.replace_child_unchecked(node, child) }
     }
 
     fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        unsafe { self.remove_child_unchecked(&node) }
+        unsafe { self.remove_child_unchecked(node) }
     }
 
     fn iter(&self) -> NodeIterator {
@@ -912,14 +1047,14 @@ impl Document for DocumentNode {
 impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
-    fn children(&self) -> HTMLCollection {
-        // if let Some(d) = self.document_element() {
-        //     d.children()
-        // } else {
-        //     HTMLCollection::default()
-        // }
-        HTMLCollection::default()
-    }
+    // fn children(&self) -> HTMLCollection {
+    //     // if let Some(d) = self.document_element() {
+    //     //     d.children()
+    //     // } else {
+    //     //     HTMLCollection::default()
+    //     // }
+    //     HTMLCollection::default()
+    // }
 
     #[inline]
     fn first_element_child(&self) -> Option<Node> {
@@ -978,7 +1113,7 @@ impl ParentNode for DocumentNode {
 }
 
 impl NonElementParentNode for DocumentNode {
-    fn get_element_by_id(element_id: &str) -> Option<Node> {
+    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
         todo!()
     }
 }
@@ -994,46 +1129,10 @@ impl DocumentFragment for DocumentFragmentNode {}
 
 impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
-impl ParentNode for DocumentFragmentNode {
-    fn children(&self) -> HTMLCollection {
-        todo!()
-    }
-
-    fn first_element_child(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn last_element_child(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn child_element_count(&self) -> usize {
-        todo!()
-    }
-
-    fn prepend(&mut self, nodes: &[&Node]) {
-        todo!()
-    }
-
-    fn append(&mut self, nodes: &[&Node]) {
-        todo!()
-    }
-
-    fn replace_children(&mut self, nodes: &[&Node]) {
-        todo!()
-    }
-
-    fn query_selector(&self, selectors: &str) -> Option<Node> {
-        todo!()
-    }
-
-    fn query_selector_all(&self, selectors: &str) -> NodeList {
-        todo!()
-    }
-}
+impl ParentNode for DocumentFragmentNode {}
 
 impl NonElementParentNode for DocumentFragmentNode {
-    fn get_element_by_id(element_id: &str) -> Option<Node> {
+    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
         todo!()
     }
 }
@@ -1196,79 +1295,7 @@ impl Element for ElementNode {
     }
 }
 
-impl ParentNode for ElementNode {
-    /// List of child element nodes.
-    fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self, |s: &Self| {
-            let mut nodes : Vec<Node> = Vec::new();
-            let mut child = s.first_element_child();
-            while let Some(Node::Element(c)) = child {
-                child = c.next_element_sibling();
-                nodes.push(c.into());
-            }
-            nodes
-        })
-    }
-
-    /// First element child of this DOM node.
-    fn first_element_child(&self) -> Option<Node> {
-        let mut child = self.first_child()?;
-        loop {
-            match child {
-                Node::Element(c) => return Some(c.into()),
-                _ => { child = child.next_sibling()? }
-            }
-        }
-    }
-
-    /// Last element child element of this DOM node.
-    fn last_element_child(&self) -> Option<Node> {
-        let mut child = self.last_child()?;
-        loop {
-            if let Node::Element(c) = child {
-                return Some(c.into());
-            }
-            child = child.previous_sibling()?;
-        }
-    }
-
-    fn child_element_count(&self) -> usize {
-        let mut child = self.first_element_child();
-        let mut count = 0;
-        while let Some(Node::Element(c)) = child {
-            child = c.next_element_sibling();
-            count += 1;
-        }
-        count
-    }
-
-    fn prepend(&mut self, nodes: &[&Node]) {
-        nodes.iter().rev().for_each(|&n| {
-            self.insert_before(n, self.first_child().as_ref());
-        });
-    }
-
-    fn append(&mut self, nodes: &[&Node]) {
-        nodes.iter().for_each(|&n| {
-            self.append_child(n);
-        });
-    }
-
-    fn replace_children(&mut self, nodes: &[&Node]) {
-        while let Some(c) = self.first_child() {
-            self.remove_child(&c);
-        }
-        self.append(nodes);
-    }
-
-    fn query_selector(&self, selectors: &str) -> Option<Node> {
-        todo!()
-    }
-
-    fn query_selector_all(&self, selectors: &str) -> NodeList {
-        todo!()
-    }
-}
+impl ParentNode for ElementNode {}
 
 impl ChildNode for ElementNode {}
 
@@ -1447,7 +1474,7 @@ impl<'a, T> NodeListGeneric<'a, T> {
 
     pub fn named_item(&self, name: &str) -> Option<Node> {
         self.iter()
-            .find(|n: &Node| {
+            .find(|n| {
                 match n {
                     Node::Element(e) =>
                         e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some(),
@@ -1628,7 +1655,9 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
     use crate::parse::html::tree::HTMLTree;
+    use super::*;
 
     const HTML: &str = r#"<!doctype html>
 <html lang="en">
