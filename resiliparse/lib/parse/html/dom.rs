@@ -381,22 +381,6 @@ macro_rules! define_node_type {
             fn iter_elements(&self) -> ElementIterator { self.node_base.iter_elements() }
         }
 
-        // impl Deref for $Self {
-        //     type Target = NodeBase;
-        //
-        //     #[inline]
-        //     fn deref(&self) -> &Self::Target {
-        //         &self.node_base
-        //     }
-        // }
-        //
-        // impl DerefMut for $Self {
-        //     #[inline]
-        //     fn deref_mut(&mut self) -> &mut Self::Target {
-        //         &mut self.node_base
-        //     }
-        // }
-
         impl From<Node> for $Self {
             fn from(value: Node) -> $Self {
                 match value {
