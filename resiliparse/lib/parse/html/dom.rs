@@ -15,7 +15,7 @@
 #![allow(dead_code)]
 
 use std::{ptr, slice, vec};
-use std::collections::{HashSet};
+use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
@@ -37,12 +37,6 @@ pub enum Node {
     DocumentFragment(DocumentFragmentNode)
 }
 
-impl PartialEq<NodeBase> for Node {
-    fn eq(&self, other: &NodeBase) -> bool {
-        **self == *other
-    }
-}
-
 impl Deref for Node {
     type Target = NodeBase;
 
@@ -58,6 +52,28 @@ impl Deref for Node {
             Node::DocumentType(n) => &n.node_base,
             Node::DocumentFragment(n) => &n.node_base
         }
+    }
+}
+
+impl DerefMut for Node {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Node::Element(n) => &mut n.node_base,
+            Node::Attr(n) => &mut n.node_base,
+            Node::Text(n) => &mut n.node_base,
+            Node::CDataSection(n) => &mut n.node_base,
+            Node::ProcessingInstruction(n) => &mut n.node_base,
+            Node::Comment(n) => &mut n.node_base,
+            Node::Document(n) => &mut n.node_base,
+            Node::DocumentType(n) => &mut n.node_base,
+            Node::DocumentFragment(n) => &mut n.node_base
+        }
+    }
+}
+
+impl PartialEq<NodeBase> for Node {
+    fn eq(&self, other: &NodeBase) -> bool {
+        **self == *other
     }
 }
 
