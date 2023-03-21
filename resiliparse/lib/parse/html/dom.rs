@@ -164,7 +164,9 @@ pub trait NodeInterface {
 
     fn node_name(&self) -> Option<String>;
     fn node_value(&self) -> Option<String>;
+    fn set_node_value(&self, value: &str);
     fn text_content(&self) -> Option<String>;
+    fn set_text_content(&self, content: &str);
 
     fn owner_document(&self) -> Option<DocumentNode>;
     fn parent_node(&self) -> Option<Node>;
@@ -368,7 +370,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn attribute_names(&self) -> Vec<String>;
     fn set_attribute(&mut self, qualified_name: &str, value: &str);
     fn remove_attribute(&mut self, qualified_name: &str);
-    fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>);
+    fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool;
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
     fn closest(&self, selectors: &str) -> Option<ElementNode>;
@@ -377,9 +379,13 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
+    fn set_inner_html(&self, html: &str);
     fn outer_html(&self) -> String;
+    fn set_outer_html(&self, html: &str);
     fn inner_text(&self) -> String;
+    fn set_inner_text(&self, text: &str);
     fn outer_text(&self) -> String;
+    fn set_outer_text(&self, text: &str);
 }
 
 pub trait Attr: NodeInterface {
@@ -390,30 +396,41 @@ pub trait Attr: NodeInterface {
     fn local_name(&self) -> Option<String>;
     fn name(&self) -> Option<String>;
     fn value(&self) -> Option<String>;
+    fn set_value(&self, value: &str);
 
     fn owner_element(&self) -> Option<Node>;
 }
 
 pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     fn len(&self) -> usize {
-        self.node_value().unwrap_or_else(|| String::new()).len()
+        self.node_value().unwrap_or_default().len()
     }
+
     #[inline]
     fn data(&self) -> Option<String> {
         self.node_value()
     }
+
+    fn set_data(&self, data: &str) {
+
+    }
+
     fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
         Some(String::from(&self.data()?[offset..offset + count]))
     }
+
     fn append_data(&self, data: &str) {
         todo!()
     }
+
     fn insert_data(&self, offset: usize, data: &str) {
         todo!()
     }
+
     fn delete_data(&self, offset: usize, count: usize) {
         todo!()
     }
+
     fn replace_data(&self, offset: usize, count: usize, data:& str) {
         todo!()
     }
@@ -454,7 +471,11 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn node_value(&self) -> Option<String> { self.node_base.node_value() }
             #[inline(always)]
+            fn set_node_value(&self, value: &str) { self.node_base.set_node_value(value) }
+            #[inline(always)]
             fn text_content(&self) -> Option<String> { self.node_base.text_content() }
+            #[inline(always)]
+            fn set_text_content(&self, content: &str) { self.node_base.set_text_content(content) }
 
             #[inline(always)]
             fn owner_document(&self) -> Option<DocumentNode> { self.node_base.owner_document() }
@@ -588,7 +609,7 @@ impl NodeBase {
         unsafe {
             let s = lexbor_str_create();
             lxb_html_serialize_tree_str(node.node, s);
-            out_html = str_from_lxb_str_t(s).to_string();
+            out_html = str_from_lxb_str_t(s)?.to_string();
             lexbor_str_destroy(s, node.node.as_ref()?.owner_document.as_ref()?.text, true);
         }
         Some(out_html)
@@ -654,7 +675,7 @@ impl NodeInterface for NodeBase {
     /// Node text value.
     unsafe fn node_value_unchecked(&self) -> Option<&str> {
         let cdata = self.node as *const lxb_dom_character_data_t;
-        Some(str_from_lxb_str_t(addr_of!((*cdata).data)))
+        str_from_lxb_str_t(addr_of!((*cdata).data))
     }
 
     fn upcast(&self) -> &NodeBase {
@@ -682,18 +703,27 @@ impl NodeInterface for NodeBase {
         unsafe { Some(self.node_value_unchecked()?.to_owned()) }
     }
 
+    fn set_node_value(&self, value: &str) {
+        check_node!(self);
+        unsafe { lxb_dom_node_text_content_set(self.node, value.as_ptr(), value.len()); }
+    }
+
     /// Text contents of this DOM node and its children.
     fn text_content(&self) -> Option<String> {
         check_node!(self);
-
-        let out_text;
+        let ret_value;
         unsafe {
             let mut l = 0;
             let t = lxb_dom_node_text_content(self.node, &mut l);
-            out_text = str_from_lxb_char_t(t, l).to_string();
-            lxb_dom_document_destroy_text_noi(self.node.as_ref()?.owner_document, t);
+            ret_value = str_from_lxb_char_t(t, l).map(String::from);
+            lxb_dom_document_destroy_text_noi((*self.node).owner_document, t);
         }
-        Some(out_text)
+        ret_value
+    }
+
+    #[inline]
+    fn set_text_content(&self, content: &str) {
+        self.set_node_value(content)
     }
 
     fn owner_document(&self) -> Option<DocumentNode> {
@@ -1138,9 +1168,10 @@ impl Element for ElementNode {
             qualified_name.as_ptr().cast(),
             qualified_name.len(),
             addr_of_mut!(size));
-        match size {
-            0 => None,
-            _ => Some(str_from_lxb_char_t(name, size))
+        if size == 0 || name.is_null() {
+            None
+        } else {
+            str_from_lxb_char_t(name, size)
         }
     }
 
@@ -1218,8 +1249,18 @@ impl Element for ElementNode {
         }
     }
 
-    fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) {
-        todo!()
+    fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool {
+        let on = match force {
+            Some(f) => f,
+            None => !self.has_attribute(qualified_name)
+        };
+        if on {
+            self.set_attribute(qualified_name, self.attribute(qualified_name).unwrap_or_default().as_str());
+            true
+        } else {
+            self.remove_attribute(qualified_name);
+            false
+        }
     }
 
     fn has_attribute(&self, qualified_name: &str) -> bool {
@@ -1247,7 +1288,15 @@ impl Element for ElementNode {
         todo!()
     }
 
+    fn set_inner_html(&self, html: &str) {
+        todo!()
+    }
+
     fn outer_html(&self) -> String {
+        todo!()
+    }
+
+    fn set_outer_html(&self, html: &str) {
         todo!()
     }
 
@@ -1255,7 +1304,15 @@ impl Element for ElementNode {
         todo!()
     }
 
+    fn set_inner_text(&self, text: &str) {
+        todo!()
+    }
+
     fn outer_text(&self) -> String {
+        todo!()
+    }
+
+    fn set_outer_text(&self, text: &str) {
         todo!()
     }
 }
@@ -1316,6 +1373,10 @@ impl Attr for AttrNode {
     fn value(&self) -> Option<String> {
         check_node!(self.node_base);
         unsafe { Some(self.value_unchecked()?.to_owned()) }
+    }
+
+    fn set_value(&self, value: &str) {
+        todo!()
     }
 
     fn owner_element(&self) -> Option<Node> {
@@ -1533,7 +1594,7 @@ impl<'a> DOMTokenList<'a> {
 
     #[inline]
     pub fn value(&self) -> String {
-        self.element.class_name().unwrap_or_else(|| String::new())
+        self.element.class_name().unwrap_or_default()
     }
 
     pub fn values(&self) -> Vec<String> {
@@ -1577,27 +1638,25 @@ impl IntoIterator for &DOMTokenList<'_> {
 // --------------------------------------------- Helpers -------------------------------------------
 
 
-#[inline]
-pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> &'a str {
-    if size > 0 {
-        std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size))
+pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> Option<&'a str> {
+    if size > 0 && !cdata.is_null() {
+        Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size)))
     } else {
-        ""
+        None
     }
 }
 
 #[inline]
-pub(super) unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> &'a str {
+pub(super) unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> Option<&'a str> {
     str_from_lxb_char_t((*s).data, (*s).length)
 }
 
 #[inline]
-pub(super) unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> &'a str {
+pub(super) unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> Option<&'a str> {
     let cdata = node as *const lxb_dom_character_data_t;
     str_from_lxb_str_t(addr_of!((*cdata).data))
 }
 
-#[inline]
 pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
     node: *mut Node, lxb_fn: unsafe extern "C" fn(*mut Fn, *mut usize) -> *const lxb_char_t) -> Option<&'a str> {
     if node.is_null() {
@@ -1605,9 +1664,10 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
     }
     let mut size = 0;
     let name = lxb_fn(node.cast(), addr_of_mut!(size));
-    match size {
-        0 => None,
-        _ => Some(str_from_lxb_char_t(name, size))
+    if size == 0 || name.is_null() {
+        None
+    } else {
+        str_from_lxb_char_t(name, size)
     }
 }
 
