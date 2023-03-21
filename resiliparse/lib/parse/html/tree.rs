@@ -118,10 +118,7 @@ impl HTMLTree {
     pub unsafe fn title_unchecked(&self) -> Option<&str> {
         let mut size = 0;
         let t = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(size));
-        match size {
-            0 => None,
-            _ => Some(str_from_lxb_char_t(t, size))
-        }
+        str_from_lxb_char_t(t, size)
     }
 
     #[inline]

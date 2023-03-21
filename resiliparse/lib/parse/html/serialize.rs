@@ -78,7 +78,7 @@ unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> 
     }
 
     if (*node).type_ == LXB_DOM_NODE_TYPE_TEXT {
-        let s = collapse_whitespace(str_from_dom_node(node));
+        let s = collapse_whitespace(str_from_dom_node(node).unwrap_or_default());
         if ctx.text.chars().last().unwrap_or(' ').is_ascii_whitespace() {
             ctx.text.push_str(s.trim_start());
         } else {
@@ -97,7 +97,7 @@ unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> 
         LXB_TAG_PRE => {
             let mut l = 0;
             let t = lxb_dom_node_text_content(node, &mut l);
-            ctx.text.push_str(str_from_lxb_char_t(t, l));
+            str_from_lxb_char_t(t, l).map(|s| { ctx.text.push_str(s) });
             lxb_dom_document_destroy_text_noi((*node).owner_document, t);
             LEXBOR_ACTION_NEXT
         },
