@@ -160,7 +160,6 @@ pub trait NodeInterface {
 
     fn upcast(&self) -> &NodeBase;
     fn upcast_mut(&mut self) -> &mut NodeBase;
-    fn into_node(&self) -> Node;
     fn as_noderef(&self) -> NodeRef;
 
     fn node_name(&self) -> Option<String>;
@@ -225,39 +224,25 @@ pub trait DocumentFragment: DocumentOrShadowRoot + ParentNode + NonElementParent
 pub trait ParentNode: NodeInterface {
 
     /// List of child element nodes.
-    fn children(&self) -> HTMLCollection {
-        if let NodeRef::Element(e) = self.as_noderef() {
-            HTMLCollection::new_live(&e, |s| {
-                let mut nodes: Vec<Node> = Vec::new();
-                let mut child = s.first_element_child();
-                while let Some(Node::Element(c)) = child {
-                    child = c.next_element_sibling();
-                    nodes.push(c.into());
-                }
-                nodes
-            })
-        } else {
-            HTMLCollection::default()
-        }
-    }
+    fn children(&self) -> HTMLCollection;
 
     /// First element child of this DOM node.
-    fn first_element_child(&self) -> Option<Node> {
+    fn first_element_child(&self) -> Option<ElementNode> {
         let mut child = self.first_child()?;
         loop {
             match child {
-                Node::Element(c) => return Some(c.into()),
+                Node::Element(c) => return Some(c),
                 _ => { child = child.next_sibling()? }
             }
         }
     }
 
     /// Last element child element of this DOM node.
-    fn last_element_child(&self) -> Option<Node> {
+    fn last_element_child(&self) -> Option<ElementNode> {
         let mut child = self.last_child()?;
         loop {
             if let Node::Element(c) = child {
-                return Some(c.into());
+                return Some(c);
             }
             child = child.previous_sibling()?;
         }
@@ -266,7 +251,7 @@ pub trait ParentNode: NodeInterface {
     fn child_element_count(&self) -> usize {
         let mut child = self.first_element_child();
         let mut count = 0;
-        while let Some(Node::Element(c)) = child {
+        while let Some(c) = child {
             child = c.next_element_sibling();
             count += 1;
         }
@@ -344,19 +329,19 @@ pub trait ChildNode: NodeInterface {
 /// NonDocumentTypeChildNode mixin trait.
 pub trait NonDocumentTypeChildNode: NodeInterface {
     /// Previous sibling element node.
-    fn previous_element_sibling(&self) -> Option<Node> {
+    fn previous_element_sibling(&self) -> Option<ElementNode> {
         loop {
             if let Node::Element(s) = self.previous_sibling()? {
-                return Some(s.into());
+                return Some(s);
             }
         }
     }
 
     /// Next sibling element node.
-    fn next_element_sibling(&self) -> Option<Node> {
+    fn next_element_sibling(&self) -> Option<ElementNode> {
         loop {
             if let Node::Element(s) = self.next_sibling()? {
-                return Some(s.into());
+                return Some(s);
             }
         }
     }
@@ -462,8 +447,6 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn upcast_mut(&mut self) -> &mut NodeBase { &mut self.node_base }
             #[inline(always)]
-            fn into_node(&self) -> Node { Node::$EnumType(self.clone()) }
-            #[inline(always)]
             fn as_noderef(&self) -> NodeRef { NodeRef::$EnumType(self) }
 
             #[inline(always)]
@@ -528,6 +511,12 @@ macro_rules! define_node_type {
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
                 Node::$EnumType(value)
+            }
+        }
+
+        impl<'a> From<&'a $Self> for NodeRef<'a> {
+            fn from(value: &'a $Self) -> Self {
+                NodeRef::$EnumType(value)
             }
         }
     }
@@ -676,10 +665,6 @@ impl NodeInterface for NodeBase {
         self
     }
 
-    fn into_node(&self) -> Node {
-        NodeBase::create_node(&self.tree.upgrade().unwrap(), self.node).unwrap()
-    }
-
     fn as_noderef(&self) -> NodeRef {
         NodeRef::Undefined(self)
     }
@@ -750,7 +735,7 @@ impl NodeInterface for NodeBase {
 
     /// List of child nodes.
     fn child_nodes(&self) -> NodeList {
-        NodeListGeneric::new_live(&self, |s: &Self| {
+        NodeList::new_live(self.as_noderef(), |s| {
             let mut nodes = Vec::new();
             let mut child = s.first_child();
             while let Some(c) = child {
@@ -1063,68 +1048,18 @@ impl Document for DocumentNode {
 impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
-    // fn children(&self) -> HTMLCollection {
-    //     // if let Some(d) = self.document_element() {
-    //     //     d.children()
-    //     // } else {
-    //     //     HTMLCollection::default()
-    //     // }
-    //     HTMLCollection::default()
-    // }
-
-    #[inline]
-    fn first_element_child(&self) -> Option<Node> {
-        self.document_element()?.first_element_child()
-    }
-
-    #[inline]
-    fn last_element_child(&self) -> Option<Node> {
-        self.document_element()?.last_element_child()
-    }
-
-    #[inline]
-    fn child_element_count(&self) -> usize {
-        if let Some(d) = self.document_element() {
-            d.child_element_count()
-        } else {
-            0
-        }
-    }
-
-    #[inline]
-    fn prepend(&mut self, nodes: &[&Node]) {
-        if let Some(mut d) = self.document_element() {
-            d.prepend(nodes)
-        }
-    }
-
-    #[inline]
-    fn append(&mut self, nodes: &[&Node]) {
-        if let Some(mut d) = self.document_element() {
-            d.append(nodes)
-        }
-    }
-
-    #[inline]
-    fn replace_children(&mut self, nodes: &[&Node]) {
-        if let Some(mut d) = self.document_element() {
-            d.replace_children(nodes)
-        }
-    }
-
-    #[inline]
-    fn query_selector(&self, selectors: &str) -> Option<Node> {
-        self.document_element()?.query_selector(selectors)
-    }
-
-    #[inline]
-    fn query_selector_all(&self, selectors: &str) -> NodeList {
-        // if let Some(d) = self.document_element() {
-        //     d.query_selector_all(selectors)
-        // } else {
-        //     NodeListGeneric::default()
-        // }
-        NodeListGeneric::default()
+    fn children(&self) -> HTMLCollection {
+        HTMLCollection::new_live(self.as_noderef(), |document| {
+            let mut nodes: Vec<ElementNode> = Vec::new();
+            if let NodeRef::Document(d) = document {
+                let mut child = d.first_element_child();
+                while let Some(c) = child {
+                    child = c.next_element_sibling();
+                    nodes.push(c);
+                }
+            }
+            nodes
+        })
     }
 }
 
@@ -1145,7 +1080,21 @@ impl DocumentFragment for DocumentFragmentNode {}
 
 impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
-impl ParentNode for DocumentFragmentNode {}
+impl ParentNode for DocumentFragmentNode {
+    fn children(&self) -> HTMLCollection {
+        HTMLCollection::new_live(self.as_noderef(), |document| {
+            let mut nodes: Vec<ElementNode> = Vec::new();
+            if let NodeRef::DocumentFragment(d) = document {
+                let mut child = d.first_element_child();
+                while let Some(c) = child {
+                    child = c.next_element_sibling();
+                    nodes.push(c.into());
+                }
+            }
+            nodes
+        })
+    }
+}
 
 impl NonElementParentNode for DocumentFragmentNode {
     fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
@@ -1311,7 +1260,21 @@ impl Element for ElementNode {
     }
 }
 
-impl ParentNode for ElementNode {}
+impl ParentNode for ElementNode {
+    fn children(&self) -> HTMLCollection {
+        HTMLCollection::new_live(self.as_noderef(), |element| {
+            let mut nodes: Vec<ElementNode> = Vec::new();
+            if let NodeRef::Element(e) = element {
+                let mut child = e.first_element_child();
+                while let Some(c) = child {
+                    child = c.next_element_sibling();
+                    nodes.push(c);
+                }
+            }
+            nodes
+        })
+    }
+}
 
 impl ChildNode for ElementNode {}
 
@@ -1431,16 +1394,14 @@ impl NonDocumentTypeChildNode for CommentNode {}
 // --------------------------------- NodeList / HTMLCollection impl --------------------------------
 
 
-#[derive(Clone)]
 struct NodeListClosure<'a, T> {
-    ctx: &'a T,
-    f: fn(&'a T) -> Vec<Node>
+    ctx: NodeRef<'a>,
+    f: fn(NodeRef<'a>) -> Vec<T>
 }
 
-#[derive(Clone)]
 pub struct NodeListGeneric<'a, T> {
     live: Option<NodeListClosure<'a, T>>,
-    items: Vec<Node>,
+    items: Vec<T>,
 }
 
 impl<T> Default for NodeListGeneric<'_, T> {
@@ -1449,28 +1410,16 @@ impl<T> Default for NodeListGeneric<'_, T> {
     }
 }
 
-impl<'a, T> NodeListGeneric<'a, T> {
-    unsafe fn new_unchecked(tree: &Rc<HTMLTreeRc>, coll: *mut lxb_dom_collection_t) -> Self {
-        if coll.is_null() {
-            return Self::default();
-        }
-        let mut v = Vec::new();
-        v.reserve(lxb_dom_collection_length_noi(coll));
-        for i in 0..lxb_dom_collection_length_noi(coll) {
-            v.push(NodeBase::create_node(tree, lxb_dom_collection_node_noi(coll, i)).unwrap())
-        }
-        Self { live: None, items: v }
-    }
-
-    fn new(items: &[Node]) -> NodeListGeneric<'a, T> {
+impl<'a, T: Clone> NodeListGeneric<'a, T> {
+    fn new(items: &[T]) -> NodeListGeneric<'a, T> {
         Self { live: None, items: Vec::from(items) }
     }
 
-    fn new_live(ctx: &'a T, f: fn(&'a T) -> Vec<Node>) -> NodeListGeneric<'a, T> {
-        Self { live: Some(NodeListClosure{ ctx: &ctx, f }), items: Vec::default() }
+    fn new_live(ctx: NodeRef<'a>, f: fn(NodeRef<'a>) -> Vec<T>) -> NodeListGeneric<'a, T> {
+        Self { live: Some(NodeListClosure{ ctx, f }), items: Vec::default() }
     }
 
-    pub fn iter(&self) -> vec::IntoIter<Node> {
+    pub fn iter(&self) -> vec::IntoIter<T> {
         if let Some(closure) = &self.live {
             (closure.f)(closure.ctx).into_iter()
         } else {
@@ -1479,7 +1428,7 @@ impl<'a, T> NodeListGeneric<'a, T> {
     }
 
     #[inline]
-    pub fn item(&self, index: usize) -> Option<Node> {
+    pub fn item(&self, index: usize) -> Option<T> {
         Some(self.iter().take(index).next()?)
     }
 
@@ -1487,31 +1436,28 @@ impl<'a, T> NodeListGeneric<'a, T> {
     pub fn len(&self) -> usize {
         self.iter().count()
     }
-
-    pub fn named_item(&self, name: &str) -> Option<Node> {
-        self.iter()
-            .find(|n| {
-                match n {
-                    Node::Element(e) =>
-                        e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some(),
-                    _ => false
-                }
-            })
-    }
 }
 
-impl<T> IntoIterator for &NodeListGeneric<'_, T> {
-    type Item = Node;
-    type IntoIter = vec::IntoIter<Node>;
+impl<T: Clone> IntoIterator for &NodeListGeneric<'_, T> {
+    type Item = T;
+    type IntoIter = vec::IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-type NodeList<'a> = NodeListGeneric<'a, NodeBase>;
+type NodeList<'a> = NodeListGeneric<'a, Node>;
 type HTMLCollection<'a> = NodeListGeneric<'a, ElementNode>;
 
+impl HTMLCollection<'_> {
+    pub fn named_item(&self, name: &str) -> Option<ElementNode> {
+        self.iter()
+            .find(|e| {
+                e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some()
+            })
+    }
+}
 
 // ---------------------------------------- DOMTokenList impl --------------------------------------
 
@@ -1671,9 +1617,7 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
     use crate::parse::html::tree::HTMLTree;
-    use super::*;
 
     const HTML: &str = r#"<!doctype html>
 <html lang="en">
