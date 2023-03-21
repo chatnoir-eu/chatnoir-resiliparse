@@ -210,8 +210,23 @@ pub trait ChildNode: NodeInterface {
 
 /// NonDocumentTypeChildNode mixin trait.
 pub trait NonDocumentTypeChildNode: NodeInterface {
-    fn previous_element_sibling(&self) -> Option<Node>;
-    fn next_element_sibling(&self) -> Option<Node>;
+    /// Previous sibling element node.
+    fn previous_element_sibling(&self) -> Option<Node> {
+        loop {
+            if let Node::Element(s) = self.previous_sibling()? {
+                return Some(s.into());
+            }
+        }
+    }
+
+    /// Next sibling element node.
+    fn next_element_sibling(&self) -> Option<Node> {
+        loop {
+            if let Node::Element(s) = self.next_sibling()? {
+                return Some(s.into());
+            }
+        }
+    }
 }
 
 /// HTML Element mixin trait.
@@ -1274,25 +1289,7 @@ impl ParentNode for ElementNode {
 impl ChildNode for ElementNode {}
 
 
-impl NonDocumentTypeChildNode for ElementNode {
-    /// Previous sibling element node.
-    fn previous_element_sibling(&self) -> Option<Node> {
-        loop {
-            if let Node::Element(s) = self.previous_sibling()? {
-                return Some(s.into());
-            }
-        }
-    }
-
-    /// Next sibling element node.
-    fn next_element_sibling(&self) -> Option<Node> {
-        loop {
-            if let Node::Element(s) = self.next_sibling()? {
-                return Some(s.into());
-            }
-        }
-    }
-}
+impl NonDocumentTypeChildNode for ElementNode {}
 
 
 // ------------------------------------------- Attr impl -------------------------------------------
@@ -1355,15 +1352,7 @@ impl CharacterData for TextNode {}
 
 impl ChildNode for TextNode {}
 
-impl NonDocumentTypeChildNode for TextNode {
-    fn previous_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn next_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonDocumentTypeChildNode for TextNode {}
 
 
 // ---------------------------------------- CDataSection impl --------------------------------------
@@ -1377,15 +1366,7 @@ impl CharacterData for CDataSectionNode {}
 
 impl ChildNode for CDataSectionNode {}
 
-impl NonDocumentTypeChildNode for CDataSectionNode {
-    fn previous_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn next_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonDocumentTypeChildNode for CDataSectionNode {}
 
 
 // ----------------------------------- ProcessingInstruction impl ----------------------------------
@@ -1403,15 +1384,7 @@ impl CharacterData for ProcessingInstructionNode {}
 
 impl ChildNode for ProcessingInstructionNode {}
 
-impl NonDocumentTypeChildNode for ProcessingInstructionNode {
-    fn previous_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn next_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonDocumentTypeChildNode for ProcessingInstructionNode {}
 
 
 // ------------------------------------------ Comment impl -----------------------------------------
@@ -1425,15 +1398,7 @@ impl CharacterData for CommentNode {}
 
 impl ChildNode for CommentNode {}
 
-impl NonDocumentTypeChildNode for CommentNode {
-    fn previous_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-
-    fn next_element_sibling(&self) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonDocumentTypeChildNode for CommentNode {}
 
 
 // --------------------------------- NodeList / HTMLCollection impl --------------------------------
