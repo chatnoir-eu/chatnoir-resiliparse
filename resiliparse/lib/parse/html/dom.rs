@@ -313,7 +313,16 @@ pub trait ParentNode: NodeInterface {
 
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
-    fn get_element_by_id(&self, element_id: &str) -> Option<Node>;
+    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
+        unsafe {
+            self.upcast().iter_raw().find(|&n| {
+                if (*n).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
+                    return false;
+                }
+                str_from_lxb_str_cb(n, lxb_dom_element_id_noi).map_or(false, |i| i == element_id)
+            })
+        }.and_then(|n| NodeBase::create_node(&self.upcast().tree.upgrade()?, n))
+    }
 }
 
 /// ChildNode mixin trait.
@@ -1115,11 +1124,7 @@ impl ParentNode for DocumentNode {
     }
 }
 
-impl NonElementParentNode for DocumentNode {
-    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonElementParentNode for DocumentNode {}
 
 
 
@@ -1148,11 +1153,7 @@ impl ParentNode for DocumentFragmentNode {
     }
 }
 
-impl NonElementParentNode for DocumentFragmentNode {
-    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
-        todo!()
-    }
-}
+impl NonElementParentNode for DocumentFragmentNode {}
 
 
 // ------------------------------------------ Element impl -----------------------------------------
@@ -1324,6 +1325,18 @@ impl Element for ElementNode {
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+        // unsafe {
+        //     HTMLCollection::new_live(self.as_noderef(), |e| {
+        //         let coll = lxb_dom_collection_create((*e.node).owner_document);
+        //         lxb_dom_node_by_tag_name(e.node, coll, qualified_name.as_ptr(), qualified_name.len());
+        //         let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length(coll));
+        //         for i in 0..lxb_dom_collection_length(coll) {
+        //             results.push(NodeBase::create_node(&e.tree.upgrade()?, lxb_dom_collection_node(coll, i))?.into());
+        //         }
+        //         lxb_dom_collection_destroy(coll);
+        //         results
+        //     })
+        // }
         todo!()
     }
 
