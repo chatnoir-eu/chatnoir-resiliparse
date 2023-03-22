@@ -401,6 +401,14 @@ cdef extern from "<lexbor/dom/collection.h>" nogil:
 
 
 cdef extern from "<lexbor/css/css.h>" nogil:
+    ctypedef struct lxb_css_memory_t
+    ctypedef struct lxb_css_selectors_t
+
+    ctypedef struct lxb_selectors_t
+    ctypedef struct lxb_css_selector_list_t
+    ctypedef struct lxb_css_selector_specificity_t
+    ctypedef lxb_status_t (*lxb_selectors_cb_f)(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec,
+                                                void *ctx)
     ctypedef struct lxb_css_log_t
     ctypedef struct lxb_css_syntax_tokenizer_t
     ctypedef struct lxb_css_parser_t:
@@ -408,11 +416,36 @@ cdef extern from "<lexbor/css/css.h>" nogil:
         lxb_status_t status
     ctypedef lxb_status_t (*lexbor_serialize_cb_f)(const lxb_char_t *data, size_t len, void *ctx)
 
+    lxb_css_memory_t * lxb_css_memory_create()
+    lxb_status_t lxb_css_memory_init(lxb_css_memory_t *memory, size_t prepare_count)
+    void lxb_css_memory_clean(lxb_css_memory_t *memory)
+    lxb_css_memory_t * lxb_css_memory_destroy(lxb_css_memory_t *memory, bint self_destroy)
+    lxb_css_memory_t * lxb_css_memory_ref_inc(lxb_css_memory_t *memory)
+    void lxb_css_memory_ref_dec(lxb_css_memory_t *memory)
+    lxb_css_memory_t * lxb_css_memory_ref_dec_destroy(lxb_css_memory_t *memory)
+    void lxb_css_parser_memory_set(lxb_css_parser_t *parser, lxb_css_memory_t *memory)
+
+    lxb_css_memory_t * lxb_css_memory_create()
+    lxb_css_selectors_t * lxb_css_selectors_create()
+
     lxb_css_parser_t * lxb_css_parser_create()
     lxb_status_t lxb_css_parser_init(lxb_css_parser_t *parser, lxb_css_syntax_tokenizer_t *tkz)
     lxb_css_parser_t * lxb_css_parser_destroy(lxb_css_parser_t *parser, bint self_destroy)
     lxb_status_t lxb_css_log_serialize(lxb_css_log_t *log, lexbor_serialize_cb_f cb, void *ctx,
                                        const lxb_char_t *indent, size_t indent_length)
+
+    lxb_status_t lxb_css_selectors_init(lxb_css_selectors_t *selectors)
+    lxb_css_selectors_t * lxb_css_parser_selectors(lxb_css_parser_t *parser)
+    void lxb_css_parser_selectors_set(lxb_css_parser_t *parser, lxb_css_selectors_t *selectors)
+    lxb_css_selector_list_t * lxb_css_selectors_parse(lxb_css_parser_t *parser, const lxb_char_t *data, size_t length)
+    lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint self_destroy)
+    void lxb_css_selector_list_destroy_memory(lxb_css_selector_list_t *list)
+
+    lxb_selectors_t * lxb_selectors_create()
+    lxb_status_t lxb_selectors_init(lxb_selectors_t *selectors)
+    lxb_selectors_t * lxb_selectors_destroy(lxb_selectors_t *selectors, bint self_destroy)
+    lxb_status_t lxb_selectors_find(lxb_selectors_t *selectors, lxb_dom_node_t *root,
+                                    lxb_css_selector_list_t *list, lxb_selectors_cb_f cb, void *ctx)
 
 
 cdef extern from "<lexbor/tag/tag.h>" nogil:
@@ -628,29 +661,6 @@ cdef extern from "<lexbor/tag/tag.h>" nogil:
         bint                read_only
 
     cdef const lxb_tag_data_t * lxb_tag_data_by_id(lexbor_hash_t *hash, lxb_tag_id_t tag_id)
-
-
-cdef extern from "<lexbor/selectors/selectors.h>" nogil:
-    ctypedef struct lxb_css_selectors_t
-
-    ctypedef struct lxb_selectors_t
-    ctypedef struct lxb_css_selector_list_t
-    ctypedef struct lxb_css_selector_specificity_t
-    ctypedef lxb_status_t (*lxb_selectors_cb_f)(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec,
-                                                void *ctx)
-
-    lxb_css_selectors_t * lxb_css_selectors_create()
-    lxb_status_t lxb_css_selectors_init(lxb_css_selectors_t *selectors)
-    void lxb_css_parser_selectors_set(lxb_css_parser_t *parser, lxb_css_selectors_t *selectors)
-    lxb_css_selector_list_t * lxb_css_selectors_parse(lxb_css_parser_t *parser, const lxb_char_t *data, size_t length)
-    lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint self_destroy)
-    void lxb_css_selector_list_destroy_memory(lxb_css_selector_list_t *list)
-
-    lxb_selectors_t * lxb_selectors_create()
-    lxb_status_t lxb_selectors_init(lxb_selectors_t *selectors)
-    lxb_selectors_t * lxb_selectors_destroy(lxb_selectors_t *selectors, bint self_destroy)
-    lxb_status_t lxb_selectors_find(lxb_selectors_t *selectors, lxb_dom_node_t *root,
-                                    lxb_css_selector_list_t *list, lxb_selectors_cb_f cb, void *ctx)
 
 
 cdef extern from "<lexbor/encoding/encoding.h>" nogil:

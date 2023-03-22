@@ -42,53 +42,47 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
     return return_coll
 
 
-cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0:
+cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) nogil:
+    memory[0] = lxb_css_memory_create()
+    lxb_css_memory_init(memory[0], 128)
     parser[0] = lxb_css_parser_create()
-    if lxb_css_parser_init(parser[0], NULL) != LXB_STATUS_OK:
-        with gil:
-            raise RuntimeError('Failed to initialize CSS parser.')
-    return True
+    lxb_css_parser_init(parser[0], NULL)
+    lxb_css_parser_memory_set(parser[0], memory[0])
+    lxb_css_parser_selectors_set(parser[0], NULL)
 
 
-cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil:
+cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) nogil:
     if parser:
+        destroy_css_selectors(parser)
         lxb_css_parser_destroy(parser, True)
+    if memory:
+        lxb_css_memory_destroy(memory, True)
 
 
-cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
-                             lxb_selectors_t** selectors) nogil except 0:
-    css_selectors[0] = lxb_css_selectors_create()
-    if lxb_css_selectors_init(css_selectors[0]) != LXB_STATUS_OK:
-        with gil:
-            raise RuntimeError('Failed to initialize CSS selectors.')
-
-    lxb_css_parser_selectors_set(parser, css_selectors[0])
-
-    selectors[0] = lxb_selectors_create()
-    if lxb_selectors_init(selectors[0]) != LXB_STATUS_OK:
-        with gil:
-            raise RuntimeError('Failed to initialize element selectors.')
-
-    return True
+cdef void create_css_selectors(lxb_css_parser_t* parser) nogil:
+    destroy_css_selectors(parser)
+    cdef lxb_css_selectors_t* selectors = lxb_css_selectors_create()
+    lxb_css_selectors_init(selectors)
+    lxb_css_parser_selectors_set(parser, selectors)
 
 
-cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selectors_t* selectors) nogil:
+cdef void destroy_css_selectors(lxb_css_parser_t* parser) nogil:
+    cdef lxb_css_selectors_t* selectors = lxb_css_parser_selectors(parser)
     if selectors:
-        lxb_selectors_destroy(selectors, True)
-    if css_selectors:
-        lxb_css_selectors_destroy(css_selectors, True)
+        lxb_css_selectors_destroy(selectors, True)
+    lxb_css_parser_selectors_set(parser, NULL)
 
 
 cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx) nogil:
     (<string*>ctx).append(<const char*>data, len)
 
 
-cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
+cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* parser, const lxb_char_t* selector,
                                                   size_t selector_len) nogil except NULL:
-    cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(css_parser, selector, selector_len)
+    cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(parser, selector, selector_len)
     cdef string err
-    if css_parser.status != LXB_STATUS_OK:
-        lxb_css_log_serialize(css_parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <const lxb_char_t*>b'', 0)
+    if parser.status != LXB_STATUS_OK:
+        lxb_css_log_serialize(parser.log, <lexbor_serialize_cb_f>_log_serialize_cb, &err, <const lxb_char_t*>b'', 0)
         with gil:
             raise ValueError(f'CSS parser error: {err.decode().strip()}')
     return sel_list
@@ -299,12 +293,15 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
     """
     tree.init_css_parser()
 
+    cdef lxb_selectors_t* selectors = lxb_selectors_create()
+    lxb_selectors_init(selectors)
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_node_t* result_node = NULL
-    if lxb_selectors_find(tree.selectors, node, sel_list,
-                          <lxb_selectors_cb_f>css_select_callback_single, &result_node) != LXB_STATUS_OK:
-        return NULL
+    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_select_callback_single, &result_node)
+
+    destroy_css_selectors(tree.css_parser)
+    lxb_selectors_destroy(selectors, True)
 
     return result_node
 
@@ -326,12 +323,15 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
     """
     tree.init_css_parser()
 
+    cdef lxb_selectors_t* selectors = lxb_selectors_create()
+    lxb_selectors_init(selectors)
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, init_size)
-    if lxb_selectors_find(tree.selectors, node, sel_list,
-                          <lxb_selectors_cb_f>css_select_callback, coll) != LXB_STATUS_OK:
-        return NULL
+    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_select_callback, coll)
+
+    destroy_css_selectors(tree.css_parser)
+    lxb_selectors_destroy(selectors, True)
 
     return coll
 
@@ -354,12 +354,15 @@ cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector
     """
     tree.init_css_parser()
 
+    cdef lxb_selectors_t* selectors = lxb_selectors_create()
+    lxb_selectors_init(selectors)
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef bint matches = False
-    if lxb_selectors_find(tree.selectors, node, sel_list,
-                          <lxb_selectors_cb_f>css_match_callback, <void*>&matches) != LXB_STATUS_OK:
-        return False
+    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_match_callback, <void*>&matches)
+
+    destroy_css_selectors(tree.css_parser)
+    lxb_selectors_destroy(selectors, True)
 
     return matches
 
@@ -1681,20 +1684,17 @@ cdef class HTMLTree:
         if not self.dom_document:
             raise RuntimeError('Failed to allocate HTML document')
         self.css_parser = NULL
-        self.css_selectors = NULL
-        self.selectors = NULL
+        self.css_memory = NULL
 
     def __dealloc__(self):
         if self.dom_document:
             lxb_html_document_destroy(self.dom_document)
             self.dom_document = NULL
 
-        if self.css_parser or self.css_parser or self.css_selectors:
-            destroy_css_selectors(self.css_selectors, self.selectors)
-            destroy_css_parser(self.css_parser)
+        if self.css_parser:
+            destroy_css_parser(self.css_memory, self.css_parser)
             self.css_parser = NULL
-            self.css_parser = NULL
-            self.css_selectors = NULL
+            self.css_memory = NULL
 
     # noinspection PyAttributeOutsideInit
     cdef inline void init_css_parser(self) nogil:
@@ -1702,8 +1702,7 @@ cdef class HTMLTree:
         Initialize CSS selector if not already initialized.
         """
         if not self.css_parser:
-            init_css_parser(&self.css_parser)
-            init_css_selectors(self.css_parser, &self.css_selectors, &self.selectors)
+            create_css_parser(&self.css_memory, &self.css_parser)
 
 
     @classmethod

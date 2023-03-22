@@ -22,11 +22,10 @@ cdef inline bint check_node(DOMNode node) nogil:
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
-cdef bint init_css_parser(lxb_css_parser_t** parser) nogil except 0
-cdef void destroy_css_parser(lxb_css_parser_t* parser) nogil
-cdef bint init_css_selectors(lxb_css_parser_t* parser, lxb_css_selectors_t** css_selectors,
-                             lxb_selectors_t** selectors) nogil except 0
-cdef void destroy_css_selectors(lxb_css_selectors_t* css_selectors, lxb_selectors_t* selectors) nogil
+cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) nogil
+cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) nogil
+cdef void create_css_selectors(lxb_css_parser_t* parser) nogil
+cdef void destroy_css_selectors(lxb_css_parser_t* parser) nogil
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
                                                   size_t selector_len) nogil except NULL
 
@@ -159,8 +158,7 @@ cdef class HTMLTree:
     cdef lxb_html_document_t* dom_document
     cdef str encoding
     cdef lxb_css_parser_t* css_parser
-    cdef lxb_selectors_t* selectors
-    cdef lxb_css_selectors_t* css_selectors
+    cdef lxb_css_memory_t* css_memory
 
     cpdef DOMNode create_element(self, str tag_name)
     cpdef DOMNode create_text_node(self, str text)
