@@ -19,6 +19,8 @@ use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
+use std::str::FromStr;
+use crate::parse::html::css::{CSSParserError, TraverseAction};
 
 use crate::third_party::lexbor::*;
 use super::serialize::node_format_visible_text;
@@ -280,12 +282,32 @@ pub trait ParentNode: NodeInterface {
         self.append(nodes);
     }
 
-    fn query_selector(&self, selectors: &str) -> Option<Node> {
-        todo!()
+    fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+        if let Some(tree) = self.upcast().tree.upgrade() {
+            let sel_list = &tree.css_parser.parse_css_selectors(selectors)?;
+            let mut result = Vec::<ElementNode>::with_capacity(1);
+            sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
+                ctx.push(e);
+                TraverseAction::Stop
+            }, &mut result);
+            Ok(result.pop())
+        } else {
+            Err(CSSParserError::new("HTML tree gone out of scope."))
+        }
     }
 
-    fn query_selector_all(&self, selectors: &str) -> NodeList {
-        todo!()
+    fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
+        if let Some(tree) = self.upcast().tree.upgrade() {
+            let sel_list = &tree.css_parser.parse_css_selectors(selectors)?;
+            let mut result = Vec::<ElementNode>::new();
+            sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
+                ctx.push(e);
+                TraverseAction::Ok
+            }, &mut result);
+            Ok(ElementNodeList::from(result))
+        } else {
+            Err(CSSParserError::new("HTML tree gone out of scope."))
+        }
     }
 }
 
@@ -373,8 +395,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool;
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
-    fn closest(&self, selectors: &str) -> Option<ElementNode>;
-    fn matches(&self, selectors: &str) -> bool;
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
+    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
 
@@ -1268,12 +1290,37 @@ impl Element for ElementNode {
         unsafe { lxb_dom_element_has_attribute(self.node_base.node.cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
-    fn closest(&self, selectors: &str) -> Option<ElementNode> {
-        todo!()
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+        if let Some(tree) = self.upcast().tree.upgrade() {
+                if self.parent_node().is_none() {
+                return Ok(None);
+            }
+            let sel_list = &tree.css_parser.parse_css_selectors(selectors)?;
+            let mut result = Vec::<ElementNode>::with_capacity(1);
+            sel_list.match_elements_reverse(self.as_noderef(), |node, _, ctx| {
+                ctx.push(node);
+                TraverseAction::Stop
+            }, &mut result);
+            Ok(result.pop())
+        } else {
+            Err(CSSParserError::new("HTML tree gone out of scope."))
+        }
     }
 
-    fn matches(&self, selectors: &str) -> bool {
-        todo!()
+    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
+        let doc = self.owner_document();
+        let root = if doc.is_some() { doc.as_ref().unwrap().as_noderef() } else { self.as_noderef() };
+        if let Some(tree) = self.upcast().tree.upgrade() {
+            let sel_list = &tree.css_parser.parse_css_selectors(selectors)?;
+            let mut matches = false;
+            sel_list.match_elements(root, |node, _, ctx| {
+                *ctx = true;
+                TraverseAction::Stop
+            }, &mut matches);
+            Ok(matches)
+        } else {
+            Err(CSSParserError::new("HTML tree gone out of scope."))
+        }
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
@@ -1471,11 +1518,19 @@ impl<T> Default for NodeListGeneric<'_, T> {
     }
 }
 
-impl<'a, T: Clone> NodeListGeneric<'a, T> {
-    fn new(items: &[T]) -> NodeListGeneric<'a, T> {
+impl<T: Clone> From<&[T]> for NodeListGeneric<'_, T>  {
+    fn from(items: &[T]) -> Self {
         Self { live: None, items: Vec::from(items) }
     }
+}
 
+impl<T: Clone> From<Vec<T>> for NodeListGeneric<'_, T>  {
+    fn from(items: Vec<T>) -> Self {
+        Self { live: None, items }
+    }
+}
+
+impl<'a, T: Clone> NodeListGeneric<'a, T> {
     fn new_live(ctx: NodeRef<'a>, f: fn(NodeRef<'a>) -> Vec<T>) -> NodeListGeneric<'a, T> {
         Self { live: Some(NodeListClosure{ ctx, f }), items: Vec::default() }
     }
@@ -1509,6 +1564,7 @@ impl<T: Clone> IntoIterator for &NodeListGeneric<'_, T> {
 }
 
 type NodeList<'a> = NodeListGeneric<'a, Node>;
+type ElementNodeList<'a> = NodeListGeneric<'a, ElementNode>;
 type HTMLCollection<'a> = NodeListGeneric<'a, ElementNode>;
 
 impl HTMLCollection<'_> {
@@ -1677,6 +1733,7 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
 
 #[cfg(test)]
 mod tests {
+    use crate::parse::html::dom::{NodeInterface, ParentNode};
     use crate::parse::html::tree::HTMLTree;
 
     const HTML: &str = r#"<!doctype html>
@@ -1698,6 +1755,7 @@ mod tests {
     fn parse_from_str() {
         let _tree1 = HTMLTree::from(HTML);
         let _tree2 = HTMLTree::from("<html></html>");
+        assert!(_tree1.document().unwrap().query_selector("main").unwrap().is_some());
     }
 
     #[test]

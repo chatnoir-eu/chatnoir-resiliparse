@@ -15,14 +15,16 @@
 use std::ptr;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
+use crate::parse::html::css::CSSParser;
 
-use crate::parse::html::dom::{Node, NodeBase, str_from_lxb_char_t};
+use crate::parse::html::dom::{DocumentNode, ElementNode, Node, NodeBase, str_from_lxb_char_t};
 use crate::third_party::lexbor::*;
 
 
 /// Internal heap-allocated and reference-counted HTMLTree.
 pub(super) struct HTMLTreeRc {
-    html_document: *mut lxb_html_document_t
+    pub(super) html_document: *mut lxb_html_document_t,
+    pub(super) css_parser: CSSParser
 }
 
 impl Drop for HTMLTreeRc {
@@ -49,7 +51,7 @@ impl From<&[u8]> for HTMLTree {
             lxb_html_document_parse(doc_ptr, value.as_ptr(), value.len());
         }
 
-        HTMLTree { tree_rc: Rc::new(HTMLTreeRc { html_document: doc_ptr }) }
+        HTMLTree { tree_rc: Rc::new(HTMLTreeRc { html_document: doc_ptr, css_parser: CSSParser::new() }) }
     }
 }
 
@@ -101,18 +103,17 @@ impl HTMLTree {
     }
 
     #[inline]
-    pub fn document(&self) -> Option<Node> {
-        NodeBase::create_node(
-            &self.tree_rc,
-            addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)
+    pub fn document(&self) -> Option<DocumentNode> {
+        Some(NodeBase::create_node(
+            &self.tree_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)?.into())
     }
 
-    pub fn head(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)
+    pub fn head(&self) -> Option<ElementNode> {
+        Some(NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?.into())
     }
 
-    pub fn body(&self) -> Option<Node> {
-        NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)
+    pub fn body(&self) -> Option<ElementNode> {
+        Some(NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?.into())
     }
 
     pub unsafe fn title_unchecked(&self) -> Option<&str> {
