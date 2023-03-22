@@ -549,8 +549,8 @@ macro_rules! define_node_type {
 /// Base DOM node implementation.
 #[derive(Clone)]
 pub struct NodeBase {
-    tree: Weak<HTMLTreeRc>,
-    node: *mut lxb_dom_node_t,
+    pub(super) tree: Weak<HTMLTreeRc>,
+    pub(super) node: *mut lxb_dom_node_t,
 }
 
 impl PartialEq<NodeBase> for NodeBase {
