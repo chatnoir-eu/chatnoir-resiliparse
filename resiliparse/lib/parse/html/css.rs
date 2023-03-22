@@ -19,12 +19,21 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::ptr;
 use std::ptr::addr_of_mut;
-use crate::parse::html::dom::{Node, NodeBase, str_from_lxb_char_t};
+use std::rc::Rc;
+use crate::parse::html::dom::{ElementNode, Node, NodeBase, NodeRef, str_from_lxb_char_t};
+use crate::parse::html::dom::Node::Element;
+use crate::parse::html::tree::HTMLTreeRc;
 use crate::third_party::lexbor::*;
 
 #[derive(Debug)]
 pub struct CSSParserError {
     error: String
+}
+
+impl CSSParserError {
+    pub(super) fn new(s: &str) -> Self {
+        Self { error: s.to_owned() }
+    }
 }
 
 impl Display for CSSParserError {
@@ -34,7 +43,6 @@ impl Display for CSSParserError {
 }
 
 impl Error for CSSParserError {}
-
 
 pub struct CSSParser {
     parser: *mut lxb_css_parser_t,
@@ -82,7 +90,7 @@ impl CSSParser {
             if (*self.parser).status != lexbor_status_t::LXB_STATUS_OK {
                 let mut s = String::default();
                 lxb_css_log_serialize((*self.parser).log, Some(Self::css_log_serialize_cb), s.as_mut_ptr().cast(), "".as_ptr(), 0);
-                Err(CSSParserError { error: s })
+                Err(CSSParserError::new(s.as_str()))
             } else {
                 Ok(CSSSelectorList { selector_list: sel_list, phantom: Default::default() })
             }
@@ -108,9 +116,9 @@ pub enum TraverseAction {
     Err
 }
 
-struct MatchContextWrapper<'a, Ctx> {
-    f: &'a dyn Fn(Node, u32, &mut Ctx) -> TraverseAction,
-    root_node: &'a Node,
+struct MatchContextWrapper<'a, Ctx, F: Fn(ElementNode, u32, &mut Ctx) -> TraverseAction> {
+    f: F,
+    tree: &'a Rc<HTMLTreeRc>,
     ctx: &'a mut Ctx
 }
 
@@ -130,19 +138,25 @@ impl CSSSelectorList<'_> {
         lxb_selectors_destroy(selectors, true);
     }
 
-    unsafe extern "C" fn match_cb_adapter<Ctx>(node: *mut lxb_dom_node_t,
-                                               spec: lxb_css_selector_specificity_t,
-                                               ctx: *mut c_void) -> lxb_status_t {
-        let ctx_cast = ctx as *mut MatchContextWrapper<Ctx>;
-        let tree = &(*ctx_cast).root_node.tree.upgrade();
-        if !tree.is_some() {
-            return lexbor_status_t::LXB_STATUS_ERROR;
+    pub(super) unsafe fn match_elements_unchecked_reverse<Ctx>(&self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut Ctx) {
+        if root_node.is_null() {
+            return;
         }
-        let new_node = NodeBase::create_node(tree.as_ref().unwrap(), node);
-        if !new_node.is_some() {
-            return lexbor_status_t::LXB_STATUS_ERROR;
+        let selectors = lxb_selectors_create();
+        lxb_selectors_init(selectors);
+        lxb_selectors_find_reverse(selectors, root_node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
+        lxb_selectors_destroy(selectors, true);
+    }
+
+    unsafe extern "C" fn match_cb_adapter<Ctx, F>(node: *mut lxb_dom_node_t, spec: lxb_css_selector_specificity_t, ctx: *mut c_void) -> lxb_status_t
+        where F: Fn(ElementNode, u32, &mut Ctx) -> TraverseAction {
+        if node.is_null() || (*node).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
+            return lexbor_status_t::LXB_STATUS_OK;
         }
-        let status = ((*ctx_cast).f)(new_node.unwrap(), spec, &mut (*ctx_cast).ctx);
+
+        let ctx_cast = ctx as *mut MatchContextWrapper<Ctx, F>;
+        let new_element = NodeBase::create_node((*ctx_cast).tree, node).unwrap().into();
+        let status = ((*ctx_cast).f)(new_element, spec, &mut (*ctx_cast).ctx);
         match status {
             TraverseAction::Ok => lexbor_status_t::LXB_STATUS_OK,
             TraverseAction::Stop => lexbor_status_t::LXB_STATUS_STOP,
@@ -150,10 +164,21 @@ impl CSSSelectorList<'_> {
         }
     }
 
-    pub fn match_elements<Ctx>(&self, root_node: &Node, cb: &dyn Fn(Node, u32, &mut Ctx) -> TraverseAction, ctx: &mut Ctx) {
-        let mut ctx_wrapper = MatchContextWrapper { f: cb, root_node, ctx };
-        unsafe {
-            self.match_elements_unchecked(root_node.node, Some(Self::match_cb_adapter::<Ctx>), &mut ctx_wrapper);
+    pub fn match_elements<Ctx, F: Fn(ElementNode, u32, &mut Ctx) -> TraverseAction>(&self, root_node: NodeRef, cb: F, ctx: &mut Ctx) {
+        if let Some(tree) = &root_node.tree.upgrade() {
+            let mut ctx_wrapper = MatchContextWrapper { f: cb, tree, ctx };
+            unsafe {
+                self.match_elements_unchecked(root_node.node, Some(Self::match_cb_adapter::<Ctx, F>), &mut ctx_wrapper);
+            }
+        }
+    }
+
+    pub fn match_elements_reverse<Ctx, F: Fn(ElementNode, u32, &mut Ctx) -> TraverseAction>(&self, root_node: NodeRef, cb: F, ctx: &mut Ctx) {
+        if let Some(tree) = &root_node.tree.upgrade() {
+            let mut ctx_wrapper = MatchContextWrapper { f: cb, tree, ctx };
+            unsafe {
+                self.match_elements_unchecked_reverse(root_node.node, Some(Self::match_cb_adapter::<Ctx, F>), &mut ctx_wrapper);
+            }
         }
     }
 }
