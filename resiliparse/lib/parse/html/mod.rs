@@ -13,5 +13,6 @@
 // limitations under the License.
 
 pub mod dom;
+pub mod css;
 pub mod serialize;
 pub mod tree;
