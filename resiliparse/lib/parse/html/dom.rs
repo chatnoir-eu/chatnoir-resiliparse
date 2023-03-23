@@ -796,9 +796,9 @@ impl NodeInterface for NodeBase {
 
     /// List of child nodes.
     fn child_nodes(&self) -> NodeList {
-        NodeList::new_live(self.as_noderef(), |s| {
+        NodeList::new_live(self.as_noderef(), None, |n, _| {
             let mut nodes = Vec::new();
-            let mut child = s.first_child();
+            let mut child = n.first_child();
             while let Some(c) = child {
                 child = c.next_sibling();
                 nodes.push(c);
@@ -1110,9 +1110,9 @@ impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), |document| {
+        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::Document(d) = document {
+            if let NodeRef::Document(d) = n {
                 let mut child = d.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1139,9 +1139,9 @@ impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
 impl ParentNode for DocumentFragmentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), |document| {
+        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::DocumentFragment(d) = document {
+            if let NodeRef::DocumentFragment(d) = n {
                 let mut child = d.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1325,23 +1325,35 @@ impl Element for ElementNode {
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
-        // unsafe {
-        //     HTMLCollection::new_live(self.as_noderef(), |e| {
-        //         let coll = lxb_dom_collection_create((*e.node).owner_document);
-        //         lxb_dom_node_by_tag_name(e.node, coll, qualified_name.as_ptr(), qualified_name.len());
-        //         let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length(coll));
-        //         for i in 0..lxb_dom_collection_length(coll) {
-        //             results.push(NodeBase::create_node(&e.tree.upgrade()?, lxb_dom_collection_node(coll, i))?.into());
-        //         }
-        //         lxb_dom_collection_destroy(coll);
-        //         results
-        //     })
-        // }
-        todo!()
+        unsafe {
+            HTMLCollection::new_live(self.as_noderef(), Some(qualified_name.to_owned()), |n, qn| {
+                let coll = lxb_dom_collection_create((*n.node).owner_document);
+                lxb_dom_node_by_tag_name(n.node, coll, qn.unwrap().as_ptr(), qn.unwrap().len());
+                let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+                for i in 0..lxb_dom_collection_length_noi(coll) {
+                    results.push(NodeBase::create_node(&n.tree.upgrade().unwrap(),
+                                                       lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+                }
+                lxb_dom_collection_destroy(coll, true);
+                results
+            })
+        }
     }
 
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        todo!()
+        unsafe {
+            HTMLCollection::new_live(self.as_noderef(), Some(class_names.to_owned()), |n, cls| {
+                let coll = lxb_dom_collection_create((*n.node).owner_document);
+                lxb_dom_elements_by_class_name(n.node.cast(), coll, cls.unwrap().as_ptr(), cls.unwrap().len());
+                let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+                for i in 0..lxb_dom_collection_length_noi(coll) {
+                    results.push(NodeBase::create_node(&n.tree.upgrade().unwrap(),
+                                                       lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+                }
+                lxb_dom_collection_destroy(coll, true);
+                results
+            })
+        }
     }
 
     fn inner_html(&self) -> String {
@@ -1379,9 +1391,9 @@ impl Element for ElementNode {
 
 impl ParentNode for ElementNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), |element| {
+        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::Element(e) = element {
+            if let NodeRef::Element(e) = n {
                 let mut child = e.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1515,9 +1527,11 @@ impl NonDocumentTypeChildNode for CommentNode {}
 // --------------------------------- NodeList / HTMLCollection impl --------------------------------
 
 
+#[derive(Clone)]
 struct NodeListClosure<'a, T> {
-    ctx: NodeRef<'a>,
-    f: fn(NodeRef<'a>) -> Vec<T>
+    n: NodeRef<'a>,
+    sel: Option<String>,
+    f: fn(NodeRef<'a>, Option<&String>) -> Vec<T>
 }
 
 pub struct NodeListGeneric<'a, T> {
@@ -1544,13 +1558,14 @@ impl<T: Clone> From<Vec<T>> for NodeListGeneric<'_, T>  {
 }
 
 impl<'a, T: Clone> NodeListGeneric<'a, T> {
-    fn new_live(ctx: NodeRef<'a>, f: fn(NodeRef<'a>) -> Vec<T>) -> NodeListGeneric<'a, T> {
-        Self { live: Some(NodeListClosure{ ctx, f }), items: Vec::default() }
+    pub(super) fn new_live(node: NodeRef<'a>, selector: Option<String>,
+                           f: fn(NodeRef<'a>, Option<&String>) -> Vec<T>) -> Self {
+        Self { live: Some(NodeListClosure { n: node, sel: selector, f }), items: Vec::default() }
     }
 
     pub fn iter(&self) -> vec::IntoIter<T> {
         if let Some(closure) = &self.live {
-            (closure.f)(closure.ctx).into_iter()
+            (closure.f)(closure.n, closure.sel.as_ref()).into_iter()
         } else {
             self.items.clone().into_iter()
         }
