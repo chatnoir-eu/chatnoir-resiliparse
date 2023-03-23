@@ -12,108 +12,129 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
-use crate::parse::html::css::CSSParser;
+use std::str::FromStr;
 
-use crate::parse::html::dom::{DocumentNode, ElementNode, Node, NodeBase, str_from_lxb_char_t};
+use crate::parse::html::dom::{DocumentNode, ElementNode, NodeBase, str_from_lxb_char_t};
 use crate::third_party::lexbor::*;
+use crate::third_party::lexbor::lexbor_status_t::LXB_STATUS_OK;
 
 
-/// Internal heap-allocated and reference-counted HTMLTree.
-pub(super) struct HTMLTreeRc {
-    pub(super) html_document: *mut lxb_html_document_t,
-    pub(super) css_parser: CSSParser
+#[derive(Debug)]
+pub struct HTMLParserError {
+    msg: String
 }
 
-impl Drop for HTMLTreeRc {
-    fn drop(&mut self) {
-        if !self.html_document.is_null() {
-            unsafe { lxb_html_document_destroy(self.html_document); }
-            self.html_document = ptr::null_mut();
-        }
+impl Display for HTMLParserError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HTML parser error: {}.", self.msg)
     }
 }
 
-/// HTML DOM tree.
-pub struct HTMLTree {
-    tree_rc: Rc<HTMLTreeRc>
+impl Error for HTMLParserError {}
+
+
+#[derive(Debug)]
+pub struct CSSParserError {
+    msg: String
 }
 
-impl From<&[u8]> for HTMLTree {
-    /// Decode a raw HTML byte string and parse it into a DOM tree.
-    /// The bytes must be a valid UTF-8 encoding.
-    fn from(value: &[u8]) -> Self {
+impl Display for CSSParserError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CSS parser error: {}", self.msg)
+    }
+}
+
+impl Error for CSSParserError {}
+
+
+/// HTML tree handler.
+pub struct HTMLTree {
+    doc_rc: Rc<HTMLDocument>
+}
+
+impl HTMLTree {
+    /// Parse HTML from a Unicode str into a DOM tree.
+    pub fn parse(html: &str) -> Result<Self, HTMLParserError> {
         let doc_ptr;
         unsafe {
             doc_ptr = lxb_html_document_create();
-            lxb_html_document_parse(doc_ptr, value.as_ptr(), value.len());
+            if doc_ptr.is_null() {
+                return Err(HTMLParserError { msg: "Failed to allocate memory.".to_owned() });
+            }
+            let status = lxb_html_document_parse(doc_ptr, html.as_ptr(), html.len());
+            if status != LXB_STATUS_OK {
+                lxb_html_document_destroy(doc_ptr);
+                return Err(HTMLParserError { msg: format!("Failed to parse document (Error {}).", status) });
+            }
         }
 
-        HTMLTree { tree_rc: Rc::new(HTMLTreeRc { html_document: doc_ptr, css_parser: CSSParser::new() }) }
+        Ok(HTMLTree { doc_rc: Rc::new(HTMLDocument { html_document: doc_ptr }) })
     }
 }
 
-impl From<Vec<u8>> for HTMLTree {
+impl FromStr for HTMLTree {
+    type Err = HTMLParserError;
+
+    /// Parse HTML from a Unicode str into a DOM tree.
+    #[inline]
+    fn from_str(html: &str) -> Result<Self, Self::Err> {
+        Self::parse(html)
+    }
+}
+
+impl TryFrom<&str> for HTMLTree {
+    type Error = HTMLParserError;
+
+    /// Parse HTML from a Unicode str into a DOM tree.
+    #[inline]
+    fn try_from(html: &str) -> Result<Self, Self::Error> {
+        Self::parse(html)
+    }
+}
+
+impl TryFrom<String> for HTMLTree {
+    type Error = HTMLParserError;
+
+    /// Parse HTML from a Unicode str into a DOM tree.
+    #[inline]
+    fn try_from(html: String) -> Result<Self, Self::Error> {
+        Self::parse(html.as_str())
+    }
+}
+
+impl TryFrom<&[u8]> for HTMLTree {
+    type Error = HTMLParserError;
+
     /// Decode a raw HTML byte string and parse it into a DOM tree.
-    /// The bytes must be a valid UTF-8 encoding.
+    /// The bytes must be a valid UTF-8 encoding. Invalid characters will be replaced with U+FFFD.
     #[inline]
-    fn from(value: Vec<u8>) -> Self {
-        value.as_slice().into()
-    }
-}
-
-impl From<&Vec<u8>> for HTMLTree {
-    /// Decode a raw HTML byte string and parse it into a DOM tree.
-    /// The bytes must be a valid UTF-8 encoding.
-    #[inline]
-    fn from(value: &Vec<u8>) -> Self {
-        value.as_slice().into()
-    }
-}
-
-impl From<&str> for HTMLTree {
-    /// Parse HTML from a Unicode string slice into a DOM tree.
-    #[inline]
-    fn from(value: &str) -> Self {
-        value.as_bytes().into()
-    }
-}
-
-impl From<String> for HTMLTree {
-    /// Parse HTML from a Unicode String into a DOM tree.
-    #[inline]
-    fn from(value: String) -> Self {
-        value.as_bytes().into()
-    }
-}
-
-impl From<&String> for HTMLTree {
-    /// Parse HTML from a Unicode String into a DOM tree.
-    #[inline]
-    fn from(value: &String) -> Self {
-        value.as_bytes().into()
+    fn try_from(html: &[u8]) -> Result<Self, Self::Error> {
+        Self::parse(String::from_utf8_lossy(html).to_mut())
     }
 }
 
 impl HTMLTree {
     fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
-        unsafe { self.tree_rc.html_document.as_mut() }
+        unsafe { self.doc_rc.html_document.as_mut() }
     }
 
     #[inline]
     pub fn document(&self) -> Option<DocumentNode> {
         Some(NodeBase::create_node(
-            &self.tree_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)?.into())
+            &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)?.into())
     }
 
     pub fn head(&self) -> Option<ElementNode> {
-        Some(NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?.into())
+        Some(NodeBase::create_node(&self.doc_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?.into())
     }
 
     pub fn body(&self) -> Option<ElementNode> {
-        Some(NodeBase::create_node(&self.tree_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?.into())
+        Some(NodeBase::create_node(&self.doc_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?.into())
     }
 
     pub unsafe fn title_unchecked(&self) -> Option<&str> {
@@ -125,5 +146,20 @@ impl HTMLTree {
     #[inline]
     pub fn title(&self) -> Option<String> {
         unsafe { Some(self.title_unchecked()?.to_owned()) }
+    }
+}
+
+
+/// Internal heap-allocated and reference-counted HTMLTree.
+pub(super) struct HTMLDocument {
+    pub(super) html_document: *mut lxb_html_document_t
+}
+
+impl Drop for HTMLDocument {
+    fn drop(&mut self) {
+        if !self.html_document.is_null() {
+            unsafe { lxb_html_document_destroy(self.html_document); }
+            self.html_document = ptr::null_mut();
+        }
     }
 }
