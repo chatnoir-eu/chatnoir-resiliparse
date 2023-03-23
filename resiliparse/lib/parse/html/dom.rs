@@ -15,8 +15,9 @@
 #![allow(dead_code)]
 
 use std::{ptr, slice, vec};
+use std::cmp::max;
 use std::collections::HashSet;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Add, Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
@@ -166,9 +167,9 @@ pub trait NodeInterface {
 
     fn node_name(&self) -> Option<String>;
     fn node_value(&self) -> Option<String>;
-    fn set_node_value(&self, value: &str);
+    fn set_node_value(&mut self, value: &str);
     fn text_content(&self) -> Option<String>;
-    fn set_text_content(&self, content: &str);
+    fn set_text_content(&mut self, content: &str);
 
     fn owner_document(&self) -> Option<DocumentNode>;
     fn parent_node(&self) -> Option<Node>;
@@ -394,6 +395,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn local_name(&self) -> Option<String>;
     fn id(&self) -> Option<String>;
     fn class_name(&self) -> Option<String>;
+    fn set_class_name(&mut self, class_name: &str);
     fn class_list(&mut self) -> DOMTokenList;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
@@ -410,13 +412,13 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
-    fn set_inner_html(&self, html: &str);
+    fn set_inner_html(&mut self, html: &str);
     fn outer_html(&self) -> String;
-    fn set_outer_html(&self, html: &str);
+    fn set_outer_html(&mut self, html: &str);
     fn inner_text(&self) -> String;
-    fn set_inner_text(&self, text: &str);
+    fn set_inner_text(&mut self, text: &str);
     fn outer_text(&self) -> String;
-    fn set_outer_text(&self, text: &str);
+    fn set_outer_text(&mut self, text: &str);
 }
 
 pub trait Attr: NodeInterface {
@@ -427,7 +429,7 @@ pub trait Attr: NodeInterface {
     fn local_name(&self) -> Option<String>;
     fn name(&self) -> Option<String>;
     fn value(&self) -> Option<String>;
-    fn set_value(&self, value: &str);
+    fn set_value(&mut self, value: &str);
 
     fn owner_element(&self) -> Option<Node>;
 }
@@ -442,28 +444,66 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
         self.node_value()
     }
 
-    fn set_data(&self, data: &str) {
-
+    #[inline]
+    fn set_data(&mut self, data: &str) {
+        self.set_node_value(data);
     }
 
     fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        Some(String::from(&self.data()?[offset..offset + count]))
+        Some(self.data()?.chars().into_iter().skip(offset).take(count).collect())
     }
 
-    fn append_data(&self, data: &str) {
-        todo!()
+    fn append_data(&mut self, data: &str) {
+        if data.is_empty() {
+            return;
+        }
+        self.set_data(self.data().unwrap_or_default().add(data).as_str());
     }
 
-    fn insert_data(&self, offset: usize, data: &str) {
-        todo!()
+    fn insert_data(&mut self, offset: usize, data: &str) {
+        if data.is_empty() {
+            return;
+        }
+        if let Some(s) = self.data() {
+            let mut s_new = String::with_capacity(s.len() + data.len());
+            s.chars().into_iter().enumerate().for_each(|(i, c)| {
+                if i == offset {
+                    s_new.push_str(data);
+                }
+                s_new.push(c);
+            });
+            self.set_data(s_new.as_str());
+        }
     }
 
-    fn delete_data(&self, offset: usize, count: usize) {
-        todo!()
+    fn delete_data(&mut self, offset: usize, count: usize) {
+        if let Some(s) = self.data() {
+            let mut s_new = String::with_capacity(max(0, s.len() - count));
+            s.chars().into_iter().enumerate().for_each(|(i, c)| {
+                if i < offset || i >= offset + count {
+                    s_new.push(c);
+                }
+            });
+            self.set_data(s_new.as_str());
+        }
     }
 
-    fn replace_data(&self, offset: usize, count: usize, data:& str) {
-        todo!()
+    fn replace_data(&mut self, offset: usize, count: usize, data: &str) {
+        if let Some(s) = self.data() {
+            let mut s_new = String::with_capacity(max(0, s.len() - count + data.len()));
+            s.chars().into_iter().enumerate().for_each(|(i, c)| {
+                if i < offset {
+                    s_new.push(c);
+                }
+                if i == offset {
+                    s_new.push_str(data);
+                }
+                if i >= offset + count {
+                    s_new.push(c);
+                }
+            });
+            self.set_data(s_new.as_str());
+        }
     }
 }
 
@@ -502,11 +542,11 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn node_value(&self) -> Option<String> { self.node_base.node_value() }
             #[inline(always)]
-            fn set_node_value(&self, value: &str) { self.node_base.set_node_value(value) }
+            fn set_node_value(&mut self, value: &str) { self.node_base.set_node_value(value) }
             #[inline(always)]
             fn text_content(&self) -> Option<String> { self.node_base.text_content() }
             #[inline(always)]
-            fn set_text_content(&self, content: &str) { self.node_base.set_text_content(content) }
+            fn set_text_content(&mut self, content: &str) { self.node_base.set_text_content(content) }
 
             #[inline(always)]
             fn owner_document(&self) -> Option<DocumentNode> { self.node_base.owner_document() }
@@ -734,7 +774,7 @@ impl NodeInterface for NodeBase {
         unsafe { Some(self.node_value_unchecked()?.to_owned()) }
     }
 
-    fn set_node_value(&self, value: &str) {
+    fn set_node_value(&mut self, value: &str) {
         check_node!(self);
         unsafe { lxb_dom_node_text_content_set(self.node, value.as_ptr(), value.len()); }
     }
@@ -753,7 +793,7 @@ impl NodeInterface for NodeBase {
     }
 
     #[inline]
-    fn set_text_content(&self, content: &str) {
+    fn set_text_content(&mut self, content: &str) {
         self.set_node_value(content)
     }
 
@@ -1235,6 +1275,11 @@ impl Element for ElementNode {
         unsafe { Some(self.class_name_unchecked()?.to_owned()) }
     }
 
+    #[inline]
+    fn set_class_name(&mut self, class_name: &str) {
+        self.set_attribute("class", class_name);
+    }
+
     fn class_list(&mut self) -> DOMTokenList {
         DOMTokenList::new(self)
     }
@@ -1360,7 +1405,7 @@ impl Element for ElementNode {
         todo!()
     }
 
-    fn set_inner_html(&self, html: &str) {
+    fn set_inner_html(&mut self, html: &str) {
         todo!()
     }
 
@@ -1368,7 +1413,7 @@ impl Element for ElementNode {
         todo!()
     }
 
-    fn set_outer_html(&self, html: &str) {
+    fn set_outer_html(&mut self, html: &str) {
         todo!()
     }
 
@@ -1376,7 +1421,7 @@ impl Element for ElementNode {
         todo!()
     }
 
-    fn set_inner_text(&self, text: &str) {
+    fn set_inner_text(&mut self, text: &str) {
         todo!()
     }
 
@@ -1384,7 +1429,7 @@ impl Element for ElementNode {
         todo!()
     }
 
-    fn set_outer_text(&self, text: &str) {
+    fn set_outer_text(&mut self, text: &str) {
         todo!()
     }
 }
@@ -1447,8 +1492,9 @@ impl Attr for AttrNode {
         unsafe { Some(self.value_unchecked()?.to_owned()) }
     }
 
-    fn set_value(&self, value: &str) {
-        todo!()
+    fn set_value(&mut self, value: &str) {
+        check_node!(self.node_base);
+        unsafe { lxb_dom_node_text_content_set(self.node_base.node, value.as_ptr(), value.len()); }
     }
 
     fn owner_element(&self) -> Option<Node> {
@@ -1499,7 +1545,10 @@ define_node_type!(ProcessingInstructionNode, ProcessingInstruction);
 
 impl ProcessingInstruction for ProcessingInstructionNode {
     fn target(&self) -> Option<String> {
-        todo!()
+        check_node!(self.node_base);
+        unsafe {
+            Some(str_from_lxb_str_cb(self.node_base.node, lxb_dom_processing_instruction_target_noi)?.to_owned())
+        }
     }
 }
 
@@ -1608,11 +1657,11 @@ impl HTMLCollection<'_> {
 
 
 pub struct DOMTokenList<'a> {
-    element: &'a ElementNode,
+    element: &'a mut ElementNode,
 }
 
 impl<'a> DOMTokenList<'a> {
-    fn new(element: &'a ElementNode) -> Self {
+    fn new(element: &'a mut ElementNode) -> Self {
         Self { element }
     }
 
@@ -1621,8 +1670,7 @@ impl<'a> DOMTokenList<'a> {
     }
 
     fn update_node(&mut self, values: &Vec<String>) {
-        todo!()
-        // self.element.set_class_name(values.join(" ").as_str());
+        self.element.set_class_name(values.join(" ").as_str());
     }
 
     pub fn contains(&self, token: &str) -> bool {
