@@ -72,6 +72,25 @@ impl DerefMut for Node {
     }
 }
 
+impl From<NodeRef<'_>> for Node {
+    fn from(value: NodeRef<'_>) -> Self {
+        NodeBase::create_node(&value.tree.upgrade().unwrap(), value.node).unwrap()
+    }
+}
+
+impl From<&NodeBase> for Node {
+    fn from(value: &NodeBase) -> Self {
+        NodeBase::create_node(&value.tree.upgrade().unwrap(), value.node).unwrap()
+    }
+}
+
+impl From<NodeBase> for Node {
+    #[inline]
+    fn from(value: NodeBase) -> Self {
+        Self::from(&value)
+    }
+}
+
 impl PartialEq<NodeBase> for Node {
     fn eq(&self, other: &NodeBase) -> bool {
         **self == *other
@@ -211,8 +230,8 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn doctype(&self) -> Option<DocumentTypeNode>;
     fn document_element(&self) -> Option<DocumentNode>;
 
-    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
-    fn elements_by_class_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
+    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
 
     fn create_element(&mut self, local_name: &str) -> Option<ElementNode>;
     fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
@@ -304,7 +323,7 @@ pub trait ParentNode: NodeInterface {
 
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
-    fn get_element_by_id(&self, element_id: &str) -> Option<ElementNode> {
+    fn element_by_id(&self, element_id: &str) -> Option<ElementNode> {
         unsafe {
             self.upcast().iter_raw().find(|&n| {
                 if (*n).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
@@ -398,8 +417,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
-    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
-    fn elements_by_class_name<'a>(&'a self, class_names: &'_ str) -> HTMLCollection<'a>;
+    fn elements_by_tag_name(&self, qualified_name: &'_ str) -> HTMLCollection;
+    fn elements_by_class_name(&self, class_names: &'_ str) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);
@@ -593,6 +612,12 @@ macro_rules! define_node_type {
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
                 Node::$EnumType(value)
+            }
+        }
+
+        impl From<&$Self> for Node {
+            fn from(value: &$Self) -> Node {
+                Node::$EnumType((*value).clone())
             }
         }
 
@@ -813,7 +838,7 @@ impl NodeInterface for NodeBase {
 
     /// List of child nodes.
     fn child_nodes(&self) -> NodeList {
-        NodeList::new_live(self.as_noderef(), None, |n, _| {
+        NodeList::new_live(self.into(), None, |n, _| {
             let mut nodes = Vec::new();
             let mut child = n.first_child();
             while let Some(c) = child {
@@ -1035,12 +1060,16 @@ impl Document for DocumentNode {
         }
     }
 
-    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a> {
-        todo!()
+    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.first_element_child().unwrap().into(), Some(qualified_name.to_owned()), |n, qn| {
+            unsafe { elements_by_tag_name(n, qn.unwrap()) }
+        })
     }
 
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
-        todo!()
+        HTMLCollection::new_live(self.first_element_child().unwrap().into(), Some(qualified_name.to_owned()), |n, cls| {
+            unsafe { elements_by_class_name(n, cls.unwrap()) }
+        })
     }
 
     fn create_element(&mut self, local_name: &str) -> Option<ElementNode> {
@@ -1097,9 +1126,9 @@ impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
+        HTMLCollection::new_live(self.into(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::Document(d) = n {
+            if let Node::Document(d) = n {
                 let mut child = d.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1126,9 +1155,9 @@ impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
 impl ParentNode for DocumentFragmentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
+        HTMLCollection::new_live(self.into(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::DocumentFragment(d) = n {
+            if let Node::DocumentFragment(d) = n {
                 let mut child = d.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1309,30 +1338,16 @@ impl Element for ElementNode {
         Ok(matches)
     }
 
-    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a> {
-        unsafe {
-            HTMLCollection::new_live(self.as_noderef(), Some(qualified_name.to_owned()), |n, qn| {
-                let coll = lxb_dom_collection_create((*n.node).owner_document);
-                if coll.is_null() {
-                    return Vec::default()
-                }
-                lxb_dom_node_by_tag_name(n.node, coll, qn.unwrap().as_ptr(), qn.unwrap().len());
-                dom_coll_to_vec(&n.tree.upgrade().unwrap(), coll, true)
-            })
-        }
+    fn elements_by_tag_name(&self, qualified_name: &'_ str) -> HTMLCollection {
+        HTMLCollection::new_live(self.into(), Some(qualified_name.to_owned()), |n, qn| {
+            unsafe { elements_by_tag_name(&n, qn.unwrap()) }
+        })
     }
 
-    fn elements_by_class_name<'a>(&'a self, class_names: &'_ str) -> HTMLCollection<'a> {
-        unsafe {
-            HTMLCollection::new_live(self.as_noderef(), Some(class_names.to_owned()), |n, cls| {
-                let coll = lxb_dom_collection_create((*n.node).owner_document);
-                if coll.is_null() {
-                    return Vec::default()
-                }
-                lxb_dom_elements_by_class_name(n.node.cast(), coll, cls.unwrap().as_ptr(), cls.unwrap().len());
-                dom_coll_to_vec(&n.tree.upgrade().unwrap(), coll, true)
-            })
-        }
+    fn elements_by_class_name(&self, class_names: &'_ str) -> HTMLCollection {
+        HTMLCollection::new_live(self.into(), Some(class_names.to_owned()), |n, cls| {
+            unsafe { elements_by_class_name(&n, cls.unwrap()) }
+        })
     }
 
     /// Inner HTML of this DOM node's children.
@@ -1414,9 +1429,9 @@ impl Element for ElementNode {
 
 impl ParentNode for ElementNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_noderef(), None, |n, _| {
+        HTMLCollection::new_live(self.into(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
-            if let NodeRef::Element(e) = n {
+            if let Node::Element(e) = n {
                 let mut child = e.first_element_child();
                 while let Some(c) = child {
                     child = c.next_element_sibling();
@@ -1555,44 +1570,45 @@ impl NonDocumentTypeChildNode for CommentNode {}
 
 
 #[derive(Clone)]
-struct NodeListClosure<'a, T> {
-    n: NodeRef<'a>,
+struct NodeListClosure<T> {
+    n: Node,
     sel: Option<String>,
-    f: fn(NodeRef<'a>, Option<&String>) -> Vec<T>
+    f: fn(&Node, Option<&String>) -> Vec<T>
 }
 
-pub struct NodeListGeneric<'a, T> {
-    live: Option<NodeListClosure<'a, T>>,
+pub struct NodeListGeneric<T> {
+    live: Option<NodeListClosure<T>>,
     items: Vec<T>,
 }
 
-impl<T> Default for NodeListGeneric<'_, T> {
+impl<T> Default for NodeListGeneric<T> {
     fn default() -> Self {
         NodeListGeneric { live: None, items: Vec::default() }
     }
 }
 
-impl<T: Clone> From<&[T]> for NodeListGeneric<'_, T>  {
+impl<T: Clone> From<&[T]> for NodeListGeneric<T>  {
     fn from(items: &[T]) -> Self {
         Self { live: None, items: Vec::from(items) }
     }
 }
 
-impl<T: Clone> From<Vec<T>> for NodeListGeneric<'_, T>  {
+impl<T: Clone> From<Vec<T>> for NodeListGeneric<T>  {
     fn from(items: Vec<T>) -> Self {
         Self { live: None, items }
     }
 }
 
-impl<'a, T: Clone> NodeListGeneric<'a, T> {
-    pub(super) fn new_live(node: NodeRef<'a>, selector: Option<String>,
-                           f: fn(NodeRef<'a>, Option<&String>) -> Vec<T>) -> Self {
-        Self { live: Some(NodeListClosure { n: node, sel: selector, f }), items: Vec::default() }
+impl<'a, T: Clone> NodeListGeneric<T> {
+    pub(super) fn new_live(node: Node, selector: Option<String>,
+                           f: fn(&Node, Option<&String>) -> Vec<T>) -> Self {
+        Self { live: Some(NodeListClosure { n: node, sel: selector, f }),
+            items: Vec::default() }
     }
 
     pub fn iter(&self) -> vec::IntoIter<T> {
         if let Some(closure) = &self.live {
-            (closure.f)(closure.n, closure.sel.as_ref()).into_iter()
+            (closure.f)(&closure.n, closure.sel.as_ref()).into_iter()
         } else {
             self.items.clone().into_iter()
         }
@@ -1609,7 +1625,7 @@ impl<'a, T: Clone> NodeListGeneric<'a, T> {
     }
 }
 
-impl<T: Clone> IntoIterator for &NodeListGeneric<'_, T> {
+impl<T: Clone> IntoIterator for &NodeListGeneric<T> {
     type Item = T;
     type IntoIter = vec::IntoIter<T>;
 
@@ -1618,11 +1634,11 @@ impl<T: Clone> IntoIterator for &NodeListGeneric<'_, T> {
     }
 }
 
-type NodeList<'a> = NodeListGeneric<'a, Node>;
-type ElementNodeList<'a> = NodeListGeneric<'a, ElementNode>;
-type HTMLCollection<'a> = NodeListGeneric<'a, ElementNode>;
+type NodeList = NodeListGeneric<Node>;
+type ElementNodeList = NodeListGeneric<ElementNode>;
+type HTMLCollection = NodeListGeneric<ElementNode>;
 
-impl HTMLCollection<'_> {
+impl HTMLCollection {
     pub fn named_item(&self, name: &str) -> Option<ElementNode> {
         self.iter()
             .find(|e| {
@@ -1747,6 +1763,24 @@ impl IntoIterator for &DOMTokenList<'_> {
 
 // --------------------------------------------- Helpers -------------------------------------------
 
+
+unsafe fn elements_by_tag_name(node: &Node, qualified_name: &str) -> Vec<ElementNode> {
+    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    if coll.is_null() {
+        return Vec::default()
+    }
+    lxb_dom_node_by_tag_name(node.node, coll, qualified_name.as_ptr(), qualified_name.len());
+    dom_coll_to_vec(&node.tree.upgrade().unwrap(), coll, true)
+}
+
+unsafe fn elements_by_class_name(node: &Node, class_name: &str) -> Vec<ElementNode> {
+    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    if coll.is_null() {
+        return Vec::default()
+    }
+    lxb_dom_elements_by_class_name(node.node.cast(), coll, class_name.as_ptr(), class_name.len());
+    dom_coll_to_vec(&node.tree.upgrade().unwrap(), coll, true)
+}
 
 unsafe fn dom_coll_to_vec(tree: &Rc<HTMLDocument>, coll: *mut lxb_dom_collection_t, destroy: bool) -> Vec<ElementNode> {
     let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
