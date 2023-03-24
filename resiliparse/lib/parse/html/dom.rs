@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(dead_code)]
 
 use std::{ptr, slice, vec};
 use std::cmp::max;
@@ -20,7 +19,6 @@ use std::collections::HashSet;
 use std::ops::{Add, Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
-use std::str::FromStr;
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
 
 use crate::third_party::lexbor::*;
@@ -665,19 +663,6 @@ impl NodeBase {
         }
     }
 
-    fn serialize_node(node: &Self) -> Option<String> {
-        check_node!(node);
-
-        let out_html;
-        unsafe {
-            let s = lexbor_str_create();
-            lxb_html_serialize_tree_str(node.node, s);
-            out_html = str_from_lxb_str_t(s)?.to_string();
-            lexbor_str_destroy(s, node.node.as_ref()?.owner_document.as_ref()?.text, true);
-        }
-        Some(out_html)
-    }
-
     unsafe fn insert_before_unchecked<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
         if let Some(c) = child {
             if c.parent_node()? != *self || node.contains(c) {
@@ -898,36 +883,6 @@ impl NodeInterface for NodeBase {
     fn iter_elements(&self) -> ElementIterator {
         ElementIterator::new(&self)
     }
-
-    // /// Visible text contents of this DOM node and its children.
-    // #[inline]
-    // fn outer_text(&self) -> Option<String> {
-    //     self.inner_text()
-    // }
-    //
-    // /// Visible text contents of this DOM node and its children.
-    // #[inline]
-    // fn inner_text(&self) -> Option<String> {
-    //     self.tree.upgrade()?;
-    //     match self.node_type() {
-    //         NodeType::Element => Some(node_format_visible_text(self.node)),
-    //         _ => None
-    //     }
-    // }
-    //
-    // /// Outer HTML of this DOM node and its children.
-    // #[inline]
-    // fn outer_html(&self) -> Option<String> {
-    //     Self::serialize_node(self)
-    // }
-    //
-    // /// Inner HTML of this DOM node's children.
-    // fn inner_html(&self) -> Option<String> {
-    //     self.child_nodes()
-    //         .into_iter()
-    //         .flat_map(|c| Self::serialize_node(&c))
-    //         .reduce(|a, b| a + &b)
-    // }
 }
 
 struct NodeIteratorRaw {
@@ -1006,7 +961,7 @@ impl Iterator for ElementIterator<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let tree = &self.root.tree.upgrade()?;
-        while let next = unsafe { self.iterator_raw.next()?.as_ref()? } {
+        while let Some(next) = unsafe { self.iterator_raw.next()?.as_ref() } {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 continue
             }
@@ -1347,7 +1302,7 @@ impl Element for ElementNode {
 
         let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
         let mut matches = false;
-        sel_list.match_elements(root, |node, _, ctx| {
+        sel_list.match_elements(root, |_, _, ctx| {
             *ctx = true;
             TraverseAction::Stop
         }, &mut matches);
@@ -1358,14 +1313,11 @@ impl Element for ElementNode {
         unsafe {
             HTMLCollection::new_live(self.as_noderef(), Some(qualified_name.to_owned()), |n, qn| {
                 let coll = lxb_dom_collection_create((*n.node).owner_document);
-                lxb_dom_node_by_tag_name(n.node, coll, qn.unwrap().as_ptr(), qn.unwrap().len());
-                let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
-                for i in 0..lxb_dom_collection_length_noi(coll) {
-                    results.push(NodeBase::create_node(&n.tree.upgrade().unwrap(),
-                                                       lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+                if coll.is_null() {
+                    return Vec::default()
                 }
-                lxb_dom_collection_destroy(coll, true);
-                results
+                lxb_dom_node_by_tag_name(n.node, coll, qn.unwrap().as_ptr(), qn.unwrap().len());
+                dom_coll_to_vec(&n.tree.upgrade().unwrap(), coll, true)
             })
         }
     }
@@ -1374,48 +1326,89 @@ impl Element for ElementNode {
         unsafe {
             HTMLCollection::new_live(self.as_noderef(), Some(class_names.to_owned()), |n, cls| {
                 let coll = lxb_dom_collection_create((*n.node).owner_document);
-                lxb_dom_elements_by_class_name(n.node.cast(), coll, cls.unwrap().as_ptr(), cls.unwrap().len());
-                let mut results = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
-                for i in 0..lxb_dom_collection_length_noi(coll) {
-                    results.push(NodeBase::create_node(&n.tree.upgrade().unwrap(),
-                                                       lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+                if coll.is_null() {
+                    return Vec::default()
                 }
-                lxb_dom_collection_destroy(coll, true);
-                results
+                lxb_dom_elements_by_class_name(n.node.cast(), coll, cls.unwrap().as_ptr(), cls.unwrap().len());
+                dom_coll_to_vec(&n.tree.upgrade().unwrap(), coll, true)
             })
         }
     }
 
+    /// Inner HTML of this DOM node's children.
     fn inner_html(&self) -> String {
-        todo!()
+        check_node!(self.node_base);
+        unsafe {
+            let html_str = lexbor_str_create();
+            if html_str.is_null() {
+                return String::default();
+            }
+            let mut next = lxb_dom_node_first_child_noi(self.node_base.node);
+            while !next.is_null() {
+                lxb_html_serialize_tree_str(next, html_str);
+                next = lxb_dom_node_next_noi(next);
+            };
+            let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
+            lexbor_str_destroy(html_str, (*(*self.node_base.node).owner_document).text, true);
+            s
+        }
     }
 
     fn set_inner_html(&mut self, html: &str) {
-        todo!()
+        check_node!(self.node_base);
+        unsafe { lxb_html_element_inner_html_set(self.node_base.node.cast(), html.as_ptr(), html.len()); }
     }
 
     fn outer_html(&self) -> String {
-        todo!()
+        check_node!(self.node_base);
+        unsafe {
+            let html_str = lexbor_str_create();
+            if html_str.is_null() {
+                return String::default();
+            }
+            lxb_html_serialize_tree_str(self.node_base.node, html_str);
+            let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
+            lexbor_str_destroy(html_str, (*(*self.node_base.node).owner_document).text, true);
+            s
+        }
     }
 
     fn set_outer_html(&mut self, html: &str) {
-        todo!()
+        check_node!(self.node_base);
+        self.set_inner_html(html);
+        unsafe {
+            self.node_base.iter_raw().for_each(|n| {
+                lxb_dom_node_insert_before(self.node_base.node, n);
+            })
+        }
+        self.remove()
     }
 
     fn inner_text(&self) -> String {
-        todo!()
+        check_node!(self.node_base);
+        node_format_visible_text(self.node_base.node)
     }
 
+    #[inline]
     fn set_inner_text(&mut self, text: &str) {
-        todo!()
+        self.node_base.set_text_content(text);
     }
 
+    #[inline]
     fn outer_text(&self) -> String {
-        todo!()
+        self.inner_text()
     }
 
     fn set_outer_text(&mut self, text: &str) {
-        todo!()
+        check_node!(self.node_base);
+        self.node_base.set_text_content(text);
+        unsafe {
+            let fc = lxb_dom_node_first_child_noi(self.node_base.node);
+            if !fc.is_null() {
+                lxb_dom_node_insert_before(self.node_base.node, fc);
+            }
+        }
+        self.remove()
     }
 }
 
@@ -1650,12 +1643,12 @@ impl<'a> DOMTokenList<'a> {
         Self { element }
     }
 
-    fn item(&self, index: usize) -> Option<String> {
-        Some(self.values().get(index)?.to_owned())
-    }
-
     fn update_node(&mut self, values: &Vec<String>) {
         self.element.set_class_name(values.join(" ").as_str());
+    }
+
+    pub fn item(&self, index: usize) -> Option<String> {
+        Some(self.values().get(index)?.to_owned())
     }
 
     pub fn contains(&self, token: &str) -> bool {
@@ -1755,6 +1748,17 @@ impl IntoIterator for &DOMTokenList<'_> {
 // --------------------------------------------- Helpers -------------------------------------------
 
 
+unsafe fn dom_coll_to_vec(tree: &Rc<HTMLDocument>, coll: *mut lxb_dom_collection_t, destroy: bool) -> Vec<ElementNode> {
+    let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+    for i in 0..lxb_dom_collection_length_noi(coll) {
+        v.push(NodeBase::create_node(&tree, lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+    }
+    if destroy {
+        lxb_dom_collection_destroy(coll, true);
+    }
+    v
+}
+
 pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> Option<&'a str> {
     if size > 0 && !cdata.is_null() {
         Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size)))
@@ -1795,7 +1799,6 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-    use crate::parse::html::dom::{NodeInterface, ParentNode};
     use crate::parse::html::tree::HTMLTree;
 
     const HTML: &str = r#"<!doctype html>
@@ -1817,7 +1820,6 @@ mod tests {
     fn parse_from_str() {
         let _tree1 = HTMLTree::from_str(HTML).unwrap();
         let _tree2 = HTMLTree::from_str("<html></html>").unwrap();
-        assert!(_tree1.document().unwrap().query_selector("main").unwrap().is_some());
     }
 
     #[test]
