@@ -1636,7 +1636,7 @@ impl<'a, T: Clone> NodeListGeneric<T> {
 
     #[inline]
     pub fn item(&self, index: usize) -> Option<T> {
-        Some(self.iter().take(index).next()?)
+        Some(self.iter().skip(index).next()?)
     }
 
     #[inline]
