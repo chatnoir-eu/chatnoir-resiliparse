@@ -68,7 +68,8 @@ impl<'a> CSSSelectorList<'a> {
             let sel_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
             if (*parser).status != LXB_STATUS_OK {
                 let mut msg = String::default();
-                lxb_css_log_serialize((*parser).log, Some(Self::css_log_serialize_cb), msg.as_mut_ptr().cast(), "".as_ptr(), 0);
+                lxb_css_log_serialize((*parser).log, Some(Self::css_log_serialize_cb),
+                                      addr_of_mut!(msg) as *mut c_void, "".as_ptr(), 0);
                 Err(CSSParserError { msg })
             } else {
                 Ok(CSSSelectorList { selector_list: sel_list, tree: Rc::downgrade(&tree), phantom: Default::default() })

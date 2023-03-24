@@ -113,40 +113,40 @@ fn test_selection() {
     tree.document().unwrap().element_by_id("foo").unwrap();
     assert_eq!(tree.document().unwrap().element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
 
-    // meta = tree.head.get_elements_by_tag_name('meta')
-    // assert type(meta) is DOMCollection
-    // assert len(meta) == 1
-    // assert meta[0].tag == 'meta'
-    //
-    // bar_class = tree.body.get_elements_by_class_name('bar')
-    // assert type(bar_class) is DOMCollection
-    // assert len(bar_class) == 2
-    // assert bar_class[0].tag == 'span'
-    // assert bar_class[1].tag == 'a'
-    //
+    let meta = tree.head().unwrap().elements_by_tag_name("meta");
+    assert_eq!(meta.len(), 1);
+    assert_eq!(meta.item(0).unwrap().tag_name().unwrap(), "META");
+
+    let bar_class = tree.body().unwrap().elements_by_class_name("bar");
+    assert_eq!(bar_class.len(), 2);
+    assert_eq!(bar_class.item(0).unwrap().tag_name().unwrap(), "SPAN");
+    assert_eq!(bar_class.item(1).unwrap().tag_name().unwrap(), "A");
+
     // lang_en = tree.document.get_elements_by_attr('lang', 'en')
     // assert (type(lang_en)) is DOMCollection
     // assert len(lang_en) == 1
     // assert lang_en[0].hasattr('lang')
     // assert lang_en[0].tag == 'html'
     //
-    // match_css = tree.document.query_selector('body > main p:last-child')
-    // assert type(match_css) is DOMNode
-    // assert match_css.tag == 'p'
-    //
-    // match_css_all = tree.body.query_selector_all('main *')
-    // assert type(match_css_all) is DOMCollection
-    // assert len(match_css_all) == 4
-    // assert match_css_all[0].tag == 'p'
-    // assert match_css_all[1].tag == 'span'
-    // assert match_css_all[2].tag == 'p'
-    // assert match_css_all[3].tag == 'a'
-    //
-    // # Check whether there is any element matching this CSS selector:
-    // assert tree.body.matches('.bar')
-    // assert not tree.body.matches('.barbaz')
-    //
-    // # Invalid CSS selector
-    // with pytest.raises(ValueError):
-    //     tree.body.query_selector('..abc')
+
+    let match_css = tree.document().unwrap().query_selector("body > main p:last-child").unwrap().unwrap();
+    assert_eq!(match_css.tag_name().unwrap(), "P");
+
+    let match_css_all = tree.body().unwrap().query_selector_all("main *").unwrap();
+    assert_eq!(match_css_all.len(), 4);
+    assert_eq!(match_css_all.item(0).unwrap().tag_name().unwrap(), "P");
+    assert_eq!(match_css_all.item(1).unwrap().tag_name().unwrap(), "SPAN");
+    assert_eq!(match_css_all.item(2).unwrap().tag_name().unwrap(), "P");
+    assert_eq!(match_css_all.item(3).unwrap().tag_name().unwrap(), "A");
+
+    // Check whether element would be matched
+    assert!(tree.body().unwrap().matches("body").unwrap());
+    assert!(tree.body().unwrap().matches("html > body").unwrap());
+    assert!(tree.body().unwrap().first_element_child().unwrap().matches("#foo").unwrap());
+    assert!(tree.body().unwrap().first_element_child().unwrap().matches("main").unwrap());
+    assert!(!tree.body().unwrap().matches(".barbaz").unwrap());
+    assert!(!tree.body().unwrap().first_element_child().unwrap().matches("div").unwrap());
+
+    // Invalid CSS selector
+    assert!(tree.body().unwrap().query_selector("..abc").is_err());
 }
