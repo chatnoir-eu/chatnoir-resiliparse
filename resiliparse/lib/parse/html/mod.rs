@@ -16,3 +16,6 @@ pub mod dom;
 pub mod css;
 pub mod serialize;
 pub mod tree;
+
+#[cfg(test)]
+mod tests;
