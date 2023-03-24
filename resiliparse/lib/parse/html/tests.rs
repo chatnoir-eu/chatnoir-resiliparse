@@ -87,30 +87,31 @@ fn test_parse_quirks() {
     assert_eq!(tree_quirk.body().unwrap().child_nodes().len(), 1);
 }
 
-// #[test]
-// fn test_node_equality() {
-//     let tree = HTMLTree::from_str(HTML).unwrap();
-//
-//     assert_ne!(tree.body().unwrap(), tree.head().unwrap());
-//     assert_eq!(tree.head().unwrap(), tree.head().unwrap());
-//     assert_eq!(tree.body().unwrap(), tree.body().unwrap());
-//
-//     let a1 = tree.body().unwrap().query_selector("#a").unwrap().unwrap();
-//     let a2 = tree.body().unwrap().query_selector("#a").unwrap().unwrap();
-//     let b1 = tree.body().unwrap().query_selector("#b").unwrap().unwrap();
-//     let b2 = tree.body().unwrap().query_selector("#b").unwrap().unwrap();
-//
-//     assert_ne!(a1, b1);
-//     assert_ne!(a2, b2);
-//     assert_eq!(a1, a2);
-//     assert_eq!(b1, b2);
-// }
+#[test]
+fn test_node_equality() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+
+    assert_ne!(tree.body().unwrap(), tree.head().unwrap());
+    assert_eq!(tree.head().unwrap(), tree.head().unwrap());
+    assert_eq!(tree.body().unwrap(), tree.body().unwrap());
+
+    let a1 = tree.body().unwrap().query_selector("#a").unwrap().unwrap();
+    let a2 = tree.body().unwrap().query_selector("#a").unwrap().unwrap();
+    let b1 = tree.body().unwrap().query_selector("#b").unwrap().unwrap();
+    let b2 = tree.body().unwrap().query_selector("#b").unwrap().unwrap();
+
+    assert_ne!(a1, b1);
+    assert_ne!(a2, b2);
+    assert_eq!(a1, a2);
+    assert_eq!(b1, b2);
+}
 
 #[test]
 fn test_selection() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
-    // assert_eq!(tree.document().unwrap().get_element_by_id("foo").unwrap().tag_name().unwrap(), "main");
+    tree.document().unwrap().element_by_id("foo").unwrap();
+    assert_eq!(tree.document().unwrap().element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
 
     // meta = tree.head.get_elements_by_tag_name('meta')
     // assert type(meta) is DOMCollection
