@@ -14,7 +14,7 @@
 
 
 use std::str::FromStr;
-use crate::parse::html::dom::{Element, NodeInterface, NonElementParentNode, ParentNode};
+use crate::parse::html::dom::*;
 use crate::parse::html::tree::HTMLTree;
 
 const HTML: &str = r#"<!doctype html>
