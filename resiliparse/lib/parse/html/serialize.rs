@@ -12,8 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::parse::html::dom::{str_from_dom_node, str_from_lxb_char_t};
+
+use crate::parse::html::dom::{str_from_dom_node, str_from_lxb_char_t, str_from_lxb_str_t};
 use crate::third_party::lexbor::*;
+
+pub(super) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
+    unsafe {
+        let html_str = lexbor_str_create();
+        if html_str.is_null() {
+            return String::default();
+        }
+        lxb_html_serialize_tree_str(node, html_str);
+        let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
+        lexbor_str_destroy(html_str, (*(*node).owner_document).text, true);
+        s
+    }
+}
 
 pub(super) fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
     let mut ctx = WalkCtx { text: String::new() };

@@ -16,16 +16,18 @@
 use std::{ptr, slice, vec};
 use std::cmp::max;
 use std::collections::HashSet;
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
 use std::rc::{Rc, Weak};
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
+use crate::parse::html::serialize::node_serialize_html;
 
 use crate::third_party::lexbor::*;
 use super::serialize::node_format_visible_text;
 use super::tree::{HTMLDocument};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Node {
     Element(ElementNode),
     Attr(AttrNode),
@@ -97,7 +99,7 @@ impl PartialEq<NodeBase> for Node {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NodeRef<'a> {
     Element(&'a ElementNode),
     Attr(&'a AttrNode),
@@ -174,7 +176,7 @@ macro_rules! check_nodes {
 }
 
 /// Base DOM node.
-pub trait NodeInterface {
+pub trait NodeInterface: Display {
     unsafe fn node_name_unchecked(&self) -> Option<&str>;
     unsafe fn node_value_unchecked(&self) -> Option<&str>;
 
@@ -626,6 +628,20 @@ macro_rules! define_node_type {
                 NodeRef::$EnumType(value)
             }
         }
+
+        impl Debug for $Self {
+            #[inline]
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                Debug::fmt(&self.node_base, f)
+            }
+        }
+
+        impl Display for $Self {
+            #[inline]
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                Display::fmt(&self.node_base, f)
+            }
+        }
     }
 }
 
@@ -660,6 +676,26 @@ impl PartialEq<NodeRef<'_>> for NodeBase {
 impl PartialEq<NodeRef<'_>> for &NodeBase {
     fn eq(&self, other: &NodeRef<'_>) -> bool {
         (**self).node == (**other).node
+    }
+}
+
+impl Debug for NodeBase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(_) = self.tree.upgrade() {
+            f.write_str(self.node_name().unwrap_or_else(|| "#undef".to_owned()).as_str())
+        } else {
+            f.write_str("ERROR: <Tree deallocated>")
+        }
+    }
+}
+
+impl Display for NodeBase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(_) = self.tree.upgrade() {
+            f.write_str(node_serialize_html(self.node).as_str())
+        } else {
+            f.write_str("ERROR: <Tree deallocated>")
+        }
     }
 }
 
@@ -1376,16 +1412,7 @@ impl Element for ElementNode {
 
     fn outer_html(&self) -> String {
         check_node!(self.node_base);
-        unsafe {
-            let html_str = lexbor_str_create();
-            if html_str.is_null() {
-                return String::default();
-            }
-            lxb_html_serialize_tree_str(self.node_base.node, html_str);
-            let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
-            lexbor_str_destroy(html_str, (*(*self.node_base.node).owner_document).text, true);
-            s
-        }
+        node_serialize_html(self.node_base.node)
     }
 
     fn set_outer_html(&mut self, html: &str) {
@@ -1631,6 +1658,19 @@ impl<T: Clone> IntoIterator for &NodeListGeneric<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (i, n) in self.iter().enumerate() {
+            if i > 0 {
+                f.write_str(", ")?;
+            }
+            Debug::fmt(&n, f)?;
+        };
+        write!(f, "]")
     }
 }
 
