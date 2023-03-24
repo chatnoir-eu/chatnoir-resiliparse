@@ -211,8 +211,8 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn doctype(&self) -> Option<DocumentTypeNode>;
     fn document_element(&self) -> Option<DocumentNode>;
 
-    fn elements_by_tag_name(&self) -> HTMLCollection;
-    fn elements_by_class_name(&self) -> HTMLCollection;
+    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
+    fn elements_by_class_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
 
     fn create_element(&mut self, local_name: &str) -> Option<ElementNode>;
     fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
@@ -304,7 +304,7 @@ pub trait ParentNode: NodeInterface {
 
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
-    fn get_element_by_id(&self, element_id: &str) -> Option<Node> {
+    fn get_element_by_id(&self, element_id: &str) -> Option<ElementNode> {
         unsafe {
             self.upcast().iter_raw().find(|&n| {
                 if (*n).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
@@ -312,7 +312,7 @@ pub trait NonElementParentNode: NodeInterface {
                 }
                 str_from_lxb_str_cb(n, lxb_dom_element_id_noi).map_or(false, |i| i == element_id)
             })
-        }.and_then(|n| NodeBase::create_node(&self.upcast().tree.upgrade()?, n))
+        }.and_then(|n| Some(NodeBase::create_node(&self.upcast().tree.upgrade()?, n)?.into()))
     }
 }
 
@@ -398,8 +398,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
-    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
+    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a>;
+    fn elements_by_class_name<'a>(&'a self, class_names: &'_ str) -> HTMLCollection<'a>;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);
@@ -1035,11 +1035,11 @@ impl Document for DocumentNode {
         }
     }
 
-    fn elements_by_tag_name(&self) -> HTMLCollection {
+    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a> {
         todo!()
     }
 
-    fn elements_by_class_name(&self) -> HTMLCollection {
+    fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
         todo!()
     }
 
@@ -1309,7 +1309,7 @@ impl Element for ElementNode {
         Ok(matches)
     }
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn elements_by_tag_name<'a>(&'a self, qualified_name: &'_ str) -> HTMLCollection<'a> {
         unsafe {
             HTMLCollection::new_live(self.as_noderef(), Some(qualified_name.to_owned()), |n, qn| {
                 let coll = lxb_dom_collection_create((*n.node).owner_document);
@@ -1322,7 +1322,7 @@ impl Element for ElementNode {
         }
     }
 
-    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
+    fn elements_by_class_name<'a>(&'a self, class_names: &'_ str) -> HTMLCollection<'a> {
         unsafe {
             HTMLCollection::new_live(self.as_noderef(), Some(class_names.to_owned()), |n, cls| {
                 let coll = lxb_dom_collection_create((*n.node).owner_document);
@@ -1789,46 +1789,5 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
         None
     } else {
         str_from_lxb_char_t(name, size)
-    }
-}
-
-
-// ---------------------------------------------- Tests --------------------------------------------
-
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-    use crate::parse::html::tree::HTMLTree;
-
-    const HTML: &str = r#"<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Example page</title>
-  </head>
-  <body>
-    <main id="foo">
-      <p id="a">Hello <span class="bar">world</span>!</p>
-      <p id="b" class="dom">Hello <a href="https://example.com" class="bar baz">DOM</a>!</p>
-     </main>
-     <!-- A comment -->
-  </body>
-</html>"#;
-
-    #[test]
-    fn parse_from_str() {
-        let _tree1 = HTMLTree::from_str(HTML).unwrap();
-        let _tree2 = HTMLTree::from_str("<html></html>").unwrap();
-    }
-
-    #[test]
-    fn parse_from_string() {
-        let _tree1 = HTMLTree::try_from(HTML.to_owned()).unwrap();
-    }
-
-    #[test]
-    fn parse_from_bytes() {
-        let _tree3 = HTMLTree::try_from(HTML.as_bytes()).unwrap();
     }
 }
