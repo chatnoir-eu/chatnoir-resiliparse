@@ -151,6 +151,7 @@ impl HTMLTree {
 
 
 /// Internal heap-allocated and reference-counted HTMLTree.
+#[derive(Debug)]
 pub(super) struct HTMLDocument {
     pub(super) html_document: *mut lxb_html_document_t
 }
