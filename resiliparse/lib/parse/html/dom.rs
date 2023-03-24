@@ -326,14 +326,7 @@ pub trait ParentNode: NodeInterface {
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
     fn element_by_id(&self, element_id: &str) -> Option<ElementNode> {
-        unsafe {
-            self.upcast().iter_raw().find(|&n| {
-                if (*n).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
-                    return false;
-                }
-                str_from_lxb_str_cb(n, lxb_dom_element_id_noi).map_or(false, |i| i == element_id)
-            })
-        }.and_then(|n| Some(NodeBase::create_node(&self.upcast().tree.upgrade()?, n)?.into()))
+        unsafe { element_by_id(self.upcast(), element_id) }
     }
 }
 
@@ -1804,28 +1797,44 @@ impl IntoIterator for &DOMTokenList<'_> {
 // --------------------------------------------- Helpers -------------------------------------------
 
 
-unsafe fn elements_by_tag_name(node: &Node, qualified_name: &str) -> Vec<ElementNode> {
+unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
+    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    if coll.is_null() {
+        return None;
+    }
+    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2, id.as_ptr(), id.len(), false);
+    let matched_node = lxb_dom_collection_node_noi(coll, 0);
+    lxb_dom_collection_destroy(coll, true);
+    Some(NodeBase::create_node(&node.tree.upgrade()?, matched_node)?.into())
+}
+
+unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create((*node.node).owner_document);
     if coll.is_null() {
         return Vec::default()
     }
     lxb_dom_node_by_tag_name(node.node, coll, qualified_name.as_ptr(), qualified_name.len());
-    dom_coll_to_vec(&node.tree.upgrade().unwrap(), coll, true)
+    dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn elements_by_class_name(node: &Node, class_name: &str) -> Vec<ElementNode> {
+unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create((*node.node).owner_document);
     if coll.is_null() {
         return Vec::default()
     }
     lxb_dom_elements_by_class_name(node.node.cast(), coll, class_name.as_ptr(), class_name.len());
-    dom_coll_to_vec(&node.tree.upgrade().unwrap(), coll, true)
+    dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn dom_coll_to_vec(tree: &Rc<HTMLDocument>, coll: *mut lxb_dom_collection_t, destroy: bool) -> Vec<ElementNode> {
-    let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
-    for i in 0..lxb_dom_collection_length_noi(coll) {
-        v.push(NodeBase::create_node(&tree, lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+unsafe fn dom_coll_to_vec(tree: &Weak<HTMLDocument>, coll: *mut lxb_dom_collection_t, destroy: bool) -> Vec<ElementNode> {
+    let mut v;
+    if let Some(t) = tree.upgrade() {
+        v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+        for i in 0..lxb_dom_collection_length_noi(coll) {
+            v.push(NodeBase::create_node(&t, lxb_dom_collection_node_noi(coll, i)).unwrap().into());
+        }
+    } else {
+        v = Vec::default();
     }
     if destroy {
         lxb_dom_collection_destroy(coll, true);
