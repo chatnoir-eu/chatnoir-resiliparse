@@ -234,6 +234,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
 
     fn create_element(&mut self, local_name: &str) -> Option<ElementNode>;
     fn create_text_node(&mut self, data: &str) -> Option<TextNode>;
@@ -412,8 +413,9 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
-    fn elements_by_tag_name(&self, qualified_name: &'_ str) -> HTMLCollection;
-    fn elements_by_class_name(&self, class_names: &'_ str) -> HTMLCollection;
+    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
+    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);
@@ -1090,14 +1092,23 @@ impl Document for DocumentNode {
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.first_element_child().unwrap().into(), Some(qualified_name.to_owned()), |n, qn| {
-            unsafe { elements_by_tag_name(n, qn.unwrap()) }
+        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
+                                 Some(Box::new([qualified_name.to_owned()])), |n, qn| {
+            unsafe { elements_by_tag_name(n, qn.unwrap_unchecked()[0].as_str()) }
         })
     }
 
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.first_element_child().unwrap().into(), Some(qualified_name.to_owned()), |n, cls| {
-            unsafe { elements_by_class_name(n, cls.unwrap()) }
+        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
+                                 Some(Box::new([qualified_name.to_owned()])), |n, cls| {
+            unsafe { elements_by_class_name(n, cls.unwrap_unchecked()[0].as_str()) }
+        })
+    }
+
+    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
+                                 Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
+            unsafe { elements_by_attr(n, attr.unwrap_unchecked()[0].as_str(), attr.unwrap_unchecked()[1].as_str()) }
         })
     }
 
@@ -1338,14 +1349,16 @@ impl Element for ElementNode {
 
     fn has_attribute(&self, qualified_name: &str) -> bool {
         check_node!(self.node_base);
-        unsafe { lxb_dom_element_has_attribute(self.node_base.node.cast(), qualified_name.as_ptr(), qualified_name.len()) }
+        unsafe { lxb_dom_element_has_attribute(self.node_base.node.cast(),
+                                               qualified_name.as_ptr(), qualified_name.len()) }
     }
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         if self.parent_node().is_none() {
             return Ok(None);
         }
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(
+            &self.upcast().tree.upgrade().unwrap(), selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
         sel_list.match_elements_reverse(self.as_noderef(), |node, _, ctx| {
             ctx.push(node);
@@ -1367,15 +1380,23 @@ impl Element for ElementNode {
         Ok(matches)
     }
 
-    fn elements_by_tag_name(&self, qualified_name: &'_ str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(qualified_name.to_owned()), |n, qn| {
-            unsafe { elements_by_tag_name(&n, qn.unwrap()) }
+    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
+            unsafe { elements_by_tag_name(&n, qn.unwrap_unchecked()[0].as_str()) }
         })
     }
 
-    fn elements_by_class_name(&self, class_names: &'_ str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(class_names.to_owned()), |n, cls| {
-            unsafe { elements_by_class_name(&n, cls.unwrap()) }
+    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.into(), Some(Box::new([class_names.to_owned()])), |n, cls| {
+            unsafe { elements_by_class_name(&n, cls.unwrap_unchecked()[0].as_str()) }
+        })
+    }
+
+    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.into(), Some(Box::new(
+            [qualified_name.to_owned(), value.to_owned()])), |n, attr| {
+            unsafe { elements_by_attr(&n, attr.unwrap_unchecked()[0].as_str(),
+                                      attr.unwrap_unchecked()[1].as_str()) }
         })
     }
 
@@ -1560,7 +1581,8 @@ impl ProcessingInstruction for ProcessingInstructionNode {
     fn target(&self) -> Option<String> {
         check_node!(self.node_base);
         unsafe {
-            Some(str_from_lxb_str_cb(self.node_base.node, lxb_dom_processing_instruction_target_noi)?.to_owned())
+            Some(str_from_lxb_str_cb(self.node_base.node,
+                                     lxb_dom_processing_instruction_target_noi)?.to_owned())
         }
     }
 }
@@ -1592,8 +1614,8 @@ impl NonDocumentTypeChildNode for CommentNode {}
 #[derive(Clone)]
 struct NodeListClosure<T> {
     n: Node,
-    sel: Option<String>,
-    f: fn(&Node, Option<&String>) -> Vec<T>
+    d: Option<Box<[String]>>,
+    f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>
 }
 
 pub struct NodeListGeneric<T> {
@@ -1620,15 +1642,15 @@ impl<T: Clone> From<Vec<T>> for NodeListGeneric<T>  {
 }
 
 impl<'a, T: Clone> NodeListGeneric<T> {
-    pub(super) fn new_live(node: Node, selector: Option<String>,
-                           f: fn(&Node, Option<&String>) -> Vec<T>) -> Self {
-        Self { live: Some(NodeListClosure { n: node, sel: selector, f }),
+    pub(super) fn new_live(node: Node, user_data: Option<Box<[String]>>,
+                           f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
+        Self { live: Some(NodeListClosure { n: node, d: user_data, f }),
             items: Vec::default() }
     }
 
     pub fn iter(&self) -> vec::IntoIter<T> {
         if let Some(closure) = &self.live {
-            (closure.f)(&closure.n, closure.sel.as_ref()).into_iter()
+            (closure.f)(&closure.n, closure.d.as_ref()).into_iter()
         } else {
             self.items.clone().into_iter()
         }
@@ -1675,7 +1697,9 @@ impl HTMLCollection {
     pub fn named_item(&self, name: &str) -> Option<ElementNode> {
         self.iter()
             .find(|e| {
-                e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some()
+                e.id()
+                    .filter(|i| i == name).is_some() || e.attribute("name")
+                    .filter(|n| n == name).is_some()
             })
     }
 }
@@ -1802,16 +1826,27 @@ unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
     if coll.is_null() {
         return None;
     }
-    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2, id.as_ptr(), id.len(), false);
+    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
+                             id.as_ptr(), id.len(), false);
     let matched_node = lxb_dom_collection_node_noi(coll, 0);
     lxb_dom_collection_destroy(coll, true);
     Some(NodeBase::create_node(&node.tree.upgrade()?, matched_node)?.into())
 }
 
+unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str) -> Vec<ElementNode> {
+    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    if coll.is_null() {
+        return Vec::default();
+    }
+    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, qualified_name.as_ptr(),
+                             qualified_name.len(), value.as_ptr(), value.len(), false);
+    dom_coll_to_vec(&node.tree, coll, true)
+}
+
 unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create((*node.node).owner_document);
     if coll.is_null() {
-        return Vec::default()
+        return Vec::default();
     }
     lxb_dom_node_by_tag_name(node.node, coll, qualified_name.as_ptr(), qualified_name.len());
     dom_coll_to_vec(&node.tree, coll, true)
@@ -1820,13 +1855,14 @@ unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<Ele
 unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create((*node.node).owner_document);
     if coll.is_null() {
-        return Vec::default()
+        return Vec::default();
     }
     lxb_dom_elements_by_class_name(node.node.cast(), coll, class_name.as_ptr(), class_name.len());
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn dom_coll_to_vec(tree: &Weak<HTMLDocument>, coll: *mut lxb_dom_collection_t, destroy: bool) -> Vec<ElementNode> {
+unsafe fn dom_coll_to_vec(tree: &Weak<HTMLDocument>, coll: *mut lxb_dom_collection_t,
+                          destroy: bool) -> Vec<ElementNode> {
     let mut v;
     if let Some(t) = tree.upgrade() {
         v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));

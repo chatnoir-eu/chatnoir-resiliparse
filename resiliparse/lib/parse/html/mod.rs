@@ -18,4 +18,4 @@ pub mod serialize;
 pub mod tree;
 
 #[cfg(test)]
-mod tests;
+mod test;
