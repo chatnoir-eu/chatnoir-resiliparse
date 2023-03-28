@@ -778,7 +778,8 @@ impl NodeBase {
 
     pub(super) unsafe fn create_attribute_unchecked(handle: &NodeBase, local_name: &str) -> AttrNode {
         let attr = lxb_dom_attr_interface_create(handle.owner_document_ptr().unwrap());
-        assert!(!attr.is_null());
+        assert!(!attr.is_null(), "AttrNode allocation failed");
+
         let status = unsafe {
             lxb_dom_attr_set_name(attr, local_name.as_ptr(), local_name.len(), true)
         };
@@ -786,8 +787,7 @@ impl NodeBase {
             lxb_dom_attr_interface_destroy(attr);
             panic!("Failed to set attribute name");
         }
-        AttrNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), attr.cast()).expect("AttrNode allocation failed") }
+        AttrNode { node_base: Self::new_base(&handle.tree.upgrade().unwrap(), attr.cast()).unwrap_unchecked() }
     }
 
     #[inline]
