@@ -108,7 +108,8 @@ impl<'a> CSSSelectorList<'a> {
         }
 
         let ctx_cast = ctx as *mut MatchContextWrapper<T, F>;
-        let new_element = NodeBase::create_node(&(*ctx_cast).tree.upgrade().unwrap(), node).unwrap().into();
+        let base = NodeBase::new_base(&(*ctx_cast).tree.upgrade().unwrap(), node).unwrap();
+        let new_element = ElementNode { node_base: base };
         let status = ((*ctx_cast).f)(new_element, spec, &mut (*ctx_cast).custom_data);
         match status {
             TraverseAction::Ok => LXB_STATUS_OK,

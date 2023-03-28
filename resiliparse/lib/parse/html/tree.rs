@@ -125,16 +125,20 @@ impl HTMLTree {
 
     #[inline]
     pub fn document(&self) -> Option<DocumentNode> {
-        Some(NodeBase::create_node(
+        Some(NodeBase::wrap_node(
             &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)?.into())
     }
 
     pub fn head(&self) -> Option<ElementNode> {
-        Some(NodeBase::create_node(&self.doc_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?.into())
+        Some(ElementNode {
+            node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?
+        })
     }
 
     pub fn body(&self) -> Option<ElementNode> {
-        Some(NodeBase::create_node(&self.doc_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?.into())
+        Some(ElementNode {
+            node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?
+        })
     }
 
     pub unsafe fn title_unchecked(&self) -> Option<&str> {
