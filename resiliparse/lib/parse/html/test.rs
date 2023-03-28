@@ -122,12 +122,10 @@ fn test_selection() {
     assert_eq!(bar_class.item(0).unwrap().tag_name().unwrap(), "SPAN");
     assert_eq!(bar_class.item(1).unwrap().tag_name().unwrap(), "A");
 
-    // lang_en = tree.document.get_elements_by_attr('lang', 'en')
-    // assert (type(lang_en)) is DOMCollection
-    // assert len(lang_en) == 1
-    // assert lang_en[0].hasattr('lang')
-    // assert lang_en[0].tag == 'html'
-    //
+    let lang_en = tree.document().unwrap().elements_by_attr("lang", "en");
+    assert_eq!(lang_en.len(), 1);
+    assert!(lang_en.item(0).unwrap().has_attribute("lang"));
+    assert_eq!(lang_en.item(0).unwrap().tag_name().unwrap(), "HTML");
 
     let match_css = tree.document().unwrap().query_selector("body > main p:last-child").unwrap().unwrap();
     assert_eq!(match_css.tag_name().unwrap(), "P");

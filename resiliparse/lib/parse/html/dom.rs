@@ -1092,22 +1092,22 @@ impl Document for DocumentNode {
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
-                                 Some(Box::new([qualified_name.to_owned()])), |n, qn| {
+        check_node!(self.node_base);
+        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
             unsafe { elements_by_tag_name(n, qn.unwrap_unchecked()[0].as_str()) }
         })
     }
 
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
-                                 Some(Box::new([qualified_name.to_owned()])), |n, cls| {
+        check_node!(self.node_base);
+        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
             unsafe { elements_by_class_name(n, cls.unwrap_unchecked()[0].as_str()) }
         })
     }
 
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.first_element_child().unwrap().into(),
-                                 Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
+        check_node!(self.node_base);
+        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
             unsafe { elements_by_attr(n, attr.unwrap_unchecked()[0].as_str(), attr.unwrap_unchecked()[1].as_str()) }
         })
     }
@@ -1393,10 +1393,8 @@ impl Element for ElementNode {
     }
 
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(Box::new(
-            [qualified_name.to_owned(), value.to_owned()])), |n, attr| {
-            unsafe { elements_by_attr(&n, attr.unwrap_unchecked()[0].as_str(),
-                                      attr.unwrap_unchecked()[1].as_str()) }
+        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
+            unsafe { elements_by_attr(&n, attr.unwrap_unchecked()[0].as_str(), attr.unwrap_unchecked()[1].as_str()) }
         })
     }
 
