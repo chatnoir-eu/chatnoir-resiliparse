@@ -1662,6 +1662,11 @@ impl<'a, T: Clone> NodeListGeneric<T> {
     }
 
     #[inline]
+    pub fn items(&self) -> Vec<T> {
+        self.iter().collect()
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.iter().count()
     }
@@ -1701,6 +1706,55 @@ impl HTMLCollection {
                     .filter(|i| i == name).is_some() || e.attribute("name")
                     .filter(|n| n == name).is_some()
             })
+    }
+
+    pub fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+        let mut coll = Vec::default();
+        self.iter().for_each(|e| {
+            coll.append(&mut e.elements_by_tag_name(qualified_name).iter().collect())
+        });
+        HTMLCollection::from(coll)
+    }
+
+    pub fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
+        let mut coll = Vec::default();
+        self.iter().for_each(|e| {
+            coll.append(&mut e.elements_by_class_name(class_names).iter().collect())
+        });
+        HTMLCollection::from(coll)
+    }
+
+    pub fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        let mut coll = Vec::default();
+        self.iter().for_each(|e| {
+            coll.append(&mut e.elements_by_attr(qualified_name, value).iter().collect())
+        });
+        HTMLCollection::from(coll)
+    }
+}
+
+impl ElementNodeList {
+     pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+        for item in self.iter() {
+            let r = item.query_selector(selectors);
+            match r {
+                Ok(Some(e)) => return Ok(Some(e)),
+                Ok(None) => continue,
+                Err(e) => return Err(e)
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
+        let mut coll = Vec::default();
+        for item in self.iter() {
+            match item.query_selector_all(selectors) {
+                Ok(e) => coll.append(&mut e.iter().collect()),
+                Err(e) => return Err(e)
+            }
+        }
+        Ok(ElementNodeList::from(coll))
     }
 }
 
