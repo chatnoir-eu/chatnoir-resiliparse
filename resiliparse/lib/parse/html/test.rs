@@ -286,6 +286,6 @@ fn test_attributes() {
 
     // Cannot append children to attributes
     assert!(attr.append_child(
-        &tree.document().unwrap().create_element("foo").unwrap().into()).is_none());
+        &tree.document().unwrap().create_element("foo").into()).is_none());
     assert_eq!(attr.child_nodes().len(), 0);
 }
