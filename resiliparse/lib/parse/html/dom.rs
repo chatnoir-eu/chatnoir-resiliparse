@@ -1372,12 +1372,16 @@ impl Element for ElementNode {
         let root = if doc.is_some() { doc.as_ref().unwrap().as_noderef() } else { self.as_noderef() };
 
         let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
-        let mut matches = false;
-        sel_list.match_elements(root, |_, _, ctx| {
-            *ctx = true;
-            TraverseAction::Stop
-        }, &mut matches);
-        Ok(matches)
+        let mut ctx = (false, self.as_noderef());
+        sel_list.match_elements(root, |e, _, ctx| {
+            if e.as_noderef() == ctx.1 {
+                ctx.0 = true;
+                TraverseAction::Stop
+            } else {
+                TraverseAction::Ok
+            }
+        }, &mut ctx);
+        Ok(ctx.0)
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
@@ -1734,8 +1738,7 @@ impl HTMLCollection {
 impl ElementNodeList {
      pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         for item in self.iter() {
-            let r = item.query_selector(selectors);
-            match r {
+            match item.query_selector(selectors) {
                 Ok(Some(e)) => return Ok(Some(e)),
                 Ok(None) => continue,
                 Err(e) => return Err(e)
@@ -1753,6 +1756,17 @@ impl ElementNodeList {
             }
         }
         Ok(ElementNodeList::from(coll))
+    }
+
+    pub fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
+        for item in self.iter() {
+            match item.matches(selectors) {
+                Ok(true) => return Ok(true),
+                Ok(false) => continue,
+                Err(e) => return Err(e)
+            }
+        }
+        Ok(false)
     }
 }
 

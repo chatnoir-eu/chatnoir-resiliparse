@@ -145,6 +145,62 @@ fn test_selection() {
     assert!(!tree.body().unwrap().matches(".barbaz").unwrap());
     assert!(!tree.body().unwrap().first_element_child().unwrap().matches("div").unwrap());
 
-    // Invalid CSS selector
-    assert!(tree.body().unwrap().query_selector("..abc").is_err());
+    // Invalid CSS selectors
+    assert!(tree.body().unwrap().query_selector("#a < abc").is_err());
+    assert!(tree.body().unwrap().query_selector_all("#a < abc").is_err());
+}
+
+#[test]
+fn test_static_collection() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let coll = tree.body().unwrap().query_selector_all("main *").unwrap();
+
+    // Basic element attributes
+    assert_eq!(coll.len(), 4);
+    assert_eq!(coll.item(0).unwrap().id().unwrap(), "a");
+    assert_eq!(coll.item(coll.len() - 1).unwrap().class_name().unwrap(), "bar baz");
+    assert_eq!(coll.items()[..2].len(), 2);
+    assert_eq!(coll.items()[..2][0].id().unwrap(), "a");
+    assert_eq!(coll.items()[..2][1].class_name().unwrap(), "bar");
+
+    // Iteration
+    assert_eq!(coll.iter().map(|e| assert!(e.tag_name().is_some())).count(), coll.len());
+
+    // Collection match forwarding
+    let coll = tree.body().unwrap().query_selector_all("p").unwrap();
+    coll.elements_by_class_name("bar").iter()
+        .zip(coll.query_selector_all(".bar").unwrap().iter())
+        .for_each(|(a, b)| assert_eq!(a, b));
+    assert_eq!(coll.elements_by_attr("href", "https://example.com").len(), 1);
+    assert_eq!(coll.elements_by_tag_name("SPAN").len(), 1);
+
+    // CSS match
+    assert!(coll.query_selector("#foo").unwrap().is_none());
+    assert_eq!(coll.query_selector(".bar").unwrap().unwrap().tag_name().unwrap(), "SPAN");
+    assert_eq!(coll.query_selector_all("span, a").unwrap().len(), 2);
+    assert!(coll.matches("#a").unwrap());
+    assert!(coll.matches("p").unwrap());
+    assert!(!coll.matches(".bar, .baz").unwrap());
+    assert!(!coll.matches("main").unwrap());
+
+    // Invalid CSS selectors
+    assert!(coll.query_selector("#a < abc").is_err());
+    assert!(coll.query_selector_all("#a < abc").is_err());
+}
+
+#[test]
+fn test_dynamic_collection() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let coll1 = tree.body().unwrap().elements_by_tag_name("p");
+    let coll2 = tree.body().unwrap().elements_by_class_name("bar");
+    let coll3 = tree.body().unwrap().query_selector_all("p").unwrap();
+
+    assert_eq!(coll1.len(), 2);
+    assert_eq!(coll2.len(), 2);
+    assert_eq!(coll3.len(), 2);
+
+    tree.document().unwrap().element_by_id("a").unwrap().remove();
+    assert_eq!(coll1.len(), 1);
+    assert_eq!(coll2.len(), 1);
+    assert_eq!(coll3.len(), 2);     // CSS match collection are static
 }
