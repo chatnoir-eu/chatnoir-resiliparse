@@ -209,11 +209,12 @@ fn test_dynamic_collection() {
 }
 
 #[test]
-fn test_attributes() {
+fn test_class_list() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-
     let mut a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+
     assert!(a.has_attribute("class"));
+    assert_eq!(a.class_list_mut().values(), a.class_list().values());
     assert_eq!(a.class_name().unwrap(), "bar baz");
     assert_eq!(a.class_list().len(), 2);
     assert_eq!(a.class_list_mut().len(), 2);
@@ -223,34 +224,68 @@ fn test_attributes() {
     assert_ne!(a.class_list(), ["baz", "bar"].as_slice());
     assert_ne!(a.class_list(), ["x"].as_slice());
 
+    assert_eq!(a.class_list(), ["bar", "baz"].as_slice());
     a.class_list_mut().add(&["abc"]);
-    // assert len(a.class_list) == 3
-    // assert a.class_list == ['bar', 'baz', 'abc']
-    // assert a.class_name == 'bar baz abc'
-    // a.class_list.remove('baz')
-    // assert a.class_list == ['bar', 'abc']
-    // assert a.class_name == 'bar abc'
-    //
-    //     assert a.getattr('id') is None
-    //     assert a.getattr('id', 'default') == 'default'
-    //     assert a.id == ''
-    //     a.id = 'abc'
-    //     assert a.id == 'abc'
-    //     assert a['id'] == 'abc'
-    //     assert a.getattr('id') == 'abc'
-    //
-    //     with pytest.raises(KeyError):
-    //         # noinspection PyStatementEffect
-    //         a['lang']
-    //
-    //     assert a.getattr('lang') is None
-    //     a['lang'] = 'en'
-    //     assert a['lang'] == 'en'
-    //     assert a.getattr('lang') == 'en'
-    //
-    //     assert len(a.attrs) == 4
-    //     assert a.attrs == ['href', 'class', 'id', 'lang']
-    //
-    //     del a['lang']
-    //     assert a.getattr('lang') is None
+    assert_eq!(a.class_list().len(), 3);
+    assert_eq!(a.class_list(), ["bar", "baz", "abc"].as_slice());
+    assert_eq!(a.class_name().unwrap(), "bar baz abc");
+
+    a.class_list_mut().remove(&["baz"]);
+    assert_eq!(a.class_list(), ["bar", "abc"].as_slice());
+    assert_eq!(a.class_name().unwrap(), "bar abc");
+
+    assert!(!a.class_list_mut().toggle("bar", None));
+    assert_eq!(a.class_list(), ["abc"].as_slice());
+    assert!(a.class_list_mut().toggle("bar", None));
+    assert_eq!(a.class_list(), ["abc", "bar"].as_slice());
+    assert!(a.class_list_mut().toggle("bar", Some(true)));
+    assert_eq!(a.class_list(), ["abc", "bar"].as_slice());
+    assert!(a.class_list_mut().toggle("baz", Some(true)));
+    assert_eq!(a.class_list(), ["abc", "bar", "baz"].as_slice());
+    assert!(!a.class_list_mut().toggle("baz", Some(false)));
+    assert_eq!(a.class_list(), ["abc", "bar"].as_slice());
+    assert!(!a.class_list_mut().toggle("baz", Some(false)));
+    assert_eq!(a.class_list(), ["abc", "bar"].as_slice());
+
+    assert!(a.class_list_mut().replace("abc", "def"));
+    assert_eq!(a.class_list(), ["def", "bar"].as_slice());
+    assert!(!a.class_list_mut().replace("uvw", "xyz"));
+    assert_eq!(a.class_list(), ["def", "bar"].as_slice());
+}
+
+#[test]
+fn test_attributes() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let mut a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+
+    assert!(a.attribute("id").is_none());
+    assert!(a.id().is_none());
+    assert_eq!(a.attribute_or("id", "default"), "default");
+    assert_eq!(a.attribute_or_default("id"), "");
+    a.set_id("abc");
+    assert_eq!(a.id().unwrap(), "abc");
+    assert_eq!(a.id().unwrap(), a.attribute("id").unwrap());
+
+    assert!(a.attribute("lang").is_none());
+    a.set_attribute("lang", "en");
+    assert_eq!(a.attribute("lang").unwrap(), "en");
+
+    assert_eq!(a.attribute_names(), ["href", "class", "id", "lang"]);
+    a.remove_attribute("lang");
+    assert_eq!(a.attribute_names(), ["href", "class", "id"]);
+    assert!(a.attribute("lang").is_none());
+    assert!(a.attribute_node("lang").is_none());
+
+    let mut attr = a.attribute_node("href").unwrap();
+    assert!(attr.parent_node().is_none());
+    assert_eq!(attr.name().unwrap(), "href");
+    assert_eq!(attr.local_name().unwrap(), attr.name().unwrap());
+    assert_eq!(attr.value().unwrap(), "https://example.com");
+    assert_eq!(attr.node_value().unwrap(), attr.value().unwrap());
+    assert_eq!(attr.child_nodes().len(), 0);
+
+    // Cannot append children to attributes
+    assert!(attr.append_child(
+        &tree.document().unwrap().create_element("foo").unwrap().into()).is_none());
+    assert_eq!(attr.child_nodes().len(), 0);
 }

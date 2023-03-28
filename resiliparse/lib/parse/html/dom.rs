@@ -14,6 +14,7 @@
 
 
 use std::{ptr, slice, vec};
+use std::any::Any;
 use std::cmp::max;
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
@@ -203,10 +204,10 @@ pub trait NodeInterface: Debug + Display {
     fn next_sibling(&self) -> Option<Node>;
     fn clone_node(&self, deep: bool) -> Option<Node>;
 
-    fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node>;
-    fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
-    fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node>;
-    fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node>;
+    fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node>;
+    fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node>;
+    fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node>;
+    fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node>;
 
     fn iter(&self) -> NodeIterator;
     fn iter_elements(&self) -> ElementIterator;
@@ -333,25 +334,25 @@ pub trait NonElementParentNode: NodeInterface {
 
 /// ChildNode mixin trait.
 pub trait ChildNode: NodeInterface {
-    fn before(&mut self, nodes: &[&Node]) {
-        if let Some(p) = &self.parent_node() {
+    fn before(&mut self, nodes: &[&mut Node]) {
+        if let Some(p) = &mut self.parent_node() {
             let anchor = self.parent_node();
-            nodes.iter().for_each(|&n| {
+            nodes.iter().for_each(|n| {
                 p.insert_before(n, anchor.as_ref());
             });
         }
     }
 
-    fn after(&mut self, nodes: &[&Node]) {
-        if let Some(p) = &self.parent_node() {
+    fn after(&mut self, nodes: &[&mut Node]) {
+        if let Some(p) = &mut self.parent_node() {
             let anchor = self.next_sibling();
-            nodes.iter().for_each(|&n| {
+            nodes.iter().for_each(|n| {
                 p.insert_before(n, anchor.as_ref());
             });
         }
     }
 
-    fn replace_with(&mut self, nodes: &[&Node]) {
+    fn replace_with(&mut self, nodes: &[&mut Node]) {
         self.before(nodes);
         self.remove();
     }
@@ -399,12 +400,15 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn tag_name(&self) -> Option<String>;
     fn local_name(&self) -> Option<String>;
     fn id(&self) -> Option<String>;
+    fn set_id(&mut self, id: &str);
     fn class_name(&self) -> Option<String>;
     fn set_class_name(&mut self, class_name: &str);
     fn class_list(&self) -> DOMTokenList;
     fn class_list_mut(&mut self) -> DOMTokenListMut;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
+    fn attribute_or(&self, qualified_name: &str, default: &str) -> String;
+    fn attribute_or_default(&self, qualified_name: &str) -> String;
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode>;
     fn attribute_names(&self) -> Vec<String>;
     fn set_attribute(&mut self, qualified_name: &str, value: &str);
@@ -580,16 +584,16 @@ macro_rules! define_node_type {
             fn clone_node(&self, deep: bool) -> Option<Node> { self.node_base.clone_node(deep) }
 
             #[inline(always)]
-            fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
+            fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
                 self.node_base.insert_before(node, child) }
             #[inline(always)]
-            fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+            fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
                 self.node_base.append_child(node) }
             #[inline(always)]
-            fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+            fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
                 self.node_base.replace_child(node, child) }
             #[inline(always)]
-            fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+            fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
                 self.node_base.remove_child(node) }
 
             #[inline(always)]
@@ -720,9 +724,17 @@ impl NodeBase {
         }
     }
 
-    unsafe fn insert_before_unchecked<'a>(&self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+
+    #[inline]
+    unsafe fn can_have_children(&self) -> bool {
+        matches!((*self.node).type_,
+            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
+        )
+    }
+
+    unsafe fn insert_before_unchecked<'a>(&mut self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
         if let Some(c) = child {
-            if c.parent_node()? != *self || node.contains(c) {
+            if c.parent_node()? != *self || !self.can_have_children() ||  node.contains(c) {
                 return None;
             }
             if node == c {
@@ -735,13 +747,17 @@ impl NodeBase {
         }
     }
 
-    unsafe fn append_child_unchecked<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-        lxb_dom_node_insert_child(self.node, node.node);
-        Some(node)
+    unsafe fn append_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        if self.can_have_children() {
+            lxb_dom_node_insert_child(self.node, node.node);
+            Some(node)
+        } else {
+            None
+        }
     }
 
-    unsafe fn replace_child_unchecked<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
-        if child.parent_node()? != *self {
+    unsafe fn replace_child_unchecked<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+        if child.parent_node()? != *self || !self.can_have_children() {
             return None;
         }
         if node == child {
@@ -752,8 +768,8 @@ impl NodeBase {
         Some(node)
     }
 
-    unsafe fn remove_child_unchecked<'a>(&self, node: &'a Node) -> Option<&'a Node> {
-        if node.parent_node()? != *self {
+    unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        if node.parent_node()? != *self || !self.can_have_children() {
             return None;
         }
         lxb_dom_node_remove(node.node);
@@ -779,8 +795,14 @@ impl NodeInterface for NodeBase {
 
     /// Node text value.
     unsafe fn node_value_unchecked(&self) -> Option<&str> {
-        let cdata = self.node as *const lxb_dom_character_data_t;
-        str_from_lxb_str_t(addr_of!((*cdata).data))
+        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+        match (*self.node).type_ {
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(self.node, lxb_dom_attr_value_noi),
+            LXB_DOM_NODE_TYPE_TEXT | LXB_DOM_NODE_TYPE_CDATA_SECTION |
+            LXB_DOM_NODE_TYPE_COMMENT | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION =>
+                str_from_lxb_str_t(addr_of!((*(self.node as *const lxb_dom_character_data_t)).data)),
+            _ => None
+        }
     }
 
     fn upcast(&self) -> &NodeBase {
@@ -906,7 +928,7 @@ impl NodeInterface for NodeBase {
         Self::create_node(&self.tree.upgrade()?, unsafe { lxb_dom_node_clone(self.node, deep) })
     }
 
-    fn insert_before<'a>(&self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
+    fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
         check_nodes!(self, node);
         if child.is_some() {
             check_nodes!(node, child?);
@@ -917,18 +939,18 @@ impl NodeInterface for NodeBase {
         unsafe { self.insert_before_unchecked(node, child) }
     }
 
-    fn append_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+    fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         unsafe { self.append_child_unchecked(node) }
     }
 
-    fn replace_child<'a>(&self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+    fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         check_nodes!(node, child);
         unsafe { self.replace_child_unchecked(node, child) }
     }
 
-    fn remove_child<'a>(&self, node: &'a Node) -> Option<&'a Node> {
+    fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
         unsafe { self.remove_child_unchecked(node) }
     }
@@ -1287,6 +1309,11 @@ impl Element for ElementNode {
     }
 
     #[inline]
+    fn set_id(&mut self, id: &str) {
+        self.set_attribute("id", id);
+    }
+
+    #[inline]
     fn class_name(&self) -> Option<String> {
         check_node!(self.node_base);
         unsafe { Some(self.class_name_unchecked()?.to_owned()) }
@@ -1308,6 +1335,16 @@ impl Element for ElementNode {
     fn attribute(&self, qualified_name: &str) -> Option<String> {
         check_node!(self.node_base);
         unsafe { Some(self.attribute_unchecked(qualified_name)?.to_owned()) }
+    }
+
+    #[inline]
+    fn attribute_or(&self, qualified_name: &str, default: &str) -> String {
+        self.attribute(qualified_name).unwrap_or(default.to_owned())
+    }
+
+    #[inline]
+    fn attribute_or_default(&self, qualified_name: &str) -> String {
+        self.attribute(qualified_name).unwrap_or_default()
     }
 
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode> {
@@ -1904,31 +1941,37 @@ impl<'a> DOMTokenListMut<'a> {
         );
     }
 
-    pub fn replace(&mut self, old_token: &str, new_token: &str) {
+    pub fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
+        let mut repl = false;
         self.update_node(&self
             .iter()
             .map(|t: String| {
-                if t == old_token { new_token.to_owned() }
-                else { t }
+                if t == old_token {
+                    repl = true;
+                    new_token.to_owned()
+                } else { t }
             })
             .collect()
         );
+        repl
     }
 
-    pub fn toggle(&mut self, token: &str, force: Option<bool>) {
+    pub fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
         if let Some(f) = force {
             if f {
                 self.add(&[token]);
             } else {
                 self.remove(&[token])
             }
-            return;
+            return f;
         }
 
         if self.contains(token) {
             self.remove(&[token]);
+            false
         } else {
             self.add(&[token]);
+            true
         }
     }
 }
