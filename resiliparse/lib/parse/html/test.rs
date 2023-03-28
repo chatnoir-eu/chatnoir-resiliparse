@@ -127,6 +127,9 @@ fn test_selection() {
     assert!(lang_en.item(0).unwrap().has_attribute("lang"));
     assert_eq!(lang_en.item(0).unwrap().tag_name().unwrap(), "HTML");
 
+    // CSS match
+    assert!(tree.document().unwrap().query_selector("#bar, abc").unwrap().is_none());
+
     let match_css = tree.document().unwrap().query_selector("body > main p:last-child").unwrap().unwrap();
     assert_eq!(match_css.tag_name().unwrap(), "P");
 
@@ -175,7 +178,7 @@ fn test_static_collection() {
     assert_eq!(coll.elements_by_tag_name("SPAN").len(), 1);
 
     // CSS match
-    assert!(coll.query_selector("#foo").unwrap().is_none());
+    assert!(coll.query_selector("#foo, abc").unwrap().is_none());
     assert_eq!(coll.query_selector(".bar").unwrap().unwrap().tag_name().unwrap(), "SPAN");
     assert_eq!(coll.query_selector_all("span, a").unwrap().len(), 2);
     assert!(coll.matches("#a").unwrap());
@@ -203,4 +206,51 @@ fn test_dynamic_collection() {
     assert_eq!(coll1.len(), 1);
     assert_eq!(coll2.len(), 1);
     assert_eq!(coll3.len(), 2);     // CSS match collection are static
+}
+
+#[test]
+fn test_attributes() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+
+    let mut a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+    assert!(a.has_attribute("class"));
+    assert_eq!(a.class_name().unwrap(), "bar baz");
+    assert_eq!(a.class_list().len(), 2);
+    assert_eq!(a.class_list_mut().len(), 2);
+    assert_eq!(a.class_list(), a.class_list());
+    assert_eq!(a.class_list(), ["bar", "baz"].as_slice());
+    assert_ne!(a.class_list(), ["bar"].as_slice());
+    assert_ne!(a.class_list(), ["baz", "bar"].as_slice());
+    assert_ne!(a.class_list(), ["x"].as_slice());
+
+    a.class_list_mut().add(&["abc"]);
+    // assert len(a.class_list) == 3
+    // assert a.class_list == ['bar', 'baz', 'abc']
+    // assert a.class_name == 'bar baz abc'
+    // a.class_list.remove('baz')
+    // assert a.class_list == ['bar', 'abc']
+    // assert a.class_name == 'bar abc'
+    //
+    //     assert a.getattr('id') is None
+    //     assert a.getattr('id', 'default') == 'default'
+    //     assert a.id == ''
+    //     a.id = 'abc'
+    //     assert a.id == 'abc'
+    //     assert a['id'] == 'abc'
+    //     assert a.getattr('id') == 'abc'
+    //
+    //     with pytest.raises(KeyError):
+    //         # noinspection PyStatementEffect
+    //         a['lang']
+    //
+    //     assert a.getattr('lang') is None
+    //     a['lang'] = 'en'
+    //     assert a['lang'] == 'en'
+    //     assert a.getattr('lang') == 'en'
+    //
+    //     assert len(a.attrs) == 4
+    //     assert a.attrs == ['href', 'class', 'id', 'lang']
+    //
+    //     del a['lang']
+    //     assert a.getattr('lang') is None
 }
