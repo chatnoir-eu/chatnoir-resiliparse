@@ -256,27 +256,38 @@ fn test_class_list() {
 #[test]
 fn test_attributes() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let mut a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+    let mut element = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
 
-    assert!(a.attribute("id").is_none());
-    assert!(a.id().is_none());
-    assert_eq!(a.attribute_or("id", "default"), "default");
-    assert_eq!(a.attribute_or_default("id"), "");
-    a.set_id("abc");
-    assert_eq!(a.id().unwrap(), "abc");
-    assert_eq!(a.id().unwrap(), a.attribute("id").unwrap());
+    // List attribute nodes and names
+    assert_eq!(element.attributes().iter().zip(element.attribute_names().iter()).map(|(a1, a2)| {
+        assert_eq!(a1.name().unwrap(), *a2);
+        assert_eq!(a1.value(), element.attribute(a1.name().unwrap().as_str()));
+        assert!(a1.value().is_some());
+    }).count(), 2);
 
-    assert!(a.attribute("lang").is_none());
-    a.set_attribute("lang", "en");
-    assert_eq!(a.attribute("lang").unwrap(), "en");
+    // Get and set ID
+    assert!(element.attribute("id").is_none());
+    assert!(element.id().is_none());
+    assert_eq!(element.attribute_or("id", "default"), "default");
+    assert_eq!(element.attribute_or_default("id"), "");
+    element.set_id("abc");
+    assert_eq!(element.id().unwrap(), "abc");
+    assert_eq!(element.id().unwrap(), element.attribute("id").unwrap());
+    assert_eq!(element.attributes().len(), 3);
+    assert_eq!(element.attribute_names().len(), 3);
 
-    assert_eq!(a.attribute_names(), ["href", "class", "id", "lang"]);
-    a.remove_attribute("lang");
-    assert_eq!(a.attribute_names(), ["href", "class", "id"]);
-    assert!(a.attribute("lang").is_none());
-    assert!(a.attribute_node("lang").is_none());
+    // Get and set other attributes
+    assert!(element.attribute("lang").is_none());
+    element.set_attribute("lang", "en");
+    assert_eq!(element.attribute("lang").unwrap(), "en");
+    assert_eq!(element.attribute_names(), ["href", "class", "id", "lang"]);
+    element.remove_attribute("lang");
+    assert_eq!(element.attribute_names(), ["href", "class", "id"]);
+    assert!(element.attribute("lang").is_none());
+    assert!(element.attribute_node("lang").is_none());
 
-    let mut attr = a.attribute_node("href").unwrap();
+    // Test individual attribute nodes
+    let mut attr = element.attribute_node("href").unwrap();
     assert!(attr.parent_node().is_none());
     assert_eq!(attr.name().unwrap(), "href");
     assert_eq!(attr.local_name().unwrap(), attr.name().unwrap());
@@ -322,9 +333,42 @@ fn test_empty_attribute() {
     assert!(!tree.document().unwrap().element_by_id("foo").is_none());
     assert!(tree.document().unwrap().element_by_id("foox").is_none());
     assert_eq!(tree.body().unwrap().elements_by_class_name("foo").len(), 1);
-    assert_eq!(tree.body().unwrap().elements_by_class_name("").len(), 0);     // This doesn't match anything);
+    assert_eq!(tree.body().unwrap().elements_by_class_name("").len(), 0);     // This shouldn't match anything);
     assert_eq!(tree.body().unwrap().elements_by_attr("class", "foo").len(), 1);
     assert_eq!(tree.body().unwrap().elements_by_attr("class", "").len(), 2);
     assert_eq!(tree.body().unwrap().elements_by_attr("id", "").len(), 2);
     assert_eq!(tree.body().unwrap().elements_by_attr("foo", "").len(), 2);
+}
+
+#[test]
+fn test_serialization() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+
+    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().outer_text(), "Hello world!");
+    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().outer_html(), r#"<p id="a">Hello <span class="bar">world</span>!</p>"#);
+
+    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().inner_text(), "Hello world!");
+    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().inner_html(), r#"Hello <span class="bar">world</span>!"#);
+
+    assert_eq!(tree.head().unwrap().query_selector("title").unwrap().unwrap().to_string(), "<title>Example page</title>");
+
+    assert_eq!(format!("{:?}", tree.head().unwrap()), "<head>");
+    assert_eq!(format!("{:?}", tree.head().unwrap().query_selector("title").unwrap().unwrap()), "<title>");
+    assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
+
+
+    let inputs = HTMLTree::from_str(r#"
+    <input id="a" type="checkbox" checked>
+    <input id="b" type="checkbox" checked="">
+    <input id="c" type="checkbox" checked="checked">
+    "#).unwrap();
+    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("a").unwrap()), r#"<input id="a" type="checkbox" checked>"#);
+    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("b").unwrap()), r#"<input id="b" type="checkbox" checked="">"#);
+    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("c").unwrap()), r#"<input id="c" type="checkbox" checked="checked">"#);
+
+    // assert repr(tree.body.query_selector('main')) == '<main id="foo">'
+    //
+    // text = tree.body.query_selector('#b').first_child
+    // assert text.type == TEXT
+    // assert repr(text) == str(text) == text.text
 }
