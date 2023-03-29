@@ -412,6 +412,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn attribute_or_default(&self, qualified_name: &str) -> String;
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode>;
     fn attribute_names(&self) -> Vec<String>;
+    fn attributes(&self) -> NamedNodeMap;
     fn set_attribute(&mut self, qualified_name: &str, value: &str);
     fn remove_attribute(&mut self, qualified_name: &str);
     fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool;
@@ -683,7 +684,19 @@ impl PartialEq<NodeRef<'_>> for &NodeBase {
 impl Debug for NodeBase {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some(_) = self.tree.upgrade() {
-            f.write_str(self.node_name().unwrap_or_else(|| "#undef".to_owned()).as_str())
+            let mut tag_repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
+            if let Node::Element(element) = self.into() {
+                tag_repr = format!("<{}", tag_repr.to_lowercase());
+                element.attributes().iter().for_each(|attr| {
+                    tag_repr.push(' ');
+                    tag_repr.push_str(attr.name().unwrap().as_str());
+                    if attr.value().is_some() {
+                        tag_repr.push_str(&format!("={:?}", attr.value().unwrap()));
+                    }
+                });
+                tag_repr.push('>');
+            }
+            f.write_str(tag_repr.as_str())
         } else {
             f.write_str("ERROR: <Tree deallocated>")
         }
@@ -1419,6 +1432,22 @@ impl Element for ElementNode {
         unsafe { self.attribute_names_unchecked().into_iter().map(|s| s.to_owned()).collect() }
     }
 
+    fn attributes(&self) -> NamedNodeMap {
+        check_node!(self.node_base);
+        NamedNodeMap::new_live(self.into(), None, |n, _| {
+            let mut v = Vec::new();
+            unsafe {
+                let mut attr = lxb_dom_element_first_attribute_noi(n.node.cast());
+                let tree = n.tree.upgrade().unwrap();
+                while !attr.is_null() {
+                    v.push(AttrNode { node_base: NodeBase::new_base(&tree, attr.cast()).unwrap_unchecked() });
+                    attr = lxb_dom_element_next_attribute_noi(attr);
+                }
+            };
+            v
+        })
+    }
+
     fn set_attribute(&mut self, qualified_name: &str, value: &str) {
         check_node!(self.node_base);
         unsafe {
@@ -1802,6 +1831,7 @@ impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
 type NodeList = NodeListGeneric<Node>;
 type ElementNodeList = NodeListGeneric<ElementNode>;
 type HTMLCollection = NodeListGeneric<ElementNode>;
+type NamedNodeMap = NodeListGeneric<AttrNode>;
 
 impl HTMLCollection {
     pub fn named_item(&self, name: &str) -> Option<ElementNode> {
@@ -1942,7 +1972,7 @@ macro_rules! dom_node_list_impl {
                     if i > 0 {
                         f.write_str(", ")?;
                     }
-                    f.write_str(format!("{:?}", s).as_str())?;
+                    f.write_str(&format!("{:?}", s))?;
                 };
                 write!(f, "]")
             }
