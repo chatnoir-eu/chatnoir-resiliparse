@@ -1324,7 +1324,7 @@ impl Element for ElementNode {
             qualified_name.as_ptr().cast(),
             qualified_name.len(),
             addr_of_mut!(size));
-        if size == 0 || name.is_null() {
+        if name.is_null() {
             None
         } else {
             str_from_lxb_char_t(name, size)
@@ -2103,7 +2103,7 @@ unsafe fn dom_coll_to_vec(tree: &Weak<HTMLDocument>, coll: *mut lxb_dom_collecti
 }
 
 pub(super) unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> Option<&'a str> {
-    if size > 0 && !cdata.is_null() {
+    if !cdata.is_null() {
         Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size)))
     } else {
         None
@@ -2128,7 +2128,7 @@ pub(super) unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
     }
     let mut size = 0;
     let name = lxb_fn(node.cast(), addr_of_mut!(size));
-    if size == 0 || name.is_null() {
+    if name.is_null() {
         None
     } else {
         str_from_lxb_char_t(name, size)

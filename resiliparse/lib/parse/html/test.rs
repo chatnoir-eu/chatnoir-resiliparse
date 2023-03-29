@@ -289,3 +289,42 @@ fn test_attributes() {
         &tree.document().unwrap().create_element("foo").into()).is_none());
     assert_eq!(attr.child_nodes().len(), 0);
 }
+
+#[test]
+fn test_empty_attribute() {
+    let tree = HTMLTree::from_str(r#"<div>
+        <input type="checkbox" checked>
+        <div class="foo"></div>
+        <div class></div>
+        <div class=""></div>
+        <div id="foo"></div>
+        <div id></div>
+        <div id=""></div>
+        <div foo></div>
+        <div foo=""></div>"#).unwrap();
+
+    let input_element = tree.body().unwrap().query_selector("input").unwrap().unwrap();
+
+    assert!(input_element.has_attribute("type"));
+    assert_eq!(input_element.attribute("type").unwrap(), "checkbox");
+
+    assert!(input_element.has_attribute("checked"));
+    assert!(input_element.attribute("checked").is_none());
+    assert!(!input_element.has_attribute("checkedx"));
+    assert!(input_element.attribute("checkedx").is_none());
+
+    // Test empty attribute selection
+    // There used to be a Lexbor crash with this: https://github.com/lexbor/lexbor/pull/148
+    assert_eq!(tree.body().unwrap().query_selector_all(".foo").unwrap().len(), 1);
+    assert_eq!(tree.body().unwrap().query_selector_all("#foo").unwrap().len(), 1);
+    assert_eq!(tree.body().unwrap().query_selector_all("[class]").unwrap().len(), 3);
+    assert_eq!(tree.body().unwrap().query_selector_all("[id]").unwrap().len(), 3);
+    assert!(!tree.document().unwrap().element_by_id("foo").is_none());
+    assert!(tree.document().unwrap().element_by_id("foox").is_none());
+    assert_eq!(tree.body().unwrap().elements_by_class_name("foo").len(), 1);
+    assert_eq!(tree.body().unwrap().elements_by_class_name("").len(), 0);     // This doesn't match anything);
+    assert_eq!(tree.body().unwrap().elements_by_attr("class", "foo").len(), 1);
+    assert_eq!(tree.body().unwrap().elements_by_attr("class", "").len(), 2);
+    assert_eq!(tree.body().unwrap().elements_by_attr("id", "").len(), 2);
+    assert_eq!(tree.body().unwrap().elements_by_attr("foo", "").len(), 2);
+}
