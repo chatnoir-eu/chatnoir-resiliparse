@@ -470,7 +470,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
         if data.is_empty() {
             return;
         }
-        self.set_data(self.data().unwrap_or_default().add(data).as_str());
+        self.set_data(&self.data().unwrap_or_default().add(data));
     }
 
     fn insert_data(&mut self, offset: usize, data: &str) {
@@ -485,7 +485,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
                 }
                 s_new.push(c);
             });
-            self.set_data(s_new.as_str());
+            self.set_data(&s_new);
         }
     }
 
@@ -497,7 +497,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
                     s_new.push(c);
                 }
             });
-            self.set_data(s_new.as_str());
+            self.set_data(&s_new);
         }
     }
 
@@ -515,7 +515,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
                     s_new.push(c);
                 }
             });
-            self.set_data(s_new.as_str());
+            self.set_data(&s_new);
         }
     }
 }
@@ -689,14 +689,14 @@ impl Debug for NodeBase {
                 tag_repr = format!("<{}", tag_repr.to_lowercase());
                 element.attributes().iter().for_each(|attr| {
                     tag_repr.push(' ');
-                    tag_repr.push_str(attr.name().unwrap().as_str());
+                    tag_repr.push_str(&attr.name().unwrap());
                     if attr.value().is_some() {
                         tag_repr.push_str(&format!("={:?}", attr.value().unwrap()));
                     }
                 });
                 tag_repr.push('>');
             }
-            f.write_str(tag_repr.as_str())
+            f.write_str(&tag_repr)
         } else {
             f.write_str("ERROR: <Tree deallocated>")
         }
@@ -706,7 +706,7 @@ impl Debug for NodeBase {
 impl Display for NodeBase {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some(_) = self.tree.upgrade() {
-            f.write_str(node_serialize_html(self.node).as_str())
+            f.write_str(&node_serialize_html(self.node))
         } else {
             f.write_str("ERROR: <Tree deallocated>")
         }
@@ -1198,21 +1198,21 @@ impl Document for DocumentNode {
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
-            unsafe { elements_by_tag_name(n, qn.unwrap_unchecked()[0].as_str()) }
+            unsafe { elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
-            unsafe { elements_by_class_name(n, cls.unwrap_unchecked()[0].as_str()) }
+            unsafe { elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
         })
     }
 
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
         check_node!(self.node_base);
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
-            unsafe { elements_by_attr(n, attr.unwrap_unchecked()[0].as_str(), attr.unwrap_unchecked()[1].as_str()) }
+            unsafe { elements_by_attr(n, &attr.unwrap_unchecked()[0], &attr.unwrap_unchecked()[1]) }
         })
     }
 
@@ -1471,7 +1471,7 @@ impl Element for ElementNode {
             None => !self.has_attribute(qualified_name)
         };
         if on {
-            self.set_attribute(qualified_name, self.attribute(qualified_name).unwrap_or_default().as_str());
+            self.set_attribute(qualified_name, &self.attribute(qualified_name).unwrap_or_default());
             true
         } else {
             self.remove_attribute(qualified_name);
@@ -1518,19 +1518,19 @@ impl Element for ElementNode {
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
-            unsafe { elements_by_tag_name(&n, qn.unwrap_unchecked()[0].as_str()) }
+            unsafe { elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.into(), Some(Box::new([class_names.to_owned()])), |n, cls| {
-            unsafe { elements_by_class_name(&n, cls.unwrap_unchecked()[0].as_str()) }
+            unsafe { elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
         })
     }
 
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
-            unsafe { elements_by_attr(&n, attr.unwrap_unchecked()[0].as_str(), attr.unwrap_unchecked()[1].as_str()) }
+            unsafe { elements_by_attr(&n, &attr.unwrap_unchecked()[0], &attr.unwrap_unchecked()[1]) }
         })
     }
 
@@ -1922,7 +1922,7 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 
     fn contains(&self, token: &str) -> bool {
-        self.iter().find(|s: &String| s.as_str() == token).is_some()
+        self.iter().find(|s: &String| s == token).is_some()
     }
 
     #[inline]
@@ -1961,7 +1961,7 @@ macro_rules! dom_node_list_impl {
                 if other.len() != val.len() {
                     return false;
                 }
-                val.iter().zip(other.iter()).find(|(a, b)| a.as_str() != **b).is_none()
+                val.iter().zip(other.iter()).find(|(a, b)| a != *b).is_none()
             }
         }
 
@@ -2010,7 +2010,7 @@ impl<'a> DOMTokenListMut<'a> {
     }
 
     fn update_node(&mut self, values: &Vec<String>) {
-        self.element.set_class_name(values.join(" ").as_str());
+        self.element.set_class_name(&values.join(" "));
     }
 
     pub fn add(&mut self, tokens: &[&str]) {
