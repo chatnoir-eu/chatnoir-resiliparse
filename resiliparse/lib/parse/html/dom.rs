@@ -1044,15 +1044,15 @@ impl NodeInterface for NodeBase {
 
 struct NodeIteratorRaw {
     root: *mut lxb_dom_node_t,
-    node: *mut lxb_dom_node_t,
+    next_node: *mut lxb_dom_node_t,
 }
 
 impl NodeIteratorRaw {
     unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
         if root.is_null() || unsafe { (*root).first_child }.is_null() {
-            Self { root: ptr::null_mut(), node: ptr::null_mut() }
+            Self { root: ptr::null_mut(), next_node: ptr::null_mut() }
         } else {
-            Self { root, node: root }
+            Self { root, next_node: root }
         }
     }
 }
@@ -1061,23 +1061,23 @@ impl Iterator for NodeIteratorRaw {
     type Item = *mut lxb_dom_node_t;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.node.is_null() {
+        if self.next_node.is_null() {
             return None;
         }
 
-        let return_node = self.node;
+        let return_node = self.next_node;
         unsafe {
-            if !(*self.node).first_child.is_null() {
-                self.node = (*self.node).first_child;
+            if !(*self.next_node).first_child.is_null() {
+                self.next_node = (*self.next_node).first_child;
             } else {
-                while self.node != self.root && (*self.node).next.is_null() {
-                    self.node = (*self.node).parent;
+                while self.next_node != self.root && (*self.next_node).next.is_null() {
+                    self.next_node = (*self.next_node).parent;
                 }
-                if self.node == self.root {
-                    self.node = ptr::null_mut();
+                if self.next_node == self.root {
+                    self.next_node = ptr::null_mut();
                     return Some(return_node);
                 }
-                self.node = (*self.node).next;
+                self.next_node = (*self.next_node).next;
             }
         }
         Some(return_node)
