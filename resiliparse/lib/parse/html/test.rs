@@ -373,3 +373,30 @@ fn test_serialization() {
 
     assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 }
+
+#[test]
+fn test_traversal() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let root = tree.document().unwrap().element_by_id("a").unwrap();
+
+    let node_names = root.iter().map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
+    assert_eq!(node_names, ["P", "#text", "SPAN", "#text", "#text"]);
+
+    let tag_names = root.iter().flat_map(|n| {
+        if let Node::Element(e) = n { e.tag_name() } else { None }
+    }).collect::<Vec<String>>();
+    assert_eq!(tag_names, ["P", "SPAN"]);
+
+    let child_nodes = tree.document().unwrap().element_by_id("foo").unwrap().child_nodes();
+    let child_node_names = child_nodes.iter()
+        .map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
+    assert_eq!(child_node_names, ["#text", "P", "#text", "P", "#text"]);
+
+    child_nodes.iter().for_each(|n| {
+        match n {
+            Node::Text(n) => assert_eq!(n.node_name().unwrap(), "#text"),
+            Node::Element(n) => assert_eq!(n.node_name().unwrap(), "P"),
+            _ => assert!(false, "Invalid node type")
+        }
+    });
+}

@@ -1052,7 +1052,7 @@ impl NodeIteratorRaw {
         if root.is_null() || unsafe { (*root).first_child }.is_null() {
             Self { root: ptr::null_mut(), node: ptr::null_mut() }
         } else {
-            Self { root, node: unsafe { (*root).first_child } }
+            Self { root, node: root }
         }
     }
 }
@@ -1070,11 +1070,12 @@ impl Iterator for NodeIteratorRaw {
             if !(*self.node).first_child.is_null() {
                 self.node = (*self.node).first_child;
             } else {
-                while self.node != self.root && !(*self.node).next.is_null() {
+                while self.node != self.root && (*self.node).next.is_null() {
                     self.node = (*self.node).parent;
                 }
                 if self.node == self.root {
-                    return None;
+                    self.node = ptr::null_mut();
+                    return Some(return_node);
                 }
                 self.node = (*self.node).next;
             }
