@@ -356,19 +356,20 @@ fn test_serialization() {
     assert_eq!(format!("{:?}", tree.head().unwrap().query_selector("title").unwrap().unwrap()), "<title>");
     assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 
+    let text = tree.body().unwrap().query_selector("#b").unwrap().unwrap().first_child().unwrap();
+    match text {
+        Node::Text(t) => assert_eq!(t.node_value().unwrap(), "Hello "),
+        _ => assert!(false, "Node is not a text node.")
+    }
 
     let inputs = HTMLTree::from_str(r#"
-    <input id="a" type="checkbox" checked>
-    <input id="b" type="checkbox" checked="">
-    <input id="c" type="checkbox" checked="checked">
-    "#).unwrap();
+        <input id="a" type="checkbox" checked>
+        <input id="b" type="checkbox" checked="">
+        <input id="c" type="checkbox" checked="checked">
+        "#).unwrap();
     assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("a").unwrap()), r#"<input id="a" type="checkbox" checked>"#);
     assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("b").unwrap()), r#"<input id="b" type="checkbox" checked="">"#);
     assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("c").unwrap()), r#"<input id="c" type="checkbox" checked="checked">"#);
 
-    // assert repr(tree.body.query_selector('main')) == '<main id="foo">'
-    //
-    // text = tree.body.query_selector('#b').first_child
-    // assert text.type == TEXT
-    // assert repr(text) == str(text) == text.text
+    assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 }
