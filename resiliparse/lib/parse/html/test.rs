@@ -36,6 +36,7 @@ const HTML_NO_HEAD: &str = "<!doctype html><body><span></span></body>";
 const HTML_NO_BODY: &str = "<!doctype html><head><title>Title</title></head>";
 const HTML_NO_TITLE: &str = "<!doctype html><head></head></body>";
 const HTML_NO_TITLE_SVG: &str = "<!doctype html><svg xmlns=\"http://www.w3.org/2000/svg\"><title>SVG Title</title></svg>";
+const HTML_UNCLOSED_TITLE: &str = "<!doctype html><html><head><title>Test--></head><body>foo</body></html>";
 const HTML_UNCLOSED_HEAD: &str = "<!doctype html><head><title>Title</title><span></span>";
 
 #[test]
@@ -71,6 +72,12 @@ fn test_parse_quirks() {
     tree_quirk.document().unwrap();
     assert_eq!(tree_quirk.head().unwrap().child_nodes().len(), 0);
     assert!(tree_quirk.title().is_none());
+    assert_eq!(tree_quirk.body().unwrap().child_nodes().len(), 0);
+
+    let tree_quirk = HTMLTree::from_str(HTML_UNCLOSED_TITLE).unwrap();
+    tree_quirk.document().unwrap();
+    assert_eq!(tree_quirk.head().unwrap().child_nodes().len(), 1);
+    assert_eq!(tree_quirk.title().unwrap(), "Test--></head><body>foo</body></html>");
     assert_eq!(tree_quirk.body().unwrap().child_nodes().len(), 0);
 
     let tree_quirk = HTMLTree::from_str(HTML_NO_TITLE_SVG).unwrap();
