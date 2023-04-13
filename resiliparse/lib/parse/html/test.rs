@@ -407,3 +407,77 @@ fn test_traversal() {
         }
     });
 }
+
+#[test]
+fn test_callback_traversal() {
+
+}
+
+#[test]
+fn test_children() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let element = tree.document().unwrap().element_by_id("a").unwrap();
+
+    assert_eq!(element, element.first_child().unwrap().parent_element().unwrap());
+    assert_eq!(element, element.last_child().unwrap().parent_element().unwrap());
+    assert_eq!(element.first_child().unwrap().next_sibling(), element.last_child().unwrap().previous_sibling());
+
+    let t: TextNode = element.first_child().unwrap().into();
+    assert!(t.first_child().is_none());
+    assert_eq!(t.node_value().unwrap(), t.text_content().unwrap());
+    assert_eq!(t.node_value().unwrap(), "Hello ");
+
+    let e_first = element.first_element_child().unwrap();
+    assert!(e_first.node_value().is_none());
+    assert_eq!(e_first.text_content().unwrap(), "world");
+
+    let t: TextNode = element.last_child().unwrap().into();
+    assert!(t.last_child().is_none());
+    assert_eq!(t.node_value().unwrap(), t.text_content().unwrap());
+    assert_eq!(t.node_value().unwrap(), "!");
+
+    let e_last = element.last_element_child().unwrap();
+    assert!(e_last.node_value().is_none());
+    assert_eq!(e_last, e_first);
+
+    assert_eq!(element.next_element_sibling().unwrap().tag_name().unwrap(), "P");
+    assert!(element.next_element_sibling().unwrap().next_sibling().is_some());
+    assert!(element.next_element_sibling().unwrap().next_sibling().unwrap().next_sibling().is_none());
+    assert!(element.next_element_sibling().unwrap().next_element_sibling().is_none());
+}
+
+#[test]
+fn test_siblings() {
+    let tree = HTMLTree::from_str(HTML).unwrap();
+    let element = tree.document().unwrap().element_by_id("a").unwrap();
+
+    let e_next: ElementNode = element.first_child().unwrap().next_sibling().unwrap().into();
+    assert_eq!(e_next, element.first_element_child().unwrap());
+    assert_eq!(e_next.tag_name().unwrap(), "SPAN");
+    assert_eq!(e_next.class_name().unwrap(), "bar");
+
+    assert!(element.previous_sibling().is_some());
+    assert!(element.previous_element_sibling().is_none());
+
+    let e_prev: ElementNode = element.last_child().unwrap().previous_sibling().unwrap().into();
+    assert_eq!(e_prev, element.last_element_child().unwrap());
+    assert_eq!(e_prev.tag_name().unwrap(), "SPAN");
+    assert_eq!(e_prev.class_name().unwrap(), "bar");
+
+    let element1 = tree.document().unwrap().element_by_id("foo").unwrap().first_element_child().unwrap();
+    assert_eq!(element1.id().unwrap(), "a");
+    assert_eq!(TextNode::from(element1.next_sibling().unwrap()).node_value().unwrap().trim(), "");
+    assert_eq!(element1.next_element_sibling().unwrap().text_content().unwrap(), "Hello DOM!");
+    assert!(element1.previous_sibling().unwrap().previous_sibling().is_none());
+    assert!(element1.previous_element_sibling().is_none());
+
+    let element2 = tree.document().unwrap().element_by_id("foo").unwrap().last_element_child().unwrap();
+    assert_eq!(element2.id().unwrap(), "b");
+    assert_eq!(TextNode::from(element2.previous_sibling().unwrap()).node_value().unwrap().trim(), "");
+    assert_eq!(element2.previous_element_sibling().unwrap().text_content().unwrap(), "Hello world!");
+    assert!(element2.next_sibling().unwrap().next_sibling().is_none());
+    assert!(element2.next_element_sibling().is_none());
+
+    assert_eq!(element1.next_element_sibling().unwrap(), element2);
+    assert_eq!(element2.previous_element_sibling().unwrap(), element1);
+}

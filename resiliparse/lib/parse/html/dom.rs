@@ -371,19 +371,23 @@ pub trait ChildNode: NodeInterface {
 pub trait NonDocumentTypeChildNode: NodeInterface {
     /// Previous sibling element node.
     fn previous_element_sibling(&self) -> Option<ElementNode> {
+        let mut p = self.previous_sibling()?;
         loop {
-            if let Node::Element(s) = self.previous_sibling()? {
+            if let Node::Element(s) = p {
                 return Some(s);
             }
+            p = p.previous_sibling()?;
         }
     }
 
     /// Next sibling element node.
     fn next_element_sibling(&self) -> Option<ElementNode> {
+        let mut p = self.next_sibling()?;
         loop {
-            if let Node::Element(s) = self.next_sibling()? {
+            if let Node::Element(s) = p {
                 return Some(s);
             }
+            p = p.next_sibling()?;
         }
     }
 }
