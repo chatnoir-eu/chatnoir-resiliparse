@@ -481,3 +481,20 @@ fn test_siblings() {
     assert_eq!(element1.next_element_sibling().unwrap(), element2);
     assert_eq!(element2.previous_element_sibling().unwrap(), element1);
 }
+
+#[test]
+fn create_nodes() {
+    let a = HTMLTree::from_str(HTML).unwrap();
+    let mut doc = a.document().unwrap();
+
+    let mut frag = doc.create_document_fragment();
+    let text = doc.create_text_node("Hello World");
+    let mut element = doc.create_element("foo");
+    let mut attr = doc.create_attribute("class");
+    let comment = doc.create_comment("Some comment");
+    let cdata = doc.create_cdata_section("Foo <bar> <baz> </bar>");
+    let proc = doc.create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"");
+
+    frag.append_child(&element.to_node());
+    element.append(&[&comment.into(), &cdata.into(), &proc.into()])
+}
