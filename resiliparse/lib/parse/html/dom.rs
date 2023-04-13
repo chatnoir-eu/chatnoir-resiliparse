@@ -183,6 +183,7 @@ pub trait NodeInterface: Debug + Display {
     fn upcast(&self) -> &NodeBase;
     fn upcast_mut(&mut self) -> &mut NodeBase;
     fn as_noderef(&self) -> NodeRef;
+    fn to_node(&self) -> Node;
 
     fn node_name(&self) -> Option<String>;
     fn node_value(&self) -> Option<String>;
@@ -553,6 +554,8 @@ macro_rules! define_node_type {
             fn upcast_mut(&mut self) -> &mut NodeBase { &mut self.node_base }
             #[inline(always)]
             fn as_noderef(&self) -> NodeRef { NodeRef::$EnumType(self) }
+            #[inline(always)]
+            fn to_node(&self) -> Node { Node::from(self) }
 
             #[inline(always)]
             fn node_name(&self) -> Option<String> { self.node_base.node_name() }
@@ -751,50 +754,56 @@ impl NodeBase {
         }
     }
 
-    pub(super) unsafe fn create_element_unchecked(handle: &NodeBase, local_name: &str) -> ElementNode {
+    pub(super) unsafe fn create_element_unchecked(doc: &NodeBase, local_name: &str) -> ElementNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let element = lxb_dom_document_create_element(
-            handle.owner_document_ptr().unwrap(), local_name.as_ptr(), local_name.len(), ptr::null_mut());
+            doc.node.cast(), local_name.as_ptr(), local_name.len(), ptr::null_mut());
         ElementNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), element.cast()).expect("ElementNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), element.cast()).expect("ElementNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_document_fragment_unchecked(handle: &NodeBase) -> DocumentFragmentNode {
-        let doc = lxb_dom_document_create_document_fragment(
-            handle.owner_document_ptr().unwrap());
+    pub(super) unsafe fn create_document_fragment_unchecked(doc: &NodeBase) -> DocumentFragmentNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
+        let doc_frag = lxb_dom_document_create_document_fragment(doc.node.cast());
         DocumentFragmentNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), doc.cast()).expect("DocumentFragmentNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), doc_frag.cast()).expect("DocumentFragmentNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_text_node_unchecked(handle: &NodeBase, data: &str) -> TextNode {
+    pub(super) unsafe fn create_text_node_unchecked(doc: &NodeBase, data: &str) -> TextNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let text = lxb_dom_document_create_text_node(
-            handle.owner_document_ptr().unwrap(), data.as_ptr(), data.len());
+            doc.node.cast(), data.as_ptr(), data.len());
         TextNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), text.cast()).expect("TextNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), text.cast()).expect("TextNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_cdata_section_unchecked(handle: &NodeBase, data: &str) -> CDataSectionNode {
+    pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> CDataSectionNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let cdata = lxb_dom_document_create_cdata_section(
-            handle.owner_document_ptr().unwrap(), data.as_ptr(), data.len());
+            doc.node.cast(), data.as_ptr(), data.len());
         CDataSectionNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), cdata.cast()).expect("CDataSectionNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), cdata.cast()).expect("CDataSectionNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_comment_unchecked(handle: &NodeBase, data: &str) -> CommentNode {
+    pub(super) unsafe fn create_comment_unchecked(doc: &NodeBase, data: &str) -> CommentNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let comment = lxb_dom_document_create_comment(
-            handle.owner_document_ptr().unwrap(), data.as_ptr(), data.len());
+            doc.node.cast(), data.as_ptr(), data.len());
         CommentNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), comment.cast()).expect("CommentNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), comment.cast()).expect("CommentNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_processing_instruction_unchecked(handle: &NodeBase, target: &str, data: &str) -> ProcessingInstructionNode {
+    pub(super) unsafe fn create_processing_instruction_unchecked(doc: &NodeBase, target: &str, data: &str) -> ProcessingInstructionNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let proc = lxb_dom_document_create_processing_instruction(
-            handle.owner_document_ptr().unwrap(), target.as_ptr(), target.len(), data.as_ptr(), data.len());
+            doc.node.cast(), target.as_ptr(), target.len(), data.as_ptr(), data.len());
         ProcessingInstructionNode { node_base: Self::new_base(
-            &handle.tree.upgrade().unwrap(), proc.cast()).expect("ProcessingInstructionNode allocation failed") }
+            &doc.tree.upgrade().unwrap(), proc.cast()).expect("ProcessingInstructionNode allocation failed") }
     }
 
-    pub(super) unsafe fn create_attribute_unchecked(handle: &NodeBase, local_name: &str) -> AttrNode {
-        let attr = lxb_dom_attr_interface_create(handle.owner_document_ptr().unwrap());
+    pub(super) unsafe fn create_attribute_unchecked(doc: &NodeBase, local_name: &str) -> AttrNode {
+        debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
+        let attr = lxb_dom_attr_interface_create(doc.node.cast());
         assert!(!attr.is_null(), "AttrNode allocation failed");
 
         let status = unsafe {
@@ -804,7 +813,7 @@ impl NodeBase {
             lxb_dom_attr_interface_destroy(attr);
             panic!("Failed to set attribute name");
         }
-        AttrNode { node_base: Self::new_base(&handle.tree.upgrade().unwrap(), attr.cast()).unwrap_unchecked() }
+        AttrNode { node_base: Self::new_base(&doc.tree.upgrade().unwrap(), attr.cast()).unwrap_unchecked() }
     }
 
     #[inline]
@@ -887,16 +896,24 @@ impl NodeInterface for NodeBase {
         }
     }
 
+    #[inline(always)]
     fn upcast(&self) -> &NodeBase {
         self
     }
 
+    #[inline(always)]
     fn upcast_mut(&mut self) -> &mut NodeBase {
         self
     }
 
+    #[inline(always)]
     fn as_noderef(&self) -> NodeRef {
         NodeRef::Undefined(self)
+    }
+
+    #[inline(always)]
+    fn to_node(&self) -> Node {
+        Node::from(self)
     }
 
     /// DOM element tag or node name.
@@ -1193,11 +1210,8 @@ impl Document for DocumentNode {
 
     fn document_element(&self) -> Option<DocumentNode> {
         check_node!(self.node_base);
-        unsafe {
-            let base = NodeBase::new_base(
-                &self.node_base.tree.upgrade()?, self.node_base.owner_document_ptr()?.cast())?;
-            Some(DocumentNode { node_base: base })
-        }
+        let base = NodeBase::new_base(&self.node_base.tree.upgrade()?, self.node_base.node)?;
+        Some(DocumentNode { node_base: base })
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {

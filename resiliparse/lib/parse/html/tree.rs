@@ -126,7 +126,7 @@ impl HTMLTree {
     #[inline]
     pub fn document(&self) -> Option<DocumentNode> {
         Some(NodeBase::wrap_node(
-            &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document) as *mut lxb_dom_node_t)?.into())
+            &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document.node))?.into())
     }
 
     pub fn head(&self) -> Option<ElementNode> {
