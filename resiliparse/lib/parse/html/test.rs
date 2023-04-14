@@ -484,17 +484,40 @@ fn test_siblings() {
 
 #[test]
 fn create_nodes() {
-    let a = HTMLTree::from_str(HTML).unwrap();
-    let mut doc = a.document().unwrap();
+    let mut doc = HTMLTree::from_str(HTML).unwrap().document().unwrap();
 
     let mut frag = doc.create_document_fragment();
+
     let text = doc.create_text_node("Hello World");
+    assert_eq!(text.node_value().unwrap(), "Hello World");
+
     let mut element = doc.create_element("foo");
+    assert_eq!(element.tag_name().unwrap(), "FOO");
+
     let mut attr = doc.create_attribute("class");
+    assert_eq!(attr.node_name().unwrap(), "class");
+
     let comment = doc.create_comment("Some comment");
+    assert_eq!(comment.node_value().unwrap(), "Some comment");
+
     let cdata = doc.create_cdata_section("Foo <bar> <baz> </bar>");
+    assert_eq!(cdata.node_value().unwrap(), "Foo <bar> <baz> </bar>");
+    assert_eq!(cdata.to_string(), "");  // Not supported for HTML documents
+
     let proc = doc.create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"");
+    assert_eq!(proc.target().unwrap(), "xml");
+    assert_eq!(proc.node_value().unwrap(), "version=\"1.0\" foo=\"bar\"");
+    assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\">");
 
     frag.append_child(&element.to_node());
-    element.append(&[&comment.into(), &cdata.into(), &proc.into()])
+    element.append(&[&text.into(), &comment.into(), &proc.into()]);
+    attr.set_value("foobar");
+    element.set_attribute_node(&attr);
+    element.set_attribute("abc", "def");
+
+    assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
+
+    // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+    doc.first_element_child().unwrap().append_child(&frag.first_child().unwrap().into());
+    assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), frag.first_child().unwrap());
 }
