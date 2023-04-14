@@ -519,5 +519,5 @@ fn create_nodes() {
 
     // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
     doc.first_element_child().unwrap().append_child(&frag.first_child().unwrap().into());
-    assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), frag.first_child().unwrap());
+    assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), element.to_node());
 }
