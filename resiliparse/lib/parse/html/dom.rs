@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
 use crate::parse::html::serialize::node_serialize_html;
 
@@ -76,13 +76,13 @@ impl DerefMut for Node {
 
 impl From<NodeRef<'_>> for Node {
     fn from(value: NodeRef<'_>) -> Self {
-        NodeBase::wrap_node(&value.tree.upgrade().unwrap(), value.node).unwrap()
+        NodeBase::wrap_node(&value.tree, value.node).unwrap()
     }
 }
 
 impl From<&NodeBase> for Node {
     fn from(value: &NodeBase) -> Self {
-        NodeBase::wrap_node(&value.tree.upgrade().unwrap(), value.node).unwrap()
+        NodeBase::wrap_node(&value.tree, value.node).unwrap()
     }
 }
 
@@ -156,7 +156,7 @@ impl PartialEq<NodeBase> for NodeRef<'_> {
 
 macro_rules! check_node {
     ($node: expr) => {
-        if $node.tree.upgrade().is_none() || $node.node.is_null() {
+        if $node.node.is_null() {
             return Default::default();
         }
     }
@@ -165,10 +165,8 @@ macro_rules! check_node {
 macro_rules! check_nodes {
     ($node1: expr, $node2: expr) => {
         {
-            let t1 = $node1.tree.upgrade();
-            let t2 = $node2.tree.upgrade();
-            if t1.is_none() || t2.is_none() || !Rc::ptr_eq(&t1.unwrap(), &t2.unwrap())
-                || $node1.node.is_null() || $node2.node.is_null() || $node1 == $node2 {
+            if !Rc::ptr_eq(&$node1.tree, &$node2.tree) ||
+               $node1.node.is_null() || $node2.node.is_null() || $node1 == $node2 {
                 return Default::default();
             }
         }
@@ -307,7 +305,7 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
         sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
             ctx.push(e);
@@ -317,7 +315,7 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
         let mut result = Vec::<ElementNode>::new();
         sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
             ctx.push(e);
@@ -364,7 +362,6 @@ pub trait ChildNode: NodeInterface {
         check_node!(node);
         unsafe { lxb_dom_node_remove(node.node); }
         node.node = ptr::null_mut();
-        node.tree = Weak::default();
     }
 }
 
@@ -419,6 +416,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn attribute_names(&self) -> Vec<String>;
     fn attributes(&self) -> NamedNodeMap;
     fn set_attribute(&mut self, qualified_name: &str, value: &str);
+    fn set_attribute_node(&mut self, attribute: &AttrNode);
     fn remove_attribute(&mut self, qualified_name: &str);
     fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool;
     fn has_attribute(&self, qualified_name: &str) -> bool;
@@ -660,7 +658,7 @@ macro_rules! define_node_type {
 /// Base DOM node implementation.
 #[derive(Clone)]
 pub struct NodeBase {
-    pub(super) tree: Weak<HTMLDocument>,
+    pub(super) tree: Rc<HTMLDocument>,
     pub(super) node: *mut lxb_dom_node_t,
 }
 
@@ -690,33 +688,25 @@ impl PartialEq<NodeRef<'_>> for &NodeBase {
 
 impl Debug for NodeBase {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(_) = self.tree.upgrade() {
-            let mut tag_repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
-            if let Node::Element(element) = self.into() {
-                tag_repr = format!("<{}", tag_repr.to_lowercase());
-                element.attributes().iter().for_each(|attr| {
-                    tag_repr.push(' ');
-                    tag_repr.push_str(&attr.name().unwrap());
-                    if attr.value().is_some() {
-                        tag_repr.push_str(&format!("={:?}", attr.value().unwrap()));
-                    }
-                });
-                tag_repr.push('>');
-            }
-            f.write_str(&tag_repr)
-        } else {
-            f.write_str("ERROR: <Tree deallocated>")
+        let mut tag_repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
+        if let Node::Element(element) = self.into() {
+            tag_repr = format!("<{}", tag_repr.to_lowercase());
+            element.attributes().iter().for_each(|attr| {
+                tag_repr.push(' ');
+                tag_repr.push_str(&attr.name().unwrap());
+                if attr.value().is_some() {
+                    tag_repr.push_str(&format!("={:?}", attr.value().unwrap()));
+                }
+            });
+            tag_repr.push('>');
         }
+        f.write_str(&tag_repr)
     }
 }
 
 impl Display for NodeBase {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(_) = self.tree.upgrade() {
-            f.write_str(&node_serialize_html(self.node))
-        } else {
-            f.write_str("ERROR: <Tree deallocated>")
-        }
+        f.write_str(&node_serialize_html(self.node))
     }
 }
 
@@ -727,7 +717,7 @@ impl NodeBase {
         if node.is_null() {
             return None;
         }
-        let node_base = Self { tree: Rc::downgrade(tree), node };
+        let node_base = Self { tree: tree.clone(), node };
         use crate::third_party::lexbor::lxb_dom_node_type_t::*;
         match unsafe { (*node).type_ } {
             LXB_DOM_NODE_TYPE_ELEMENT => Some(Node::Element(ElementNode { node_base })),
@@ -750,7 +740,7 @@ impl NodeBase {
         if node.is_null() {
             None
         } else {
-            Some(Self { tree: Rc::downgrade(&tree), node })
+            Some(Self { tree: tree.clone(), node })
         }
     }
 
@@ -759,14 +749,14 @@ impl NodeBase {
         let element = lxb_dom_document_create_element(
             doc.node.cast(), local_name.as_ptr(), local_name.len(), ptr::null_mut());
         ElementNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), element.cast()).expect("ElementNode allocation failed") }
+            &doc.tree, element.cast()).expect("ElementNode allocation failed") }
     }
 
     pub(super) unsafe fn create_document_fragment_unchecked(doc: &NodeBase) -> DocumentFragmentNode {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let doc_frag = lxb_dom_document_create_document_fragment(doc.node.cast());
         DocumentFragmentNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), doc_frag.cast()).expect("DocumentFragmentNode allocation failed") }
+            &doc.tree, doc_frag.cast()).expect("DocumentFragmentNode allocation failed") }
     }
 
     pub(super) unsafe fn create_text_node_unchecked(doc: &NodeBase, data: &str) -> TextNode {
@@ -774,7 +764,7 @@ impl NodeBase {
         let text = lxb_dom_document_create_text_node(
             doc.node.cast(), data.as_ptr(), data.len());
         TextNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), text.cast()).expect("TextNode allocation failed") }
+            &doc.tree, text.cast()).expect("TextNode allocation failed") }
     }
 
     pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> CDataSectionNode {
@@ -782,7 +772,7 @@ impl NodeBase {
         let cdata = lxb_dom_document_create_cdata_section(
             doc.node.cast(), data.as_ptr(), data.len());
         CDataSectionNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), cdata.cast()).expect("CDataSectionNode allocation failed") }
+            &doc.tree, cdata.cast()).expect("CDataSectionNode allocation failed") }
     }
 
     pub(super) unsafe fn create_comment_unchecked(doc: &NodeBase, data: &str) -> CommentNode {
@@ -790,7 +780,7 @@ impl NodeBase {
         let comment = lxb_dom_document_create_comment(
             doc.node.cast(), data.as_ptr(), data.len());
         CommentNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), comment.cast()).expect("CommentNode allocation failed") }
+            &doc.tree, comment.cast()).expect("CommentNode allocation failed") }
     }
 
     pub(super) unsafe fn create_processing_instruction_unchecked(doc: &NodeBase, target: &str, data: &str) -> ProcessingInstructionNode {
@@ -798,7 +788,7 @@ impl NodeBase {
         let proc = lxb_dom_document_create_processing_instruction(
             doc.node.cast(), target.as_ptr(), target.len(), data.as_ptr(), data.len());
         ProcessingInstructionNode { node_base: Self::new_base(
-            &doc.tree.upgrade().unwrap(), proc.cast()).expect("ProcessingInstructionNode allocation failed") }
+            &doc.tree, proc.cast()).expect("ProcessingInstructionNode allocation failed") }
     }
 
     pub(super) unsafe fn create_attribute_unchecked(doc: &NodeBase, local_name: &str) -> AttrNode {
@@ -813,13 +803,15 @@ impl NodeBase {
             lxb_dom_attr_interface_destroy(attr);
             panic!("Failed to set attribute name");
         }
-        AttrNode { node_base: Self::new_base(&doc.tree.upgrade().unwrap(), attr.cast()).unwrap_unchecked() }
+        AttrNode { node_base: Self::new_base(&doc.tree, attr.cast()).unwrap_unchecked() }
     }
 
     #[inline]
     unsafe fn can_have_children(&self) -> bool {
         matches!((*self.node).type_,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
+            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
+                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
+                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
         )
     }
 
@@ -955,12 +947,12 @@ impl NodeInterface for NodeBase {
     fn owner_document(&self) -> Option<DocumentNode> {
         check_node!(self);
         let d = unsafe { self.owner_document_ptr()? };
-        Some(Self::wrap_node(&self.tree.upgrade()?, d.cast())?.into())
+        Some(Self::wrap_node(&self.tree, d.cast())?.into())
     }
 
     /// Parent of this node.
     fn parent_node(&self) -> Option<Node> {
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.parent })
+        Self::wrap_node(&self.tree, unsafe { self.node.as_ref()?.parent })
     }
 
     #[inline]
@@ -1004,27 +996,27 @@ impl NodeInterface for NodeBase {
 
     /// First child element of this DOM node.
     fn first_child(&self) -> Option<Node> {
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.first_child })
+        Self::wrap_node(&self.tree, unsafe { self.node.as_ref()?.first_child })
     }
 
     /// Last child element of this DOM node.
     fn last_child(&self) -> Option<Node> {
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.last_child })
+        Self::wrap_node(&self.tree, unsafe { self.node.as_ref()?.last_child })
     }
 
     /// Previous sibling node.
     fn previous_sibling(&self) -> Option<Node> {
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.prev })
+        Self::wrap_node(&self.tree, unsafe { self.node.as_ref()?.prev })
     }
 
     /// Next sibling node.
     fn next_sibling(&self) -> Option<Node> {
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { self.node.as_ref()?.next })
+        Self::wrap_node(&self.tree, unsafe { self.node.as_ref()?.next })
     }
 
     fn clone_node(&self, deep: bool) -> Option<Node> {
         check_node!(self);
-        Self::wrap_node(&self.tree.upgrade()?, unsafe { lxb_dom_node_clone(self.node, deep) })
+        Self::wrap_node(&self.tree, unsafe { lxb_dom_node_clone(self.node, deep) })
     }
 
     fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
@@ -1120,7 +1112,7 @@ impl Iterator for NodeIterator<'_> {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
-        NodeBase::wrap_node(&self.root.tree.upgrade()?, self.iterator_raw.next()?)
+        NodeBase::wrap_node(&self.root.tree, self.iterator_raw.next()?)
     }
 }
 
@@ -1139,7 +1131,7 @@ impl Iterator for ElementIterator<'_> {
     type Item = ElementNode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let tree = &self.root.tree.upgrade()?;
+        let tree = &self.root.tree;
         while let Some(next) = unsafe { self.iterator_raw.next()?.as_ref() } {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 continue
@@ -1201,16 +1193,15 @@ impl Document for DocumentNode {
     fn doctype(&self) -> Option<DocumentTypeNode> {
         check_node!(self.node_base);
         unsafe {
-            let tree = self.node_base.tree.upgrade()?;
             let doctype = (*self.node_base.owner_document_ptr()?).doctype;
-            let base = NodeBase::new_base(&tree, doctype.cast())?;
+            let base = NodeBase::new_base(&self.node_base.tree, doctype.cast())?;
             Some(DocumentTypeNode { node_base: base })
         }
     }
 
     fn document_element(&self) -> Option<DocumentNode> {
         check_node!(self.node_base);
-        let base = NodeBase::new_base(&self.node_base.tree.upgrade()?, self.node_base.node)?;
+        let base = NodeBase::new_base(&self.node_base.tree, self.node_base.node)?;
         Some(DocumentNode { node_base: base })
     }
 
@@ -1442,7 +1433,7 @@ impl Element for ElementNode {
         if attr.is_null() {
             return None;
         }
-        let base = NodeBase::new_base(&self.node_base.tree.upgrade()?, attr.cast())?;
+        let base = NodeBase::new_base(&self.node_base.tree, attr.cast())?;
         Some(AttrNode { node_base: base })
     }
 
@@ -1457,9 +1448,8 @@ impl Element for ElementNode {
             let mut v = Vec::new();
             unsafe {
                 let mut attr = lxb_dom_element_first_attribute_noi(n.node.cast());
-                let tree = n.tree.upgrade().unwrap();
                 while !attr.is_null() {
-                    v.push(AttrNode { node_base: NodeBase::new_base(&tree, attr.cast()).unwrap_unchecked() });
+                    v.push(AttrNode { node_base: NodeBase::new_base(&n.tree, attr.cast()).unwrap_unchecked() });
                     attr = lxb_dom_element_next_attribute_noi(attr);
                 }
             };
@@ -1473,6 +1463,13 @@ impl Element for ElementNode {
              lxb_dom_element_set_attribute(self.node_base.node.cast(),
                                            qualified_name.as_ptr(), qualified_name.len(),
                                            value.as_ptr(), value.len());
+        }
+    }
+
+    fn set_attribute_node(&mut self, attribute: &AttrNode) {
+        check_nodes!(self.node_base, attribute.node_base);
+        unsafe {
+            lxb_dom_element_attr_append(self.node_base.node.cast(), attribute.node_base.node.cast());
         }
     }
 
@@ -1509,7 +1506,7 @@ impl Element for ElementNode {
             return Ok(None);
         }
         let sel_list = CSSSelectorList::parse_selectors(
-            &self.upcast().tree.upgrade().unwrap(), selectors)?;
+            &self.upcast().tree, selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
         sel_list.match_elements_reverse(self.as_noderef(), |node, _, ctx| {
             ctx.push(node);
@@ -1522,7 +1519,7 @@ impl Element for ElementNode {
         let doc = self.owner_document();
         let root = if doc.is_some() { doc.as_ref().unwrap().as_noderef() } else { self.as_noderef() };
 
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree.upgrade().unwrap(), selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
         let mut ctx = (false, self.as_noderef());
         sel_list.match_elements(root, |e, _, ctx| {
             if e.as_noderef() == ctx.1 {
@@ -1691,7 +1688,7 @@ impl Attr for AttrNode {
             if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            NodeBase::wrap_node(&self.node_base.tree.upgrade()?, (*attr).owner.cast())
+            NodeBase::wrap_node(&self.node_base.tree, (*attr).owner.cast())
         }
     }
 }
@@ -2101,7 +2098,7 @@ unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
                              id.as_ptr(), id.len(), false);
     let matched_node = lxb_dom_collection_node_noi(coll, 0);
     lxb_dom_collection_destroy(coll, true);
-    Some(ElementNode { node_base: NodeBase::new_base(&node.tree.upgrade()?, matched_node)? })
+    Some(ElementNode { node_base: NodeBase::new_base(&node.tree, matched_node)? })
 }
 
 unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str) -> Vec<ElementNode> {
@@ -2132,18 +2129,13 @@ unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<Eleme
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn dom_coll_to_vec(tree: &Weak<HTMLDocument>, coll: *mut lxb_dom_collection_t,
+unsafe fn dom_coll_to_vec(tree: &Rc<HTMLDocument>, coll: *mut lxb_dom_collection_t,
                           destroy: bool) -> Vec<ElementNode> {
-    let mut v;
-    if let Some(t) = tree.upgrade() {
-        v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
-        for i in 0..lxb_dom_collection_length_noi(coll) {
-            if let Some(b) = NodeBase::new_base(&t, lxb_dom_collection_node_noi(coll, i)) {
-                v.push(ElementNode { node_base: b });
-            }
+    let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+    for i in 0..lxb_dom_collection_length_noi(coll) {
+        if let Some(b) = NodeBase::new_base(&tree, lxb_dom_collection_node_noi(coll, i)) {
+            v.push(ElementNode { node_base: b });
         }
-    } else {
-        v = Vec::default();
     }
     if destroy {
         lxb_dom_collection_destroy(coll, true);
