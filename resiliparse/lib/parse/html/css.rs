@@ -121,7 +121,7 @@ impl<'a> CSSSelectorList<'a> {
     pub fn match_elements<T, F>(&self, root_node: NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         let tree = self.tree.upgrade().unwrap();
-        assert_eq!(tree.html_document, root_node.tree.upgrade().unwrap().html_document);
+        assert_eq!(tree.html_document, root_node.tree.html_document);
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Rc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked(root_node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
@@ -132,7 +132,7 @@ impl<'a> CSSSelectorList<'a> {
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
 
         let tree = self.tree.upgrade().unwrap();
-        assert_eq!(tree.html_document, root_node.tree.upgrade().unwrap().html_document);
+        assert_eq!(tree.html_document, root_node.tree.html_document);
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Rc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked_reverse(root_node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
