@@ -304,7 +304,7 @@ fn test_attributes() {
 
     // Cannot append children to attributes
     assert!(attr.append_child(
-        &tree.document().unwrap().create_element("foo").into()).is_none());
+        &tree.document().unwrap().create_element("foo").unwrap().into()).is_none());
     assert_eq!(attr.child_nodes().len(), 0);
 }
 
@@ -486,25 +486,25 @@ fn test_siblings() {
 fn create_nodes() {
     let mut doc = HTMLTree::from_str(HTML).unwrap().document().unwrap();
 
-    let mut frag = doc.create_document_fragment();
+    let mut frag = doc.create_document_fragment().unwrap();
 
-    let text = doc.create_text_node("Hello World");
+    let text = doc.create_text_node("Hello World").unwrap();
     assert_eq!(text.node_value().unwrap(), "Hello World");
 
-    let mut element = doc.create_element("foo");
+    let mut element = doc.create_element("foo").unwrap();
     assert_eq!(element.tag_name().unwrap(), "FOO");
 
-    let mut attr = doc.create_attribute("class");
+    let mut attr = doc.create_attribute("class").unwrap();
     assert_eq!(attr.node_name().unwrap(), "class");
 
-    let comment = doc.create_comment("Some comment");
+    let comment = doc.create_comment("Some comment").unwrap();
     assert_eq!(comment.node_value().unwrap(), "Some comment");
 
-    let cdata = doc.create_cdata_section("Foo <bar> <baz> </bar>");
+    let cdata = doc.create_cdata_section("Foo <bar> <baz> </bar>").unwrap();
     assert_eq!(cdata.node_value().unwrap(), "Foo <bar> <baz> </bar>");
     assert_eq!(cdata.to_string(), "");  // Not supported for HTML documents
 
-    let proc = doc.create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"");
+    let proc = doc.create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"").unwrap();
     assert_eq!(proc.target().unwrap(), "xml");
     assert_eq!(proc.node_value().unwrap(), "version=\"1.0\" foo=\"bar\"");
     assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\">");

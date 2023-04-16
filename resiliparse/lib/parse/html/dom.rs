@@ -16,6 +16,7 @@
 use std::{ptr, slice, vec};
 use std::cmp::max;
 use std::collections::HashSet;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut};
@@ -173,6 +174,20 @@ macro_rules! check_nodes {
     }
 }
 
+#[derive(Debug)]
+pub struct DOMError {
+    msg: String
+}
+
+impl Display for DOMError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DOM error: {}", self.msg)
+    }
+}
+
+impl Error for DOMError {}
+
+
 /// Base DOM node.
 pub trait NodeInterface: Debug + Display {
     unsafe fn node_name_unchecked(&self) -> Option<&str>;
@@ -235,13 +250,13 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
 
-    fn create_element(&mut self, local_name: &str) -> ElementNode;
-    fn create_document_fragment(&mut self) -> DocumentFragmentNode;
-    fn create_text_node(&mut self, data: &str) -> TextNode;
-    fn create_cdata_section(&mut self, data: &str) -> CDataSectionNode;
-    fn create_comment(&mut self, data: &str) -> CommentNode;
-    fn create_processing_instruction(&mut self, target: &str, data: &str) -> ProcessingInstructionNode;
-    fn create_attribute(&mut self, local_name: &str) -> AttrNode;
+    fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError>;
+    fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError>;
+    fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError>;
+    fn create_cdata_section(&mut self, data: &str) -> Result<CDataSectionNode, DOMError>;
+    fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError>;
+    fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError>;
+    fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError>;
 }
 
 pub trait DocumentFragment: DocumentOrShadowRoot + ParentNode + NonElementParentNode {}
@@ -744,66 +759,87 @@ impl NodeBase {
         }
     }
 
-    pub(super) unsafe fn create_element_unchecked(doc: &NodeBase, local_name: &str) -> ElementNode {
+    pub(super) unsafe fn create_element_unchecked(doc: &NodeBase, local_name: &str) -> Result<ElementNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let element = lxb_dom_document_create_element(
             doc.node.cast(), local_name.as_ptr(), local_name.len(), ptr::null_mut());
-        ElementNode { node_base: Self::new_base(
-            &doc.tree, element.cast()).expect("ElementNode allocation failed") }
+        if let Some(e) = Self::new_base(&doc.tree, element.cast()) {
+            Ok(ElementNode { node_base: e })
+        } else {
+            Err(DOMError { msg: "ElementNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_document_fragment_unchecked(doc: &NodeBase) -> DocumentFragmentNode {
+    pub(super) unsafe fn create_document_fragment_unchecked(doc: &NodeBase) -> Result<DocumentFragmentNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let doc_frag = lxb_dom_document_create_document_fragment(doc.node.cast());
-        DocumentFragmentNode { node_base: Self::new_base(
-            &doc.tree, doc_frag.cast()).expect("DocumentFragmentNode allocation failed") }
+        if let Some(e) = Self::new_base(&doc.tree, doc_frag.cast()) {
+            Ok(DocumentFragmentNode { node_base: e })
+        } else {
+            Err(DOMError { msg: "DocumentFragmentNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_text_node_unchecked(doc: &NodeBase, data: &str) -> TextNode {
+    pub(super) unsafe fn create_text_node_unchecked(doc: &NodeBase, data: &str) -> Result<TextNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let text = lxb_dom_document_create_text_node(
             doc.node.cast(), data.as_ptr(), data.len());
-        TextNode { node_base: Self::new_base(
-            &doc.tree, text.cast()).expect("TextNode allocation failed") }
+        if let Some(t) = Self::new_base(&doc.tree, text.cast()) {
+            Ok(TextNode { node_base: t })
+        } else {
+            Err(DOMError { msg: "TextNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> CDataSectionNode {
+    pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> Result<CDataSectionNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let cdata = lxb_dom_document_create_cdata_section(
             doc.node.cast(), data.as_ptr(), data.len());
-        CDataSectionNode { node_base: Self::new_base(
-            &doc.tree, cdata.cast()).expect("CDataSectionNode allocation failed") }
+        if let Some(c) = Self::new_base(&doc.tree, cdata.cast()) {
+            Ok(CDataSectionNode { node_base: c })
+        } else {
+            Err(DOMError { msg: "TextNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_comment_unchecked(doc: &NodeBase, data: &str) -> CommentNode {
+    pub(super) unsafe fn create_comment_unchecked(doc: &NodeBase, data: &str) -> Result<CommentNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let comment = lxb_dom_document_create_comment(
             doc.node.cast(), data.as_ptr(), data.len());
-        CommentNode { node_base: Self::new_base(
-            &doc.tree, comment.cast()).expect("CommentNode allocation failed") }
+        if let Some(c) = Self::new_base(&doc.tree, comment.cast()) {
+            Ok(CommentNode { node_base: c })
+        } else {
+            Err(DOMError { msg: "CommentNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_processing_instruction_unchecked(doc: &NodeBase, target: &str, data: &str) -> ProcessingInstructionNode {
+    pub(super) unsafe fn create_processing_instruction_unchecked(doc: &NodeBase, target: &str, data: &str)
+        -> Result<ProcessingInstructionNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let proc = lxb_dom_document_create_processing_instruction(
             doc.node.cast(), target.as_ptr(), target.len(), data.as_ptr(), data.len());
-        ProcessingInstructionNode { node_base: Self::new_base(
-            &doc.tree, proc.cast()).expect("ProcessingInstructionNode allocation failed") }
+        if let Some(p) = Self::new_base(&doc.tree, proc.cast()) {
+            Ok(ProcessingInstructionNode { node_base: p })
+        } else {
+            Err(DOMError { msg: "ProcessingInstructionNode allocation failed".to_owned() })
+        }
     }
 
-    pub(super) unsafe fn create_attribute_unchecked(doc: &NodeBase, local_name: &str) -> AttrNode {
+    pub(super) unsafe fn create_attribute_unchecked(doc: &NodeBase, local_name: &str) -> Result<AttrNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let attr = lxb_dom_attr_interface_create(doc.node.cast());
-        assert!(!attr.is_null(), "AttrNode allocation failed");
+        if attr.is_null() {
+            return Err(DOMError { msg: "AttrNode allocation failed".to_owned() })
+        }
 
         let status = unsafe {
             lxb_dom_attr_set_name(attr, local_name.as_ptr(), local_name.len(), true)
         };
         if status != lexbor_status_t::LXB_STATUS_OK {
             lxb_dom_attr_interface_destroy(attr);
-            panic!("Failed to set attribute name");
+            return Err(DOMError { msg: "Failed to set attribute name".to_owned() } );
         }
-        AttrNode { node_base: Self::new_base(&doc.tree, attr.cast()).unwrap_unchecked() }
+        Ok(AttrNode { node_base: Self::new_base(&doc.tree, attr.cast()).unwrap_unchecked() })
     }
 
     #[inline]
@@ -1226,37 +1262,37 @@ impl Document for DocumentNode {
         })
     }
 
-    fn create_element(&mut self, local_name: &str) -> ElementNode {
+    fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_element_unchecked(&self.node_base, local_name) }
     }
 
-    fn create_document_fragment(&mut self) -> DocumentFragmentNode {
+    fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_document_fragment_unchecked(&self.node_base) }
     }
 
-    fn create_text_node(&mut self, data: &str) -> TextNode {
+    fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_text_node_unchecked(&self.node_base, data) }
     }
 
-    fn create_cdata_section(&mut self, data: &str) -> CDataSectionNode {
+    fn create_cdata_section(&mut self, data: &str) -> Result<CDataSectionNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_cdata_section_unchecked(&self.node_base, data) }
     }
 
-    fn create_comment(&mut self, data: &str) -> CommentNode {
+    fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_comment_unchecked(&self.node_base, data) }
     }
 
-    fn create_processing_instruction(&mut self, target: &str, data: &str) -> ProcessingInstructionNode {
+    fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_processing_instruction_unchecked(&self.node_base, target, data) }
     }
 
-    fn create_attribute(&mut self, local_name: &str) -> AttrNode {
+    fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError> {
         assert!(!self.node_base.node.is_null());
         unsafe { NodeBase::create_attribute_unchecked(&self.node_base, local_name) }
     }
