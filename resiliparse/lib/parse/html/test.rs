@@ -511,10 +511,15 @@ fn create_nodes() {
 
     frag.append_child(&element.to_node());
     element.append(&[&text.into(), &comment.into(), &proc.into()]);
-    attr.set_value("foobar");
-    element.set_attribute_node(&attr);
-    element.set_attribute("abc", "def");
+    attr.set_value("abc");
+    assert_eq!(attr.node_value().unwrap(), "abc");
 
+    element.set_attribute_node(&attr);
+    assert!(element.has_attribute("class"));
+    element.set_attribute("class", "foobar");
+    assert_eq!(attr.node_value().unwrap(), "foobar");
+
+    element.set_attribute("abc", "def");
     assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
 
     // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
