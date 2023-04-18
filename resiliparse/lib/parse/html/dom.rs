@@ -1071,7 +1071,6 @@ impl NodeInterface for NodeBase {
         // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
         if let Node::DocumentFragment(d) = node {
             d.child_nodes().iter().for_each(|c| {
-                check_nodes!(self.as_noderef(), c.as_noderef());
                 unsafe { self.append_child_unchecked(&c); }
             });
             // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
