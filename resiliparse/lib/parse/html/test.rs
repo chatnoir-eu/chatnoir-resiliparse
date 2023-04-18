@@ -522,7 +522,8 @@ fn create_nodes() {
     element.set_attribute("abc", "def");
     assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
 
-    // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-    doc.first_element_child().unwrap().append_child(&frag.first_child().unwrap().into());
+    // Appending a DocumentFragment moves the child nodes into the document.
+    doc.first_element_child().unwrap().append_child(&Node::from(&frag));
     assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), element.to_node());
+    assert!(frag.first_child().is_none());
 }
