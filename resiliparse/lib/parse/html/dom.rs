@@ -390,7 +390,6 @@ pub trait ChildNode: NodeInterface {
         let node = self.upcast_mut();
         check_node!(node);
         unsafe { lxb_dom_node_remove(node.node); }
-        node.node = ptr::null_mut();
     }
 }
 
@@ -691,6 +690,19 @@ pub struct NodeBase {
     pub(super) node: *mut lxb_dom_node_t,
 }
 
+// Cannot be done until https://github.com/lexbor/lexbor/issues/132 is fixed
+// If you create lots of unparented DOMNodes, we may leak memory
+// impl Drop for NodeBase {
+//     fn drop(&mut self) {
+//         unsafe {
+//             if !self.node.is_null() && (*self.node).parent.is_null() && (*self.node).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
+//                 lxb_dom_node_destroy_deep(self.node);
+//                 self.node = ptr::null_mut();
+//             }
+//         }
+//     }
+// }
+
 impl PartialEq<NodeBase> for NodeBase {
     fn eq(&self, other: &Self) -> bool {
         self.node == other.node
@@ -856,8 +868,7 @@ impl NodeBase {
         Ok(AttrNode { node_base: Self::new_base(&doc.tree, attr.cast()).unwrap_unchecked() })
     }
 
-    #[inline]
-    unsafe fn can_have_children(&self) -> bool {
+    unsafe fn can_have_children_unchecked(&self) -> bool {
         matches!((*self.node).type_,
             lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
                 | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
@@ -867,7 +878,7 @@ impl NodeBase {
 
     unsafe fn insert_before_unchecked<'a>(&mut self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
         if let Some(c) = child {
-            if c.parent_node()? != *self || !self.can_have_children() ||  node.contains(c) {
+            if c.parent_node()? != *self || !self.can_have_children_unchecked() ||  node.contains(c) {
                 return None;
             }
             if node == c {
@@ -881,7 +892,7 @@ impl NodeBase {
     }
 
     unsafe fn append_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
-        if self.can_have_children() {
+        if self.can_have_children_unchecked() {
             lxb_dom_node_insert_child(self.node, node.node);
             Some(node)
         } else {
@@ -890,7 +901,7 @@ impl NodeBase {
     }
 
     unsafe fn replace_child_unchecked<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
-        if child.parent_node()? != *self || !self.can_have_children() {
+        if child.parent_node()? != *self || !self.can_have_children_unchecked() {
             return None;
         }
         if node == child {
@@ -902,18 +913,16 @@ impl NodeBase {
     }
 
     unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
-        if node.parent_node()? != *self || !self.can_have_children() {
+        if node.parent_node()? != *self || !self.can_have_children_unchecked() {
             return None;
         }
         lxb_dom_node_remove(node.node);
         Some(node)
     }
 
-    #[inline]
-    unsafe fn owner_document_ptr(&self) -> Option<*mut lxb_dom_document_t> {
-        let d = unsafe { self.node.as_ref()? }.owner_document;
-        if !d.is_null() { Some(d) }
-        else { None }
+    #[inline(always)]
+    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
+        (*self.node).owner_document
     }
 
     unsafe fn iter_raw(&self) -> NodeIteratorRaw {
@@ -984,7 +993,7 @@ impl NodeInterface for NodeBase {
             let mut l = 0;
             let t = lxb_dom_node_text_content(self.node, &mut l);
             ret_value = str_from_lxb_char_t(t, l).map(String::from);
-            lxb_dom_document_destroy_text_noi((*self.node).owner_document, t);
+            lxb_dom_document_destroy_text_noi(self.doc_ptr_unchecked(), t);
         }
         ret_value
     }
@@ -996,8 +1005,12 @@ impl NodeInterface for NodeBase {
 
     fn owner_document(&self) -> Option<DocumentNode> {
         check_node!(self);
-        let d = unsafe { self.owner_document_ptr()? };
-        Some(Self::wrap_node(&self.tree, d.cast())?.into())
+        let d = unsafe { self.doc_ptr_unchecked() };
+        if !d.is_null() {
+            Some(Self::wrap_node(&self.tree, d.cast())?.into())
+        } else {
+            None
+        }
     }
 
     /// Parent of this node.
@@ -1257,7 +1270,7 @@ impl Document for DocumentNode {
     fn doctype(&self) -> Option<DocumentTypeNode> {
         check_node!(self.node_base);
         unsafe {
-            let doctype = (*self.node_base.owner_document_ptr()?).doctype;
+            let doctype = (*self.node_base.doc_ptr_unchecked().as_ref()?).doctype;
             let base = NodeBase::new_base(&self.node_base.tree, doctype.cast())?;
             Some(DocumentTypeNode { node_base: base })
         }
@@ -1628,7 +1641,7 @@ impl Element for ElementNode {
                 next = lxb_dom_node_next_noi(next);
             };
             let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
-            lexbor_str_destroy(html_str, (*(*self.node_base.node).owner_document).text, true);
+            lexbor_str_destroy(html_str, (*self.node_base.doc_ptr_unchecked()).text, true);
             s
         }
     }
@@ -1645,6 +1658,9 @@ impl Element for ElementNode {
 
     fn set_outer_html(&mut self, html: &str) {
         check_node!(self.node_base);
+        if unsafe { *self.node_base.node }.parent.is_null() {
+            return;
+        }
         self.set_inner_html(html);
         unsafe {
             self.node_base.iter_raw().for_each(|n| {
@@ -2154,7 +2170,7 @@ dom_node_list_impl!(DOMTokenListMut);
 
 
 unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
-    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return None;
     }
@@ -2166,7 +2182,7 @@ unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
 }
 
 unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str) -> Vec<ElementNode> {
-    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
@@ -2176,7 +2192,7 @@ unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str) -
 }
 
 unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<ElementNode> {
-    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
@@ -2185,7 +2201,7 @@ unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<Ele
 }
 
 unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<ElementNode> {
-    let coll = lxb_dom_collection_create((*node.node).owner_document);
+    let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
