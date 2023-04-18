@@ -1304,38 +1304,59 @@ impl Document for DocumentNode {
     }
 
     fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_element_unchecked(&self.node_base, local_name) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_element_unchecked(&self.node_base, local_name) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_document_fragment_unchecked(&self.node_base) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_document_fragment_unchecked(&self.node_base) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_text_node_unchecked(&self.node_base, data) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_text_node_unchecked(&self.node_base, data) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_cdata_section(&mut self, data: &str) -> Result<CDataSectionNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_cdata_section_unchecked(&self.node_base, data) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_cdata_section_unchecked(&self.node_base, data) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_comment_unchecked(&self.node_base, data) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_comment_unchecked(&self.node_base, data) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_processing_instruction_unchecked(&self.node_base, target, data) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_processing_instruction_unchecked(&self.node_base, target, data) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 
     fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError> {
-        assert!(!self.node_base.node.is_null());
-        unsafe { NodeBase::create_attribute_unchecked(&self.node_base, local_name) }
+        if !self.node_base.node.is_null() {
+            unsafe { NodeBase::create_attribute_unchecked(&self.node_base, local_name) }
+        } else {
+            Err(DOMError { msg: "Invalid document.".to_owned()} )
+        }
     }
 }
 
