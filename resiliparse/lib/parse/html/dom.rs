@@ -1068,7 +1068,22 @@ impl NodeInterface for NodeBase {
 
     fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        unsafe { self.append_child_unchecked(node) }
+        // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+        if let Node::DocumentFragment(d) = node {
+            d.child_nodes().iter().for_each(|c| {
+                check_nodes!(self.as_noderef(), c.as_noderef());
+                unsafe { self.append_child_unchecked(&c); }
+            });
+            // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+            // See: https://github.com/lexbor/lexbor/issues/180
+            unsafe {
+                (*d.node_base.node).first_child = ptr::null_mut();
+                (*d.node_base.node).last_child = ptr::null_mut();
+            }
+            Some(node)
+        } else {
+            unsafe { self.append_child_unchecked(node) }
+        }
     }
 
     fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
