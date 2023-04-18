@@ -100,6 +100,13 @@ impl PartialEq<NodeBase> for Node {
     }
 }
 
+impl Display for Node {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.deref(), f)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NodeRef<'a> {
     Element(&'a ElementNode),
@@ -152,6 +159,13 @@ impl<'a> From<&'a Node> for NodeRef<'a> {
 impl PartialEq<NodeBase> for NodeRef<'_> {
     fn eq(&self, other: &NodeBase) -> bool {
         **self == *other
+    }
+}
+
+impl Display for NodeRef<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.deref(), f)
     }
 }
 
