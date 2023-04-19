@@ -884,7 +884,17 @@ impl NodeBase {
             if node == c {
                 return Some(node);
             }
-            lxb_dom_node_insert_before(c.node, node.node);
+            // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+            if let Node::DocumentFragment(d) = node {
+                d.child_nodes().iter().for_each(|c2| {
+                    lxb_dom_node_insert_before(c.node, c2.node);
+                });
+                // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+                (*d.node_base.node).first_child = ptr::null_mut();
+                (*d.node_base.node).last_child = ptr::null_mut();
+            } else {
+                lxb_dom_node_insert_before(c.node, node.node);
+            }
             Some(node)
         } else {
             self.append_child_unchecked(node)
