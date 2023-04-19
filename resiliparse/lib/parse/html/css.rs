@@ -19,9 +19,10 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::ptr::addr_of_mut;
 use std::rc::{Rc, Weak};
-use crate::parse::html::dom::{ElementNode, NodeBase, NodeRef, str_from_lxb_char_t};
+use crate::parse::html::dom::node::{ElementNode, NodeRef};
+use crate::parse::html::dom::node_base::NodeBase;
+use crate::parse::html::*;
 use crate::parse::html::tree::HTMLDocument;
-use crate::third_party::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::lxb_html_status_t::*;
 

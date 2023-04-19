@@ -13,8 +13,7 @@
 // limitations under the License.
 
 
-use crate::parse::html::dom::{str_from_dom_node, str_from_lxb_char_t, str_from_lxb_str_t};
-use crate::third_party::lexbor::*;
+use crate::parse::html::*;
 
 pub(super) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
     unsafe {

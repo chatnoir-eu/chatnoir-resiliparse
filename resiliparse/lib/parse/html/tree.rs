@@ -18,9 +18,10 @@ use std::ptr;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
 use std::str::FromStr;
+use crate::parse::html::*;
+use crate::parse::html::dom::node::*;
+use crate::parse::html::dom::node_base::NodeBase;
 
-use crate::parse::html::dom::{DocumentNode, ElementNode, NodeBase, str_from_lxb_char_t};
-use crate::third_party::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::LXB_STATUS_OK;
 
 
