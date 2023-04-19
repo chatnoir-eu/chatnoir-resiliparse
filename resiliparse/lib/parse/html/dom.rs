@@ -892,12 +892,21 @@ impl NodeBase {
     }
 
     unsafe fn append_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
-        if self.can_have_children_unchecked() {
-            lxb_dom_node_insert_child(self.node, node.node);
-            Some(node)
-        } else {
-            None
+        if !self.can_have_children_unchecked() {
+            return None;
         }
+        // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+        if let Node::DocumentFragment(d) = node {
+            d.child_nodes().iter().for_each(|c| {
+                lxb_dom_node_insert_child(self.node, c.node);
+            });
+            // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+            (*d.node_base.node).first_child = ptr::null_mut();
+            (*d.node_base.node).last_child = ptr::null_mut();
+        } else {
+            lxb_dom_node_insert_child(self.node, node.node);
+        }
+        Some(node)
     }
 
     unsafe fn replace_child_unchecked<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
@@ -1095,21 +1104,7 @@ impl NodeInterface for NodeBase {
 
     fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
         check_nodes!(self, node);
-        // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-        if let Node::DocumentFragment(d) = node {
-            d.child_nodes().iter().for_each(|c| {
-                unsafe { self.append_child_unchecked(&c); }
-            });
-            // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-            // See: https://github.com/lexbor/lexbor/issues/180
-            unsafe {
-                (*d.node_base.node).first_child = ptr::null_mut();
-                (*d.node_base.node).last_child = ptr::null_mut();
-            }
-            Some(node)
-        } else {
-            unsafe { self.append_child_unchecked(node) }
-        }
+        unsafe { self.append_child_unchecked(node) }
     }
 
     fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
