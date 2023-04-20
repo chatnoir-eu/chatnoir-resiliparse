@@ -15,9 +15,11 @@
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::vec;
+
 use crate::parse::html::css::CSSParserError;
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node};
 use crate::parse::html::dom::traits::{Element, ParentNode};
+
 
 #[derive(Clone)]
 pub(super) struct NodeListClosure<T> {

@@ -13,9 +13,11 @@
 // limitations under the License.
 
 use std::ptr;
+
 use crate::parse::html::dom::node::{ElementNode, Node};
 use crate::parse::html::dom::node_base::NodeBase;
 use crate::third_party::lexbor::*;
+
 
 pub(super) struct NodeIteratorRaw {
     root: *mut lxb_dom_node_t,
