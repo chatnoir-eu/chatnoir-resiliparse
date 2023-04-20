@@ -18,11 +18,12 @@ use std::ptr;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
 use std::str::FromStr;
-use crate::parse::html::*;
+
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::node_base::NodeBase;
-
-use crate::third_party::lexbor::lexbor_status_t::LXB_STATUS_OK;
+use crate::parse::html::lexbor::*;
+use crate::third_party::lexbor::lexbor_status_t::*;
+use crate::third_party::lexbor::*;
 
 
 #[derive(Debug)]

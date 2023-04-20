@@ -16,12 +16,13 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
 use std::ptr::addr_of;
 use std::rc::Rc;
+
 use crate::parse::html::dom::coll::NodeList;
 use crate::parse::html::dom::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::traits::{Attr, Element, NodeInterface};
 use crate::parse::html::serialize::node_serialize_html;
-use crate::parse::html::*;
+use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
 
 

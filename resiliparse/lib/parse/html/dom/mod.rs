@@ -15,6 +15,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
+
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::node_base::NodeBase;
 use crate::parse::html::tree::HTMLDocument;
@@ -25,6 +26,7 @@ pub mod iter;
 pub mod node;
 pub mod node_base;
 pub mod traits;
+
 
 #[derive(Debug)]
 pub struct DOMError {

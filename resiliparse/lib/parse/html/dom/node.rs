@@ -14,10 +14,9 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
-use std::ptr::{addr_of_mut};
+use std::ptr::addr_of_mut;
 use std::rc::Rc;
 
-use crate::parse::html::*;
 use crate::parse::html::css::*;
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::*;
@@ -190,6 +189,7 @@ macro_rules! check_nodes {
 }
 
 pub(super) use check_nodes;
+use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
 
 
 macro_rules! define_node_type {
