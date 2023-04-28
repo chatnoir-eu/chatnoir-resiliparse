@@ -26,6 +26,7 @@ use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
 use crate::third_party::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
+use crate::third_party::lexbor::lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT;
 use crate::third_party::lexbor::lxb_html_status_t::*;
 
 
@@ -96,10 +97,10 @@ impl<'a> CSSSelectorList<'a> {
     }
 
     pub(super) unsafe fn match_elements_unchecked_reverse<T>(
-        &self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) {
+        &self, node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) {
         if let Some(t) = self.tree.upgrade() {
             lxb_selectors_find_reverse((*t.html_document).css.selectors,
-                                       root_node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
+                                       node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
     }
 
@@ -131,14 +132,18 @@ impl<'a> CSSSelectorList<'a> {
         }
     }
 
-    pub fn match_elements_reverse<T, F>(&self, root_node: NodeRef, cb: F, custom_data: &mut T)
+    pub fn match_elements_reverse<T, F>(&self, node: NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
-
+        unsafe {
+            if (*node.node).parent.is_null() || (*node.node).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
+                return;
+            }
+        }
         let tree = self.tree.upgrade().unwrap();
-        assert_eq!(tree.html_document, root_node.tree.html_document);
+        assert_eq!(tree.html_document, node.tree.html_document);
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Rc::downgrade(&tree), custom_data };
         unsafe {
-            self.match_elements_unchecked_reverse(root_node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
+            self.match_elements_unchecked_reverse(node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
     }
 }
