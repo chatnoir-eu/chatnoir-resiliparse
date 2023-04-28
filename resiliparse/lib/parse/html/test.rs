@@ -158,6 +158,14 @@ fn test_selection() {
     assert!(!tree.body().unwrap().matches(".barbaz").unwrap());
     assert!(!tree.body().unwrap().first_element_child().unwrap().matches("div").unwrap());
 
+    // Find closest matching ancestor (or self)
+    assert_eq!(tree.body().unwrap().closest("body").unwrap().unwrap(), tree.body().unwrap());
+    assert!(tree.body().unwrap().closest("htmlx").unwrap().is_none());
+    assert_eq!(tree.body().unwrap().closest("html").unwrap().unwrap(), tree.document().unwrap().first_element_child().unwrap());
+    let child = tree.body().unwrap().query_selector(".bar").unwrap().unwrap();
+    assert_eq!(child.closest("p").unwrap().unwrap(), tree.body().unwrap().query_selector("#a").unwrap().unwrap());
+    assert_eq!(child.closest("main").unwrap().unwrap(), tree.body().unwrap().query_selector("#foo").unwrap().unwrap());
+
     // Invalid CSS selectors
     assert!(tree.body().unwrap().query_selector("#a < abc").is_err());
     assert!(tree.body().unwrap().query_selector_all("#a < abc").is_err());

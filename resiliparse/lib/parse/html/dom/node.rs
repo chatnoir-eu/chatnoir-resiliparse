@@ -690,34 +690,30 @@ impl Element for ElementNode {
     }
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        if self.parent_node().is_none() {
-            return Ok(None);
+        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
+        let mut found = None;
+        let mut node = Some(self.to_node());
+        while let Some(n) = &node {
+            sel_list.match_elements_reverse(n.as_noderef(), |e, _, found| {
+                *found = Some(e.clone());
+                TraverseAction::Stop
+            }, &mut found);
+            if found.is_some() {
+                return Ok(found);
+            }
+            node = n.parent_node();
         }
-        let sel_list = CSSSelectorList::parse_selectors(
-            &self.upcast().tree, selectors)?;
-        let mut result = Vec::<ElementNode>::with_capacity(1);
-        sel_list.match_elements_reverse(self.as_noderef(), |node, _, ctx| {
-            ctx.push(node);
-            TraverseAction::Stop
-        }, &mut result);
-        Ok(result.pop())
+        Ok(None)
     }
 
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        let doc = self.owner_document();
-        let root = if doc.is_some() { doc.as_ref().unwrap().as_noderef() } else { self.as_noderef() };
-
         let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
-        let mut ctx = (false, self.as_noderef());
-        sel_list.match_elements(root, |e, _, ctx| {
-            if e.as_noderef() == ctx.1 {
-                ctx.0 = true;
-                TraverseAction::Stop
-            } else {
-                TraverseAction::Ok
-            }
-        }, &mut ctx);
-        Ok(ctx.0)
+        let mut found = false;
+        sel_list.match_elements_reverse(self.into(), |_, _, found| {
+            *found = true;
+            TraverseAction::Stop
+        }, &mut found);
+        Ok(found)
     }
 
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
