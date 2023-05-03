@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Tree traversal tools.
+//!
+//! Tools for iterating DOM (sub) trees.
+
 use std::ptr;
 
 use crate::parse::html::dom::node::{ElementNode, Node};

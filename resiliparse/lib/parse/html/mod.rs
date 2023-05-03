@@ -12,12 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+//! A high-performance HTML5 parsing library.
+//!
+//! The Resiliparse HTML5 parsing module implements a near-complete DOM API
+//! on top of the [Lexbor](https://lexbor.com/) parser library.
+
 pub mod dom;
 pub mod css;
-pub mod serialize;
 pub mod tree;
 
 mod lexbor;
+mod serialize;
 
 #[cfg(test)]
 mod test;

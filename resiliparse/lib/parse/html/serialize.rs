@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+//! Internal helper tools for serializing to HTML5 bytes.
+
+
 use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::*;
 

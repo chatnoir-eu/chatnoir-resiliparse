@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! CSS DOM matching utilities.
 
 use std::error::Error;
 use std::ffi::c_void;

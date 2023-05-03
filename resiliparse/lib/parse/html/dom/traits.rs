@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+//! Node type traits (abstract).
+//!
+//! Abstract DOM node type interfaces.
+
 use std::cmp::max;
 use std::fmt::{Debug, Display};
 use std::ops::Add;

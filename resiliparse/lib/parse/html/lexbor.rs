@@ -13,6 +13,8 @@
 // limitations under the License.
 
 
+//! Internal Lexbor helpers.
+
 use std::slice;
 use std::ptr::{addr_of, addr_of_mut};
 use crate::third_party::lexbor::*;
