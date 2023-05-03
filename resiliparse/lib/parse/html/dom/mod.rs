@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! DOM API types and methods.
+
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Node base type (abstract).
+//!
+//! Common DOM node base methods supported by all concrete node types.
+
 use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
 use std::ptr::addr_of;
@@ -27,6 +31,9 @@ use crate::parse::html::tree::HTMLDocument;
 
 
 /// Base DOM node implementation.
+///
+/// A `NodeBase` is not supposed to be instantiated or used directly. Use types from
+/// the [node] module instead.
 #[derive(Clone)]
 pub struct NodeBase {
     pub(in super::super) tree: Rc<HTMLDocument>,

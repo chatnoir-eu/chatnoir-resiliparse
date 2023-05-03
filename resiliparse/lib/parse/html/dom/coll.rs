@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Node and element collections.
+//!
+//! Node and element collection types for storing the results of DOM matching operations.
+
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::vec;

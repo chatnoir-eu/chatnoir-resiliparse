@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! HTML parser and DOM tree handle.
+
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
@@ -26,6 +28,7 @@ use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
 
 
+/// HTML parser error.
 #[derive(Debug)]
 pub struct HTMLParserError {
     msg: String
@@ -40,6 +43,7 @@ impl Display for HTMLParserError {
 impl Error for HTMLParserError {}
 
 
+/// CSS parsing error.
 #[derive(Debug)]
 pub struct CSSParserError {
     msg: String
@@ -54,13 +58,16 @@ impl Display for CSSParserError {
 impl Error for CSSParserError {}
 
 
-/// HTML tree handler.
+/// HTML DOM tree handle.
 pub struct HTMLTree {
     doc_rc: Rc<HTMLDocument>
 }
 
 impl HTMLTree {
-    /// Parse HTML from a Unicode str into a DOM tree.
+    /// Parse HTML from a Unicode `str` into a DOM tree.
+    ///
+    /// Constructs a DOM tree from the given HTML input string.
+    /// Returns an [HTMLParserError] if the input could not be processed.
     pub fn parse(html: &str) -> Result<Self, HTMLParserError> {
         let doc_ptr;
         unsafe {
@@ -82,7 +89,9 @@ impl HTMLTree {
 impl FromStr for HTMLTree {
     type Err = HTMLParserError;
 
-    /// Parse HTML from a Unicode str into a DOM tree.
+    /// Parse HTML from a Unicode `str` into a DOM tree.
+    ///
+    /// This is an alias for [HTMLTree::parse].
     #[inline]
     fn from_str(html: &str) -> Result<Self, Self::Err> {
         Self::parse(html)
@@ -92,7 +101,9 @@ impl FromStr for HTMLTree {
 impl TryFrom<&str> for HTMLTree {
     type Error = HTMLParserError;
 
-    /// Parse HTML from a Unicode str into a DOM tree.
+    /// Parse HTML from a Unicode `str` into a DOM tree.
+    ///
+    /// This is an alias for [HTMLTree::parse].
     #[inline]
     fn try_from(html: &str) -> Result<Self, Self::Error> {
         Self::parse(html)
@@ -102,7 +113,9 @@ impl TryFrom<&str> for HTMLTree {
 impl TryFrom<String> for HTMLTree {
     type Error = HTMLParserError;
 
-    /// Parse HTML from a Unicode str into a DOM tree.
+    /// Parse HTML from a Unicode `String` into a DOM tree.
+    ///
+    /// This is an alias for [HTMLTree::parse], but accepts an owned `String`.
     #[inline]
     fn try_from(html: String) -> Result<Self, Self::Error> {
         Self::parse(html.as_str())
@@ -113,7 +126,9 @@ impl TryFrom<&[u8]> for HTMLTree {
     type Error = HTMLParserError;
 
     /// Decode a raw HTML byte string and parse it into a DOM tree.
-    /// The bytes must be a valid UTF-8 encoding. Invalid characters will be replaced with U+FFFD.
+    /// The bytes must be a valid UTF-8 encoding. Invalid characters will be replaced with `U+FFFD`.
+    ///
+    /// This is an alias for [HTMLTree::parse], but accepts raw bytes.
     #[inline]
     fn try_from(html: &[u8]) -> Result<Self, Self::Error> {
         Self::parse(String::from_utf8_lossy(html).to_mut())
@@ -121,37 +136,40 @@ impl TryFrom<&[u8]> for HTMLTree {
 }
 
 impl HTMLTree {
+    /// Get Lexbor raw pointer to HTML document.
     fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
         unsafe { self.doc_rc.html_document.as_mut() }
     }
 
     #[inline]
+    /// Get DOM document root node.
     pub fn document(&self) -> Option<DocumentNode> {
         Some(NodeBase::wrap_node(
             &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document.node))?.into())
     }
 
+    /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
         Some(ElementNode {
             node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?
         })
     }
 
+    /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
         Some(ElementNode {
             node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?
         })
     }
 
-    pub unsafe fn title_unchecked(&self) -> Option<&str> {
-        let mut size = 0;
-        let t = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(size));
-        str_from_lxb_char_t(t, size)
-    }
-
+    /// Get HTML `<title>` contents as string.
     #[inline]
     pub fn title(&self) -> Option<String> {
-        unsafe { Some(self.title_unchecked()?.to_owned()) }
+        unsafe {
+            let mut size = 0;
+            let t = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(size));
+            Some(str_from_lxb_char_t(t, size)?.to_owned())
+        }
     }
 }
 
