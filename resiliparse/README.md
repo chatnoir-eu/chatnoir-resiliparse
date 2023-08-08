@@ -14,7 +14,8 @@ pip install resiliparse
 You can compile Resiliparse either from the PyPi source package or directly from this repository, though in any case, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
 ```bash
 # Add Lexbor repository
-curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+curl -sL https://lexbor.com/keys/lexbor_signing.key | \
+  sudo gpg --dearmor --output /etc/apt/trusted.gpg.d/lexbor.gpg
 echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
     sudo tee /etc/apt/sources.list.d/lexbor.list
 

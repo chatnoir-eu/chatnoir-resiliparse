@@ -55,7 +55,8 @@ For optimal performance, however, it is recommended to build FastWARC from sourc
 To build Resiliparse or FastWARC from sources, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
 ```bash
 # Add Lexbor repository
-curl -L https://lexbor.com/keys/lexbor_signing.key | sudo apt-key add -
+curl -sL https://lexbor.com/keys/lexbor_signing.key | \
+  sudo gpg --dearmor --output /etc/apt/trusted.gpg.d/lexbor.gpg
 echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
     sudo tee /etc/apt/sources.list.d/lexbor.list
 
