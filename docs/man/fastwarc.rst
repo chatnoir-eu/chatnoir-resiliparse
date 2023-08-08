@@ -237,13 +237,31 @@ Note that both :meth:`~.WarcRecord.verify_block_digest` and :meth:`~.WarcRecord.
 If your records are very large, you need to ensure that they fit into memory entirely (e.g. by checking :attr:`record.content_length <.WarcRecord.content_length>`). If you do not want to preserve the stream contents, you can set ``consume=True`` as a parameter. This will avoid the creation of a stream copy altogether and fully consume the rest of the record instead.
 
 
+.. _fastwarc-clueweb:
+
+ClueWeb Notes
+-------------
+FastWARC is a standards-compliant WARC parser. Unfortunately, the `ClueWeb <https://lemurproject.org/>`__ authors were somewhat creative with the standard. If you work with these datasets, you will inevitably notice certain defects in the files that result in premature stream aborts. This applies both to the old ClueWeb09 as well as the new ClueWeb22. Following is a list of known ClueWeb WARC defects and how to work around them:
+
+ClueWeb09
+^^^^^^^^^
+The `ClueWeb09 <https://lemurproject.org/clueweb09.php/>`__ uses a non-standard WARC version and the WARC headers are separated by ``LF`` instead of ``CRLF`` line breaks. In addition, some header values contain line breaks without proper continuation indents and non-ASCII characters. To prevent FastWARC from choking on this creative WARC flavour, pass ``strict_mode=False`` to your :class:`.ArchiveIterator`.
+
+ClueWeb22
+^^^^^^^^^
+`ClueWeb22 <https://lemurproject.org/clueweb22.php/>`__ WARCs are a bit more predictable than ClueWeb09 WARCs, but have non-trivial defects nonetheless.
+
+*First*, the initial ``warcinfo`` records are missing the required ``Content-Length`` header, so we have to rely on heuristics to determine where the record ends. If ``strict_mode=False`` is set and the WARC is read from a GZip-compressed stream, FastWARC will attempt to use the internal buffer boundaries for determining the record end. If you are reading the WARC as an uncompressed file, FastWARC has to seek forward to the next valid ``WARC/1.1`` version line. In this case the record body will be skipped as empty. Without ``strict_mode=False``, FastWARC will stop after the first header block.
+
+*Second*, all records are of type ``response`` with ``Content-Type: application/http; msgtype=response``, yet they contain only the HTML body and not the full HTTP response (the correct record type would be ``resource`` with ``Content-Type: text/html``). This incorrect type description will trigger FastWARC's automatic HTTP parsing, which will result in empty or incomplete record bodies. To avoid this, explicitly set ``parse_http=False``.
+
 .. _fastwarc-benchmarks:
 
 Benchmarks
 ----------
 Depending on your CPU, your storage speed, and the WARC compression algorithm, you can typically expect speedups between 1.3x and 6.5x over WARCIO.
 
-The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record decompression and parsing performance on your own machine. The benchmarking results can be compared directly with WARCIO. Here are three example runs on an AMD Ryzen Threadripper 2920X (with NVMe SSD) over five `Common Crawl <https://commoncrawl.org/>`_ WARCs:
+The :ref:`fastwarc-cli` comes with a benchmarking tool for measuring WARC record decompression and parsing performance on your own machine. The benchmarking results can be compared directly with WARCIO. Here are three example runs on an AMD Ryzen Threadripper 2920X (with NVMe SSD) over five `Common Crawl <https://commoncrawl.org/>`__ WARCs:
 
 **Uncompressed WARC:**
 
