@@ -52,8 +52,8 @@ def exc_loop(it):
     while True:
         try:
             yield next(i), None
-        except StopIteration as e:
-            raise e
+        except StopIteration:
+            return
         except BaseException as e:
             yield None, e
 
@@ -112,8 +112,8 @@ def warc_retry(ArchiveIterator archive_iterator, stream_factory, retry_count=3, 
             next_rec = next(it)
             yield next_rec
             pos = next_rec.stream_pos
-        except StopIteration as e:
-            raise e
+        except StopIteration:
+            return
         except BaseException as e:
             retries += 1
             if retry_count and retries > retry_count:
