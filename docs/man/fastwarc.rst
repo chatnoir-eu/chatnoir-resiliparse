@@ -241,7 +241,7 @@ If your records are very large, you need to ensure that they fit into memory ent
 
 ClueWeb Notes
 -------------
-FastWARC is a standards-compliant WARC parser. Unfortunately, the `ClueWeb <https://lemurproject.org/>`__ authors were somewhat creative with the standard. If you work with these datasets, you will inevitably notice certain defects in the files that result in premature stream aborts. This applies both to the old ClueWeb09 as well as the new ClueWeb22. Following is a list of known ClueWeb WARC defects and how to work around them:
+FastWARC is a standards-compliant WARC parser. Unfortunately, the `ClueWeb <https://lemurproject.org/>`__ authors were somewhat creative with the standard. If you work with these datasets, you will inevitably notice certain defects in the files that result in premature stream aborts. This applies to both the old ClueWeb09 as well as the new ClueWeb22. Following is a list of known ClueWeb WARC defects and how to work around them:
 
 ClueWeb09
 ^^^^^^^^^
