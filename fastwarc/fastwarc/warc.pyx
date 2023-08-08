@@ -1135,8 +1135,8 @@ cdef class ArchiveIterator:
     :type func_filter: Callable
     :param verify_digests: skip records which have no or an invalid block digest
     :type verify_digests: bool
-    :param strict_mode: enforce strict spec compliance (setting this to ``False`` will enable quirks such
-                        as ``LF`` instead of ``CRLF`` for headers)
+    :param strict_mode: enforce strict spec compliance (setting this to ``False`` will enable quirks such as ``LF``
+                        instead of ``CRLF`` for headers, missing Content-Length or otherwise malformed records)
     :type strict_mode: bool
     :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
                         (accepted values: ``'none'`` [default], ``'content'``, ``'transfer'``, ``'all'``,
@@ -1206,7 +1206,6 @@ cdef class ArchiveIterator:
         cdef string version_line
         while True:
             version_line = self.reader.readline(self.strict_mode)
-
             if version_line.empty():
                 # EOF
                 return eof
@@ -1217,13 +1216,18 @@ cdef class ArchiveIterator:
                 continue
 
             version_line = strip_str(move(version_line))
-            if version_line.substr(0, 7) in [b'WARC/1.', b'WARC/0.']:
+
+            if version_line in [b'WARC/1.1', b'WARC/1.0'] \
+                    or (version_line.substr(0, 7) == b'WARC/0.' and version_line.length() <= 9):   # ClueWeb09/12 legacy
                 # OK, continue with parsing headers
                 self.record._headers.set_status_line(version_line)
                 break
             else:
-                # Not a WARC file or unsupported version
-                return eof
+                # Not a WARC record or unsupported version
+                if self.strict_mode:
+                    return eof
+                # Try to find next valid version line
+                continue
 
         parse_header_block(self.reader, self.record._headers, False, self.strict_mode)
 
@@ -1231,6 +1235,7 @@ cdef class ArchiveIterator:
         cdef size_t parse_count = 0
         cdef str_pair h
         cdef bint skip = False
+        cdef bint no_content_length = True
         for h in self.record._headers._headers:
             hkey = str_to_lower(h[0])
             if hkey == b'warc-type':
@@ -1239,12 +1244,18 @@ cdef class ArchiveIterator:
             elif hkey == b'content-length':
                 self.record._content_length = strtol(h[1].c_str(), NULL, 10)
                 parse_count += 1
+                no_content_length = False
             elif hkey == b'content-type' and h[1].find(b'application/http') == 0:
                 self.record._is_http = True
                 parse_count += 1
 
             if parse_count >= 3:
                 break
+
+        # ClueWeb22 warcinfo records have no Content-Length header.
+        # If reading from a compressed stream, assume it's the same as the internal buffer size
+        if not self.strict_mode and no_content_length and self.reader.stream_is_compressed:
+            self.record._content_length = self.reader.buf_view.size()
 
         # Check if record is to be skipped
         skip |= (self.record._record_type & self.record_type_filter) == 0
