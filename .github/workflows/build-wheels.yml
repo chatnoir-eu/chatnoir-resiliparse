@@ -26,7 +26,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
-      CIBW_MANYLINUX_X86_64_IMAGE: "webis/resiliparse-manylinux2014_x86_64"
+      CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
@@ -47,7 +47,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-10     # INCREMENT ME!!
+          key: ${{ runner.os }}-vcpkg-11     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -133,7 +133,7 @@ jobs:
   build-asan:
     runs-on: ubuntu-latest
     container:
-      image: webis/resiliparse-manylinux2014_x86_64
+      image: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
     env:
       DEBUG: "1"
       ASAN: "1"
@@ -159,7 +159,7 @@ jobs:
   build-coverage:
     runs-on: ubuntu-latest
     container:
-      image: webis/resiliparse-manylinux2014_x86_64
+      image: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
     needs: [ build-wheels, build-asan, build-sdist ]
     env:
       TRACE: "1"

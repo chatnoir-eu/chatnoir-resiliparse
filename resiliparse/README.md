@@ -19,7 +19,7 @@ curl -sL https://lexbor.com/keys/lexbor_signing.key | \
 echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
     sudo tee /etc/apt/sources.list.d/lexbor.list
 
-# Install build dependencies
+# Install build dependencies (requires libre2-dev>=2022-04-01)
 sudo apt update
 sudo apt install build-essential python3-dev libuchardet-dev liblexbor-dev libre2-dev
 ```
