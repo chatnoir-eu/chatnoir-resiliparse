@@ -14,51 +14,76 @@
 
 # distutils: language = c++
 
-from cython.operator cimport dereference as deref, predecrement as dec, preincrement as inc
-from libc.string cimport memmove
 from libcpp.string cimport string
 from resiliparse_inc.string_view cimport string_view
-from resiliparse_inc.cctype cimport isspace, tolower
+from resiliparse_inc.cctype cimport tolower
 
 
-cdef inline size_t lstrip_c_str(const char** s_ptr, size_t l) nogil:
-    """Strip leading white space from a C string."""
-    cdef const char* end = deref(s_ptr) + l
-    while deref(s_ptr) < end and isspace(deref(s_ptr)[0]):
-        inc(deref(s_ptr))
-    return end - deref(s_ptr)
+cdef extern from * nogil:
+    """
+    #include <cctype>
 
+    /**
+     * Strip leading white space from a C string.
+     */
+    inline size_t lstrip_c_str(const char** s_ptr, size_t l) {
+        const char* end = *s_ptr + l;
+        while (*s_ptr < end && std::isspace((*s_ptr)[0])) {
+            ++(*s_ptr);
+        }
+        return end - *s_ptr;
+    }
 
-cdef inline size_t rstrip_c_str(const char** s_ptr, size_t l) nogil:
-    """Strip trailing white space from a C string."""
-    cdef const char* end = deref(s_ptr) + l
-    while end > deref(s_ptr) and isspace((end - 1)[0]):
-        dec(end)
-    return end - deref(s_ptr)
+    /**
+     * Strip trailing white space from a C string.
+     */
+    inline size_t rstrip_c_str(const char** s_ptr, size_t l) {
+        const char* end = *s_ptr + l;
+        while (end > *s_ptr && std::isspace((end - 1)[0])) {
+            --end;
+        }
+        return end - *s_ptr;
+    }
 
+    /**
+     * Strip leading and trailing white space from a C string.
+     */
+    inline size_t strip_c_str(const char** s_ptr, size_t l) {
+        return rstrip_c_str(s_ptr, lstrip_c_str(s_ptr, l));
+    }
 
-cdef inline size_t strip_c_str(const char** s_ptr, size_t l) nogil:
-    """Strip leading and trailing white space from a C string."""
-    return rstrip_c_str(s_ptr, lstrip_c_str(s_ptr, l))
+    /**
+     * Strip trailing white space from a C++ string.
+     */
+    inline std::string rstrip_str(std::string&& s) {
+        const char* start = s.data();
+        size_t l = rstrip_c_str(&start, s.size());
+        if (l != s.size()) {
+            s.resize(l);
+        }
+        return s;
+    }
 
+    /**
+     * Strip leading and trailing white space from a C++ string.
+     */
+    inline std::string strip_str(std::string&& s) {
+        const char* start = s.data();
+        size_t l = strip_c_str(&start, s.size());
+        if (l != s.size()) {
+            memmove(s.data(), start, l);
+            s.resize(l);
+        }
+        return s;
+    }
+    """
 
-cdef inline string rstrip_str(string&& s) nogil:
-    """Strip trailing white space from a C++ string in-place."""
-    cdef const char* start = s.data()
-    cdef size_t l = rstrip_c_str(&start, s.size())
-    if l != s.size():
-        s.resize(l)
-    return s
+    cdef size_t rstrip_c_str(const char** s_ptr, size_t l)
+    cdef size_t lstrip_c_str(const char** s_ptr, size_t l)
+    cdef size_t strip_c_str(const char** s_ptr, size_t l)
 
-
-cdef inline string strip_str(string&& s) nogil:
-    """Strip leading and trailing white space from a C++ string in-place."""
-    cdef const char* start = s.data()
-    cdef size_t l = strip_c_str(&start, s.size())
-    if l != s.size():
-        memmove(s.data(), start, l)
-        s.resize(l)
-    return s
+    cdef string rstrip_str(string s)
+    cdef string strip_str(string s)
 
 
 cdef inline string_view strip_sv(string_view s) nogil:

@@ -616,7 +616,7 @@ cdef class WarcRecord:
         if content_type.empty():
             return None
 
-        content_type = strip_str(move(content_type.substr(0, content_type.find(<char*>b';'))))
+        content_type = strip_str(content_type.substr(0, content_type.find(<char*>b';')))
         return content_type.decode(self._http_headers._enc, errors='ignore')
 
     @property
@@ -646,7 +646,7 @@ cdef class WarcRecord:
         if pos_end != strnpos:
             pos_end = pos_end - pos
 
-        self._http_charset = str_to_lower(strip_str(move(content_type.substr(pos, pos_end))))
+        self._http_charset = str_to_lower(strip_str(content_type.substr(pos, pos_end)))
         try:
             codecs.lookup(self._http_charset.decode(errors='ignore'))
         except LookupError:
@@ -806,9 +806,9 @@ cdef class WarcRecord:
             while not enc_str.empty() and delim_pos != strnpos:
                 delim_pos = enc_str.find(b',', prev_delim_pos)
                 if delim_pos != strnpos:
-                    enc_name = strip_str(move(enc_str.substr(prev_delim_pos, delim_pos - prev_delim_pos)))
+                    enc_name = strip_str(enc_str.substr(prev_delim_pos, delim_pos - prev_delim_pos))
                 else:
-                    enc_name = strip_str(move(enc_str.substr(prev_delim_pos)))
+                    enc_name = strip_str(enc_str.substr(prev_delim_pos))
                 if not enc_name.empty():
                     encodings.push_back(enc_name)
                 enc_name.clear()
