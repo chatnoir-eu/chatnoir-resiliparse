@@ -78,7 +78,7 @@ cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx
 
 
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* parser, const lxb_char_t* selector,
-                                                  size_t selector_len) nogil except NULL:
+                                                  size_t selector_len) except NULL nogil:
     cdef lxb_css_selector_list_t* sel_list = lxb_css_selectors_parse(parser, selector, selector_len)
     cdef string err
     if parser.status != LXB_STATUS_OK:
@@ -281,7 +281,7 @@ cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_cs
 
 
 cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
-                                         const char* selector, size_t selector_len) nogil except <lxb_dom_node_t*>-1:
+                                         const char* selector, size_t selector_len) except <lxb_dom_node_t*>-1 nogil:
     """
     Return a pointer to the first element matching the given CSS selector.
 
@@ -308,7 +308,7 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
 
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree,
                                                    const char* selector, size_t selector_len,
-                                                   size_t init_size=32) nogil except <lxb_dom_collection_t*>-1:
+                                                   size_t init_size=32) except <lxb_dom_collection_t*>-1 nogil:
     """
     Return a collection of elements matching the given CSS selector.
 
@@ -866,7 +866,7 @@ cdef class DOMNode:
                                                    <const lxb_char_t*>attr_name_bytes, len(attr_name_bytes))
 
     cdef bint _getattr_impl(self, const char* attr_name, size_t attr_name_len,
-                            const char** attr_out_value, size_t* attr_out_len) nogil except -1:
+                            const char** attr_out_value, size_t* attr_out_len) except -1 nogil:
         """
         Get an attribute value as bytes.
         The output value is owned by the DOM tree, so the caller must not take ownership of the returned pointer!
@@ -932,7 +932,7 @@ cdef class DOMNode:
         return value
 
     cdef bint _setattr_impl(self, const char* attr_name, size_t attr_name_len,
-                            const char* attr_value, size_t attr_value_len) nogil except -1:
+                            const char* attr_value, size_t attr_value_len) except -1 nogil:
         """
         Insert or update an attribute with the given value. Node must be an element node.
         
@@ -994,7 +994,7 @@ cdef class DOMNode:
         """
         self.setattr(attr_name, attr_value)
 
-    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) nogil except -1:
+    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) except -1 nogil:
         """
         Remove the given attribute.
 

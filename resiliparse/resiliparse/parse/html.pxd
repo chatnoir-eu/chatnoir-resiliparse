@@ -27,7 +27,7 @@ cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser)
 cdef void create_css_selectors(lxb_css_parser_t* parser) nogil
 cdef void destroy_css_selectors(lxb_css_parser_t* parser) nogil
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
-                                                  size_t selector_len) nogil except NULL
+                                                  size_t selector_len) except NULL nogil
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
                                size_t* depth=*, bint* end_tag=*) nogil
@@ -67,10 +67,10 @@ cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node,
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node,
                                                          const char* tag_name, size_t tag_name_len) nogil
 cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
-                                         const char* selector, size_t select_len) nogil except <lxb_dom_node_t*>-1
+                                         const char* selector, size_t select_len) except <lxb_dom_node_t*>-1 nogil
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree,
                                                    const char* selector, size_t selector_len,
-                                                   size_t init_size=*) nogil except <lxb_dom_collection_t*>-1
+                                                   size_t init_size=*) except <lxb_dom_collection_t*>-1 nogil
 cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) nogil
 
 cdef extern from "html.h" nogil:
@@ -94,12 +94,12 @@ cdef class DOMNode:
 
     cpdef bint hasattr(self, str attr_name) except -1
     cdef bint _getattr_impl(self, const char* attr_name, size_t attr_name_len,
-                            const char** attr_out_value, size_t* attr_out_len) nogil except -1
+                            const char** attr_out_value, size_t* attr_out_len) except -1 nogil
     cpdef str getattr(self, str attr_name, str default_value=*)
     cdef bint _setattr_impl(self, const char* attr_name, size_t attr_name_len,
-                            const char* attr_value, size_t attr_value_len) nogil except -1
+                            const char* attr_value, size_t attr_value_len) except -1 nogil
     cpdef setattr(self, str attr_name, str attr_value)
-    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) nogil except -1
+    cdef bint _delattr_impl(self, const char* attr_name, size_t attr_name_len) except -1 nogil
     cpdef delattr(self, str attr_name)
 
     cpdef DOMNode get_element_by_id(self, str element_id, bint case_insensitive=*)
