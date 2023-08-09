@@ -461,10 +461,10 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
             return body_depth <= 5 or not _is_link_cluster(node, 0.6, 800)
         return True
 
-    cdef string cls_and_id_attr_str = cls_attr.as_string()
+    cdef string cls_and_id_attr_str = <string>cls_attr
     if not cls_and_id_attr_str.empty():
         cls_and_id_attr_str.push_back(b' ')
-    cls_and_id_attr_str.append(id_attr.as_string())
+    cls_and_id_attr_str.append(<string>id_attr)
     cdef StringPiece cls_and_id_attr = StringPiece(cls_and_id_attr_str)
 
     # Hidden elements

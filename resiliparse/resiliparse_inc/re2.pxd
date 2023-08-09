@@ -3,46 +3,30 @@ from libcpp.map cimport map
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from resiliparse_inc.string_view cimport string_view
 
-
+# Alias for std::string_view in newer versions. Might be able to remove some day.
 cdef extern from "<re2/stringpiece.h>" namespace "re2" nogil:
     cdef cppclass StringPiece:
         StringPiece()
-        StringPiece(const string_view& str)
+        StringPiece(const StringPiece& str)
         StringPiece(const string& str)
         StringPiece(const char* str)
         StringPiece(const char* str, size_t len)
 
-        const char* begin() const
-        const char* end() const
-
-        size_t size() const
-        size_t length() const
+        StringPiece& operator=(const StringPiece& view)
         bint empty() const
-        const char& operator[](size_t i) const
+        size_t size() const
+        StringPiece substr(size_t pos, size_t count) const
+        StringPiece substr(size_t pos) const
+        StringPiece substr() const
+        size_t find(const char* s, size_t pos)
+        size_t find(const char* s)
+        const char& operator[](size_t pos) const
         const char* data() const
-        void remove_prefix(size_t n)
-        void remove_suffix(size_t n)
-        void set(const char * str)
-        void set(const char * str, size_t len)
-
-        string as_string() const
-        string ToString() const
-        void CopyToString(string* target) const
-        void AppendToString(string* target) const
-        size_t copy(char * buf, size_t n, size_t pos = 0)
-        int compare(const StringPiece& x) const
-        bint starts_with(const StringPiece& x) const
-        bint ends_with(const StringPiece& x) const
-        bint ends_with(const StringPiece& x) const
-
-        size_t find(const StringPiece& s, size_t pos = 0) const
-        size_t find(char c, size_t pos = 0) const
-        size_t rfind(const StringPiece& s) const
-        size_t rfind(const StringPiece& s, size_t pos) const
-        size_t rfind(char c) const
-        size_t rfind(char c, size_t pos) const
+        const char& front()
+        const char& back()
+        StringPiece remove_prefix(size_t n)
+        StringPiece remove_suffix(size_t n)
 
 
 cdef extern from "<re2/re2.h>" namespace "re2::Options" nogil:
