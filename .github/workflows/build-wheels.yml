@@ -55,24 +55,25 @@ jobs:
         run: |
           set -e
           
+          VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports install"
           # abseil is an automatic dependency of re2, but we need to build it with -std=c++17
           PKG_LIST="abseil[cxx17] lexbor-shared lz4 re2 uchardet zlib"
           
+          export VCPKG_BUILD_TYPE=release
+          
           # MacOS
-          if [ -d /usr/local/share/vcpkg/ports ]; then
-            cp -rv .vcpkg/ports/* /usr/local/share/vcpkg/ports
-            
+          if [ -d /usr/local/share/vcpkg/ports ]; then            
             export VCPKG_DEFAULT_TRIPLET=x64-osx
-            vcpkg install $PKG_LIST
+            $VCPKG_CMD $PKG_LIST
             
             export VCPKG_DEFAULT_TRIPLET=arm64-osx
-            vcpkg install $PKG_LIST
+            $VCPKG_CMD $PKG_LIST
             
           # Windows
           elif [ -d /c/vcpkg ]; then
             cp -rv .vcpkg/ports/* /c/vcpkg/ports
             export VCPKG_DEFAULT_TRIPLET=x64-windows
-            vcpkg install $PKG_LIST
+            $VCPKG_CMD $PKG_LIST
           
           else
             exit 1
