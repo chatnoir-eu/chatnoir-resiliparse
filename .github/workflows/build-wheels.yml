@@ -55,7 +55,8 @@ jobs:
         run: |
           set -e
           
-          PKG_LIST="lz4 lexbor-shared uchardet zlib re2"
+          # abseil is an automatic dependency of re2, but we need to build it with -std=c++17
+          PKG_LIST="abseil[cxx17] lexbor-shared lz4 re2 uchardet zlib"
           
           # MacOS
           if [ -d /usr/local/share/vcpkg/ports ]; then
