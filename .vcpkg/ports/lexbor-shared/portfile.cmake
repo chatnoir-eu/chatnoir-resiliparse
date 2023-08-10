@@ -1,7 +1,7 @@
 vcpkg_download_distfile(ARCHIVE
-    URLS "https://github.com/lexbor/lexbor/archive/31270b1dfe8851f3779ca13d6efaae128178925f.zip"
-    FILENAME "v2.1.0git.zip"
-    SHA512 9849bd13f289ee907dc890a3f11ec73b552bf57054b6a07f0c9d2319026c88b416a710c3bfc452c4ede146689c192cc1cd52115b8e8ead085cb13ba548643a6b
+    URLS "https://github.com/lexbor/lexbor/archive/refs/tags/v2.2.0.tar.gz"
+    FILENAME "v2.2.0"
+    SHA512 26bbca3b41a417cbc59ba8cf736e1611966fc2202de85aabf621b840565d835e7e5ffc1b0294defc16ec883f9fb94e802bd19ed704be35fa79b41566acc05cbc
 )
 
 vcpkg_extract_source_archive_ex(
@@ -22,4 +22,3 @@ file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/le
 # Delete empty folders and duplicate files
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/include/lexbor/html/tree/insertion_mode")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
-

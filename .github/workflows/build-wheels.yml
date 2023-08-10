@@ -47,7 +47,7 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-11     # INCREMENT ME!!
+          key: ${{ runner.os }}-vcpkg-12     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -55,7 +55,7 @@ jobs:
         run: |
           set -e
           
-          PKG_LIST="lz4 lexbor uchardet zlib re2"
+          PKG_LIST="lz4 lexbor-shared uchardet zlib re2"
           
           # MacOS
           if [ -d /usr/local/share/vcpkg/ports ]; then
