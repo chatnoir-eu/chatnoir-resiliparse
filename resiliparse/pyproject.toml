@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Resiliparse"
-version = "0.14.4"
+version = "0.14.5"
 description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
 authors = [
   { name = "Janek Bevendorff" }
@@ -13,7 +13,7 @@ license = { text = "Apache License 2.0" }
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-  "fastwarc==0.14.4"
+  "fastwarc==0.14.5"
 ]
 
 [project.urls]
