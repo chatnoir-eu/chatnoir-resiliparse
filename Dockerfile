@@ -13,9 +13,10 @@ RUN set -x \
     && (cd lexbor-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_LIBDIR=lib64 \
             -DCMAKE_INSTALL_PREFIX=/usr \
-            -DBUILD_SHARED_LIBS=ON \
+            -DLEXBOR_BUILD_SHARED=ON \
+            -DLEXBOR_BUILD_STATIC=OFF \
+            -DLEXBOR_OPTIMIZATION_LEVEL=-O3 \
             -B build \
         && cmake --build build -j$(nproc) --target install) \
     && rm -rf lexbor*

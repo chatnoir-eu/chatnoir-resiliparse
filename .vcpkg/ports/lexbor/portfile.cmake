@@ -13,6 +13,7 @@ vcpkg_cmake_configure(
     OPTIONS
     -DLEXBOR_BUILD_SHARED=${BUILD_SHARED}
     -DLEXBOR_BUILD_STATIC=${BUILD_STATIC}
+    -DLEXBOR_OPTIMIZATION_LEVEL=-O3
 )
 vcpkg_cmake_install()
 vcpkg_copy_pdbs()

@@ -57,7 +57,7 @@ def get_cpp_args():
 
     elif CXX == 'msvc':
         cpp_args.update(dict(
-            extra_compile_args=['/std:c++latest', '/W3'],
+            extra_compile_args=['/std:c++latest', '/W3', '/O2'],
             extra_link_args=[]
         ))
         if DEBUG:
