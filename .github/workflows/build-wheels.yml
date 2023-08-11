@@ -56,8 +56,7 @@ jobs:
           set -e
 
           VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports --overlay-triplets .vcpkg/triplets install"
-          # abseil is an automatic dependency of re2, but we need to build it with -std=c++17
-          PKG_LIST="abseil[cxx17] lexbor lz4 re2 uchardet zlib"
+          PKG_LIST="lexbor lz4 re2 uchardet zlib"
 
           if [ -d /usr/local/share/vcpkg/ports ]; then
             # MacOS
