@@ -47,35 +47,27 @@ jobs:
           path: |
             /usr/local/share/vcpkg/installed
             C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-12     # INCREMENT ME!!
+          key: ${{ runner.os }}-vcpkg-13     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -e
-          
-          VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports install"
+
+          VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports --overlay-triplets .vcpkg/triplets install"
           # abseil is an automatic dependency of re2, but we need to build it with -std=c++17
-          PKG_LIST="abseil[cxx17] lexbor-shared lz4 re2 uchardet zlib"
-          
-          export VCPKG_BUILD_TYPE=release
-          
-          # MacOS
-          if [ -d /usr/local/share/vcpkg/ports ]; then            
-            export VCPKG_DEFAULT_TRIPLET=x64-osx
-            $VCPKG_CMD $PKG_LIST
-            
-            export VCPKG_DEFAULT_TRIPLET=arm64-osx
-            $VCPKG_CMD $PKG_LIST
-            
-          # Windows
+          PKG_LIST="abseil[cxx17] lexbor lz4 re2 uchardet zlib"
+
+          if [ -d /usr/local/share/vcpkg/ports ]; then
+            # MacOS
+            $VCPKG_CMD --triplet=x64-osx $PKG_LIST
+            $VCPKG_CMD --triplet=arm64-osx $PKG_LIST
           elif [ -d /c/vcpkg ]; then
-            cp -rv .vcpkg/ports/* /c/vcpkg/ports
-            export VCPKG_DEFAULT_TRIPLET=x64-windows
-            $VCPKG_CMD $PKG_LIST
-          
+            # Windows
+            $VCPKG_CMD --triplet=x64-windows $PKG_LIST
           else
+            echo "Unsupported platform." >&2
             exit 1
           fi
 
