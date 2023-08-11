@@ -14,6 +14,7 @@
 
 import glob
 import os
+import platform
 import shutil
 import sys
 import warnings
@@ -55,6 +56,8 @@ def get_cpp_args():
         if ASAN:
             cpp_args['extra_compile_args'].append('-fsanitize=address')
             cpp_args['extra_link_args'].append('-fsanitize=address')
+        if platform.system() == 'Darwin':
+            cpp_args['extra_link_args'].append('-headerpad_max_install_names')
 
     elif CXX == 'msvc':
         cpp_args.update(dict(
