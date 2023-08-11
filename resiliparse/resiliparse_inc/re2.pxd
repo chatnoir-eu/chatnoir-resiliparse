@@ -2,31 +2,7 @@ from libc.stdint cimport int64_t
 from libcpp.map cimport map
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-
-
-# Alias for std::string_view in newer versions. Might be able to remove some day.
-cdef extern from "<re2/stringpiece.h>" namespace "re2" nogil:
-    cdef cppclass StringPiece:
-        StringPiece()
-        StringPiece(const StringPiece str)
-        StringPiece(const string& str)
-        StringPiece(const char* str)
-        StringPiece(const char* str, size_t len)
-
-        StringPiece operator=(const StringPiece view)
-        bint empty() const
-        size_t size() const
-        StringPiece substr(size_t pos, size_t count) const
-        StringPiece substr(size_t pos) const
-        StringPiece substr() const
-        size_t find(const char* s, size_t pos)
-        size_t find(const char* s)
-        const char& operator[](size_t pos) const
-        const char* data() const
-        const char& front()
-        const char& back()
-        StringPiece remove_prefix(size_t n)
-        StringPiece remove_suffix(size_t n)
+from resiliparse_inc.string_view cimport string_view
 
 
 cdef extern from "<re2/re2.h>" namespace "re2::Options" nogil:
@@ -124,35 +100,37 @@ cdef extern from "<re2/re2.h>" namespace "re2" nogil:
         const map[string, int]& NamedCapturingGroups() const
         const map[int, string]& CapturingGroupNames() const
 
-        bint Match(const StringPiece text, size_t startpos, size_t endpos, Anchor re_anchor,
-                   StringPiece* submatch, int nsubmatch) const
-        bint CheckRewriteString(const StringPiece rewrite, string* error) const
-        bint Rewrite(string* out, const StringPiece rewrite, const StringPiece* vec, int veclen) const
+        bint Match(const string_view text, size_t startpos, size_t endpos, Anchor re_anchor,
+                   string_view* submatch, int nsubmatch) const
+        bint CheckRewriteString(const string_view rewrite, string* error) const
+        bint Rewrite(string* out, const string_view rewrite, const string_view* vec, int veclen) const
 
 
 cdef extern from "<re2/re2.h>" namespace "re2::RE2" nogil:
     cdef cppclass Arg
 
-    bint FullMatchN(const StringPiece text, const RE2& re, const Arg* const args[], int n)
-    bint PartialMatchN(const StringPiece text, const RE2& re, const Arg* const args[], int n)
-    bint ConsumeN(StringPiece* input, const RE2& re, const Arg* const args[], int n)
-    bint FindAndConsumeN(StringPiece* input, const RE2& re, const Arg* const args[], int n)
+    bint FullMatchN(const string_view text, const RE2& re, const Arg* const args[], int n)
+    bint PartialMatchN(const string_view text, const RE2& re, const Arg* const args[], int n)
+    bint ConsumeN(string_view* input, const RE2& re, const Arg* const args[], int n)
+    bint FindAndConsumeN(string_view* input, const RE2& re, const Arg* const args[], int n)
 
-    bint FullMatch(const StringPiece text, const RE2& re)
-    bint PartialMatch(const StringPiece text, const RE2& re)
-    bint Consume(StringPiece* input, const RE2& re)
-    bint FindAndConsume(StringPiece* input, const RE2& re)
+    bint FullMatch(const string_view text, const RE2& re)
+    bint PartialMatch(const string_view text, const RE2& re)
+    bint Consume(string_view* input, const RE2& re)
+    bint FindAndConsume(string_view* input, const RE2& re)
 
-    bint Replace(string* str, const RE2& re, const StringPiece rewrite)
-    int GlobalReplace(string* str, const RE2& re, const StringPiece rewrite)
-    bint Extract(const StringPiece text, const RE2& re, const StringPiece rewrite, string* out)
-    string QuoteMeta(const StringPiece unquoted)
-    int MaxSubmatch(const StringPiece rewrite)
+    bint Replace(string* str, const RE2& re, const string_view rewrite)
+    int GlobalReplace(string* str, const RE2& re, const string_view rewrite)
+    bint Extract(const string_view text, const RE2& re, const string_view rewrite, string* out)
+    string QuoteMeta(const string_view unquoted)
+    int MaxSubmatch(const string_view rewrite)
 
 
 # Stack assignable wrapper (Cython 0.29.x doesn't support cpp_locals yet)
 cdef extern from * nogil:
     """
+    #include <string_view>
+
     class RE2Stack {
     public:
         RE2Stack()
@@ -161,9 +139,9 @@ cdef extern from * nogil:
             : instance(new re2::RE2(pattern)) {}
         RE2Stack(const std::string& pattern)
             : instance(new re2::RE2(pattern)){}
-        RE2Stack(const re2::StringPiece pattern)
+        RE2Stack(const std::string_view pattern)
             : instance(new re2::RE2(pattern)) {}
-        RE2Stack(const re2::StringPiece pattern, const re2::RE2::Options& options)
+        RE2Stack(const std::string_view pattern, const re2::RE2::Options& options)
             : instance(new re2::RE2(pattern, options)) {}
         RE2Stack(const RE2Stack&) = delete;
         RE2Stack(RE2Stack&&) = delete;
@@ -194,9 +172,9 @@ cdef extern from * nogil:
         RE2Stack()
         RE2Stack(const char* pattern)
         RE2Stack(const string& pattern)
-        RE2Stack(const StringPiece pattern)
+        RE2Stack(const string_view pattern)
         RE2Stack(const string&, const Options& options)
         RE2Stack(const char* pattern, const Options& options)
-        RE2Stack(const StringPiece pattern, const Options& options)
+        RE2Stack(const string_view pattern, const Options& options)
 
         inline const RE2& operator()() const

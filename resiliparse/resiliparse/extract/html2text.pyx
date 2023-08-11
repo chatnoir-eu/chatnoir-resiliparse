@@ -25,7 +25,8 @@ from resiliparse_common.string_util cimport rstrip_str, strip_str, strip_sv
 from resiliparse_inc.cctype cimport isspace
 from resiliparse.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
-from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, StringPiece, PartialMatch
+from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, PartialMatch
+from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.utility cimport move
 
 
@@ -336,7 +337,7 @@ cdef RE2 logo_cls_regex = RE2(rb'(?:brand(?:ing)?[_-]*)?logo(?:$|\s)', re_opts)
 cdef RE2 print_cls_regex = RE2(rb'(?:^|\s)print[_-]', re_opts)
 
 
-cdef inline bint regex_search_not_empty(const StringPiece& s, const RE2& r) nogil:
+cdef inline bint regex_search_not_empty(const string_view s, const RE2& r) nogil:
     if s.empty():
         return False
     return PartialMatch(s, r())
@@ -453,8 +454,8 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
 
     # ------ Section 3: General class and ID matching ------
 
-    cdef StringPiece cls_attr = get_node_attr_sp(node, b'class')
-    cdef StringPiece id_attr = get_node_attr_sp(node, b'id')
+    cdef string_view cls_attr = get_node_attr_sv(node, b'class')
+    cdef string_view id_attr = get_node_attr_sv(node, b'id')
     # Only elements with class or id attributes from here on
     if cls_attr.empty() and id_attr.empty():
         if node.local_name == LXB_TAG_DIV:
@@ -465,11 +466,11 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     if not cls_and_id_attr_str.empty():
         cls_and_id_attr_str.push_back(b' ')
     cls_and_id_attr_str.append(<string>id_attr)
-    cdef StringPiece cls_and_id_attr = StringPiece(cls_and_id_attr_str)
+    cdef string_view cls_and_id_attr = <string_view>cls_and_id_attr_str
 
     # Hidden elements
     if regex_search_not_empty(cls_attr, display_cls_regex) \
-            or regex_search_not_empty(get_node_attr_sp(node, b'style'), display_css_regex):
+            or regex_search_not_empty(get_node_attr_sv(node, b'style'), display_css_regex):
         return False
 
     # Skip links

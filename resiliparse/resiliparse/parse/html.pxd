@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from libcpp.string cimport string
-from resiliparse_inc.re2 cimport StringPiece
 from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.lexbor cimport *
 
@@ -45,13 +44,6 @@ cdef inline string_view get_node_attr_sv(lxb_dom_node_t* node, const string& att
     cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
         <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
     return string_view(<const char*>node_attr_data, node_attr_len)
-
-cdef inline StringPiece get_node_attr_sp(lxb_dom_node_t* node, const string& attr) nogil:
-    """Get node attribute value as RE2 StringPiece."""
-    cdef size_t node_attr_len
-    cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
-        <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
-    return StringPiece(<const char*>node_attr_data, node_attr_len)
 
 cdef string get_node_text(lxb_dom_node_t* node) nogil
 
