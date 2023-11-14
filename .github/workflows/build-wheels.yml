@@ -134,7 +134,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3  # TODO: Upgrade to v4 causes GLIBC failures
+        uses: actions/checkout@v3  # TODO: Upgrade to @v4 causes GLIBC failures
         with:
           fetch-depth: 0
 
@@ -159,7 +159,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3  # TODO: Upgrade to @v4 causes GLIBC failures
         with:
           fetch-depth: 0
 
