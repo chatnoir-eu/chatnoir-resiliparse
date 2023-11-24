@@ -17,13 +17,11 @@ import os
 import platform
 import shutil
 import sys
-import warnings
 
 from Cython.Build import cythonize
 from Cython.Distutils.build_ext import new_build_ext as build_ext
 import distutils.ccompiler
 from setuptools import Extension, setup
-from setuptools.config import pyprojecttoml
 
 TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
@@ -32,8 +30,6 @@ ASAN = bool(int(os.getenv('ASAN', 0)))
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
-# noinspection PyProtectedMember
-warnings.simplefilter('ignore', pyprojecttoml._BetaConfiguration)
 
 def get_cpp_args():
     cpp_args = {}
