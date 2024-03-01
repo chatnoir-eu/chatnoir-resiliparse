@@ -26,9 +26,11 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
-      CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
+      CIBW_MANYLINUX_X86_64_IMAGE:  ghcr.io/jonded94/resiliparse-manylinux_2_28_x86_64  # replace with ${{ github.repository_owner }}
+      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/jonded94/resiliparse-manylinux_2_28_aarch64
       CIBW_ARCHS_MACOS: "x86_64 arm64"
-      CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
+      CIBW_ARCHS_LINUX: "x86_64 aarch64"
+      CIBW_TEST_SKIP: "*-macosx_arm64 *-manylinux_aarch64"    # Apple Silicon wheels cannot be tested
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
         DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
       CIBW_BEFORE_BUILD_WINDOWS: "python -m pip install delvewheel"
@@ -74,6 +76,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
@@ -152,7 +160,7 @@ jobs:
   build-coverage:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
+      image: ghcr.io/jonded94/resiliparse-manylinux_2_28_x86_64
     needs: [ build-wheels, build-asan, build-sdist ]
     env:
       TRACE: "1"
@@ -211,8 +219,8 @@ jobs:
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
 
           PYTHON_ABI="cp${PYTHON_VERSION/./}"
-          find wheelhouse -name "FastWARC-*-${PYTHON_ABI}-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
-          find wheelhouse -name "Resiliparse-*-${PYTHON_ABI}-*-manylinux*.whl" | xargs -I% python -m pip install "%[all]"
+          find wheelhouse -name "FastWARC-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
+          find wheelhouse -name "Resiliparse-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
 
           cd docs
           make html
