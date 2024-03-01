@@ -1,11 +1,24 @@
-FROM quay.io/pypa/manylinux2014_x86_64:latest
+ARG TARGET_ARCH
+FROM quay.io/pypa/manylinux_2_28_${TARGET_ARCH}:latest
 
 RUN set -x \
     && yum install -y \
-          devtoolset-10-libasan-devel \
+          gcc-toolset-10-libasan-devel \
           lz4-devel \
-          uchardet-devel \
           zlib-devel
+
+RUN set -x \
+    && curl -Lf https://gitlab.freedesktop.org/uchardet/uchardet/-/archive/v0.0.8/uchardet-v0.0.8.tar.gz > uchardet.tar.gz \
+    && tar -xf uchardet.tar.gz \
+    && (cd uchardet-* && mkdir build \
+        && cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DLEXBOR_BUILD_STATIC=ON \
+            -B build \
+        && cmake --build build -j$(nproc) --target install) \
+    && rm -rf uchardet*
 
 RUN set -x \
     && curl -Lf https://github.com/lexbor/lexbor/archive/refs/tags/v2.2.0.tar.gz > lexbor.tar.gz \
