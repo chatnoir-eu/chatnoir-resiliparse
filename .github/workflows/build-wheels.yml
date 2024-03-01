@@ -83,16 +83,24 @@ jobs:
         with:
           platforms: all
 
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
+#      - name: Install cibuildwheel
+#        run: python -m pip install cibuildwheel
 
       - name: Build FastWARC
-        run: python -m cibuildwheel --output-dir wheelhouse fastwarc
+        uses: pypa/cibuildwheel@v2.16.5
+        with:
+          package-dir: fastwarc
+          output-dir: wheelhouse
+        # run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
       - name: Build Resiliparse
-        run: python -m cibuildwheel --output-dir wheelhouse resiliparse
+        uses: pypa/cibuildwheel@v2.16.5
+        with:
+          package-dir: resiliparse
+          output-dir: wheelhouse
+        # run: python -m cibuildwheel --output-dir wheelhouse resiliparse
         env:
           CIBW_BEFORE_TEST: >-
             python -c "import glob, platform; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/FastWARC-*cp' + ''.join(map(str, platform.python_version_tuple()[:2])) + '-*_' + platform.machine().lower() + '.whl')[0])" &&
