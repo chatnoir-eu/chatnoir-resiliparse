@@ -61,7 +61,7 @@ jobs:
         with:
           context: ./
           file: ./Dockerfile
-          push: ${{ github.actor == github.event.pull_request.user.login }}
+          push: ${{ github.ref == 'refs/heads/develop' }}
           platforms: ${{ matrix.platform }}
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/resiliparse-manylinux_2_28_${{ env.TARGET_ARCH }}:latest
           build-args: |
