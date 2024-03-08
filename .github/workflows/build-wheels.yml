@@ -27,10 +27,9 @@ jobs:
     env:
       CIBW_SKIP: "*-musllinux*"
       CIBW_MANYLINUX_X86_64_IMAGE:  ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
-      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
       CIBW_ARCHS_MACOS: "x86_64 arm64"
-      CIBW_ARCHS_LINUX: "x86_64 aarch64"
-      CIBW_TEST_SKIP: "*-macosx_arm64 *-manylinux_aarch64"    # Apple Silicon wheels cannot be tested
+      CIBW_ARCHS_LINUX: "x86_64"
+      CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
         DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
       CIBW_BEFORE_BUILD_WINDOWS: "python -m pip install delvewheel"
@@ -77,21 +76,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
-
-#      - name: Install cibuildwheel
-#        run: python -m pip install cibuildwheel
-
       - name: Build FastWARC
         uses: pypa/cibuildwheel@v2.16.5
         with:
           package-dir: fastwarc
           output-dir: wheelhouse
-        # run: python -m cibuildwheel --output-dir wheelhouse fastwarc
         env:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
@@ -100,7 +89,55 @@ jobs:
         with:
           package-dir: resiliparse
           output-dir: wheelhouse
-        # run: python -m cibuildwheel --output-dir wheelhouse resiliparse
+        env:
+          CIBW_BEFORE_TEST: >-
+            python -c "import glob, platform; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/FastWARC-*cp' + ''.join(map(str, platform.python_version_tuple()[:2])) + '-*_' + platform.machine().lower() + '.whl')[0])" &&
+            python -m pip install -r fastwarc.txt
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
+
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: ./wheelhouse/*.whl
+
+  build-wheels-qemu:
+    runs-on: ubuntu-latest
+    env:
+      CIBW_SKIP: "*-musllinux*"
+      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
+      CIBW_ARCHS_LINUX: "aarch64"
+      CIBW_TEST_SKIP: "*-manylinux_aarch64"
+      # https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145
+      CIBW_CONTAINER_ENGINE: "docker; create_args: --platform linux/arm64/v8"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Build FastWARC
+        uses: pypa/cibuildwheel@v2.16.5
+        with:
+          package-dir: fastwarc
+          output-dir: wheelhouse
+        env:
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
+
+      - name: Build Resiliparse
+        uses: pypa/cibuildwheel@v2.16.5
+        with:
+          package-dir: resiliparse
+          output-dir: wheelhouse
         env:
           CIBW_BEFORE_TEST: >-
             python -c "import glob, platform; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/FastWARC-*cp' + ''.join(map(str, platform.python_version_tuple()[:2])) + '-*_' + platform.machine().lower() + '.whl')[0])" &&
@@ -142,7 +179,8 @@ jobs:
   build-asan:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
+      # still old image here since wrong gcc asan toolset was installed in new Dockerfile
+      image: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64:latest
     env:
       DEBUG: "1"
       ASAN: "1"
@@ -244,7 +282,7 @@ jobs:
   publish-wheels:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ build-wheels, build-sdist, build-documentation ]
+    needs: [ build-wheels, build-wheels-qemu, build-sdist, build-documentation ]
     steps:
       - name: Download Wheels
         uses: actions/download-artifact@v3
