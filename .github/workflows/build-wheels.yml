@@ -26,8 +26,8 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
-      CIBW_MANYLINUX_X86_64_IMAGE:  ghcr.io/jonded94/resiliparse-manylinux_2_28_x86_64  # replace with ${{ github.repository_owner }}
-      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/jonded94/resiliparse-manylinux_2_28_aarch64
+      CIBW_MANYLINUX_X86_64_IMAGE:  ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
+      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
       CIBW_TEST_SKIP: "*-macosx_arm64 *-manylinux_aarch64"    # Apple Silicon wheels cannot be tested
@@ -142,7 +142,7 @@ jobs:
   build-asan:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/chatnoir-eu/resiliparse-manylinux2014_x86_64
+      image: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
     env:
       DEBUG: "1"
       ASAN: "1"
@@ -168,7 +168,7 @@ jobs:
   build-coverage:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/jonded94/resiliparse-manylinux_2_28_x86_64
+      image: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
     needs: [ build-wheels, build-asan, build-sdist ]
     env:
       TRACE: "1"
