@@ -179,7 +179,6 @@ jobs:
   build-asan:
     runs-on: ubuntu-latest
     container:
-      # still old image here since wrong gcc asan toolset was installed in new Dockerfile
       image: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
     env:
       DEBUG: "1"
