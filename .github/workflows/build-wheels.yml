@@ -26,10 +26,12 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macOS-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
-      CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64"
-      CIBW_TEST_SKIP: "*-macosx_arm64"    # Apple Silicon wheels cannot be tested
+      # CIBW_ARCHS_LINUX: "x86_64 aarch64"  # https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145
+      CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
+      CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
+      CIBW_TEST_SKIP: "*-macosx_arm64 *-manylinux_aarch64"    # ARM64 wheels cannot be tested
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
         DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
       CIBW_BEFORE_BUILD_WINDOWS: "python -m pip install delvewheel"
@@ -76,6 +78,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # - name: Set up QEMU
+      #   if: runner.os == 'Linux'
+      #   uses: docker/setup-qemu-action@v3
+      #   with:
+      #     platforms: aarch64
+
       - name: Build FastWARC
         uses: pypa/cibuildwheel@v2.16.5
         with:
@@ -101,14 +109,14 @@ jobs:
           name: wheels
           path: ./wheelhouse/*.whl
 
-  build-wheels-qemu:
+  # To be merged with the above when https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145 is fixed
+  build-wheels-aarch64:
     runs-on: ubuntu-latest
     env:
-      CIBW_SKIP: "*-musllinux*"
+      CIBW_SKIP: "*cp38* *cp39* *-musllinux*"
       CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
       CIBW_ARCHS_LINUX: "aarch64"
-      CIBW_TEST_SKIP: "*-manylinux_aarch64"
-      # https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145
+      CIBW_TEST_SKIP: "*"
       CIBW_CONTAINER_ENGINE: "docker; create_args: --platform linux/arm64/v8"
 
     steps:
@@ -281,7 +289,7 @@ jobs:
   publish-wheels:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ build-wheels, build-wheels-qemu, build-sdist, build-documentation ]
+    needs: [ build-wheels, build-wheels-aarch64, build-sdist, build-documentation ]
     steps:
       - name: Download Wheels
         uses: actions/download-artifact@v3
