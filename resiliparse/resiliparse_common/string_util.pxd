@@ -86,7 +86,7 @@ cdef extern from * nogil:
     cdef string strip_str(string s)
 
 
-cdef inline string_view strip_sv(string_view s) nogil:
+cdef inline string_view strip_sv(string_view s) noexcept nogil:
     """Strip leading and trailing white space from a C++ string_view."""
     cdef const char* start = s.data()
     cdef size_t l = strip_c_str(&start, s.size())
@@ -97,7 +97,7 @@ cdef inline string_view strip_sv(string_view s) nogil:
     return s
 
 
-cdef inline string str_to_lower(string s) nogil:
+cdef inline string str_to_lower(string s) noexcept nogil:
     """Convert a C++ string to lower-case characters."""
     cdef size_t i
     for i in range(s.size()):
