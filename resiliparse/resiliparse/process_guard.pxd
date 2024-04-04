@@ -41,7 +41,7 @@ cdef class _ResiliparseGuard:
     cdef void exec_before(self) except *
     cdef void exec_after(self) except *
     cdef type get_exception_type(self)
-    cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) nogil
+    cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) noexcept nogil
 
 
 cdef class TimeGuard(_ResiliparseGuard):
@@ -62,6 +62,6 @@ cdef class MemGuard(_ResiliparseGuard):
     cdef size_t grace_period
     cdef size_t secondary_grace_period
 
-    cdef inline size_t _get_rss(self) nogil
+    cdef inline size_t _get_rss(self) noexcept nogil
     cdef type get_exception_type(self)
     cdef void exec_before(self) except *

@@ -42,7 +42,7 @@ cdef inline DOMCollection _create_dom_collection(HTMLTree tree, lxb_dom_collecti
     return return_coll
 
 
-cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) nogil:
+cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) noexcept nogil:
     memory[0] = lxb_css_memory_create()
     lxb_css_memory_init(memory[0], 128)
     parser[0] = lxb_css_parser_create()
@@ -51,7 +51,7 @@ cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser
     lxb_css_parser_selectors_set(parser[0], NULL)
 
 
-cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) nogil:
+cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) noexcept nogil:
     if parser:
         destroy_css_selectors(parser)
         lxb_css_parser_destroy(parser, True)
@@ -59,21 +59,21 @@ cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser)
         lxb_css_memory_destroy(memory, True)
 
 
-cdef void create_css_selectors(lxb_css_parser_t* parser) nogil:
+cdef void create_css_selectors(lxb_css_parser_t* parser) noexcept nogil:
     destroy_css_selectors(parser)
     cdef lxb_css_selectors_t* selectors = lxb_css_selectors_create()
     lxb_css_selectors_init(selectors)
     lxb_css_parser_selectors_set(parser, selectors)
 
 
-cdef void destroy_css_selectors(lxb_css_parser_t* parser) nogil:
+cdef void destroy_css_selectors(lxb_css_parser_t* parser) noexcept nogil:
     cdef lxb_css_selectors_t* selectors = lxb_css_parser_selectors(parser)
     if selectors:
         lxb_css_selectors_destroy(selectors, True)
     lxb_css_parser_selectors_set(parser, NULL)
 
 
-cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx) nogil:
+cdef inline void _log_serialize_cb(const lxb_char_t *data, size_t len, void *ctx) noexcept nogil:
     (<string*>ctx).append(<const char*>data, len)
 
 
@@ -89,7 +89,7 @@ cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* parser, cons
 
 
 cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                      size_t* depth=NULL, bint* end_tag=NULL) nogil:
+                                      size_t* depth=NULL, bint* end_tag=NULL) noexcept nogil:
     """
     DOM tree pre-order traversal primitive.
     
@@ -125,7 +125,7 @@ cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_n
         return node.next
 
 
-cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
+cdef inline string get_node_text(lxb_dom_node_t* node) noexcept nogil:
     """Get node inner text."""
     cdef lxb_dom_character_data_t* char_data
     if node.type == LXB_DOM_NODE_TYPE_TEXT:
@@ -142,7 +142,7 @@ cdef inline string get_node_text(lxb_dom_node_t* node) nogil:
 
 
 cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, const char* class_name,
-                                                           size_t class_name_len, size_t init_size=5) nogil:
+                                                           size_t class_name_len, size_t init_size=5) noexcept nogil:
     """
     Return a collection of elements matching the given attribute name and value.
 
@@ -176,7 +176,7 @@ cdef struct element_by_id_match_ctx:
 ctypedef element_by_id_match_ctx element_by_id_match_ctx_t
 
 
-cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* ctx) nogil:
+cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* ctx) noexcept nogil:
     if node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return LEXBOR_ACTION_OK
 
@@ -197,7 +197,7 @@ cdef inline lexbor_action_t element_by_id_callback(lxb_dom_node_t* node, void* c
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node,
                                             const char* id_value, size_t id_value_len,
-                                            bint case_insensitive=False) nogil:
+                                            bint case_insensitive=False) noexcept nogil:
     """
     Return a pointer to the first element matching the given ID or NULL.
 
@@ -216,7 +216,7 @@ cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node,
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node,
                                                      const char* attr_name, size_t attr_name_len,
                                                      const char* attr_value, size_t attr_value_len,
-                                                     size_t init_size=5, bint case_insensitive=False) nogil:
+                                                     size_t init_size=5, bint case_insensitive=False) noexcept nogil:
     """
     Return a collection of elements matching the given attribute name and value.
 
@@ -248,7 +248,7 @@ cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node,
 
 
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, const char* tag_name,
-                                                         size_t tag_name_len) nogil:
+                                                         size_t tag_name_len) noexcept nogil:
     """
     Return a collection of elements matching the given tag name.
 
@@ -269,13 +269,13 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, c
 
 
 cdef inline lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
-                                             void* ctx) nogil:
+                                             void* ctx) noexcept nogil:
     lxb_dom_collection_append(<lxb_dom_collection_t*>ctx, node)
     return LXB_STATUS_OK
 
 
 cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
-                                                    void* ctx) nogil:
+                                                    void* ctx) noexcept nogil:
     (<lxb_dom_node_t**>ctx)[0] = node
     return LXB_STATUS_STOP
 
@@ -337,12 +337,12 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
 
 
 cdef inline lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
-                                            void* ctx) nogil:
+                                            void* ctx) noexcept nogil:
     (<bint*>ctx)[0] = True
     return LXB_STATUS_STOP
 
 
-cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) nogil:
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) noexcept nogil:
     """
     Check whether any element in the DOM subtree matches the given CSS selector.
 
@@ -1697,7 +1697,7 @@ cdef class HTMLTree:
             self.css_memory = NULL
 
     # noinspection PyAttributeOutsideInit
-    cdef inline void init_css_parser(self) nogil:
+    cdef inline void init_css_parser(self) noexcept nogil:
         """
         Initialize CSS selector if not already initialized.
         """
@@ -1911,7 +1911,7 @@ def traverse_dom(DOMNode base_node, start_callback, end_callback=None, context=N
 
 cdef unordered_set[lxb_tag_id_t] BLOCK_ELEMENT_SET
 
-cdef inline void _init_block_element_set() nogil:
+cdef inline void _init_block_element_set() noexcept nogil:
     if not BLOCK_ELEMENT_SET.empty():
         return
     cdef size_t i
@@ -1921,7 +1921,7 @@ cdef inline void _init_block_element_set() nogil:
 _init_block_element_set()
 
 
-cdef inline bint is_block_element(lxb_tag_id_t tag_id) nogil:
+cdef inline bint is_block_element(lxb_tag_id_t tag_id) noexcept nogil:
     """
     Check whether an element is a block-level element.
     """

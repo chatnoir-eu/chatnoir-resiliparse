@@ -41,7 +41,7 @@ from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream
 from fastwarc.stream_io import ReaderStaleError
 
 
-cdef const char* _enum_record_type_to_str(WarcRecordType record_type) nogil:
+cdef const char* _enum_record_type_to_str(WarcRecordType record_type) noexcept nogil:
     if record_type == warcinfo:
         return b'warcinfo'
     elif record_type == response:
@@ -62,7 +62,7 @@ cdef const char* _enum_record_type_to_str(WarcRecordType record_type) nogil:
         return b'unknown'
 
 
-cdef WarcRecordType _str_record_type_to_enum(const string& record_type) nogil:
+cdef WarcRecordType _str_record_type_to_enum(const string& record_type) noexcept nogil:
     cdef string record_type_lower = str_to_lower(record_type)
     if record_type_lower == b'warcinfo':
         return warcinfo

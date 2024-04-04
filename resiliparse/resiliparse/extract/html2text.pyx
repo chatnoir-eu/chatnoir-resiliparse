@@ -86,7 +86,7 @@ cdef extern from * nogil:
         shared_ptr[string] text_contents
 
 
-cdef string _get_collapsed_string(const string& input_str) nogil:
+cdef string _get_collapsed_string(const string& input_str) noexcept nogil:
     """
     Collapse newlines and consecutive white space in a string to single spaces.
     Takes into account previously extracted text from ``ctx.text``.
@@ -109,17 +109,17 @@ cdef string _get_collapsed_string(const string& input_str) nogil:
 cdef string LIST_BULLET = <const char*>b'\xe2\x80\xa2'
 
 
-cdef inline void _ensure_text_contents(vector[shared_ptr[ExtractNode]]& extract_nodes) nogil:
+cdef inline void _ensure_text_contents(vector[shared_ptr[ExtractNode]]& extract_nodes) noexcept nogil:
     if not deref(extract_nodes.back()).text_contents:
         deref(extract_nodes.back()).text_contents = make_shared[string]()
 
 
-cdef inline void _ensure_space(string& in_str, char space_char) nogil:
+cdef inline void _ensure_space(string& in_str, char space_char) noexcept nogil:
     if in_str.empty() or not isspace(in_str.back()):
         in_str.push_back(space_char)
 
 
-cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractContext& ctx, bint is_end_tag) nogil:
+cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractContext& ctx, bint is_end_tag) noexcept nogil:
     cdef shared_ptr[ExtractNode] last_node_shared
     cdef ExtractNode* last_node = NULL
     cdef bint is_block = ctx.node.type == LXB_DOM_NODE_TYPE_ELEMENT and is_block_element(ctx.node.local_name)
@@ -203,7 +203,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
                 deref(last_node.text_contents).append(element_text)
 
 
-cdef inline string _indent_newlines(const string& element_text, size_t depth) nogil:
+cdef inline string _indent_newlines(const string& element_text, size_t depth) noexcept nogil:
     cdef string indent = string(2 * depth, <char>b' ')
     cdef string tmp_text
     tmp_text.reserve(element_text.size() + 10 * indent.size())
@@ -215,7 +215,7 @@ cdef inline string _indent_newlines(const string& element_text, size_t depth) no
     return tmp_text
 
 
-cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes, const ExtractOpts& opts) nogil:
+cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes, const ExtractOpts& opts) noexcept nogil:
     cdef size_t i
     cdef string output
     cdef string element_text
@@ -286,7 +286,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     return output
 
 
-cdef inline bint _is_unprintable_pua(lxb_dom_node_t* node) nogil:
+cdef inline bint _is_unprintable_pua(lxb_dom_node_t* node) noexcept nogil:
     """Whether text node contains only a single unprintable code point from the private use area."""
     if node.first_child and (node.first_child.next or node.first_child.type != LXB_DOM_NODE_TYPE_TEXT):
         # Node has more than one child
@@ -337,13 +337,13 @@ cdef RE2 logo_cls_regex = RE2(rb'(?:brand(?:ing)?[_-]*)?logo(?:$|\s)', re_opts)
 cdef RE2 print_cls_regex = RE2(rb'(?:^|\s)print[_-]', re_opts)
 
 
-cdef inline bint regex_search_not_empty(const string_view s, const RE2& r) nogil:
+cdef inline bint regex_search_not_empty(const string_view s, const RE2& r) noexcept nogil:
     if s.empty():
         return False
     return PartialMatch(s, r())
 
 
-cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, size_t max_length) nogil:
+cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, size_t max_length) noexcept nogil:
     """
     Check if element contains an excessive number of links compared to the whole content length.
     
@@ -375,7 +375,7 @@ cdef stl_set[string] blacklist_aria_roles = [b'alert', b'banner', b'checkbox', b
 
 
 # noinspection DuplicatedCode
-cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments) nogil:
+cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments) noexcept nogil:
     """
     Perform a rule-based check whether the given element is a "main-content" element.
     
@@ -569,7 +569,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     return True
 
 
-cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec, void *ctx) nogil:
+cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec, void *ctx) noexcept nogil:
     (<bint*>ctx)[0] = True
     return LXB_STATUS_STOP
 
@@ -669,7 +669,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint form_fields,
                                      bint noscript,
                                      bint comments,
-                                     string skip_selector) nogil:
+                                     string skip_selector) noexcept nogil:
     """Internal extractor implementation not requiring GIL."""
 
     cdef ExtractContext ctx

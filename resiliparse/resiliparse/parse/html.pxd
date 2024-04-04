@@ -17,53 +17,53 @@ from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.lexbor cimport *
 
 
-cdef inline bint check_node(DOMNode node) nogil:
+cdef inline bint check_node(DOMNode node) noexcept nogil:
     """Check whether node is initialized and valid."""
     return node is not None and node.tree is not None and node.node != NULL
 
-cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) nogil
-cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) nogil
-cdef void create_css_selectors(lxb_css_parser_t* parser) nogil
-cdef void destroy_css_selectors(lxb_css_parser_t* parser) nogil
+cdef void create_css_parser(lxb_css_memory_t** memory, lxb_css_parser_t** parser) noexcept nogil
+cdef void destroy_css_parser(lxb_css_memory_t* memory, lxb_css_parser_t* parser) noexcept nogil
+cdef void create_css_selectors(lxb_css_parser_t* parser) noexcept nogil
+cdef void destroy_css_selectors(lxb_css_parser_t* parser) noexcept nogil
 cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* css_parser, const lxb_char_t* selector,
                                                   size_t selector_len) except NULL nogil
 
 cdef lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                               size_t* depth=*, bint* end_tag=*) nogil
+                               size_t* depth=*, bint* end_tag=*) noexcept nogil
 
 cdef inline lxb_dom_node_t* next_element_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                              size_t* depth=NULL, bint* end_tag=NULL) nogil:
+                                              size_t* depth=NULL, bint* end_tag=NULL) noexcept nogil:
     node = next_node(root_node, node, depth, end_tag)
     while node and node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         node = next_node(root_node, node, depth, end_tag)
     return node
 
-cdef inline string_view get_node_attr_sv(lxb_dom_node_t* node, const string& attr) nogil:
+cdef inline string_view get_node_attr_sv(lxb_dom_node_t* node, const string& attr) noexcept nogil:
     """Get node attribute value as string_view."""
     cdef size_t node_attr_len
     cdef const lxb_char_t* node_attr_data = lxb_dom_element_get_attribute(
         <lxb_dom_element_t*>node, <lxb_char_t*>attr.data(), attr.size(), &node_attr_len)
     return string_view(<const char*>node_attr_data, node_attr_len)
 
-cdef string get_node_text(lxb_dom_node_t* node) nogil
+cdef string get_node_text(lxb_dom_node_t* node) noexcept nogil
 
 cdef lxb_dom_node_t* get_element_by_id_impl(lxb_dom_node_t* node,
                                             const char* id_value, size_t id_value_len,
-                                            bint case_insensitive=*) nogil
+                                            bint case_insensitive=*) noexcept nogil
 cdef lxb_dom_collection_t* get_elements_by_attr_impl(lxb_dom_node_t* node,
                                                      const char* attr_name, size_t attr_name_len,
                                                      const char* attr_value, size_t attr_value_len,
-                                                     size_t init_size=*, bint case_insensitive=*) nogil
+                                                     size_t init_size=*, bint case_insensitive=*) noexcept nogil
 cdef lxb_dom_collection_t* get_elements_by_class_name_impl(lxb_dom_node_t* node, const char* class_name,
-                                                           size_t class_name_len, size_t init_size=*) nogil
+                                                           size_t class_name_len, size_t init_size=*) noexcept nogil
 cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node,
-                                                         const char* tag_name, size_t tag_name_len) nogil
+                                                         const char* tag_name, size_t tag_name_len) noexcept nogil
 cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
                                          const char* selector, size_t select_len) except <lxb_dom_node_t*>-1 nogil
 cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTree tree,
                                                    const char* selector, size_t selector_len,
                                                    size_t init_size=*) except <lxb_dom_collection_t*>-1 nogil
-cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) nogil
+cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector, size_t selector_len) noexcept nogil
 
 cdef extern from "html.h" nogil:
     cdef lxb_tag_id_t BLOCK_ELEMENTS[]
@@ -155,6 +155,6 @@ cdef class HTMLTree:
     cpdef DOMNode create_element(self, str tag_name)
     cpdef DOMNode create_text_node(self, str text)
 
-    cdef void init_css_parser(self) nogil
+    cdef void init_css_parser(self) noexcept nogil
 
-cdef bint is_block_element(lxb_tag_id_t tag_id) nogil
+cdef bint is_block_element(lxb_tag_id_t tag_id) noexcept nogil

@@ -388,7 +388,7 @@ cdef class GZipStream(CompressingStream):
     cpdef size_t tell(self) except -1:
         return self.stream_pos
 
-    cdef void _init_z_stream(self, bint deflate) nogil:
+    cdef void _init_z_stream(self, bint deflate) noexcept nogil:
         """
         Reset internal state and initialize ``z_stream``.
         
@@ -436,7 +436,7 @@ cdef class GZipStream(CompressingStream):
         self.zst.avail_in = self.working_buf_filled
         self.stream_pos = max(0u, self.raw_stream.tell() - self.working_buf_filled)
 
-    cdef void _free_z_stream(self) nogil:
+    cdef void _free_z_stream(self) noexcept nogil:
         """Release internal state and reset working buffer."""
         if self.stream_state == CompressingStreamState.UNINIT:
             return
@@ -448,7 +448,7 @@ cdef class GZipStream(CompressingStream):
         self.working_buf_filled = 0u
         self.stream_state = CompressingStreamState.UNINIT
 
-    cdef void _reinit_z_stream(self, bint deflate) nogil:
+    cdef void _reinit_z_stream(self, bint deflate) noexcept nogil:
         """Re-initialize zstream, but retain working buffer. Use to restart stream with different window parameters."""
 
         cdef string working_buf_tmp = self.working_buf.substr(0, self.working_buf_filled)
@@ -752,7 +752,7 @@ cdef class LZ4Stream(CompressingStream):
 
         self._free_ctx()
 
-    cdef void _free_ctx(self) nogil:
+    cdef void _free_ctx(self) noexcept nogil:
         if self.cctx != NULL:
             LZ4F_freeCompressionContext(self.cctx)
             self.cctx = NULL
@@ -938,7 +938,7 @@ cdef class BufferedReader:
 
         return True
 
-    cdef string_view* _get_buf(self) nogil:
+    cdef string_view* _get_buf(self) noexcept nogil:
         """
         Get buffer contents. Does take a set limit into account.
         
@@ -955,7 +955,7 @@ cdef class BufferedReader:
             self.limited_buf_view.remove_suffix(self.limited_buf_view.size() - remaining)
         return &self.limited_buf_view
 
-    cdef size_t _consume_buf(self, size_t size) nogil:
+    cdef size_t _consume_buf(self, size_t size) noexcept nogil:
         """
         Consume up to ``size`` bytes from internal buffer. Takes a set limit into account.
         
@@ -978,7 +978,7 @@ cdef class BufferedReader:
         self.buf_view.remove_prefix(size)
         return size
 
-    cdef inline void set_limit(self, size_t offset) nogil:
+    cdef inline void set_limit(self, size_t offset) noexcept nogil:
         """
         Set a stream limit in bytes. Any read beyond this limit will act as if the stream reached EOF.
         A set limit can be reset by calling :meth:`reset_limit()`.
@@ -988,7 +988,7 @@ cdef class BufferedReader:
         self.limit = offset
         self.limit_consumed = 0
 
-    cdef inline void reset_limit(self) nogil:
+    cdef inline void reset_limit(self) noexcept nogil:
         """Reset any previously set stream limit."""
         self.limit = strnpos
 

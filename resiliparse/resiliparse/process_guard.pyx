@@ -47,7 +47,7 @@ class MemoryLimitExceeded(ResiliparseGuardException):
 cdef size_t MAX_SIZE_T = <size_t>-1
 
 
-cdef inline uint64_t time_millis() nogil:
+cdef inline uint64_t time_millis() noexcept nogil:
     cdef timespec t
     clock_gettime(CLOCK_MONOTONIC, &t)
     return t.tv_sec * 1000u + t.tv_nsec / <long>1e6
@@ -134,7 +134,7 @@ cdef class _ResiliparseGuard:
         """Interrupt exception type to send"""
         pass
 
-    cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) nogil:
+    cdef void send_interrupt(self, unsigned char escalation_level, pthread_t target_thread) noexcept nogil:
         if self.gctx.ended.load():
             return
 
@@ -383,7 +383,7 @@ cdef class MemGuard(_ResiliparseGuard):
         self.send_kill = send_kill
         self.check_interval = check_interval
 
-    # cdef size_t _get_rss_posix(self) nogil:
+    # cdef size_t _get_rss_posix(self) noexcept nogil:
     #     cdef string cmd = string(<char*>b'ps -p ').append(to_string(getpid())).append(<char*>b' -o rss=')
     #     cdef string buffer = string(64, <char>0)
     #     cdef string out
@@ -396,7 +396,7 @@ cdef class MemGuard(_ResiliparseGuard):
     #     pclose(fp)
     #     return strtol(out.c_str(), NULL, 10)
 
-    cdef inline size_t _get_rss(self) nogil:
+    cdef inline size_t _get_rss(self) noexcept nogil:
         cdef string proc_file = string(<char*>b'/proc/').append(to_string(getpid())).append(<char*>b'/statm')
         cdef string buffer = string(64, <char>0)
         cdef string statm
