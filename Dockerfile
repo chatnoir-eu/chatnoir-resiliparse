@@ -21,7 +21,7 @@ RUN set -x \
     && rm -rf uchardet*
 
 RUN set -x \
-    && curl -Lf https://github.com/lexbor/lexbor/archive/refs/tags/v2.2.0.tar.gz > lexbor.tar.gz \
+    && curl -Lf https://github.com/lexbor/lexbor/archive/refs/tags/v2.3.0.tar.gz > lexbor.tar.gz \
     && tar -xf lexbor.tar.gz \
     && (cd lexbor-* && mkdir build \
         && cmake \
@@ -35,7 +35,7 @@ RUN set -x \
     && rm -rf lexbor*
 
 RUN set -x \
-    && curl -Lf https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.0.tar.gz > abseil.tar.gz \
+    && curl -Lf https://github.com/abseil/abseil-cpp/releases/download/20240116.1/abseil-cpp-20240116.1.tar.gz > abseil.tar.gz \
     && tar -xf abseil.tar.gz \
     && (cd abseil-cpp-* && mkdir build \
         && cmake \
@@ -49,7 +49,7 @@ RUN set -x \
     && rm -rf abseil*
 
 RUN set -x \
-    && curl -Lf https://github.com/google/re2/releases/download/2023-08-01/re2-2023-08-01.tar.gz > re2.tar.gz \
+    && curl -Lf https://github.com/google/re2/releases/download/2024-04-01/re2-2024-04-01.tar.gz > re2.tar.gz \
     && tar -xf re2.tar.gz \
     && (cd re2-* && mkdir build \
         && cmake \
