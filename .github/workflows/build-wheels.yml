@@ -312,8 +312,8 @@ jobs:
 
           python3 -m pip install twine
 
-          TWINE_PASSWORD="$TWINE_PASSWORD1" python3 -m twine upload FastWARC-*.whl FastWARC-*.tar.gz
-          TWINE_PASSWORD="$TWINE_PASSWORD2" python3 -m twine upload Resiliparse-*.whl Resiliparse-*.tar.gz
+          TWINE_PASSWORD="$TWINE_PASSWORD1" python3 -m twine upload FastWARC-*.whl fastwarc-*.tar.gz
+          TWINE_PASSWORD="$TWINE_PASSWORD2" python3 -m twine upload Resiliparse-*.whl resiliparse-*.tar.gz
 
       - name: Wait
         run: sleep 30
