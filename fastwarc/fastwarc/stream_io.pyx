@@ -861,7 +861,7 @@ cdef class BrotliStream(CompressingStream):
 @cython.auto_pickle(False)
 cdef class BufferedReader:
     """
-    __init__(self, stream, buf_size=16384, negotiate_stream=True)
+    __init__(self, stream, buf_size=65536, negotiate_stream=True)
 
     Buffered reader operating on an :class:`IOStream` instance.
 
@@ -882,6 +882,7 @@ cdef class BufferedReader:
         self.buf.resize(max(4096u, buf_size))
         self.buf_view = string_view()
         self.limited_buf_view = string_view()
+        self.last_read_size = self.buf.size()
         self.limit = strnpos
         self.limit_consumed = 0
         self.stream_is_compressed = isinstance(stream, CompressingStream)
@@ -992,7 +993,7 @@ cdef class BufferedReader:
         """Reset any previously set stream limit."""
         self.limit = strnpos
 
-    cpdef string read(self, size_t size=strnpos) except *:
+    cpdef bytes read(self, size_t size=strnpos):
         """
         read(self, size=-1)
         
@@ -1004,15 +1005,18 @@ cdef class BufferedReader:
         :rtype: bytes
         """
         cdef string data_read
+        data_read.reserve(size if size != strnpos else self.last_read_size)
         cdef size_t remaining = size
         cdef string_view buf_sub
+        cdef string_view* buf = NULL
 
         while (size == strnpos or data_read.size() < size) and self._fill_buf():
             buf = self._get_buf()
-            remaining = size - data_read.size()
+            remaining = size - data_read.size() if size != strnpos else strnpos
             buf_sub = self._get_buf().substr(0, remaining)
             data_read.append(buf_sub.data(), buf_sub.size())
             self._consume_buf(buf_sub.size())
+        self.last_read_size = data_read.size()
         return data_read
 
     cpdef string readline(self, bint crlf=True, size_t max_line_len=8192) except *:
@@ -1030,12 +1034,12 @@ cdef class BufferedReader:
         :rtype: bytes
         """
 
-        cdef string_view* buf
+        cdef string_view* buf = NULL
         cdef size_t capacity_remaining = max_line_len
         cdef bint last_was_cr = False
 
         cdef string line
-        line.reserve(192)
+        line.reserve(128)
 
         cdef size_t lf_pos = 0
         cdef char* lf_ptr = NULL

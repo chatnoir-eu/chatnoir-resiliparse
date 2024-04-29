@@ -116,6 +116,7 @@ cdef class BufferedReader:
     cdef string buf
     cdef string_view buf_view
     cdef string_view limited_buf_view
+    cdef size_t last_read_size
     cdef size_t stream_pos
     cdef size_t limit
     cdef size_t limit_consumed
@@ -127,8 +128,11 @@ cdef class BufferedReader:
     cdef inline void reset_limit(self) noexcept nogil
     cdef bint detect_stream_type(self) except 0
 
-    cpdef string read(self, size_t size=*) except *
+    # read() is mainly used in user code and therefore returns bytes.
+    # readline() is mainly used in internal code, hence we keep it string for efficiency purposes
+    cpdef bytes read(self, size_t size=*)
     cpdef string readline(self, bint crlf=*, size_t max_line_len=*)  except *
+
     cpdef size_t tell(self) except -1
     cpdef size_t consume(self, size_t size=*) except -1
     cpdef void close(self) except *
