@@ -23,8 +23,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-12 ]
+#        os: [ ubuntu-latest, windows-latest, macOS-12 ]
+        os: [ ubuntu-latest ]
     env:
+      CIBW_BUILD: "cp312*"
       CIBW_SKIP: "*-musllinux*"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64"
@@ -233,13 +235,7 @@ jobs:
           python${PYTHON_VERSION} -m pip install -e "resiliparse[all,test]"
 
       - name: Run Tests
-        run: python${PYTHON_VERSION} -m pytest --cov=resiliparse/ --cov=fastwarc/ --cov=resiliparse_common/ --cov-report xml tests/
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage
-          path: coverage.xml
+        run: python${PYTHON_VERSION} -m pytest --cov --cov-report xml tests/
 
       # We cannot use the Codecov GitHub action due to incompatible Glibc versions
       - name: Upload to Codecov
@@ -248,12 +244,18 @@ jobs:
         run: |
           set -e
           python${PYTHON_VERSION} -m codecov_cli.main upload-process \
-            --name github-actions-${{ github.run_id }} \
+            --file coverage.xml \
             --sha ${{ github.sha }} \
             --branch ${{ github.ref_name }} \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: coverage.xml
 
   build-documentation:
     runs-on: ubuntu-latest
