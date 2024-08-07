@@ -1,5 +1,6 @@
 [run]
 plugins = Cython.Coverage
+relative_files = true
 omit =
-    */cli.py
-    */setup.py
+    **/cli.py
+    **/setup.py
