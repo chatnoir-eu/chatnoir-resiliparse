@@ -248,7 +248,7 @@ jobs:
         run: |
           set -e
           python${PYTHON_VERSION} -m codecov_cli.main upload-process \
-            --name 'github-actions-'${{ github.run_id }} \
+            --name github-actions-${{ github.run_id }} \
             --sha ${{ github.sha }} \
             --branch ${{ github.ref_name }} \
             --slug ${{ github.repository }} \
