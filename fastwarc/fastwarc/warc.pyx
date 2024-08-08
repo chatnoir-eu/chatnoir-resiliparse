@@ -149,8 +149,6 @@ def _rebuild_warc_header_map(encoding, status_line, headers):
 # noinspection PyAttributeOutsideInit
 cdef class WarcHeaderMap:
     """
-    __init__(self, encoding='utf-8')
-
     Dict-like type representing a WARC or HTTP header block.
 
     :param encoding: header source encoding
@@ -179,8 +177,6 @@ cdef class WarcHeaderMap:
 
     def __iter__(self):
         """
-        __iter__(self)
-
         Iterate all header map items.
 
         :rtype: t.Iterable[(str, str)]
@@ -261,8 +257,6 @@ cdef class WarcHeaderMap:
 
     def append(self, key not None, value not None):
         """
-        append(self, key, value)
-
         Append header (use if header name is not unique).
 
         :param key: header key
@@ -276,8 +270,6 @@ cdef class WarcHeaderMap:
 
     def get(self, key not None, default=None) -> str:
         """
-        get(self, key, default=None)
-
         Get header value or ``default``.
 
         If multiple headers have the same key, only the last occurrence will be returned.
@@ -292,8 +284,6 @@ cdef class WarcHeaderMap:
 
     def items(self):
         """
-        items(self)
-
         Item view of keys and values.
 
         If multiple headers have the same key, only the last occurrence will be returned.
@@ -304,8 +294,6 @@ cdef class WarcHeaderMap:
 
     def keys(self):
         """
-        keys(self)
-
         Iterable of header keys.
 
         If multiple headers have the same key, only the last occurrence will be returned.
@@ -316,8 +304,6 @@ cdef class WarcHeaderMap:
 
     def values(self):
         """
-        values(self)
-
         Iterable of header values.
 
         If multiple headers have the same key, only the last occurrence will be returned.
@@ -328,8 +314,6 @@ cdef class WarcHeaderMap:
 
     def asdict(self) -> t.Dict[str, str]:
         """
-        asdict(self)
-
         Headers as Python dict.
 
         If multiple headers have the same key, only the last occurrence will be returned.
@@ -351,8 +335,6 @@ cdef class WarcHeaderMap:
 
     def astuples(self) -> t.Tuple[t.Tuple[str, str]]:
         """
-        astuples(self)
-
         Headers as a series of tuples, including multiple headers with the same key.
         Use this over :meth:`asdict` if header keys are not necessarily unique.
 
@@ -362,8 +344,6 @@ cdef class WarcHeaderMap:
 
     cpdef void clear(self):
         """
-        clear(self)
-
         Clear all headers.
         """
         if self._dict_cache is not None:
@@ -454,8 +434,6 @@ def _rebuild_warc_record(record_type, headers, is_http, http_parsed, http_charse
 # noinspection PyProtectedMember, PyAttributeOutsideInit
 cdef class WarcRecord:
     """
-    __init__(self)
-
     A WARC record.
 
     WARC records are picklable, but pickling will :meth:`freeze()` the WARC record.
@@ -512,8 +490,6 @@ cdef class WarcRecord:
     @record_type.setter
     def record_type(self, WarcRecordType record_type):
         """
-        record_type(self, record_type)
-
         Set record type.
 
         :param record_type: record type
@@ -538,8 +514,6 @@ cdef class WarcRecord:
     @record_date.setter
     def record_date(self, date):
         """
-        record_date(self, date)
-
         Set WARC Date.
 
         :param date: datetime object
@@ -715,8 +689,6 @@ cdef class WarcRecord:
 
     cpdef void init_headers(self, size_t content_length=0, WarcRecordType record_type=no_type, bytes record_urn=None):
         """
-        init_headers(self, content_length=0, record_type=no_type, record_urn=None)
-
         Initialize mandatory headers in a fresh :class:`WarcRecord` instance.
 
         :param content_length: WARC record body length in bytes
@@ -744,8 +716,6 @@ cdef class WarcRecord:
 
     cpdef void set_bytes_content(self, bytes b):
         """
-        set_bytes_content(self, b)
-
         Set WARC body.
 
         :param b: body as bytes
@@ -758,8 +728,6 @@ cdef class WarcRecord:
 
     cpdef bint parse_http(self, bint strict_mode=True, str auto_decode='none') except 0:
         """
-        parse_http(self, strict_mode=True, auto_decode='none')
-
         Parse HTTP headers and advance content reader.
 
         It is safe to call this method multiple times, even if the record is not an HTTP record.
@@ -841,8 +809,6 @@ cdef class WarcRecord:
     cpdef size_t write(self, stream, bint checksum_data=False, bytes payload_digest=None,
                        size_t chunk_size=16384) except -1:
         """
-        write(self, stream, checksum_data=False, chunk_size=16384)
-
         Write WARC record onto a stream.
 
         :param stream: output stream
@@ -995,8 +961,6 @@ cdef class WarcRecord:
 
     cpdef bint freeze(self) except 0:
         """
-        freeze(self)
-
         "Freeze" a record by baking in the remaining payload stream contents.
 
         Freezing a record makes the :class:`WarcRecord` instance copyable and reusable by decoupling
@@ -1017,8 +981,6 @@ cdef class WarcRecord:
 
     cpdef bint verify_block_digest(self, bint consume=False) except -1:
         """
-        verify_block_digest(self, consume=False)
-
         Verify whether record block digest is valid.
 
         :param consume: do not create an in-memory copy of the record stream
@@ -1031,8 +993,6 @@ cdef class WarcRecord:
 
     cpdef bint verify_payload_digest(self, bint consume=False) except -1:
         """
-        verify_payload_digest(self, consume=False)
-
         Verify whether record payload digest is valid.
 
         :param consume: do not create an in-memory copy of the record stream
@@ -1050,8 +1010,6 @@ cdef class WarcRecord:
 cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint has_status_line,
                                bint strict_mode=True) except -1:
     """
-    parse_header_block(reader, target, has_status_line=False, strict_mode=True)
-
     Helper function for parsing WARC or HTTP header blocks.
 
     :param reader: input reader
@@ -1115,9 +1073,6 @@ cdef size_t parse_header_block(BufferedReader reader, WarcHeaderMap target, bint
 @cython.auto_pickle(False)
 cdef class ArchiveIterator:
     """
-    __init__(self, stream, record_types=any_type, parse_http=True, min_content_length=-1, max_content_length=-1, \
-             func_filter=None, verify_digests=False, strict_mode=True, auto_decode='none')
-
     WARC record stream iterator.
 
     :param stream: input stream (preferably an :class:`~fastwarc.stream_io.IOStream`,
@@ -1165,8 +1120,6 @@ cdef class ArchiveIterator:
 
     def __iter__(self) -> t.Iterable[WarcRecord]:
         """
-        __iter__(self)
-
         Iterate all :class:`WarcRecord` items in the current WARC stream.
 
         :rtype: t.Iterable[WarcRecord]
@@ -1182,8 +1135,6 @@ cdef class ArchiveIterator:
 
     def __next__(self) -> WarcRecord:
         """
-        __next__(self)
-
         Implements an iterator that can be used with ``next()``.
 
         :rtype: WarcRecord
@@ -1286,8 +1237,6 @@ cdef class ArchiveIterator:
 
     cdef bint _set_stream(self, stream) except 0:
         """
-        _set_stream(self, stream)
-
         Replace underlying input stream.
 
         This method is for internal use and should not be called by external users.
@@ -1307,8 +1256,6 @@ cdef class ArchiveIterator:
 # noinspection PyProtectedMember
 cpdef bint is_warc_10(WarcRecord record):
     """
-    is_warc_10(record)
-
     Filter predicate for checking if record is a WARC/1.0 record.
 
     :param record: WARC record
@@ -1321,8 +1268,6 @@ cpdef bint is_warc_10(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_warc_11(WarcRecord record):
     """
-    is_warc_11(record)
-
     Filter predicate for checking if record is a WARC/1.1 record.
 
     :param record: WARC record
@@ -1335,8 +1280,6 @@ cpdef bint is_warc_11(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint has_block_digest(WarcRecord record):
     """
-    has_block_digest(record)
-
     Filter predicate for checking if record has a block digest.
 
     :param record: WARC record
@@ -1349,8 +1292,6 @@ cpdef bint has_block_digest(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint has_payload_digest(WarcRecord record):
     """
-    has_payload_digest(record)
-
     Filter predicate for checking if record has a payload digest.
 
     :param record: WARC record
@@ -1363,8 +1304,6 @@ cpdef bint has_payload_digest(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_http(WarcRecord record):
     """
-    is_http(record)
-
     Filter predicate for checking if record is an HTTP record.
 
     :param record: WARC record
@@ -1377,8 +1316,6 @@ cpdef bint is_http(WarcRecord record):
 # noinspection PyProtectedMember
 cpdef bint is_concurrent(WarcRecord record):
     """
-    is_concurrent(record)
-
     Filter predicate for checking if record is concurrent to another record.
 
     :param record: WARC record

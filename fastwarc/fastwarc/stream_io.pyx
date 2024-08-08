@@ -53,8 +53,6 @@ cdef class IOStream:
 
     def read(self, size_t size):
         """
-        read(self, size)
-
         Read ``size`` bytes from stream.
 
         :param size: bytes to read
@@ -76,8 +74,6 @@ cdef class IOStream:
 
     def write(self, bytes data):
         """
-        write(self, data)
-
         Write bytes to stream.
 
         :param data: data to write
@@ -90,8 +86,6 @@ cdef class IOStream:
 
     cpdef void seek(self, size_t offset) except *:
         """
-        seek(self, offset)
-        
         Seek to specified offset.
         
         :param offset: seek offset
@@ -101,8 +95,6 @@ cdef class IOStream:
 
     cpdef size_t tell(self) except -1:
         """
-        tell(self)
-        
         Return current stream offset.
         
         :return: stream offset
@@ -112,16 +104,12 @@ cdef class IOStream:
 
     cpdef void flush(self) except *:
         """
-        flush(self)
-        
         Flush stream buffer.
         """
         pass
 
     cpdef void close(self) except *:
         """
-        close(self)
-        
         Close the stream.
         """
         pass
@@ -131,8 +119,6 @@ cdef class IOStream:
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
     """
-    __init__(self, initial_data=None)
-
     IOStream that uses an in-memory buffer.
 
     :param initial_data: fill internal buffer with this initial data
@@ -182,8 +168,6 @@ cdef class BytesIOStream(IOStream):
 
     cpdef string getvalue(self):
         """
-        getvalue(self)
-        
         Get buffer value.
         
         :return: buffer value
@@ -196,8 +180,6 @@ cdef class BytesIOStream(IOStream):
 @cython.auto_pickle(False)
 cdef class FileStream(IOStream):
     """
-    __init__(self, filename=None, mode='rb')
-
     Fast alternative to Python file objects for local files.
 
     :param filename: input filename
@@ -268,8 +250,6 @@ cdef class FileStream(IOStream):
 @cython.auto_pickle(False)
 cdef class PythonIOStreamAdapter(IOStream):
     """
-    __init__(self, py_stream)
-
     IOStream adapter for file-like Python objects.
 
     :param py_stream: input Python stream object
@@ -311,8 +291,6 @@ cdef class PythonIOStreamAdapter(IOStream):
 
 cpdef IOStream wrap_stream(raw_stream):
     """
-    wrap_stream(raw_stream)
-    
     Wrap ``raw_stream`` into a :class:`PythonIOStreamAdapter` if it is a Python object or
     return ``raw_stream`` unmodified if it is a :class:`IOStream` already.
     
@@ -334,8 +312,6 @@ cdef class CompressingStream(IOStream):
 
     cpdef size_t begin_member(self):
         """
-        begin_member(self)
-        
         Begin compression member / frame (if not already started).
         
         :return: bytes written
@@ -345,8 +321,6 @@ cdef class CompressingStream(IOStream):
 
     cpdef size_t end_member(self):
         """
-        end_member(self)
-        
         End compression member / frame (if one has been started).
         
         :return: bytes written
@@ -359,8 +333,6 @@ cdef class CompressingStream(IOStream):
 @cython.auto_pickle(False)
 cdef class GZipStream(CompressingStream):
     """
-    __init__(self, raw_stream, compression_level=9, zlib=False)
-
     GZip :class:`IOStream` implementation.
 
     :param raw_stream: raw data stream
@@ -418,8 +390,6 @@ cdef class GZipStream(CompressingStream):
 
     cpdef void prepopulate(self, bint deflate, const string& initial_data):
         """
-        prepopulate(self, initial_data)
-        
         Fill internal working buffer with initial data.
         Use if some initial data of the stream have already been consumed (e.g., for stream content negotiation).
         Has to be called before the first :meth:`read()`.
@@ -602,8 +572,6 @@ cdef class GZipStream(CompressingStream):
 @cython.auto_pickle(False)
 cdef class LZ4Stream(CompressingStream):
     """
-    __init__(self, raw_stream, compression_level=12, favor_dec_speed=True)
-
     LZ4 :class:`IOStream` implementation.
 
     :param raw_stream: raw data stream
@@ -636,8 +604,6 @@ cdef class LZ4Stream(CompressingStream):
 
     cpdef void prepopulate(self, const string& initial_data):
         """
-        prepopulate(self, initial_data)
-        
         Fill internal working buffer with initial data.
         Use if some initial data of the stream have already been consumed (e.g., for stream content negotiation).
         Has to be called before the first :meth:`read()`.
@@ -771,8 +737,6 @@ cdef class LZ4Stream(CompressingStream):
 @cython.auto_pickle(False)
 cdef class BrotliStream(CompressingStream):
     """
-    __init__(self, raw_stream, quality=11, lgwin=22, lgblock=0)
-
     Brotli :class:`IOStream` implementation.
 
     Implementation relies on Google's ``brotli`` Python package, will be ported to native
@@ -861,8 +825,6 @@ cdef class BrotliStream(CompressingStream):
 @cython.auto_pickle(False)
 cdef class BufferedReader:
     """
-    __init__(self, stream, buf_size=65536, negotiate_stream=True)
-
     Buffered reader operating on an :class:`IOStream` instance.
 
     :param stream: stream to operate on
@@ -995,8 +957,6 @@ cdef class BufferedReader:
 
     cpdef bytes read(self, size_t size=strnpos):
         """
-        read(self, size=-1)
-        
         Read up to ``size`` bytes from the input stream.
         
         :param size: number of bytes to read (default means read remaining stream)
@@ -1021,8 +981,6 @@ cdef class BufferedReader:
 
     cpdef string readline(self, bint crlf=True, size_t max_line_len=8192) except *:
         """
-        readline(self, crlf=True, max_line_len=8192)
-        
         Read a single line from the input stream.
         
         :param crlf: whether lines are separated by CRLF or LF
@@ -1082,8 +1040,6 @@ cdef class BufferedReader:
 
     cpdef size_t tell(self) except -1:
         """
-        tell(self)
-        
         Offset on the input stream.
         
         :return: offset
@@ -1104,8 +1060,6 @@ cdef class BufferedReader:
 
     cpdef size_t consume(self, size_t size=strnpos) except -1:
         """
-        consume(self, size=-1)
-        
         Consume up to ``size`` bytes from the input stream without allocating a buffer for it.
         
         :param size: number of bytes to read (default means read remaining stream)
@@ -1130,8 +1084,6 @@ cdef class BufferedReader:
 
     cpdef void close(self) except *:
         """
-        close(self)
-        
         Close stream.
         """
         if self.stream is not None:
@@ -1140,8 +1092,6 @@ cdef class BufferedReader:
 
 def _buf_reader_py_test_detect_stream_type(BufferedReader buf):
     """
-    _buf_reader_py_test_detect_stream_type(buf):
-
     Test interface for :meth:`BufferedReader.detect_stream_type`
     """
     buf.detect_stream_type()
@@ -1149,8 +1099,6 @@ def _buf_reader_py_test_detect_stream_type(BufferedReader buf):
 
 def _buf_reader_py_test_set_limit(BufferedReader buf, size_t limit):
     """
-    _buf_reader_py_test_detect_set_limit(buf, limit):
-
     Test interface for :meth:`BufferedReader.set_limit`
     """
     buf.set_limit(limit)
@@ -1158,8 +1106,6 @@ def _buf_reader_py_test_set_limit(BufferedReader buf, size_t limit):
 
 def _buf_reader_py_test_reset_limit(BufferedReader buf):
     """
-    _buf_reader_py_test_reset_limit(buf, limit):
-
     Test interface for :meth:`BufferedReader.reset_limit`
     """
     buf.reset_limit()
