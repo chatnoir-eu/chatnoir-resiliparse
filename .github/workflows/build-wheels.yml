@@ -17,13 +17,14 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
+  FORCE_COLOR: "1"
 
 jobs:
   build-wheels:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-12 ]
+        os: [ ubuntu-latest, windows-latest, macos-12 ]
     env:
       CIBW_SKIP: "*-musllinux*"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
@@ -74,7 +75,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -104,9 +105,9 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
 
       - name: Upload Wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   # To be merged with the above when https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145 is fixed
@@ -125,7 +126,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -154,9 +155,9 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
 
       - name: Upload Wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-ubuntu-latest-aarch64
           path: ./wheelhouse/*.whl
 
   build-sdist:
@@ -166,7 +167,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -180,7 +181,7 @@ jobs:
         run: python -m build --sdist --outdir dist resiliparse
 
       - name: Upload Source Dists
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sdist
           path: ./dist/*.tar.gz
@@ -196,7 +197,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3  # TODO: Upgrade to @v4 causes GLIBC failures
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -260,7 +261,7 @@ jobs:
             --fail-on-error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: |
@@ -275,14 +276,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wheels
+          name: wheels-ubuntu-latest
           path: wheelhouse
 
       - name: Build Documentation
@@ -313,12 +314,13 @@ jobs:
     needs: [ build-wheels, build-wheels-aarch64, build-asan, build-sdist, build-documentation ]
     steps:
       - name: Download Wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
 
       - name: Download Source Dist
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: sdist
 
