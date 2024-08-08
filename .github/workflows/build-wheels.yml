@@ -23,10 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-#        os: [ ubuntu-latest, windows-latest, macOS-12 ]
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-latest, windows-latest, macOS-12 ]
     env:
-      CIBW_BUILD: "cp312*"
       CIBW_SKIP: "*-musllinux*"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64"
