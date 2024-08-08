@@ -239,6 +239,7 @@ jobs:
       - name: Upload to Codecov
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          TOKENLESS: ${{ github.event.pull_request.head.label }}
         run: |
           set -e
           python${PYTHON_VERSION} -m codecov_cli.main upload-process \
