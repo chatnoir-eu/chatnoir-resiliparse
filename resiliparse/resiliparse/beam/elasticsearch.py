@@ -21,6 +21,14 @@ import apache_beam.typehints as t
 from elasticsearch import exceptions as es_exc, Elasticsearch
 from elasticsearch.helpers import BulkIndexError, streaming_bulk
 
+__all__ = [
+    'ElasticsearchBulkIndex',
+    'delete_action',
+    'ensure_index',
+    'index_action',
+    'update_action'
+]
+
 
 logger = logging.getLogger()
 

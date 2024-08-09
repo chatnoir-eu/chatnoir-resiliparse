@@ -15,6 +15,10 @@
 import apache_beam as beam
 from apache_beam.io import fileio as beam_fio
 
+__all__ = [
+    'MatchFiles'
+]
+
 
 class MatchFiles(beam.PTransform):
     """

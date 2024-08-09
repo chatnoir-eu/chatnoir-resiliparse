@@ -1,8 +1,10 @@
 from base64 import b32encode
 import brotli
+import codecs
 import datetime
 from email.utils import format_datetime
 import gzip
+import hashlib
 import lz4.frame
 import io
 import os

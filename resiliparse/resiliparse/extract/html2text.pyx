@@ -30,6 +30,11 @@ from resiliparse_inc.string_view cimport string_view
 from resiliparse_inc.utility cimport move
 
 
+__all__ = [
+    'extract_plain_text',
+]
+
+
 cdef extern from * nogil:
     """
     struct ExtractOpts {

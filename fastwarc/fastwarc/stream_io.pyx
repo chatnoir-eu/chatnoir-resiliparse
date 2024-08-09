@@ -25,6 +25,22 @@ from resiliparse_inc.stdio cimport fclose, ferror, fflush, fopen, fread, fseek, 
 
 import brotli
 
+__all__ = [
+    'BufferedReader',
+    'BrotliStream',
+    'BytesIOStream',
+    'CompressingStream',
+    'FastWARCError',
+    'GZipStream',
+    'IOStream',
+    'FileStream',
+    'LZ4Stream',
+    'PythonIOStreamAdapter',
+    'ReaderStaleError',
+    'StreamError',
+    'wrap_stream',
+]
+
 
 class FastWARCError(Exception):
     """Generic FastWARC exception."""

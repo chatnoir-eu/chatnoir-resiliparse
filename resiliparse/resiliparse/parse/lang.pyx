@@ -21,6 +21,12 @@ cimport cython
 from cython.operator cimport preincrement as preinc
 from cpython.unicode cimport Py_UNICODE_ISALPHA, Py_UNICODE_ISSPACE
 
+__all__ = [
+    'detect_fast',
+    'supported_langs',
+    'train_language_examples'
+]
+
 
 @cython.wraparound(False)
 cdef lang_vec8_t str_to_vec(str train_text, size_t vec_len=LANG_VEC_SIZE):

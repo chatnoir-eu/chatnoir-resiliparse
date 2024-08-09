@@ -18,6 +18,15 @@ from fastwarc.stream_io cimport IOStream, GZipStream, LZ4Stream, FileStream, Pyt
 from fastwarc.stream_io import StreamError
 from fastwarc.warc cimport ArchiveIterator, WarcRecordType
 
+__all__ = [
+    'CompressionAlg',
+    'detect_compression_algorithm',
+    'recompress_warc',
+    'recompress_warc_interactive',
+    'verify_digests',
+    'wrap_warc_stream',
+]
+
 
 cpdef enum CompressionAlg:
     gzip,

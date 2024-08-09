@@ -34,6 +34,11 @@ from resiliparse.itertools import warc_retry
 
 logger = logging.getLogger()
 
+__all__ = [
+    'ReadAllWarcs',
+    "ReadWarcs",
+]
+
 
 class ReadWarcs(beam.PTransform):
     """

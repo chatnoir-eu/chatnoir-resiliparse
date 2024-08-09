@@ -17,6 +17,11 @@
 import typing as t
 from fastwarc.warc cimport ArchiveIterator
 
+__all__ = [
+    'progress_loop',
+    'exc_loop',
+    'warc_retry',
+]
 
 def progress_loop(it, ctx=None):
     """

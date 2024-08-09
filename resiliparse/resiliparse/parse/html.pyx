@@ -24,6 +24,30 @@ from libcpp.set cimport set as unordered_set
 from resiliparse_inc.lexbor cimport *
 from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
+__all__ = [
+    'DOMCollection',
+    'DOMContext',
+    'DOMElementClassList',
+    'DOMNode',
+    'HTMLTree',
+    'traverse_dom',
+
+    'NodeType',
+    'ELEMENT',
+    'ATTRIBUTE',
+    'TEXT',
+    'CDATA_SECTION',
+    'ENTITY_REFERENCE',
+    'ENTITY',
+    'PROCESSING_INSTRUCTION',
+    'COMMENT',
+    'DOCUMENT',
+    'DOCUMENT_TYPE',
+    'DOCUMENT_FRAGMENT',
+    'NOTATION',
+    'LAST_ENTRY',
+]
+
 
 cdef inline DOMNode _create_dom_node(HTMLTree tree, lxb_dom_node_t* dom_node):
     if not dom_node:

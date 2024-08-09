@@ -22,6 +22,11 @@ from apache_beam.io.restriction_trackers import OffsetRange, OffsetRestrictionTr
 from resiliparse.beam.coders import StrUtf8Coder
 from resiliparse.beam.fileio import MatchFiles
 
+__all__ = [
+    'ReadAllFromText',
+    'ReadFromText',
+]
+
 
 DEFAULT_DESIRED_SPLIT_SIZE = 64 * 1024 * 1024   # 64 MiB
 DEFAULT_MIN_SPLIT_SIZE = 1024 * 1024            # 1 MiB

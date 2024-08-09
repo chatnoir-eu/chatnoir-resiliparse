@@ -16,3 +16,11 @@ try:
     import apache_beam
 except ModuleNotFoundError:
     raise ModuleNotFoundError('Missing dependency: apache_beam')
+
+__all__ = [
+    'coders',
+    'elasticsearch',
+    'fileio',
+    'textio',
+    'warcio'
+]

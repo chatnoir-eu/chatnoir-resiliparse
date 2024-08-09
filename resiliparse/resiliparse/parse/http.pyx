@@ -19,6 +19,11 @@ import typing as t
 from libcpp.string cimport string
 from resiliparse_inc.cstdlib cimport strtol
 
+__all__ = [
+    'iterate_http_chunks',
+    'read_http_chunk',
+]
+
 
 cpdef bytes read_http_chunk(reader):
     """

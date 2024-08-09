@@ -15,6 +15,10 @@
 from apache_beam.coders import StrUtf8Coder as _StrUtf8Coder
 from resiliparse.parse.encoding import bytes_to_str
 
+__all__ = [
+    'StrUtf8Coder'
+]
+
 
 class StrUtf8Coder(_StrUtf8Coder):
     """

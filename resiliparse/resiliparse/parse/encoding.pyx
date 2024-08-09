@@ -27,6 +27,13 @@ from resiliparse_inc.lexbor cimport lxb_char_t, lxb_status_t, lxb_html_encoding_
 from resiliparse_inc.uchardet cimport uchardet_new, uchardet_delete, uchardet_handle_data, \
     uchardet_data_end, uchardet_reset, uchardet_get_charset
 
+__all__ = [
+    'EncodingDetector',
+    'bytes_to_str',
+    'detect_encoding',
+    'detect_mime',
+    'map_encoding_to_html5',
+]
 
 # Encoding name and label map according to https://encoding.spec.whatwg.org/#names-and-labels
 # Differences:

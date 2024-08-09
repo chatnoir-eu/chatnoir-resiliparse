@@ -40,6 +40,34 @@ from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream
     IOStream, PythonIOStreamAdapter
 from fastwarc.stream_io import ReaderStaleError
 
+__all__ = [
+    'ArchiveIterator',
+    'CaseInsensitiveStr',
+    'CaseInsensitiveStrDict',
+    'WarcHeaderMap',
+    'WarcRecord',
+    'is_http',
+    'is_concurrent',
+    'is_warc_10',
+    'is_warc_11',
+    'has_block_digest',
+    'has_payload_digest',
+
+    'WarcRecordType',
+    'warcinfo',
+    'response',
+    'resource',
+    'request',
+    'metadata',
+    'revisit',
+    'conversion',
+    'continuation',
+    'unknown',
+    'any_type',
+    'no_type',
+    'any_type',
+]
+
 
 cdef const char* _enum_record_type_to_str(WarcRecordType record_type) noexcept nogil:
     if record_type == warcinfo:
