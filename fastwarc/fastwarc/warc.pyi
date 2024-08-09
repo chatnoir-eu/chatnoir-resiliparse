@@ -11,10 +11,19 @@ from typing import (
     ValuesView,
     KeysView,
     BinaryIO,
+    Protocol,
 )
 from enum import IntFlag
 
 from .stream_io import BufferedReader, IOStream
+
+class _ReadableStream(Protocol):
+    def read(self, size: int) -> bytes: ...
+    def seek(self, offset: int) -> int: ...
+
+class _WritableStream(Protocol):
+    def write(self, data: bytes) -> int: ...
+    def flush(self) -> None: ...
 
 
 class WarcRecordType(IntFlag):
@@ -48,7 +57,7 @@ class WarcHeaderMap:
     def items(self) -> Iterator[Tuple[str, str]]: ...
     def keys(self) -> KeysView[str]: ...
     def values(self) -> ValuesView[str]: ...
-    def write(self, stream: Union[IOStream, BinaryIO]) -> None: ...
+    def write(self, stream: IOStream) -> None: ...
     def __getitem__(self, item: str) -> str: ...
     def __iter__(self) -> Iterator[Tuple[str, str]]: ...
     def __len__(self) -> int: ...
@@ -82,17 +91,18 @@ class WarcRecord:
     def verify_payload_digest(self, consume: bool = False) -> bool: ...
     def write(
         self,
-        stream: Union[IOStream, BinaryIO],
+        stream: Union[IOStream, BinaryIO, _WritableStream],
         checksum_data: bool = False,
         payload_digest: Optional[bytes] = None,
         chunk_size: int = 16384
     ) -> int: ...
 
 
+
 class ArchiveIterator(Iterable[WarcRecord]):
     def __init__(
         self,
-        stream: Union[IOStream, BinaryIO],
+        stream: Union[IOStream, BinaryIO, _ReadableStream],
         record_types: WarcRecordType = any_type,
         parse_http: bool = True,
         min_content_length: int = -1,
