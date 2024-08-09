@@ -1,18 +1,26 @@
-from typing import ContextManager, IO
+from types import TracebackType
+from typing import ContextManager, IO, Optional, Type, Union, BinaryIO
 
 
-class IOStream(ContextManager):
+class IOStream(ContextManager[IOStream]):
     def read(self, size: int) -> bytes: ...
     def write(self, data: bytes) -> int: ...
     def close(self) -> None: ...
     def flush(self) -> None: ...
     def seek(self, offset: int) -> None: ...
     def tell(self) -> int: ...
+    def __enter__(self) -> IOStream: ...
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        traceback: Optional[TracebackType]
+    ) -> None: ...
 
 
 class BufferedReader:
     def __init__(
-        self, stream: IOStream, buf_size: int = 8192, negotiate_stream: bool = True
+        self, stream: Union[IOStream, BinaryIO], buf_size: int = 65536, negotiate_stream: bool = True
     ) -> None: ...
     def close(self) -> None: ...
     def consume(self, size: int = -1) -> int: ...
@@ -22,6 +30,7 @@ class BufferedReader:
 
 
 class BytesIOStream(IOStream):
+    def __init__(self, initial_data: Union[bytes, None] = None) -> None: ...
     def getvalue(self) -> bytes: ...
 
 
@@ -36,20 +45,20 @@ class CompressingStream(IOStream):
 
 class BrotliStream(CompressingStream):
     def __init__(
-        self, raw_stream: IOStream, quality: int = 11, lgwin: int = 22, lgblock: int = 0
+        self, raw_stream: Union[IOStream, BinaryIO], quality: int = 11, lgwin: int = 22, lgblock: int = 0
     ) -> None: ...
 
 
 class GZipStream(CompressingStream):
     def __init__(
-        self, raw_stream: IOStream, compression_level: int = 9, zlib: bool = False
+        self, raw_stream: Union[IOStream, BinaryIO], compression_level: int = 9, zlib: bool = False
     ) -> None: ...
 
 
 class LZ4Stream(CompressingStream):
     def __init__(
         self,
-        raw_stream: IOStream,
+        raw_stream: Union[IOStream, BinaryIO],
         compression_level: int = 12,
         favor_dec_speed: bool = True,
     ) -> None: ...
@@ -57,7 +66,7 @@ class LZ4Stream(CompressingStream):
 
 
 class PythonIOStreamAdapter(IOStream):
-    def __init__(self, py_stream: IO) -> None: ...
+    def __init__(self, py_stream: BinaryIO) -> None: ...
 
 
 class FastWARCError(Exception):

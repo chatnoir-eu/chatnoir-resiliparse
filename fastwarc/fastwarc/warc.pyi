@@ -1,14 +1,16 @@
 from datetime import datetime
 from typing import (
+    Union,
     Optional,
     Iterator,
     Dict,
     Tuple,
-    MutableMapping,
+    Literal,
+    Callable,
     Iterable,
     ValuesView,
     KeysView,
-    Type,
+    BinaryIO,
 )
 from enum import IntFlag
 
@@ -33,20 +35,25 @@ no_type = WarcRecordType.no_type
 any_type = WarcRecordType.any_type
 
 
-class WarcHeaderMap(MutableMapping[str, str]):
+class WarcHeaderMap:
     reason_phrase: Optional[str]
     status_code: Optional[str]
     status_line: str
 
     def append(self, key: str, value: str) -> None: ...
     def asdict(self) -> Dict[str, str]: ...
-    def astuples(self) -> Tuple[str, str]: ...
+    def astuples(self) -> Tuple[Tuple[str, str], ...]: ...
     def clear(self) -> None: ...
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]: ...
     def items(self) -> Iterator[Tuple[str, str]]: ...
     def keys(self) -> KeysView[str]: ...
     def values(self) -> ValuesView[str]: ...
-    def write(self, stream: IOStream) -> None: ...
+    def write(self, stream: Union[IOStream, BinaryIO]) -> None: ...
+    def __getitem__(self, item: str) -> str: ...
+    def __iter__(self) -> Iterator[Tuple[str, str]]: ...
+    def __len__(self) -> int: ...
+    def __setitem__(self, key: str, value: str) -> None: ...
+    def __contains__(self, item: str) -> bool: ...
 
 
 class WarcRecord:
@@ -59,32 +66,41 @@ class WarcRecord:
     is_http_parsed: bool
     http_headers: Optional[WarcHeaderMap]
     http_content_type: Optional[str]
-    http_content_type: Optional[str]
     http_charset: Optional[str]
     http_date: Optional[datetime]
     http_last_modified: Optional[datetime]
-    content_length: int
     reader: BufferedReader
     stream_pos: int
 
     def init_headers(
-        self, content_length: int = 0, record_type=no_type, record_urn=None
-    ): ...
+        self, content_length: int = 0, record_type: WarcRecordType = no_type, record_urn: Optional[bytes] = None
+    ) -> None: ...
     def freeze(self) -> bool: ...
     def set_bytes_content(self, content: bytes) -> None: ...
-    def parse_http(self, strict_mode=True, auto_decode: str = "none") -> None: ...
+    def parse_http(self, strict_mode: bool = True, auto_decode: str = "none") -> None: ...
     def verify_block_digest(self, consume: bool = False) -> bool: ...
     def verify_payload_digest(self, consume: bool = False) -> bool: ...
+    def write(
+        self,
+        stream: Union[IOStream, BinaryIO],
+        checksum_data: bool = False,
+        payload_digest: Optional[bytes] = None,
+        chunk_size: int = 16384
+    ) -> int: ...
 
 
 class ArchiveIterator(Iterable[WarcRecord]):
     def __init__(
         self,
-        stream: Type[IOStream],
+        stream: Union[IOStream, BinaryIO],
         record_types: WarcRecordType = any_type,
         parse_http: bool = True,
         min_content_length: int = -1,
         max_content_length: int = -1,
+        func_filter: Optional[Callable[[WarcRecord], bool]] = None,
+        verify_digests: bool = False,
+        strict_mode: bool = True,
+        auto_decode: Literal["none", "content", "transfer", "all"] = "none",
     ) -> None: ...
     def __iter__(self) -> Iterator[WarcRecord]: ...
     def __next__(self) -> WarcRecord: ...
