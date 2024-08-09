@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
   "lib"
 ]
@@ -11,4 +12,4 @@ description = "Resiliparse Rust bindings"
 authors = ["Janek Bevendorff"]
 
 [workspace.dependencies]
-pyo3 = { version = "^0.18.1", features = ["extension-module"] }
+pyo3 = { version = "^0.22.2", features = ["extension-module"] }
