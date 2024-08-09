@@ -8,9 +8,9 @@ cdef extern from "<zlib.h>" nogil:
         unsigned int avail_out
         unsigned long total_out
         const char* msg
-        void* zalloc
-        void* zfree
-        void* opaque
+        const void* zalloc
+        const void* zfree
+        const void* opaque
 
     const void* Z_NULL
 

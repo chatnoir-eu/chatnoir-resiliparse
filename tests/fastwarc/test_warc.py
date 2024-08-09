@@ -1,5 +1,6 @@
 from base64 import b32encode
 import brotli
+import datetime
 from email.utils import format_datetime
 import gzip
 import lz4.frame
@@ -221,13 +222,13 @@ def test_record_date():
     assert new_rec.record_date is not None
     assert new_rec.record_date.tzinfo is datetime.timezone.utc
 
-    dt_now_utc = datetime.datetime.utcnow().replace(microsecond=0).astimezone(datetime.timezone.utc)
+    dt_now_utc = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).astimezone(datetime.timezone.utc)
     new_rec.record_date = dt_now_utc
     assert new_rec.record_date == dt_now_utc
     assert new_rec.record_date.tzinfo == datetime.timezone.utc
     assert new_rec.headers['WARC-Date'] == dt_now_utc.isoformat().replace('+00:00', 'Z')
 
-    dt_now_utc2 = datetime.datetime.utcnow().astimezone(datetime.timezone(datetime.timedelta(hours=2)))
+    dt_now_utc2 = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=2)))
     assert dt_now_utc2.isoformat().endswith('+02:00')
     new_rec.record_date = dt_now_utc2
     assert new_rec.record_date == dt_now_utc2
@@ -390,7 +391,7 @@ def test_record_http_parsing():
         assert rec.http_date.tzinfo
         rec.http_headers['Date'] = 'Invalid Date'
         assert rec.http_date is None
-        now_date = datetime.datetime.utcnow().replace(microsecond=0)
+        now_date = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
         rec.http_headers['Date'] = format_datetime(now_date)
         assert rec.http_date == now_date
 
