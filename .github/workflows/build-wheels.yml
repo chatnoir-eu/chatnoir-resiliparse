@@ -24,8 +24,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-12 ]
+        os: [ ubuntu-latest ]
+#        os: [ ubuntu-latest, windows-latest, macos-12 ]
     env:
+      CIBW_BUILD: "cp312*"
       CIBW_SKIP: "*-musllinux*"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64"
@@ -239,14 +241,14 @@ jobs:
       - name: Upload to Codecov
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          TOKENLESS: ${{ github.event.pull_request.head.label }}
+#          TOKENLESS: ${{ github.event.pull_request.head.label }}
         run: |
           set -e
           python${PYTHON_VERSION} -m codecov_cli.main do-upload \
             --file report.junit.xml \
             --report-type test_results \
             --sha ${{ github.sha }} \
-            --branch ${{ github.ref_name }} \
+            --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
@@ -255,7 +257,7 @@ jobs:
             --file coverage.xml \
             --report-type coverage \
             --sha ${{ github.sha }} \
-            --branch ${{ github.ref_name }} \
+            --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
