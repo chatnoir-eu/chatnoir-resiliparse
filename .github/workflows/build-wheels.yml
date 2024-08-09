@@ -246,7 +246,7 @@ jobs:
             --file report.junit.xml \
             --report-type test_results \
             --sha ${{ github.sha }} \
-            --branch ${{ github.ref_name }} \
+            --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
@@ -255,7 +255,7 @@ jobs:
             --file coverage.xml \
             --report-type coverage \
             --sha ${{ github.sha }} \
-            --branch ${{ github.ref_name }} \
+            --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
