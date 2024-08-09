@@ -2,8 +2,6 @@ name: Build manylinux docker container
 
 on:
   push:
-    tags:
-      - '*'
     branches:
       - develop
       - ci/*
