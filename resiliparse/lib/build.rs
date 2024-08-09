@@ -25,7 +25,7 @@ fn main() {
         .allowlist_type("(LEXBOR|lexbor|lxb)_.*")
         .allowlist_var("(LEXBOR|LXB)_.*")
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Error generating Lexbor binding")
         .write_to_file(PathBuf::from("third_party").join("lexbor.rs"))
