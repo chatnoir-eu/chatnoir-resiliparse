@@ -31,6 +31,15 @@ class WarcRecordType(IntFlag):
     no_type = 0
 
 
+warcinfo = WarcRecordType.warcinfo
+response = WarcRecordType.response
+resource = WarcRecordType.resource
+request = WarcRecordType.request
+metadata = WarcRecordType.metadata
+revisit = WarcRecordType.revisit
+conversion = WarcRecordType.conversion
+continuation = WarcRecordType.continuation
+unknown = WarcRecordType.unknown
 no_type = WarcRecordType.no_type
 any_type = WarcRecordType.any_type
 
