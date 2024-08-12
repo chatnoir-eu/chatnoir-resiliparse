@@ -16,6 +16,8 @@ from .stream_io import FileStream, GZipStream, LZ4Stream
 from .stream_io import FastWARCError, StreamError
 from .warc import ArchiveIterator, WarcRecord, WarcRecordType
 
+# Exposing symbols for legacy compatibility, please prefer explicit imports from submodules
+
 __all__ = [
     "FileStream",
     "GZipStream",
