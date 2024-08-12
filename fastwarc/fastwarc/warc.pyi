@@ -11,19 +11,10 @@ from typing import (
     ValuesView,
     KeysView,
     BinaryIO,
-    Protocol,
 )
 from enum import IntFlag
 
-from .stream_io import BufferedReader, IOStream
-
-class _ReadableStream(Protocol):
-    def read(self, size: int) -> bytes: ...
-    def seek(self, offset: int) -> int: ...
-
-class _WritableStream(Protocol):
-    def write(self, data: bytes) -> int: ...
-    def flush(self) -> None: ...
+from .stream_io import BufferedReader, IOStream, _GenericIOStream
 
 
 class WarcRecordType(IntFlag):
@@ -91,7 +82,7 @@ class WarcRecord:
     def verify_payload_digest(self, consume: bool = False) -> bool: ...
     def write(
         self,
-        stream: Union[IOStream, BinaryIO, _WritableStream],
+        stream: Union[IOStream, BinaryIO, _GenericIOStream],
         checksum_data: bool = False,
         payload_digest: Optional[bytes] = None,
         chunk_size: int = 16384
@@ -102,7 +93,7 @@ class WarcRecord:
 class ArchiveIterator(Iterable[WarcRecord]):
     def __init__(
         self,
-        stream: Union[IOStream, BinaryIO, _ReadableStream],
+        stream: Union[IOStream, BinaryIO, _GenericIOStream],
         record_types: WarcRecordType = any_type,
         parse_http: bool = True,
         min_content_length: int = -1,
