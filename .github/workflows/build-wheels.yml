@@ -242,11 +242,18 @@ jobs:
           TOKENLESS: ${{ github.event.pull_request.head.label }}
         run: |
           set -e
+
+          PR=""
+          if [ -n '${{ github.event.pull_request.head.sha }}' ]; then
+            PR="--pr ${{ github.event.number }}"
+          fi
+
           python${PYTHON_VERSION} -m codecov_cli.main do-upload \
             --file report.junit.xml \
             --report-type test_results \
-            --sha ${{ github.sha }} \
+            --sha ${{ github.event.pull_request.head.sha || github.sha }} \
             --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
+            $PR \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
@@ -254,8 +261,9 @@ jobs:
           python${PYTHON_VERSION} -m codecov_cli.main upload-process \
             --file coverage.xml \
             --report-type coverage \
-            --sha ${{ github.sha }} \
+            --sha ${{ github.event.pull_request.head.sha || github.sha }} \
             --branch ${{ github.event.pull_request.head.label || github.ref_name }} \
+            $PR \
             --slug ${{ github.repository }} \
             --git-service github \
             --fail-on-error
