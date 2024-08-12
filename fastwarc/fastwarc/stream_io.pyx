@@ -97,8 +97,7 @@ cdef class IOStream:
         :return: number of bytes written
         :rtype: int
         """
-        size = self.write_(<const char*>data, len(data))
-        return size
+        return self.write_(<const char*>data, len(data))
 
     cpdef void seek(self, size_t offset) except *:
         """
@@ -338,7 +337,7 @@ cdef class CompressingStream(IOStream):
     cpdef size_t end_member(self):
         """
         End compression member / frame (if one has been started).
-        
+         If ytd   
         :return: bytes written
         :rtype: int
         """
