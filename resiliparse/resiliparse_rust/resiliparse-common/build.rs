@@ -18,9 +18,9 @@ extern crate bindgen;
 
 fn main() {
     println!("cargo:rustc-link-lib=lexbor");
-    println!("cargo:rerun-if-changed=third_party/lexbor.h");
+    println!("cargo:rerun-if-changed=src/third_party/lexbor.h");
     bindgen::Builder::default()
-        .header("third_party/lexbor.h")
+        .header("src/third_party/lexbor.h")
         .allowlist_function("(lexbor|lxb)_.*")
         .allowlist_type("(LEXBOR|lexbor|lxb)_.*")
         .allowlist_var("(LEXBOR|LXB)_.*")
@@ -28,6 +28,6 @@ fn main() {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Error generating Lexbor binding")
-        .write_to_file(PathBuf::from("third_party").join("lexbor.rs"))
+        .write_to_file(PathBuf::from("src").join("third_party").join("lexbor.rs"))
         .unwrap();
 }

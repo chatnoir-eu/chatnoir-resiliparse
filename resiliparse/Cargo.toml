@@ -1,15 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-  "lib"
+  "resiliparse_rust/resiliparse-common",
+  "resiliparse_rust/resiliparse-py/parse/_html_rs",
 ]
 
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Resiliparse Rust bindings"
+description = "Resiliparse Rust library"
 authors = ["Janek Bevendorff"]
-
-[workspace.dependencies]
-pyo3 = { version = "^0.22.2", features = ["extension-module"] }
+documentation = "https://resiliparse.chatnoir.eu/"

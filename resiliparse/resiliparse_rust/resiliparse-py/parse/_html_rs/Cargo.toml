@@ -1,0 +1,10 @@
+[package]
+name = "resiliparse-parse-html"
+edition.workspace = true
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "^0.22.2", features = ["extension-module"] }
