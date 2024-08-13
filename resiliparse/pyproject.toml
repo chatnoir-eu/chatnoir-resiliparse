@@ -51,7 +51,6 @@ include = ["resiliparse*"]
 [[tool.setuptools-rust.ext-modules]]
 path = "resiliparse_rust/resiliparse-py/parse/_html_rs/Cargo.toml"
 target = "resiliparse.parse._html_rs"
-binding = "PyO3"
 
 [tool.cibuildwheel]
 archs = "native"
