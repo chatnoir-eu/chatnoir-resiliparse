@@ -1,7 +1,7 @@
 from enum import IntFlag
-from typing import Union, Type, Iterator, Tuple
+from typing import Union, Iterator, Tuple, Protocol
 
-from .stream_io import IOStream
+from .stream_io import IOStream, _GenericIOStream
 from .warc import WarcRecord
 
 
@@ -16,16 +16,16 @@ def detect_compression_algorithm(file: str) -> CompressionAlg: ...
 
 
 def wrap_warc_stream(
-    file: Union[str, Type[IOStream]],
+    file: Union[str, IOStream, _GenericIOStream],
     mode: str,
     comp_alg: CompressionAlg = CompressionAlg.auto,
     **comp_args
-) -> Type[IOStream]: ...
+) -> IOStream: ...
 
 
 def recompress_warc_interactive(
-    warc_in: Union[str, Type[IOStream]],
-    warc_out: Union[str, Type[IOStream]],
+    warc_in: Union[str, IOStream, _GenericIOStream],
+    warc_out: Union[str, IOStream, _GenericIOStream],
     comp_alg_in: CompressionAlg = CompressionAlg.auto,
     comp_alg_out: CompressionAlg = CompressionAlg.auto,
     **comp_args
@@ -33,8 +33,8 @@ def recompress_warc_interactive(
 
 
 def recompress_warc(
-    warc_in: Union[str, Type[IOStream]],
-    warc_out: Union[str, Type[IOStream]],
+    warc_in: Union[str, IOStream, _GenericIOStream],
+    warc_out: Union[str, IOStream, _GenericIOStream],
     comp_alg_in: CompressionAlg = CompressionAlg.auto,
     comp_alg_out: CompressionAlg = CompressionAlg.auto,
     **comp_args
@@ -42,7 +42,7 @@ def recompress_warc(
 
 
 def verify_digests(
-    warc_in: Union[str, Type[IOStream]],
+    warc_in: Union[str, IOStream],
     verify_payloads: bool = False,
     comp_alg: CompressionAlg = CompressionAlg.auto,
 ) -> bool: ...
