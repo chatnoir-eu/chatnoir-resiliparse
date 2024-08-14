@@ -19,7 +19,7 @@ use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::ptr::addr_of_mut;
-use std::rc::{Rc, Weak};
+use std::sync::{Arc, Weak};
 
 use crate::parse::html::dom::node::{ElementNode, NodeRef};
 use crate::parse::html::dom::node_base::NodeBase;
@@ -63,13 +63,13 @@ pub struct CSSSelectorList<'a> {
 }
 
 impl<'a> CSSSelectorList<'a> {
-    pub(super) fn parse_selectors(tree: &Rc<HTMLDocument>, selectors: &str) -> Result<CSSSelectorList<'a>, CSSParserError> {
+    pub(super) fn parse_selectors(tree: &Arc<HTMLDocument>, selectors: &str) -> Result<CSSSelectorList<'a>, CSSParserError> {
         unsafe {
-            if lxb_html_document_css_init(tree.html_document) != LXB_HTML_STATUS_OK {
+            if lxb_html_document_css_init(tree.doc_ptr().unwrap()) != LXB_HTML_STATUS_OK {
                 return Err(CSSParserError { msg: "Failed to initialize CSS parser.".to_owned() });
             }
 
-            let parser = (*tree.html_document).css.parser;
+            let parser = (*tree.doc_ptr().unwrap()).css.parser;
             let sel_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
             if (*parser).status != LXB_STATUS_OK {
                 let mut msg = String::default();
@@ -77,7 +77,7 @@ impl<'a> CSSSelectorList<'a> {
                                       addr_of_mut!(msg) as *mut c_void, "".as_ptr(), 0);
                 Err(CSSParserError { msg })
             } else {
-                Ok(CSSSelectorList { selector_list: sel_list, tree: Rc::downgrade(&tree), phantom: Default::default() })
+                Ok(CSSSelectorList { selector_list: sel_list, tree: Arc::downgrade(&tree), phantom: Default::default() })
             }
         }
     }
@@ -92,7 +92,7 @@ impl<'a> CSSSelectorList<'a> {
     pub(super) unsafe fn match_elements_unchecked<Ctx>(
         &self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut Ctx) {
         if let Some(t) = self.tree.upgrade() {
-            lxb_selectors_find((*t.html_document).css.selectors,
+            lxb_selectors_find((*t.doc_ptr().unwrap()).css.selectors,
                                root_node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
     }
@@ -100,7 +100,7 @@ impl<'a> CSSSelectorList<'a> {
     pub(super) unsafe fn match_elements_unchecked_reverse<T>(
         &self, node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) {
         if let Some(t) = self.tree.upgrade() {
-            lxb_selectors_find_reverse((*t.html_document).css.selectors,
+            lxb_selectors_find_reverse((*t.doc_ptr().unwrap()).css.selectors,
                                        node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
     }
@@ -126,8 +126,8 @@ impl<'a> CSSSelectorList<'a> {
     pub fn match_elements<T, F>(&self, root_node: NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         let tree = self.tree.upgrade().unwrap();
-        assert_eq!(tree.html_document, root_node.tree.html_document);
-        let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Rc::downgrade(&tree), custom_data };
+        unsafe { assert_eq!(tree.doc_ptr().unwrap(), root_node.tree.doc_ptr().unwrap()) };
+        let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked(root_node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
@@ -141,8 +141,8 @@ impl<'a> CSSSelectorList<'a> {
             }
         }
         let tree = self.tree.upgrade().unwrap();
-        assert_eq!(tree.html_document, node.tree.html_document);
-        let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Rc::downgrade(&tree), custom_data };
+        unsafe { assert_eq!(tree.doc_ptr().unwrap(), node.tree.doc_ptr().unwrap()) };
+        let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked_reverse(node.node, Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
