@@ -139,10 +139,15 @@ impl HTMLCollection {
         HTMLCollection::from(coll)
     }
 
+    #[inline(always)]
     pub fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        self.elements_by_attr_case(qualified_name, value, false)
+    }
+
+    pub fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(&mut e.elements_by_attr(qualified_name, value).iter().collect())
+            coll.append(&mut e.elements_by_attr_case(qualified_name, value, case_insensitive).iter().collect())
         });
         HTMLCollection::from(coll)
     }

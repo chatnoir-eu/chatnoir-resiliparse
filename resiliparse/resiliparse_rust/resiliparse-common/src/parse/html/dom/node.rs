@@ -391,10 +391,25 @@ impl Document for DocumentNode {
         })
     }
 
+    #[inline(always)]
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        self.elements_by_attr_case(qualified_name, value, false)
+    }
+
+    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         check_node!(self.node_base);
-        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
-            unsafe { elements_by_attr(n, &attr.unwrap_unchecked()[0], &attr.unwrap_unchecked()[1]) }
+        let user_data = Box::new([
+            qualified_name.to_owned(),
+            value.to_owned(),
+            case_insensitive.to_string()]);
+        HTMLCollection::new_live(self.into(), Some(user_data), |n, attr| {
+            unsafe {
+                elements_by_attr(
+                    n,
+                    &attr.unwrap_unchecked()[0],
+                    &attr.unwrap_unchecked()[1],
+                    &attr.unwrap_unchecked()[2] == "true")
+            }
         })
     }
 
@@ -733,8 +748,22 @@ impl Element for ElementNode {
     }
 
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned(), value.to_owned()])), |n, attr| {
-            unsafe { elements_by_attr(&n, &attr.unwrap_unchecked()[0], &attr.unwrap_unchecked()[1]) }
+        self.elements_by_attr_case(qualified_name, value, false)
+    }
+
+    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+        let user_data = Box::new([
+            qualified_name.to_owned(),
+            value.to_owned(),
+            case_insensitive.to_string()]);
+        HTMLCollection::new_live(self.into(), Some(user_data), |n, attr| {
+            unsafe {
+                elements_by_attr(
+                    &n,
+                    &attr.unwrap_unchecked()[0],
+                    &attr.unwrap_unchecked()[1],
+                    &attr.unwrap_unchecked()[2] == "true")
+            }
         })
     }
 

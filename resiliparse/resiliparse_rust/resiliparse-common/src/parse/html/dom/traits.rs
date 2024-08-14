@@ -89,6 +89,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
+    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError>;
     fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError>;
@@ -183,7 +184,11 @@ pub trait ParentNode: NodeInterface {
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
     fn element_by_id(&self, element_id: &str) -> Option<ElementNode> {
-        unsafe { element_by_id(self.upcast(), element_id) }
+        unsafe { element_by_id(self.upcast(), element_id, false) }
+    }
+    
+    fn element_by_id_case(&self, element_id: &str, case_insensitive: bool) -> Option<ElementNode> {
+        unsafe { element_by_id(self.upcast(), element_id, case_insensitive) }
     }
 }
 
@@ -280,6 +285,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
     fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
     fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
+    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);
