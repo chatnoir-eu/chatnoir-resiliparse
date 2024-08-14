@@ -20,6 +20,63 @@ use pyo3::types::*;
 mod _html_rs {
     use super::*;
 
+    #[pyclass(eq, eq_int)]
+    #[derive(PartialEq)]
+    #[allow(non_camel_case_types)]
+    enum NodeType {
+        ELEMENT = 0x01,
+        ATTRIBUTE = 0x02,
+        TEXT = 0x03,
+        CDATA_SECTION = 0x04,
+        ENTITY_REFERENCE = 0x05,
+        ENTITY = 0x06,
+        PROCESSING_INSTRUCTION = 0x07,
+        COMMENT = 0x08,
+        DOCUMENT = 0x09,
+        DOCUMENT_TYPE = 0x0A,
+        DOCUMENT_FRAGMENT = 0x0B,
+        NOTATION = 0x0C,
+        LAST_ENTRY = 0x0D
+    }
+
+    #[pyclass]
+    struct DOMCollection {}
+
+    #[pymethods]
+    //noinspection DuplicatedCode
+    impl DOMCollection {
+        #[pyo3(signature = (element_id, case_insensitive=false))]
+        fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
+            Ok(DOMNode {})
+        }
+
+        #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
+        fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
+            Ok(DOMCollection {})
+        }
+
+        #[pyo3(signature = (class_name, case_insensitive=false))]
+        fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
+            Ok(DOMCollection {})
+        }
+
+        fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
+            Ok(DOMCollection {})
+        }
+
+        fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
+            Ok(DOMNode {})
+        }
+
+        fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
+            Ok(DOMCollection {})
+        }
+
+        fn matches(&self, selector: &str) -> PyResult<bool> {
+            Ok(false)
+        }
+    }
+
     #[pyclass]
     struct DOMElementClassList {}
 
@@ -53,11 +110,6 @@ mod _html_rs {
         #[pyo3(name = "type")]
         fn type_(&self) -> PyResult<NodeType> {
             Ok(NodeType::ELEMENT)
-        }
-
-        #[getter]
-        fn tag(&self) -> PyResult<&str> {
-            Ok("")
         }
 
         #[getter]
@@ -103,6 +155,11 @@ mod _html_rs {
         #[getter]
         fn prev_element(&self) -> PyResult<DOMNode> {
             Ok(DOMNode {})
+        }
+
+        #[getter]
+        fn tag(&self) -> PyResult<&str> {
+            Ok("")
         }
 
         #[getter]
@@ -230,77 +287,10 @@ mod _html_rs {
     }
 
     #[pyclass]
-    struct DOMCollection {}
-
-    #[pymethods]
-    //noinspection DuplicatedCode
-    impl DOMCollection {
-        #[pyo3(signature = (element_id, case_insensitive=false))]
-        fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
-        }
-
-        #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
-        fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
-        }
-
-        #[pyo3(signature = (class_name, case_insensitive=false))]
-        fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
-        }
-
-        fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
-        }
-
-        fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
-        }
-
-        fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
-        }
-
-        fn matches(&self, selector: &str) -> PyResult<bool> {
-            Ok(false)
-        }
-    }
-
-    #[pyclass(eq, eq_int)]
-    #[derive(PartialEq)]
-    #[allow(non_camel_case_types)]
-    enum NodeType {
-        ELEMENT = 0x01,
-        ATTRIBUTE = 0x02,
-        TEXT = 0x03,
-        CDATA_SECTION = 0x04,
-        ENTITY_REFERENCE = 0x05,
-        ENTITY = 0x06,
-        PROCESSING_INSTRUCTION = 0x07,
-        COMMENT = 0x08,
-        DOCUMENT = 0x09,
-        DOCUMENT_TYPE = 0x0A,
-        DOCUMENT_FRAGMENT = 0x0B,
-        NOTATION = 0x0C,
-        LAST_ENTRY = 0x0D
-    }
-
-    #[pyclass]
     struct HTMLTree {}
 
     #[pymethods]
     impl HTMLTree {
-        #[staticmethod]
-        fn create_element(tag_name: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
-        }
-
-        #[staticmethod]
-        fn create_text_node(text: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
-        }
-
         #[staticmethod]
         fn parse(document: &str) -> PyResult<Self> {
             Ok(Self {})
@@ -310,6 +300,14 @@ mod _html_rs {
         #[pyo3(signature = (document, encoding="utf-8", errors="ignore"))]
         fn parse_from_bytes(document: &[u8], encoding: &str, errors: &str) -> PyResult<Self> {
             Ok(Self {})
+        }
+
+        fn create_element(&mut self, tag_name: &str) -> PyResult<DOMNode> {
+            Ok(DOMNode {})
+        }
+
+        fn create_text_node(&mut self, text: &str) -> PyResult<DOMNode> {
+            Ok(DOMNode {})
         }
 
         #[getter]
