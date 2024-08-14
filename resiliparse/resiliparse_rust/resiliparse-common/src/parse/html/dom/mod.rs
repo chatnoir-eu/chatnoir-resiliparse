@@ -47,25 +47,26 @@ impl Error for DOMError {}
 // --------------------------------------------- Helpers -------------------------------------------
 
 
-unsafe fn element_by_id(node: &NodeBase, id: &str) -> Option<ElementNode> {
+unsafe fn element_by_id(node: &NodeBase, id: &str, case_insensitive: bool) -> Option<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return None;
     }
     lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
-                             id.as_ptr(), id.len(), false);
+                             id.as_ptr(), id.len(), case_insensitive);
     let matched_node = lxb_dom_collection_node_noi(coll, 0);
     lxb_dom_collection_destroy(coll, true);
     Some(ElementNode { node_base: NodeBase::new_base(&node.tree, matched_node)? })
 }
 
-unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str) -> Vec<ElementNode> {
+
+unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
     lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, qualified_name.as_ptr(),
-                             qualified_name.len(), value.as_ptr(), value.len(), false);
+                             qualified_name.len(), value.as_ptr(), value.len(), case_insensitive);
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
