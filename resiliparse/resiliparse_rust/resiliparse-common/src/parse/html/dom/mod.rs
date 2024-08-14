@@ -16,7 +16,7 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::node_base::NodeBase;
@@ -87,7 +87,7 @@ unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<Eleme
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn dom_coll_to_vec(tree: &Rc<HTMLDocument>, coll: *mut lxb_dom_collection_t,
+unsafe fn dom_coll_to_vec(tree: &Arc<HTMLDocument>, coll: *mut lxb_dom_collection_t,
                           destroy: bool) -> Vec<ElementNode> {
     let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
     for i in 0..lxb_dom_collection_length_noi(coll) {

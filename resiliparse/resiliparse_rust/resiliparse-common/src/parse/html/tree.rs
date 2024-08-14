@@ -18,7 +18,7 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
 use std::ptr::addr_of_mut;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::str::FromStr;
 
 use crate::parse::html::dom::node::*;
@@ -60,7 +60,7 @@ impl Error for CSSParserError {}
 
 /// HTML DOM tree handle.
 pub struct HTMLTree {
-    doc_rc: Rc<HTMLDocument>
+    doc: Arc<HTMLDocument>
 }
 
 impl HTMLTree {
@@ -82,7 +82,7 @@ impl HTMLTree {
             }
         }
 
-        Ok(HTMLTree { doc_rc: Rc::new(HTMLDocument { html_document: doc_ptr }) })
+        Ok(HTMLTree { doc: Arc::new(HTMLDocument { html_document: Mutex::new(doc_ptr) }) })
     }
 }
 
@@ -138,27 +138,27 @@ impl TryFrom<&[u8]> for HTMLTree {
 impl HTMLTree {
     /// Get Lexbor raw pointer to HTML document.
     fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
-        unsafe { self.doc_rc.html_document.as_mut() }
+        unsafe { self.doc.doc_ptr()?.as_mut() }
     }
 
     #[inline]
     /// Get DOM document root node.
     pub fn document(&self) -> Option<DocumentNode> {
         Some(NodeBase::wrap_node(
-            &self.doc_rc, addr_of_mut!(self.get_html_document_raw()?.dom_document.node))?.into())
+            &self.doc, addr_of_mut!(self.get_html_document_raw()?.dom_document.node))?.into())
     }
 
     /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
         Some(ElementNode {
-            node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?
+            node_base: NodeBase::new_base(&self.doc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?
         })
     }
 
     /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
         Some(ElementNode {
-            node_base: NodeBase::new_base(&self.doc_rc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?
+            node_base: NodeBase::new_base(&self.doc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?
         })
     }
 
@@ -177,14 +177,28 @@ impl HTMLTree {
 /// Internal heap-allocated and reference-counted HTMLTree.
 #[derive(Debug)]
 pub(super) struct HTMLDocument {
-    pub(super) html_document: *mut lxb_html_document_t
+    html_document: Mutex<*mut lxb_html_document_t>
+}
+
+impl HTMLDocument {
+    pub(super) unsafe fn doc_ptr(&self) -> Option<*mut lxb_html_document_t> {
+        match self.html_document.lock() {
+            Ok(p) => Some(*p),
+            _ => None
+        }
+    }
 }
 
 impl Drop for HTMLDocument {
     fn drop(&mut self) {
-        if !self.html_document.is_null() {
-            unsafe { lxb_html_document_destroy(self.html_document); }
-            self.html_document = ptr::null_mut();
+        if let Ok(mut p) = self.html_document.lock() {
+            if !p.is_null() {
+                unsafe { lxb_html_document_destroy(*p); };
+                *p = ptr::null_mut();
+            }
         }
     }
 }
+
+unsafe impl Send for HTMLDocument {}
+unsafe impl Sync for HTMLDocument {}

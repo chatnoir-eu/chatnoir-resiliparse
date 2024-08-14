@@ -19,7 +19,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ptr;
 use std::ptr::addr_of;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::parse::html::dom::coll::NodeList;
 use crate::parse::html::dom::*;
@@ -36,7 +36,7 @@ use crate::parse::html::tree::HTMLDocument;
 /// the [node] module instead.
 #[derive(Clone)]
 pub struct NodeBase {
-    pub(in super::super) tree: Rc<HTMLDocument>,
+    pub(in super::super) tree: Arc<HTMLDocument>,
     pub(in super::super) node: *mut lxb_dom_node_t,
 }
 
@@ -104,7 +104,7 @@ impl Display for NodeBase {
 impl Eq for NodeBase {}
 
 impl NodeBase {
-    pub(in super::super) fn wrap_node(tree: &Rc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
+    pub(in super::super) fn wrap_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
         if node.is_null() {
             return None;
         }
@@ -127,7 +127,7 @@ impl NodeBase {
     }
 
     #[inline]
-    pub(in super::super) fn new_base(tree: &Rc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> {
+    pub(in super::super) fn new_base(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> {
         if node.is_null() {
             None
         } else {

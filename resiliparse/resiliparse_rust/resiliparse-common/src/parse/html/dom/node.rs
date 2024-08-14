@@ -19,7 +19,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::ptr::addr_of_mut;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::parse::html::css::*;
 use crate::parse::html::dom::coll::*;
@@ -184,7 +184,7 @@ pub(super) use check_node;
 macro_rules! check_nodes {
     ($node1: expr, $node2: expr) => {
         {
-            if !Rc::ptr_eq(&$node1.tree, &$node2.tree) ||
+            if !Arc::ptr_eq(&$node1.tree, &$node2.tree) ||
                $node1.node.is_null() || $node2.node.is_null() || $node1 == $node2 {
                 return Default::default();
             }
