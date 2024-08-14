@@ -339,6 +339,7 @@ name = "resiliparse-parse-html"
 version = "0.0.0"
 dependencies = [
  "pyo3",
+ "resiliparse-common",
 ]
 
 [[package]]

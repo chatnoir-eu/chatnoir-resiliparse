@@ -14,15 +14,23 @@
 
 use pyo3::prelude::*;
 use pyo3::types::*;
+use pyo3::exceptions::*;
+
+use resiliparse_common::parse::html;
+use resiliparse_common::parse::html::dom;
+use resiliparse_common::parse::html::dom::coll::*;
+use resiliparse_common::parse::html::dom::node::*;
+use resiliparse_common::parse::html::dom::traits::*;
+
 
 #[pymodule]
 #[allow(unused_variables)]
-mod _html_rs {
+pub mod _html_rs {
     use super::*;
 
     #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
-    #[derive(PartialEq)]
-    enum NodeType {
+    #[derive(PartialEq, Eq)]
+    pub enum NodeType {
         Element = 0x01,
         Attribute = 0x02,
         Text = 0x03,
@@ -38,295 +46,394 @@ mod _html_rs {
         LastEntry = 0x0D
     }
 
-    #[pyclass]
-    struct DOMCollection {}
+    pub enum NodeListType {
+        NodeList(NodeList),
+        ElementNodeList(ElementNodeList),
+        // HTMLCollection(HTMLCollection),  // --> Same type as ElementNodeList
+        NamedNodeMap(NamedNodeMap),
+    }
+
+    impl From<NodeList> for NodeListType {
+        fn from(value: NodeList) -> Self {
+            NodeListType::NodeList(value)
+        }
+    }
+
+    impl From<ElementNodeList> for NodeListType {
+        fn from(value: ElementNodeList) -> Self {
+            NodeListType::ElementNodeList(value)
+        }
+    }
+
+    impl From<NamedNodeMap> for NodeListType {
+        fn from(value: NamedNodeMap) -> Self {
+            NodeListType::NamedNodeMap(value)
+        }
+    }
+
+    #[pyclass(sequence, frozen)]
+    pub struct DOMCollection {
+        list: NodeListType
+    }
+
 
     #[pymethods]
     //noinspection DuplicatedCode
     impl DOMCollection {
         #[pyo3(signature = (element_id, case_insensitive=false))]
-        fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> Option<DOMNode> {
+            None
         }
 
         #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
-        fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: bool) -> PyResult<DOMCollection> {
+            match &self.list {
+                NodeListType::ElementNodeList(l) => {
+                    Ok(Self { list: l.elements_by_attr_case(attr_name, attr_value, case_insensitive).into() })
+                },
+                _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+            }
         }
 
-        #[pyo3(signature = (class_name, case_insensitive=false))]
-        fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_class_name(&self, class_name: &str) -> PyResult<DOMCollection> {
+            match &self.list {
+                NodeListType::ElementNodeList(l) => {
+                    Ok(Self { list: l.elements_by_class_name(class_name).into() })
+                },
+                _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+            }
         }
 
-        fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
+            match &self.list {
+                NodeListType::ElementNodeList(l) => {
+                    Ok(Self { list:l.elements_by_tag_name(tag_name).into() })
+                },
+                _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+            }
         }
 
-        fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn query_selector(&self, selector: &str) -> PyResult<Option<DOMNode>> {
+            match &self.list {
+                NodeListType::ElementNodeList(l) => {
+                    match l.query_selector(selector) {
+                        Ok(e) => {
+                            if let Some(n) = e {
+                                Ok(Some(n.to_node().into()))
+                            } else { Ok(None) }
+                        },
+                        Err(e) => Err(PyValueError::new_err(e.to_string()))
+                    }
+                },
+                _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+            }
         }
 
-        fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
+            match &self.list {
+                NodeListType::ElementNodeList(l) => {
+                    Ok(Self { list: l.elements_by_tag_name(selector).into() })
+                },
+                _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+            }
         }
 
-        fn matches(&self, selector: &str) -> PyResult<bool> {
+        pub fn matches(&self, selector: &str) -> PyResult<bool> {
             Ok(false)
         }
     }
 
-    #[pyclass]
-    struct DOMElementClassList {}
+    #[pyclass(eq, sequence)]
+    #[derive(PartialEq, Eq)]
+    pub struct DOMElementClassList {}
 
     #[pymethods]
     impl DOMElementClassList {
         #[new]
-        fn __new__() -> Self {
+        pub fn __new__() -> Self {
             DOMElementClassList {}
         }
 
-        fn add(&self, class_name: &str) -> PyResult<()> {
+        pub fn add(&self, class_name: &str) -> PyResult<()> {
             Ok(())
         }
 
-        fn remove(&mut self, class_name: &str) -> PyResult<()> {
+        pub fn remove(&mut self, class_name: &str) -> PyResult<()> {
             Ok(())
         }
     }
 
     #[pyclass]
-    struct DOMNode {}
+    pub struct DOMNode {
+        node: dom::node::Node
+    }
+
+    impl From<dom::node::Node> for DOMNode {
+        fn from(value: dom::node::Node) -> Self {
+            Self { node: value }
+        }
+    }
 
     #[pymethods]
     impl DOMNode {
-        #[new]
-        fn __new__() -> Self {
-            DOMNode {}
-        }
-
         #[getter]
         #[pyo3(name = "type")]
-        fn type_(&self) -> PyResult<NodeType> {
+        pub fn type_(&self) -> PyResult<NodeType> {
             Ok(NodeType::Element)
         }
 
         #[getter]
-        fn first_child(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn first_child(&self) -> Option<DOMNode> {
+            Some(self.node.first_child()?.into())
         }
 
         #[getter]
-        fn first_element_child(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn first_element_child(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.first_element_child()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn last_element_child(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn last_element_child(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.last_element_child()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        pub fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
             Ok(PyList::empty_bound(py))
         }
 
         #[getter]
-        fn parent(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn parent(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.parent_node()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn next(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn next(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.next_sibling()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn prev(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn prev(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.previous_sibling()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn next_element(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn next_element(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.next_element_sibling()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn prev_element(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn prev_element(&self) -> Option<DOMNode> {
+            if let Node::Element(e) = &self.node {
+                Some(e.previous_element_sibling()?.to_node().into())
+            } else { None }
         }
 
         #[getter]
-        fn tag(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn tag(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn value(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn value(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn get_text(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn get_text(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[setter]
-        fn set_text(&mut self, text: &str) -> PyResult<()> {
-            Ok(())
+        pub fn set_text(&mut self, text: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn get_html(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn get_html(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[setter]
-        fn set_html(&mut self, html: &str) -> PyResult<()> {
-            Ok(())
+        pub fn set_html(&mut self, html: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn get_id(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn get_id(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[setter]
-        fn set_id(&mut self, id: &str) -> PyResult<()> {
-            Ok(())
+        pub fn set_id(&mut self, id: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn get_class_name(&self) -> PyResult<&str> {
-            Ok("")
+        pub fn get_class_name(&self) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[setter]
-        fn set_class_name(&mut self, class_name: &str) -> PyResult<()> {
-            Ok(())
+        pub fn set_class_name(&mut self, class_name: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn get_class_list(&self) -> PyResult<DOMElementClassList> {
-            Ok(DOMElementClassList {})
+        pub fn get_class_list(&self) -> PyResult<DOMElementClassList> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[getter]
-        fn attrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-            Ok(PyTuple::empty_bound(py))
+        pub fn attrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn hasattr(&self, attr_name: &str) -> PyResult<bool> {
-            Ok(false)
+        pub fn hasattr(&self, attr_name: &str) -> PyResult<bool> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[pyo3(signature = (attr_name, default_value=None))]
-        fn getattr(&self, attr_name: &str, default_value: Option<&str>) -> PyResult<&str> {
-            Ok("...")
+        pub fn getattr(&self, attr_name: &str, default_value: Option<&str>) -> PyResult<&str> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn setattr(&mut self, attr_name: &str, attr_value: &str) -> PyResult<()> {
-            Ok(())
+        pub fn setattr(&mut self, attr_name: &str, attr_value: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn delattr(&mut self, attr_name: &str) -> PyResult<()> {
-            Ok(())
+        pub fn delattr(&mut self, attr_name: &str) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[pyo3(signature = (element_id, case_insensitive=false))]
-        fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
-        fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
         #[pyo3(signature = (class_name, case_insensitive=false))]
-        fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
-            Ok(DOMCollection {})
+        pub fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn matches(&self, selector: &str) -> PyResult<bool> {
-            Ok(false)
+        pub fn matches(&self, selector: &str) -> PyResult<bool> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn append_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn append_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn insert_before(&mut self, node: &DOMNode, reference: &DOMNode) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn insert_before(&mut self, node: &DOMNode, reference: &DOMNode) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn replace_child(&mut self, new_child: &DOMNode, old_child: &DOMNode) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn replace_child(&mut self, new_child: &DOMNode, old_child: &DOMNode) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn remove_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn remove_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
 
-        fn decompose(&mut self) -> PyResult<()> {
-            Ok(())
+        pub fn decompose(&mut self) -> PyResult<()> {
+            Err(PyNotImplementedError::new_err("TODO"))
         }
     }
 
     #[pyclass]
-    struct HTMLTree {}
+    pub struct HTMLTree {
+        tree: html::tree::HTMLTree
+    }
 
     #[pymethods]
     impl HTMLTree {
         #[staticmethod]
-        fn parse(document: &str) -> PyResult<Self> {
-            Ok(Self {})
+        pub fn parse(document: &str) -> PyResult<Self> {
+            match html::tree::HTMLTree::parse(document) {
+                Ok(t) => Ok(Self { tree: t }),
+                _ => Err(PyValueError::new_err("Failed to parse HTML document."))
+            }
         }
 
         #[staticmethod]
         #[pyo3(signature = (document, encoding="utf-8", errors="ignore"))]
-        fn parse_from_bytes(document: &[u8], encoding: &str, errors: &str) -> PyResult<Self> {
-            Ok(Self {})
+        pub fn parse_from_bytes(document: &[u8], encoding: &str, errors: &str) -> PyResult<Self> {
+            match html::tree::HTMLTree::try_from(document) {
+                Ok(t) => Ok(Self { tree: t }),
+                _ => Err(PyValueError::new_err("Failed to parse HTML document."))
+            }
         }
 
-        fn create_element(&mut self, tag_name: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn create_element(&mut self, tag_name: &str) -> PyResult<Option<DOMNode>> {
+            if let Some(mut d) = self.tree.document() {
+                match d.create_element(tag_name) {
+                    Ok(e) => Ok(Some(e.to_node().into())),
+                    Err(e) => Err(PyValueError::new_err(e.to_string()))
+                }
+            } else {
+                Err(PyValueError::new_err("No document node."))
+            }
         }
 
-        fn create_text_node(&mut self, text: &str) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn create_text_node(&mut self, text: &str) -> PyResult<Option<DOMNode>> {
+            if let Some(mut d) = self.tree.document() {
+                match d.create_text_node(text) {
+                    Ok(t) => Ok(Some(t.to_node().into())),
+                    Err(e) => Err(PyValueError::new_err(e.to_string()))
+                }
+            } else {
+                Err(PyValueError::new_err("No document node."))
+            }
         }
 
         #[getter]
-        fn document(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn document(&self) -> Option<DOMNode> {
+            Some(self.tree.document()?.to_node().into())
         }
 
         #[getter]
-        fn head(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn head(&self) -> Option<DOMNode> {
+            Some(self.tree.head()?.to_node().into())
         }
 
         #[getter]
-        fn body(&self) -> PyResult<DOMNode> {
-            Ok(DOMNode {})
+        pub fn body(&self) -> Option<DOMNode> {
+            Some(self.tree.body()?.to_node().into())
         }
 
         #[getter]
-        fn title(&self) -> PyResult<&str> {
-            Ok("...")
+        pub fn title(&self) -> Option<String> {
+            self.tree.title()
         }
     }
 }

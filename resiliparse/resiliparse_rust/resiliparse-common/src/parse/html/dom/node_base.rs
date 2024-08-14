@@ -40,6 +40,10 @@ pub struct NodeBase {
     pub(in super::super) node: *mut lxb_dom_node_t,
 }
 
+// TODO: Make this actually thread-safe
+unsafe impl Send for NodeBase {}
+unsafe impl Sync for NodeBase {}
+
 // Cannot be done until https://github.com/lexbor/lexbor/issues/132 is fixed
 // If you create lots of unparented DOMNodes, we may leak memory
 // impl Drop for NodeBase {
