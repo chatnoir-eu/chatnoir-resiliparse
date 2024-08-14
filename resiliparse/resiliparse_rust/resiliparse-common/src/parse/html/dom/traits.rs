@@ -93,7 +93,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError>;
     fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError>;
     fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError>;
-    fn create_cdata_section(&mut self, data: &str) -> Result<CDataSectionNode, DOMError>;
+    fn create_cdata_section(&mut self, data: &str) -> Result<CdataSectionNode, DOMError>;
     fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError>;
     fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError>;
     fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError>;
@@ -379,7 +379,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
 
 pub trait Text: CharacterData {}
 
-pub trait CDataSection: CharacterData {}
+pub trait CdataSection: CharacterData {}
 
 pub trait ProcessingInstruction: CharacterData {
     fn target(&self) -> Option<String>;

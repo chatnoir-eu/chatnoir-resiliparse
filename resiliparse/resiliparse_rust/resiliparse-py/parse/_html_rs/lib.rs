@@ -20,23 +20,22 @@ use pyo3::types::*;
 mod _html_rs {
     use super::*;
 
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
     #[derive(PartialEq)]
-    #[allow(non_camel_case_types)]
     enum NodeType {
-        ELEMENT = 0x01,
-        ATTRIBUTE = 0x02,
-        TEXT = 0x03,
-        CDATA_SECTION = 0x04,
-        ENTITY_REFERENCE = 0x05,
-        ENTITY = 0x06,
-        PROCESSING_INSTRUCTION = 0x07,
-        COMMENT = 0x08,
-        DOCUMENT = 0x09,
-        DOCUMENT_TYPE = 0x0A,
-        DOCUMENT_FRAGMENT = 0x0B,
-        NOTATION = 0x0C,
-        LAST_ENTRY = 0x0D
+        Element = 0x01,
+        Attribute = 0x02,
+        Text = 0x03,
+        CdataSection = 0x04,
+        EntityReference = 0x05,
+        Entity = 0x06,
+        ProcessingInstruction = 0x07,
+        Comment = 0x08,
+        Document = 0x09,
+        DocumentType = 0x0A,
+        DocumentFragment = 0x0B,
+        Notation = 0x0C,
+        LastEntry = 0x0D
     }
 
     #[pyclass]
@@ -109,7 +108,7 @@ mod _html_rs {
         #[getter]
         #[pyo3(name = "type")]
         fn type_(&self) -> PyResult<NodeType> {
-            Ok(NodeType::ELEMENT)
+            Ok(NodeType::Element)
         }
 
         #[getter]

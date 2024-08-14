@@ -35,7 +35,7 @@ pub enum Node {
     Element(ElementNode),
     Attr(AttrNode),
     Text(TextNode),
-    CDataSection(CDataSectionNode),
+    CdataSection(CdataSectionNode),
     ProcessingInstruction(ProcessingInstructionNode),
     Comment(CommentNode),
     Document(DocumentNode),
@@ -51,7 +51,7 @@ impl Deref for Node {
             Node::Element(n) => &n.node_base,
             Node::Attr(n) => &n.node_base,
             Node::Text(n) => &n.node_base,
-            Node::CDataSection(n) => &n.node_base,
+            Node::CdataSection(n) => &n.node_base,
             Node::ProcessingInstruction(n) => &n.node_base,
             Node::Comment(n) => &n.node_base,
             Node::Document(n) => &n.node_base,
@@ -67,7 +67,7 @@ impl DerefMut for Node {
             Node::Element(n) => &mut n.node_base,
             Node::Attr(n) => &mut n.node_base,
             Node::Text(n) => &mut n.node_base,
-            Node::CDataSection(n) => &mut n.node_base,
+            Node::CdataSection(n) => &mut n.node_base,
             Node::ProcessingInstruction(n) => &mut n.node_base,
             Node::Comment(n) => &mut n.node_base,
             Node::Document(n) => &mut n.node_base,
@@ -114,7 +114,7 @@ pub enum NodeRef<'a> {
     Element(&'a ElementNode),
     Attr(&'a AttrNode),
     Text(&'a TextNode),
-    CDataSection(&'a CDataSectionNode),
+    CdataSection(&'a CdataSectionNode),
     ProcessingInstruction(&'a ProcessingInstructionNode),
     Comment(&'a CommentNode),
     Document(&'a DocumentNode),
@@ -131,7 +131,7 @@ impl<'a> Deref for NodeRef<'a> {
             NodeRef::Element(n) => &n.node_base,
             NodeRef::Attr(n) => &n.node_base,
             NodeRef::Text(n) => &n.node_base,
-            NodeRef::CDataSection(n) => &n.node_base,
+            NodeRef::CdataSection(n) => &n.node_base,
             NodeRef::ProcessingInstruction(n) => &n.node_base,
             NodeRef::Comment(n) => &n.node_base,
             NodeRef::Document(n) => &n.node_base,
@@ -148,7 +148,7 @@ impl<'a> From<&'a Node> for NodeRef<'a> {
             Node::Element(n) => NodeRef::Element(n),
             Node::Attr(n) => NodeRef::Attr(n),
             Node::Text(n) => NodeRef::Text(n),
-            Node::CDataSection(n) => NodeRef::CDataSection(n),
+            Node::CdataSection(n) => NodeRef::CdataSection(n),
             Node::ProcessingInstruction(n) => NodeRef::ProcessingInstruction(n),
             Node::Comment(n) => NodeRef::Comment(n),
             Node::Document(n) => NodeRef::Document(n),
@@ -422,7 +422,7 @@ impl Document for DocumentNode {
         }
     }
 
-    fn create_cdata_section(&mut self, data: &str) -> Result<CDataSectionNode, DOMError> {
+    fn create_cdata_section(&mut self, data: &str) -> Result<CdataSectionNode, DOMError> {
         if !self.node_base.node.is_null() {
             unsafe { NodeBase::create_cdata_section_unchecked(&self.node_base, data) }
         } else {
@@ -899,17 +899,17 @@ impl ChildNode for TextNode {}
 impl NonDocumentTypeChildNode for TextNode {}
 
 
-// ---------------------------------------- CDataSection impl --------------------------------------
+// ---------------------------------------- CdataSection impl --------------------------------------
 
-define_node_type!(CDataSectionNode, CDataSection);
+define_node_type!(CdataSectionNode, CdataSection);
 
-impl CDataSection for CDataSectionNode {}
+impl CdataSection for CdataSectionNode {}
 
-impl CharacterData for CDataSectionNode {}
+impl CharacterData for CdataSectionNode {}
 
-impl ChildNode for CDataSectionNode {}
+impl ChildNode for CdataSectionNode {}
 
-impl NonDocumentTypeChildNode for CDataSectionNode {}
+impl NonDocumentTypeChildNode for CdataSectionNode {}
 
 
 // ----------------------------------- ProcessingInstruction impl ----------------------------------
