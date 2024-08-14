@@ -114,7 +114,7 @@ impl NodeBase {
             LXB_DOM_NODE_TYPE_ELEMENT => Some(Node::Element(ElementNode { node_base })),
             LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(Node::Attr(AttrNode { node_base })),
             LXB_DOM_NODE_TYPE_TEXT => Some(Node::Text(TextNode { node_base })),
-            LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(Node::CDataSection(CDataSectionNode { node_base })),
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(Node::CdataSection(CdataSectionNode { node_base })),
             LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => Some(Node::ProcessingInstruction(
                 ProcessingInstructionNode { node_base })),
             LXB_DOM_NODE_TYPE_COMMENT => Some(Node::Comment(CommentNode { node_base })),
@@ -167,12 +167,12 @@ impl NodeBase {
         }
     }
 
-    pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> Result<CDataSectionNode, DOMError> {
+    pub(super) unsafe fn create_cdata_section_unchecked(doc: &NodeBase, data: &str) -> Result<CdataSectionNode, DOMError> {
         debug_assert_eq!((*doc.node).type_, lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT);
         let cdata = lxb_dom_document_create_cdata_section(
             doc.node.cast(), data.as_ptr(), data.len());
         if let Some(c) = Self::new_base(&doc.tree, cdata.cast()) {
-            Ok(CDataSectionNode { node_base: c })
+            Ok(CdataSectionNode { node_base: c })
         } else {
             Err(DOMError { msg: "TextNode allocation failed".to_owned() })
         }
