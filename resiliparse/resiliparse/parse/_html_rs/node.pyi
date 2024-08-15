@@ -29,7 +29,7 @@ class NodeType(enum.Enum):
     PROCESSING_INSTRUCTION: int = 0x07
     COMMENT: int = 0x08
     DOCUMENT: int = 0x09
-    DOCUMENTNodeYPE: int = 0x0A
+    DOCUMENT_TYPE: int = 0x0A
     DOCUMENT_FRAGMENT: int = 0x0B
     NOTATION: int = 0x0C
     LAST_ENTRY: int = 0x0D
