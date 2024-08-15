@@ -17,7 +17,6 @@ use pyo3::types::*;
 use pyo3::exceptions::*;
 
 use resiliparse_common::parse::html;
-use resiliparse_common::parse::html::dom;
 use resiliparse_common::parse::html::dom::coll::*;
 use resiliparse_common::parse::html::dom::node::*;
 use resiliparse_common::parse::html::dom::traits::*;
@@ -49,7 +48,6 @@ pub mod _html_rs {
     pub enum NodeListType {
         NodeList(NodeList),
         ElementNodeList(ElementNodeList),
-        // HTMLCollection(HTMLCollection),  // --> Same type as ElementNodeList
         NamedNodeMap(NamedNodeMap),
     }
 
@@ -119,7 +117,7 @@ pub mod _html_rs {
                     match l.query_selector(selector) {
                         Ok(e) => {
                             if let Some(n) = e {
-                                Ok(Some(n.to_node().into()))
+                                Ok(Some(n.into()))
                             } else { Ok(None) }
                         },
                         Err(e) => Err(PyValueError::new_err(e.to_string()))
@@ -165,12 +163,18 @@ pub mod _html_rs {
 
     #[pyclass]
     pub struct DOMNode {
-        node: dom::node::Node
+        node: Node
     }
 
-    impl From<dom::node::Node> for DOMNode {
-        fn from(value: dom::node::Node) -> Self {
+    impl From<Node> for DOMNode {
+        fn from(value: Node) -> Self {
             Self { node: value }
+        }
+    }
+
+    impl From<ElementNode> for DOMNode {
+        fn from(value: ElementNode) -> Self {
+            Self { node: value.to_node() }
         }
     }
 
