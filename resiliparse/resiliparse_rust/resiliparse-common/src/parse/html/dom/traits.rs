@@ -307,7 +307,7 @@ pub trait Attr: NodeInterface {
     fn value(&self) -> Option<String>;
     fn set_value(&mut self, value: &str);
 
-    fn owner_element(&self) -> Option<Node>;
+    fn owner_element(&self) -> Option<ElementNode>;
 }
 
 pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
