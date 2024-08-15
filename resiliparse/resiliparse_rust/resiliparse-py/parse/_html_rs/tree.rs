@@ -13,14 +13,12 @@
 // limitations under the License.
 
 use pyo3::prelude::*;
-use pyo3::create_exception;
 
 use resiliparse_common::parse::html::tree as tree_impl;
 use resiliparse_common::parse::html::dom::traits::*;
-use super::DOMException;
-use super::node::DOMNode;
+use crate::exception::*;
+use crate::node::DOMNode;
 
-create_exception!(_html_rs, HTMLParserException, DOMException);
 
 
 #[pyclass]
@@ -72,7 +70,7 @@ impl HTMLTree {
 
     #[getter]
     pub fn document(&self) -> Option<DOMNode> {
-        Some(self.tree.document()?.to_node().into())
+        Some(self.tree.document()?.into())
     }
 
     #[getter]

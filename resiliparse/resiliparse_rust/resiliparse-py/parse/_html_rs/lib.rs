@@ -12,37 +12,123 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod node;
 mod coll;
+mod exception;
+mod node;
 mod tree;
 
-use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::exceptions::*;
 
-create_exception!(_html_rs, DOMException, PyException);
+
+macro_rules! init_mod_path {
+    ($name:literal, $m:ident) => {
+        // https://github.com/PyO3/pyo3/issues/759#issuecomment-2282197848
+        Python::with_gil(|py| {
+            py.import_bound("sys")?
+                .getattr("modules")?
+                .set_item(concat!("resiliparse.parse._html_rs.", $name), $m)
+        })
+    };
+}
 
 
 #[pymodule]
 pub mod _html_rs {
-    #[pymodule_export]
-    pub use super::DOMException;
+    use super::*;
 
     #[pymodule_export]
-    pub use super::coll::DOMCollection;
+    pub use crate::tree::HTMLTree;
 
     #[pymodule_export]
-    pub use super::coll::DOMElementClassList;
+    pub use crate::node::NodeType;
 
     #[pymodule_export]
-    pub use super::node::NodeType;
+    pub use crate::node::DOMNode;
 
     #[pymodule_export]
-    pub use super::node::DOMNode;
+    pub use crate::coll::DOMCollection;
 
     #[pymodule_export]
-    pub use super::tree::HTMLTree;
+    pub use crate::coll::DOMElementClassList;
 
     #[pymodule_export]
-    pub use super::tree::HTMLParserException;
+    pub use crate::exception::DOMException;
+
+    #[pymodule]
+    pub mod exception {
+        use super::*;
+
+        #[pymodule_init]
+        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            init_mod_path!("exception", m)
+        }
+
+        #[pymodule_export]
+        pub use crate::exception::DOMException;
+
+        #[pymodule_export]
+        pub use crate::exception::HTMLParserException;
+
+        #[pymodule_export]
+        pub use crate::exception::CSSParserException;
+    }
+
+    #[pymodule]
+    pub mod coll {
+        use super::*;
+
+        #[pymodule_init]
+        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            init_mod_path!("coll", m)
+        }
+
+        #[pymodule_export]
+        pub use crate::coll::DOMCollection;
+
+        #[pymodule_export]
+        pub use crate::coll::DOMElementClassList;
+    }
+
+    #[pymodule]
+    pub mod node {
+        use super::*;
+
+        #[pymodule_init]
+        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            init_mod_path!("node", m)
+        }
+
+        #[pymodule_export]
+        pub use crate::node::NodeType;
+
+        #[pymodule_export]
+        pub use crate::node::DOMNode;
+
+        #[pymodule_export]
+        pub use crate::node::ElementNode;
+
+        #[pymodule_export]
+        pub use crate::node::AttrNode;
+
+        #[pymodule_export]
+        pub use crate::node::TextNode;
+
+        #[pymodule_export]
+        pub use crate::node::CdataSectionNode;
+
+        #[pymodule_export]
+        pub use crate::node::ProcessingInstructionNode;
+
+        #[pymodule_export]
+        pub use crate::node::CommentNode;
+
+        #[pymodule_export]
+        pub use crate::node::DocumentNode;
+
+        #[pymodule_export]
+        pub use crate::node::DocumentTypeNode;
+
+        #[pymodule_export]
+        pub use crate::node::DocumentFragmentNode;
+    }
 }
