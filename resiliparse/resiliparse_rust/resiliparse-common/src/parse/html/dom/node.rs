@@ -901,14 +901,14 @@ impl Attr for AttrNode {
         unsafe { lxb_dom_node_text_content_set(self.node_base.node, value.as_ptr(), value.len()); }
     }
 
-    fn owner_element(&self) -> Option<Node> {
+    fn owner_element(&self) -> Option<ElementNode> {
         check_node!(self.node_base);
         unsafe {
             let attr = self.node_base.node as *mut lxb_dom_attr_t;
             if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            NodeBase::wrap_node(&self.node_base.tree, (*attr).owner.cast())
+            Some(NodeBase::wrap_node(&self.node_base.tree, (*attr).owner.cast())?.into())
         }
     }
 }
