@@ -110,10 +110,10 @@ impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
 
 pub type NodeList = NodeListGeneric<Node>;
 pub type ElementNodeList = NodeListGeneric<ElementNode>;
-pub type HTMLCollection = NodeListGeneric<ElementNode>;
+pub type HTMLCollection = ElementNodeList;
 pub type NamedNodeMap = NodeListGeneric<AttrNode>;
 
-impl HTMLCollection {
+impl ElementNodeList {
     pub fn named_item(&self, name: &str) -> Option<ElementNode> {
         self.iter()
             .find(|e| {
@@ -151,9 +151,7 @@ impl HTMLCollection {
         });
         HTMLCollection::from(coll)
     }
-}
 
-impl ElementNodeList {
      pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         for item in self.iter() {
             match item.query_selector(selectors) {
