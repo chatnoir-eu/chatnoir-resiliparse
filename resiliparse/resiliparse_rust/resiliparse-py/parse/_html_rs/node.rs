@@ -18,7 +18,8 @@ use pyo3::types::*;
 
 use resiliparse_common::parse::html::dom::node as node_impl;
 use resiliparse_common::parse::html::dom::traits::*;
-use super::coll::*;
+use crate::exception::*;
+use crate::coll::*;
 
 
 #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
@@ -39,10 +40,64 @@ pub enum NodeType {
     LastEntry = 0x0D
 }
 
+macro_rules! node_forward_opt_call {
+    ($Self: expr, $NodeType: ident, $FuncName: ident) => {
+        match &$Self {
+            node_impl::Node::$NodeType(e) => Some(e.$FuncName()?.into()),
+            _ => None
+        }
+    }
+}
 
-#[pyclass]
+
+#[pyclass(subclass, module = "resiliparse.parse._html_rs.node")]
 pub struct DOMNode {
     node: node_impl::Node
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct ElementNode {
+    node: node_impl::ElementNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct AttrNode {
+    node: node_impl::AttrNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct TextNode {
+    node: node_impl::TextNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct CdataSectionNode {
+    node: node_impl::CdataSectionNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct ProcessingInstructionNode {
+    node: node_impl::ProcessingInstructionNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct CommentNode {
+    node: node_impl::CommentNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct DocumentNode {
+    node: node_impl::DocumentNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct DocumentTypeNode {
+    node: node_impl::DocumentTypeNode
+}
+
+#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
+pub struct DocumentFragmentNode {
+    node: node_impl::DocumentFragmentNode
 }
 
 impl From<node_impl::Node> for DOMNode {
@@ -57,8 +112,50 @@ impl From<node_impl::ElementNode> for DOMNode {
     }
 }
 
+impl From<node_impl::AttrNode> for DOMNode {
+    fn from(value: node_impl::AttrNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
 impl From<node_impl::TextNode> for DOMNode {
     fn from(value: node_impl::TextNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::CdataSectionNode> for DOMNode {
+    fn from(value: node_impl::CdataSectionNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::ProcessingInstructionNode> for DOMNode {
+    fn from(value: node_impl::ProcessingInstructionNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::CommentNode> for DOMNode {
+    fn from(value: node_impl::CommentNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::DocumentNode> for DOMNode {
+    fn from(value: node_impl::DocumentNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::DocumentTypeNode> for DOMNode {
+    fn from(value: node_impl::DocumentTypeNode) -> Self {
+        Self { node: value.to_node() }
+    }
+}
+
+impl From<node_impl::DocumentFragmentNode> for DOMNode {
+    fn from(value: node_impl::DocumentFragmentNode) -> Self {
         Self { node: value.to_node() }
     }
 }
@@ -79,16 +176,12 @@ impl DOMNode {
 
     #[getter]
     pub fn first_element_child(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.first_element_child()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, first_element_child)
     }
 
     #[getter]
     pub fn last_element_child(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.last_element_child()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, last_element_child)
     }
 
     #[getter]
@@ -98,72 +191,74 @@ impl DOMNode {
 
     #[getter]
     pub fn parent(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.parent_node()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, parent_node)
     }
 
     #[getter]
     pub fn next(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.next_sibling()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, next_sibling)
     }
 
     #[getter]
     pub fn prev(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.previous_sibling()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, previous_sibling)
     }
 
     #[getter]
     pub fn next_element(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.next_element_sibling()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, next_element_sibling)
     }
 
     #[getter]
     pub fn prev_element(&self) -> Option<DOMNode> {
-        if let node_impl::Node::Element(e) = &self.node {
-            Some(e.previous_element_sibling()?.to_node().into())
-        } else { None }
+        node_forward_opt_call!(self.node, Element, previous_element_sibling)
     }
 
     #[getter]
-    pub fn tag(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn tag(&self) -> Option<String> {
+        node_forward_opt_call!(self.node, Element, tag_name)
     }
 
     #[getter]
-    pub fn value(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn value(&self) -> Option<String> {
+        node_forward_opt_call!(self.node, Element, node_value)
     }
 
     #[getter]
-    pub fn get_text(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn get_text(&self) -> Option<String> {
+        match &self.node {
+            node_impl::Node::Element(e) => Some(e.inner_text()),
+            _ => None
+        }
     }
 
     #[setter]
     pub fn set_text(&mut self, text: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
+        match &mut self.node {
+            node_impl::Node::Element(e) => Ok(e.set_inner_text(text)),
+            _ => Err(DOMException::new_err("Invalid node type."))
+        }
     }
 
     #[getter]
-    pub fn get_html(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn get_html(&self) -> Option<String> {
+        match &self.node {
+            node_impl::Node::Element(e) => Some(e.outer_html()),
+            _ => None
+        }
     }
 
     #[setter]
     pub fn set_html(&mut self, html: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
+        match &mut self.node {
+            node_impl::Node::Element(e) => Ok(e.set_inner_html(html)),
+            _ => Err(DOMException::new_err("Invalid node type."))
+        }
     }
 
     #[getter]
-    pub fn get_id(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn get_id(&self) -> Option<String> {
+        node_forward_opt_call!(self.node, Element, id)
     }
 
     #[setter]
@@ -172,8 +267,8 @@ impl DOMNode {
     }
 
     #[getter]
-    pub fn get_class_name(&self) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn get_class_name(&self) -> Option<String> {
+        node_forward_opt_call!(self.node, Element, class_name)
     }
 
     #[setter]
@@ -247,7 +342,7 @@ impl DOMNode {
         Err(PyNotImplementedError::new_err("TODO"))
     }
 
-    pub fn replace_child(&mut self, new_child: &DOMNode, old_child: &DOMNode) -> PyResult<DOMNode> {
+    pub fn replace_child(&mut self, node: &DOMNode, child: &DOMNode) -> PyResult<DOMNode> {
         Err(PyNotImplementedError::new_err("TODO"))
     }
 

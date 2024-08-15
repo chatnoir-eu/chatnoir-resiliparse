@@ -28,7 +28,7 @@ import sys
 
 from fastwarc import ArchiveIterator, WarcRecordType
 from resiliparse.parse.encoding import detect_encoding, bytes_to_str
-from resiliparse.parse.html import HTMLTree
+from resiliparse.parse._html_rs import HTMLTree
 import resiliparse.parse.lang as rlang
 
 
