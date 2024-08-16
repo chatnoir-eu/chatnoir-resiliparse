@@ -24,11 +24,10 @@ use std::sync::Arc;
 use crate::parse::html::dom::coll::NodeList;
 use crate::parse::html::dom::*;
 use crate::parse::html::dom::iter::*;
-use crate::parse::html::dom::traits::{Attr, Element, NodeInterface};
+use crate::parse::html::dom::traits::{Attr, Element, NodeInterface, NodeType};
 use crate::parse::html::serialize::node_serialize_html;
 use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
-
 
 /// Base DOM node implementation.
 ///
@@ -116,7 +115,7 @@ impl NodeBase {
         use crate::third_party::lexbor::lxb_dom_node_type_t::*;
         match unsafe { (*node).type_ } {
             LXB_DOM_NODE_TYPE_ELEMENT => Some(Node::Element(ElementNode { node_base })),
-            LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(Node::Attr(AttrNode { node_base })),
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(Node::Attribute(AttrNode { node_base })),
             LXB_DOM_NODE_TYPE_TEXT => Some(Node::Text(TextNode { node_base })),
             LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(Node::CdataSection(CdataSectionNode { node_base })),
             LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => Some(Node::ProcessingInstruction(
@@ -333,12 +332,31 @@ impl NodeInterface for NodeBase {
 
     #[inline(always)]
     fn as_noderef(&self) -> NodeRef {
-        NodeRef::Undefined(self)
+        unreachable!();
     }
 
     #[inline(always)]
     fn to_node(&self) -> Node {
-        Node::from(self)
+        unreachable!();
+    }
+
+    fn node_type(&self) -> Option<NodeType> {
+        use lxb_dom_node_type_t::*;
+        match unsafe { self.node.as_ref()? }.type_ {
+            LXB_DOM_NODE_TYPE_ELEMENT => Some(NodeType::Element),
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(NodeType::Attribute),
+            LXB_DOM_NODE_TYPE_TEXT => Some(NodeType::Text),
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(NodeType::CdataSection),
+            LXB_DOM_NODE_TYPE_ENTITY_REFERENCE => Some(NodeType::EntityReference),
+            LXB_DOM_NODE_TYPE_ENTITY => Some(NodeType::Entity),
+            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => Some(NodeType::ProcessingInstruction),
+            LXB_DOM_NODE_TYPE_COMMENT => Some(NodeType::Comment),
+            LXB_DOM_NODE_TYPE_DOCUMENT => Some(NodeType::Document),
+            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => Some(NodeType::DocumentType),
+            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => Some(NodeType::DocumentFragment),
+            LXB_DOM_NODE_TYPE_NOTATION => Some(NodeType::Notation),
+            _ => None
+        }
     }
 
     /// DOM element tag or node name.

@@ -141,7 +141,6 @@ cpdef enum NodeType:
     DOCUMENT_TYPE = 0x0A,
     DOCUMENT_FRAGMENT = 0x0B,
     NOTATION = 0x0C,
-    LAST_ENTRY = 0x0D
 
 
 cdef HTMLTree create_html_tree(bytes document, bint reencode=*, str encoding=*, str errors=*)
