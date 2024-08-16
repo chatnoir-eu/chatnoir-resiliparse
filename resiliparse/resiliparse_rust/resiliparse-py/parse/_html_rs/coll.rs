@@ -16,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::*;
 
 use resiliparse_common::parse::html::dom::coll as coll_impl;
+use resiliparse_common::parse::html::dom::traits::NodeInterface;
 use super::node::*;
 
 pub enum NodeListType {
@@ -50,75 +51,75 @@ pub struct DOMCollection {
 
 #[pymethods]
 impl DOMCollection {
-    #[pyo3(signature = (element_id, case_insensitive=false))]
-    pub fn get_element_by_id(&self, element_id: &str, case_insensitive: bool) -> PyResult<Option<DOMNode>> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                match l.elements_by_attr_case("id", element_id, case_insensitive).item(0) {
-                    Some(e) => Ok(Some(e.into())),
-                    _ => Ok(None)
-                }
-            },
-            _ => Err(PyValueError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
-    pub fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: bool) -> PyResult<DOMCollection> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                Ok(Self { list: l.elements_by_attr_case(attr_name, attr_value, case_insensitive).into() })
-            },
-            _ => Err(PyValueError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    pub fn get_elements_by_class_name(&self, class_name: &str) -> PyResult<DOMCollection> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                Ok(Self { list: l.elements_by_class_name(class_name).into() })
-            },
-            _ => Err(PyValueError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    pub fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                Ok(Self { list:l.elements_by_tag_name(tag_name).into() })
-            },
-            _ => Err(PyValueError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    pub fn query_selector(&self, selector: &str) -> PyResult<Option<DOMNode>> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                match l.query_selector(selector) {
-                    Ok(e) => {
-                        if let Some(n) = e {
-                            Ok(Some(n.into()))
-                        } else { Ok(None) }
-                    },
-                    Err(e) => Err(PyValueError::new_err(e.to_string()))
-                }
-            },
-            _ => Err(PyValueError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    pub fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
-        match &self.list {
-            NodeListType::ElementNodeList(l) => {
-                Ok(Self { list: l.elements_by_tag_name(selector).into() })
-            },
-            _ => Err(PyNotImplementedError::new_err("Invalid DOM collection type"))
-        }
-    }
-
-    pub fn matches(&self, selector: &str) -> PyResult<bool> {
-        Ok(false)
-    }
+    // #[pyo3(signature = (element_id, case_insensitive=false))]
+    // pub fn get_element_by_id(&self, element_id: &str, case_insensitive: bool) -> PyResult<Option<Node>> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             match l.elements_by_attr_case("id", element_id, case_insensitive).item(0) {
+    //                 Some(e) => Ok(Some(e.to_node().into())),
+    //                 _ => Ok(None)
+    //             }
+    //         },
+    //         _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
+    // pub fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: bool) -> PyResult<DOMCollection> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             Ok(Self { list: l.elements_by_attr_case(attr_name, attr_value, case_insensitive).into() })
+    //         },
+    //         _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // pub fn get_elements_by_class_name(&self, class_name: &str) -> PyResult<DOMCollection> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             Ok(Self { list: l.elements_by_class_name(class_name).into() })
+    //         },
+    //         _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // pub fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             Ok(Self { list:l.elements_by_tag_name(tag_name).into() })
+    //         },
+    //         _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // pub fn query_selector(&self, selector: &str) -> PyResult<Option<Node>> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             match l.query_selector(selector) {
+    //                 Ok(e) => {
+    //                     if let Some(n) = e {
+    //                         Ok(Some(n.to_node().into()))
+    //                     } else { Ok(None) }
+    //                 },
+    //                 Err(e) => Err(PyValueError::new_err(e.to_string()))
+    //             }
+    //         },
+    //         _ => Err(PyValueError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // pub fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
+    //     match &self.list {
+    //         NodeListType::ElementNodeList(l) => {
+    //             Ok(Self { list: l.elements_by_tag_name(selector).into() })
+    //         },
+    //         _ => Err(PyNotImplementedError::new_err("Invalid DOM collection type"))
+    //     }
+    // }
+    //
+    // pub fn matches(&self, selector: &str) -> PyResult<bool> {
+    //     Ok(false)
+    // }
 }
 
 #[pyclass(eq, sequence)]

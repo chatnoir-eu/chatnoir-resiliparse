@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from typing import Callable, Optional
+from typing_extensions import deprecated
 
 from .coll import DOMCollection, DOMElementClassList
 from .exception import DOMException
-from .node import DocumentNode, ElementNode, NodeType, TextNode
+from .node import DocumentNode, ElementNode, Node, NodeType, TextNode
 
 
 class HTMLTree:
@@ -25,7 +26,9 @@ class HTMLTree:
     @staticmethod
     def parse_from_bytes(document: bytes, encoding: str = 'utf-8', errors: str = 'ignore') -> Optional[HTMLTree]: ...
 
+    @deprecated('Use HTMLTree.document.create_element() instead.')
     def create_element(self, tag_name: str) -> Optional[ElementNode]: ...
+    @deprecated('Use HTMLTree.document.create_text_node() instead.')
     def create_text_node(self, text: str) -> Optional[TextNode]: ...
 
     @property
@@ -40,11 +43,11 @@ class HTMLTree:
 
 class DOMContext:
     def __init__(self):
-        self.node: Optional[DOMNode] = None
+        self.node: Optional[Node] = None
         self.depth: int = 0
 
 
-def traverse_dom(base_node: DOMNode,
+def traverse_dom(base_node: Node,
                  start_callback: Callable[[DOMContext], None],
                  end_callback: Optional[Callable[[DOMContext], None]] = None,
                  context: Optional[DOMContext] = None,

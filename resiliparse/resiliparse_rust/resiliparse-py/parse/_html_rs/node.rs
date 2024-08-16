@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Deref;
 use pyo3::prelude::*;
-use pyo3::exceptions::*;
 use pyo3::types::*;
 
 use resiliparse_common::parse::html::dom::node as node_impl;
 use resiliparse_common::parse::html::dom::traits::*;
-use crate::exception::*;
-use crate::coll::*;
 
 
 #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
@@ -37,7 +35,6 @@ pub enum NodeType {
     DocumentType = 0x0A,
     DocumentFragment = 0x0B,
     Notation = 0x0C,
-    LastEntry = 0x0D
 }
 
 macro_rules! node_forward_opt_call {
@@ -51,306 +48,141 @@ macro_rules! node_forward_opt_call {
 
 
 #[pyclass(subclass, module = "resiliparse.parse._html_rs.node")]
-pub struct DOMNode {
+#[derive(Clone)]
+pub struct Node {
     node: node_impl::Node
 }
 
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct ElementNode {
-    node: node_impl::ElementNode
-}
 
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct AttrNode {
-    node: node_impl::AttrNode
-}
+macro_rules! define_node_type {
+    ($Self: ident, $Base: path) => {
+        #[pyclass(extends=Node, module = "resiliparse.parse._html_rs.node")]
+        #[derive(Clone)]
+        pub struct $Self {}
 
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct TextNode {
-    node: node_impl::TextNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct CdataSectionNode {
-    node: node_impl::CdataSectionNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct ProcessingInstructionNode {
-    node: node_impl::ProcessingInstructionNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct CommentNode {
-    node: node_impl::CommentNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct DocumentNode {
-    node: node_impl::DocumentNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct DocumentTypeNode {
-    node: node_impl::DocumentTypeNode
-}
-
-#[pyclass(extends=DOMNode, module = "resiliparse.parse._html_rs.node")]
-pub struct DocumentFragmentNode {
-    node: node_impl::DocumentFragmentNode
-}
-
-impl From<node_impl::Node> for DOMNode {
-    fn from(value: node_impl::Node) -> Self {
-        Self { node: value }
+        impl $Self {
+            pub fn new<'py>(py: Python<'py>, node: $Base) -> Bound<'py, $Self> {
+                Bound::new(py, (Self {}, Node { node: node.to_node() })).unwrap()
+            }
+        }
     }
 }
 
-impl From<node_impl::ElementNode> for DOMNode {
-    fn from(value: node_impl::ElementNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
 
-impl From<node_impl::AttrNode> for DOMNode {
-    fn from(value: node_impl::AttrNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
+define_node_type!(ElementNode, node_impl::ElementNode);
+define_node_type!(AttrNode, node_impl::AttrNode);
+define_node_type!(TextNode, node_impl::TextNode);
+define_node_type!(CdataSectionNode, node_impl::CdataSectionNode);
+define_node_type!(ProcessingInstructionNode, node_impl::ProcessingInstructionNode);
+define_node_type!(CommentNode, node_impl::CommentNode);
+define_node_type!(DocumentNode, node_impl::DocumentNode);
+define_node_type!(DocumentTypeNode, node_impl::DocumentTypeNode);
+define_node_type!(DocumentFragmentNode, node_impl::DocumentFragmentNode);
+define_node_type!(NotationNode, node_impl::NotationNode);
 
-impl From<node_impl::TextNode> for DOMNode {
-    fn from(value: node_impl::TextNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
 
-impl From<node_impl::CdataSectionNode> for DOMNode {
-    fn from(value: node_impl::CdataSectionNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
-
-impl From<node_impl::ProcessingInstructionNode> for DOMNode {
-    fn from(value: node_impl::ProcessingInstructionNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
-
-impl From<node_impl::CommentNode> for DOMNode {
-    fn from(value: node_impl::CommentNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
-
-impl From<node_impl::DocumentNode> for DOMNode {
-    fn from(value: node_impl::DocumentNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
-
-impl From<node_impl::DocumentTypeNode> for DOMNode {
-    fn from(value: node_impl::DocumentTypeNode) -> Self {
-        Self { node: value.to_node() }
-    }
-}
-
-impl From<node_impl::DocumentFragmentNode> for DOMNode {
-    fn from(value: node_impl::DocumentFragmentNode) -> Self {
-        Self { node: value.to_node() }
+pub fn create_upcast_node(py: Python, node: node_impl::Node) -> Bound<PyAny> {
+    match node {
+        // TODO: Replace with Bound::into_super() in PyO3 0.23
+        node_impl::Node::Element(e) => ElementNode::new(py, e).into_any(),
+        node_impl::Node::Attribute(e) => AttrNode::new(py, e).into_any(),
+        node_impl::Node::Text(e) => TextNode::new(py, e).into_any(),
+        node_impl::Node::CdataSection(e) => CdataSectionNode::new(py, e).into_any(),
+        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new(py, e).into_any(),
+        node_impl::Node::Comment(e) => CommentNode::new(py, e).into_any(),
+        node_impl::Node::Document(e) => DocumentNode::new(py, e).into_any(),
+        node_impl::Node::DocumentType(e) => DocumentTypeNode::new(py, e).into_any(),
+        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new(py, e).into_any(),
+        node_impl::Node::Notation(e) => NotationNode::new(py, e).into_any(),
     }
 }
 
 
 #[pymethods]
-impl DOMNode {
+impl Node {
+    #[getter]
+    pub fn node_type(&self) -> Option<NodeType> {
+        Some(match self.node.node_type()? {
+            node_impl::NodeType::Element => NodeType::Element,
+            node_impl::NodeType::Attribute => NodeType::Attribute,
+            node_impl::NodeType::Text => NodeType::Text,
+            node_impl::NodeType::CdataSection => NodeType::CdataSection,
+            node_impl::NodeType::EntityReference => NodeType::EntityReference,
+            node_impl::NodeType::Entity => NodeType::Entity,
+            node_impl::NodeType::ProcessingInstruction => NodeType::ProcessingInstruction,
+            node_impl::NodeType::Comment => NodeType::Comment,
+            node_impl::NodeType::Document => NodeType::Document,
+            node_impl::NodeType::DocumentType => NodeType::DocumentType,
+            node_impl::NodeType::DocumentFragment => NodeType::DocumentFragment,
+            node_impl::NodeType::Notation => NodeType::Notation,
+        })
+    }
+
     #[getter]
     #[pyo3(name = "type")]
-    pub fn type_(&self) -> PyResult<NodeType> {
-        Ok(NodeType::Element)
+    pub fn type_(&self) -> Option<NodeType> {
+        self.node_type()
     }
 
     #[getter]
-    pub fn first_child(&self) -> Option<DOMNode> {
-        Some(self.node.first_child()?.into())
+    pub fn name(&self) -> Option<String> {
+        self.node_name()
     }
 
     #[getter]
-    pub fn first_element_child(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, first_element_child)
-    }
-
-    #[getter]
-    pub fn last_element_child(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, last_element_child)
-    }
-
-    #[getter]
-    pub fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        Ok(PyList::empty_bound(py))
-    }
-
-    #[getter]
-    pub fn parent(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, parent_node)
-    }
-
-    #[getter]
-    pub fn next(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, next_sibling)
-    }
-
-    #[getter]
-    pub fn prev(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, previous_sibling)
-    }
-
-    #[getter]
-    pub fn next_element(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, next_element_sibling)
-    }
-
-    #[getter]
-    pub fn prev_element(&self) -> Option<DOMNode> {
-        node_forward_opt_call!(self.node, Element, previous_element_sibling)
-    }
-
-    #[getter]
-    pub fn tag(&self) -> Option<String> {
-        node_forward_opt_call!(self.node, Element, tag_name)
+    pub fn node_name(&self) -> Option<String> {
+        self.node.node_name()
     }
 
     #[getter]
     pub fn value(&self) -> Option<String> {
-        node_forward_opt_call!(self.node, Element, node_value)
+        self.node_value()
     }
 
     #[getter]
-    pub fn get_text(&self) -> Option<String> {
-        match &self.node {
-            node_impl::Node::Element(e) => Some(e.inner_text()),
-            _ => None
+    pub fn node_value(&self) -> Option<String> {
+        self.node.node_value()
+    }
+
+    #[getter]
+    pub fn text(&self) -> Option<String> {
+        self.text_content()
+    }
+
+    #[getter]
+    pub fn text_content(&self) -> Option<String> {
+        self.node.text_content()
+    }
+
+    #[getter]
+    pub fn owner_document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
+        Some(DocumentNode::new(py, self.node.owner_document()?))
+    }
+
+    #[getter]
+    pub fn parent<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self.parent_node(py)
+    }
+
+    #[getter]
+    pub fn parent_node<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        Some(create_upcast_node(py, self.node.parent_node()?))
+    }
+
+    #[getter]
+    pub fn parent_element<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
+        if let node_impl::Node::Element(e) = self.node.parent_node()? {
+            Some(ElementNode::new(py, e))
+        } else {
+            None
         }
     }
 
-    #[setter]
-    pub fn set_text(&mut self, text: &str) -> PyResult<()> {
-        match &mut self.node {
-            node_impl::Node::Element(e) => Ok(e.set_inner_text(text)),
-            _ => Err(DOMException::new_err("Invalid node type."))
-        }
+    pub fn has_child_nodes(&self) -> bool {
+        self.node.has_child_nodes()
     }
 
-    #[getter]
-    pub fn get_html(&self) -> Option<String> {
-        match &self.node {
-            node_impl::Node::Element(e) => Some(e.outer_html()),
-            _ => None
-        }
-    }
-
-    #[setter]
-    pub fn set_html(&mut self, html: &str) -> PyResult<()> {
-        match &mut self.node {
-            node_impl::Node::Element(e) => Ok(e.set_inner_html(html)),
-            _ => Err(DOMException::new_err("Invalid node type."))
-        }
-    }
-
-    #[getter]
-    pub fn get_id(&self) -> Option<String> {
-        node_forward_opt_call!(self.node, Element, id)
-    }
-
-    #[setter]
-    pub fn set_id(&mut self, id: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[getter]
-    pub fn get_class_name(&self) -> Option<String> {
-        node_forward_opt_call!(self.node, Element, class_name)
-    }
-
-    #[setter]
-    pub fn set_class_name(&mut self, class_name: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[getter]
-    pub fn get_class_list(&self) -> PyResult<DOMElementClassList> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[getter]
-    pub fn attrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn hasattr(&self, attr_name: &str) -> PyResult<bool> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[pyo3(signature = (attr_name, default_value=None))]
-    pub fn getattr(&self, attr_name: &str, default_value: Option<&str>) -> PyResult<&str> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn setattr(&mut self, attr_name: &str, attr_value: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn delattr(&mut self, attr_name: &str) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[pyo3(signature = (element_id, case_insensitive=false))]
-    pub fn get_element_by_id(&self, element_id: &str, case_insensitive: Option<bool>) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
-    pub fn get_elements_by_attr(&self, attr_name: &str, attr_value: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    #[pyo3(signature = (class_name, case_insensitive=false))]
-    pub fn get_elements_by_class_name(&self, class_name: &str, case_insensitive: Option<bool>) -> PyResult<DOMCollection> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn get_elements_by_tag_name(&self, tag_name: &str) -> PyResult<DOMCollection> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn query_selector(&self, selector: &str) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn query_selector_all(&self, selector: &str) -> PyResult<DOMCollection> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn matches(&self, selector: &str) -> PyResult<bool> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn append_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn insert_before(&mut self, node: &DOMNode, reference: &DOMNode) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn replace_child(&mut self, node: &DOMNode, child: &DOMNode) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn remove_child(&mut self, node: &DOMNode) -> PyResult<DOMNode> {
-        Err(PyNotImplementedError::new_err("TODO"))
-    }
-
-    pub fn decompose(&mut self) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("TODO"))
+    pub fn contains<'py>(&self, node: Bound<'py, Node>) -> bool {
+        self.node.contains(&node.borrow().node)
     }
 }
