@@ -86,10 +86,10 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn doctype(&self) -> Option<DocumentTypeNode>;
     fn document_element(&self) -> Option<DocumentNode>;
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
-    fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
-    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
-    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
+    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
+    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError>;
     fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError>;
@@ -282,10 +282,10 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
-    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
-    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
-    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
+    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
+    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
+    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);

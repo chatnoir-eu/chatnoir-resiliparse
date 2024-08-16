@@ -126,7 +126,7 @@ impl ElementNodeList {
     pub fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(&mut e.elements_by_tag_name(qualified_name).iter().collect())
+            coll.append(&mut e.get_elements_by_tag_name(qualified_name).iter().collect())
         });
         HTMLCollection::from(coll)
     }
@@ -134,7 +134,7 @@ impl ElementNodeList {
     pub fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(&mut e.elements_by_class_name(class_names).iter().collect())
+            coll.append(&mut e.get_elements_by_class_name(class_names).iter().collect())
         });
         HTMLCollection::from(coll)
     }
@@ -147,7 +147,7 @@ impl ElementNodeList {
     pub fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(&mut e.elements_by_attr_case(qualified_name, value, case_insensitive).iter().collect())
+            coll.append(&mut e.get_elements_by_attr_case(qualified_name, value, case_insensitive).iter().collect())
         });
         HTMLCollection::from(coll)
     }

@@ -123,16 +123,16 @@ fn test_selection() {
     tree.document().unwrap().element_by_id("foo").unwrap();
     assert_eq!(tree.document().unwrap().element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
 
-    let meta = tree.head().unwrap().elements_by_tag_name("meta");
+    let meta = tree.head().unwrap().get_elements_by_tag_name("meta");
     assert_eq!(meta.len(), 1);
     assert_eq!(meta.item(0).unwrap().tag_name().unwrap(), "META");
 
-    let bar_class = tree.body().unwrap().elements_by_class_name("bar");
+    let bar_class = tree.body().unwrap().get_elements_by_class_name("bar");
     assert_eq!(bar_class.len(), 2);
     assert_eq!(bar_class.item(0).unwrap().tag_name().unwrap(), "SPAN");
     assert_eq!(bar_class.item(1).unwrap().tag_name().unwrap(), "A");
 
-    let lang_en = tree.document().unwrap().elements_by_attr("lang", "en");
+    let lang_en = tree.document().unwrap().get_elements_by_attr("lang", "en");
     assert_eq!(lang_en.len(), 1);
     assert!(lang_en.item(0).unwrap().has_attribute("lang"));
     assert_eq!(lang_en.item(0).unwrap().tag_name().unwrap(), "HTML");
@@ -212,8 +212,8 @@ fn test_static_collection() {
 #[test]
 fn test_dynamic_collection() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let coll1 = tree.body().unwrap().elements_by_tag_name("p");
-    let coll2 = tree.body().unwrap().elements_by_class_name("bar");
+    let coll1 = tree.body().unwrap().get_elements_by_tag_name("p");
+    let coll2 = tree.body().unwrap().get_elements_by_class_name("bar");
     let coll3 = tree.body().unwrap().query_selector_all("p").unwrap();
 
     assert_eq!(coll1.len(), 2);
@@ -350,12 +350,12 @@ fn test_empty_attribute() {
     assert_eq!(tree.body().unwrap().query_selector_all("[id]").unwrap().len(), 3);
     assert!(!tree.document().unwrap().element_by_id("foo").is_none());
     assert!(tree.document().unwrap().element_by_id("foox").is_none());
-    assert_eq!(tree.body().unwrap().elements_by_class_name("foo").len(), 1);
-    assert_eq!(tree.body().unwrap().elements_by_class_name("").len(), 0);     // This shouldn't match anything);
-    assert_eq!(tree.body().unwrap().elements_by_attr("class", "foo").len(), 1);
-    assert_eq!(tree.body().unwrap().elements_by_attr("class", "").len(), 2);
-    assert_eq!(tree.body().unwrap().elements_by_attr("id", "").len(), 2);
-    assert_eq!(tree.body().unwrap().elements_by_attr("foo", "").len(), 2);
+    assert_eq!(tree.body().unwrap().get_elements_by_class_name("foo").len(), 1);
+    assert_eq!(tree.body().unwrap().get_elements_by_class_name("").len(), 0);     // This shouldn't match anything);
+    assert_eq!(tree.body().unwrap().get_elements_by_attr("class", "foo").len(), 1);
+    assert_eq!(tree.body().unwrap().get_elements_by_attr("class", "").len(), 2);
+    assert_eq!(tree.body().unwrap().get_elements_by_attr("id", "").len(), 2);
+    assert_eq!(tree.body().unwrap().get_elements_by_attr("foo", "").len(), 2);
 }
 
 #[test]
