@@ -27,6 +27,24 @@ use crate::parse::html::dom::*;
 use crate::parse::html::dom::iter::{ElementIterator, NodeIterator};
 use crate::parse::html::dom::node_base::NodeBase;
 
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum NodeType {
+    Element = 0x01,
+    Attribute = 0x02,
+    Text = 0x03,
+    CdataSection = 0x04,
+    EntityReference = 0x05,
+    Entity = 0x06,
+    ProcessingInstruction = 0x07,
+    Comment = 0x08,
+    Document = 0x09,
+    DocumentType = 0x0A,
+    DocumentFragment = 0x0B,
+    Notation = 0x0C,    // legacy
+}
+
+
 /// Base DOM node interface.
 pub trait NodeInterface: Debug + Display {
     unsafe fn node_name_unchecked(&self) -> Option<&str>;
@@ -37,6 +55,7 @@ pub trait NodeInterface: Debug + Display {
     fn as_noderef(&self) -> NodeRef;
     fn to_node(&self) -> Node;
 
+    fn node_type(&self) -> Option<NodeType>;
     fn node_name(&self) -> Option<String>;
     fn node_value(&self) -> Option<String>;
     fn set_node_value(&mut self, value: &str);

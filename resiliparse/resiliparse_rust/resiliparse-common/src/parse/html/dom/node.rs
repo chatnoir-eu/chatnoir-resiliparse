@@ -33,7 +33,7 @@ use crate::parse::html::serialize::{node_format_visible_text, node_serialize_htm
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Node {
     Element(ElementNode),
-    Attr(AttrNode),
+    Attribute(AttrNode),
     Text(TextNode),
     CdataSection(CdataSectionNode),
     ProcessingInstruction(ProcessingInstructionNode),
@@ -50,7 +50,7 @@ impl Deref for Node {
     fn deref(&self) -> &Self::Target {
         match self {
             Node::Element(n) => &n.node_base,
-            Node::Attr(n) => &n.node_base,
+            Node::Attribute(n) => &n.node_base,
             Node::Text(n) => &n.node_base,
             Node::CdataSection(n) => &n.node_base,
             Node::ProcessingInstruction(n) => &n.node_base,
@@ -67,7 +67,7 @@ impl DerefMut for Node {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Node::Element(n) => &mut n.node_base,
-            Node::Attr(n) => &mut n.node_base,
+            Node::Attribute(n) => &mut n.node_base,
             Node::Text(n) => &mut n.node_base,
             Node::CdataSection(n) => &mut n.node_base,
             Node::ProcessingInstruction(n) => &mut n.node_base,
@@ -115,7 +115,7 @@ impl Display for Node {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NodeRef<'a> {
     Element(&'a ElementNode),
-    Attr(&'a AttrNode),
+    Attribute(&'a AttrNode),
     Text(&'a TextNode),
     CdataSection(&'a CdataSectionNode),
     ProcessingInstruction(&'a ProcessingInstructionNode),
@@ -124,7 +124,6 @@ pub enum NodeRef<'a> {
     DocumentType(&'a DocumentTypeNode),
     DocumentFragment(&'a DocumentFragmentNode),
     Notation(&'a NotationNode),
-    Undefined(&'a NodeBase)
 }
 
 impl<'a> Deref for NodeRef<'a> {
@@ -133,7 +132,7 @@ impl<'a> Deref for NodeRef<'a> {
     fn deref(&self) -> &Self::Target {
         match self {
             NodeRef::Element(n) => &n.node_base,
-            NodeRef::Attr(n) => &n.node_base,
+            NodeRef::Attribute(n) => &n.node_base,
             NodeRef::Text(n) => &n.node_base,
             NodeRef::CdataSection(n) => &n.node_base,
             NodeRef::ProcessingInstruction(n) => &n.node_base,
@@ -142,7 +141,6 @@ impl<'a> Deref for NodeRef<'a> {
             NodeRef::DocumentType(n) => &n.node_base,
             NodeRef::DocumentFragment(n) => &n.node_base,
             NodeRef::Notation(n) => &n.node_base,
-            NodeRef::Undefined(n) => n,
         }
     }
 }
@@ -151,7 +149,7 @@ impl<'a> From<&'a Node> for NodeRef<'a> {
     fn from(value: &'a Node) -> Self {
         match value {
             Node::Element(n) => NodeRef::Element(n),
-            Node::Attr(n) => NodeRef::Attr(n),
+            Node::Attribute(n) => NodeRef::Attribute(n),
             Node::Text(n) => NodeRef::Text(n),
             Node::CdataSection(n) => NodeRef::CdataSection(n),
             Node::ProcessingInstruction(n) => NodeRef::ProcessingInstruction(n),
@@ -224,6 +222,8 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn to_node(&self) -> Node { Node::from(self) }
 
+            #[inline(always)]
+            fn node_type(&self) -> Option<NodeType> { self.node_base.node_type() }
             #[inline(always)]
             fn node_name(&self) -> Option<String> { self.node_base.node_name() }
             #[inline(always)]
@@ -869,7 +869,7 @@ impl NonDocumentTypeChildNode for ElementNode {}
 // ------------------------------------------- Attr impl -------------------------------------------
 
 
-define_node_type!(AttrNode, Attr);
+define_node_type!(AttrNode, Attribute);
 
 impl Attr for AttrNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
