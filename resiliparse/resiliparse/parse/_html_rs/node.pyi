@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import enum
-from typing import Iterator, Iterable, Optional, Tuple
+from typing import Container, Iterator, Iterable, Optional, Tuple, Sized
+
 from typing_extensions import deprecated
 
 from .coll import DOMTokenList, HTMLCollection, NodeList, ElementNodeList, NamedNodeMap
@@ -34,7 +35,7 @@ class NodeType(enum.Enum):
     NOTATION: int = 0x0C
 
 
-class _Node:
+class _Node(Iterable[Node], Sized, Container[Node]):
     @property
     def type(self) -> NodeType: ...
     @property
@@ -97,7 +98,8 @@ class _Node:
     def prev_element(self) -> Optional[Node]: ...
 
     def __iter__(self) -> Iterator[Node]: ...
-    def __contains__(self, item) -> bool: ...
+    def __len__(self) -> int: ...
+    def __contains__(self, __x: object) -> bool: ...
 
 
 class _DocumentType(_ChildNode):
