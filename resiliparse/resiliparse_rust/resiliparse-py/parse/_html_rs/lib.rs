@@ -43,7 +43,7 @@ pub mod _html_rs {
     pub use crate::node::NodeType;
 
     #[pymodule_export]
-    pub use crate::node::DOMNode;
+    pub use crate::node::Node;
 
     #[pymodule_export]
     pub use crate::coll::DOMCollection;
@@ -102,7 +102,7 @@ pub mod _html_rs {
         pub use crate::node::NodeType;
 
         #[pymodule_export]
-        pub use crate::node::DOMNode;
+        pub use crate::node::Node;
 
         #[pymodule_export]
         pub use crate::node::ElementNode;

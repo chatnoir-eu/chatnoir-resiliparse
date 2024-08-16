@@ -29,6 +29,9 @@ use crate::parse::html::dom::node_base::NodeBase;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::serialize::{node_format_visible_text, node_serialize_html};
 
+// Re-export NodeType publicly
+pub use crate::parse::html::dom::traits::NodeType;
+
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Node {
@@ -204,6 +207,7 @@ macro_rules! define_node_type {
     ($Self: ident, $EnumType: ident) => {
         #[derive(Clone, PartialEq, Eq)]
         pub struct $Self {
+            // TODO: Pass state up instead of down
             pub(in super::super) node_base: NodeBase
         }
 

@@ -13,11 +13,10 @@
 // limitations under the License.
 
 use pyo3::prelude::*;
-
 use resiliparse_common::parse::html::tree as tree_impl;
 use resiliparse_common::parse::html::dom::traits::*;
 use crate::exception::*;
-use crate::node::DOMNode;
+use crate::node::*;
 
 
 
@@ -46,10 +45,10 @@ impl HTMLTree {
         }
     }
 
-    pub fn create_element(&mut self, tag_name: &str) -> PyResult<Option<DOMNode>> {
+    pub fn create_element<'py>(&mut self, py: Python<'py>, tag_name: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
         if let Some(mut d) = self.tree.document() {
             match d.create_element(tag_name) {
-                Ok(e) => Ok(Some(e.into())),
+                Ok(e) => Ok(Some(ElementNode::new(py, e))),
                 Err(e) => Err(DOMException::new_err(e.to_string()))
             }
         } else {
@@ -57,10 +56,10 @@ impl HTMLTree {
         }
     }
 
-    pub fn create_text_node(&mut self, text: &str) -> PyResult<Option<DOMNode>> {
+    pub fn create_text_node<'py>(&mut self, py: Python<'py>, text: &str) -> PyResult<Option<Bound<'py, TextNode>>> {
         if let Some(mut d) = self.tree.document() {
             match d.create_text_node(text) {
-                Ok(t) => Ok(Some(t.into())),
+                Ok(t) => Ok(Some(TextNode::new(py, t))),
                 Err(e) => Err(DOMException::new_err(e.to_string()))
             }
         } else {
@@ -69,18 +68,18 @@ impl HTMLTree {
     }
 
     #[getter]
-    pub fn document(&self) -> Option<DOMNode> {
-        Some(self.tree.document()?.into())
+    pub fn document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
+        Some(DocumentNode::new(py, self.tree.document()?))
     }
 
     #[getter]
-    pub fn head(&self) -> Option<DOMNode> {
-        Some(self.tree.head()?.into())
+    pub fn head<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
+        Some(ElementNode::new(py, self.tree.head()?))
     }
 
     #[getter]
-    pub fn body(&self) -> Option<DOMNode> {
-        Some(self.tree.body()?.into())
+    pub fn body<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
+        Some(ElementNode::new(py, self.tree.body()?))
     }
 
     #[getter]
