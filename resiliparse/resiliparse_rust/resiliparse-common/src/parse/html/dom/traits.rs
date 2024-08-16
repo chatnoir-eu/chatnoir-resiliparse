@@ -392,3 +392,10 @@ pub trait ProcessingInstruction: CharacterData {
 }
 
 pub trait Comment: CharacterData {}
+
+pub trait Notation: NodeInterface {
+    unsafe fn public_id_unchecked(&self) -> Option<&str>;
+    unsafe fn system_id_unchecked(&self) -> Option<&str>;
+    fn public_id(&self) -> Option<String>;
+    fn system_id(&self) -> Option<String>;
+}

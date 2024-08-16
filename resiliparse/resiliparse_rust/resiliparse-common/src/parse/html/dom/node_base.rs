@@ -126,6 +126,7 @@ impl NodeBase {
             LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => Some(Node::DocumentType(DocumentTypeNode { node_base })),
             LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => Some(Node::DocumentFragment(
                 DocumentFragmentNode { node_base })),
+            LXB_DOM_NODE_TYPE_NOTATION => Some(Node::Notation(NotationNode { node_base })),
             _ => None
         }
     }
