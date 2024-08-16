@@ -377,14 +377,14 @@ impl Document for DocumentNode {
         Some(DocumentNode { node_base: base })
     }
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
             unsafe { elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
-    fn elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
             unsafe { elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
@@ -392,11 +392,11 @@ impl Document for DocumentNode {
     }
 
     #[inline(always)]
-    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        self.elements_by_attr_case(qualified_name, value, false)
+    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        self.get_elements_by_attr_case(qualified_name, value, false)
     }
 
-    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         check_node!(self.node_base);
         let user_data = Box::new([
             qualified_name.to_owned(),
@@ -735,23 +735,23 @@ impl Element for ElementNode {
         Ok(found)
     }
 
-    fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
             unsafe { elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
-    fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
+    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.into(), Some(Box::new([class_names.to_owned()])), |n, cls| {
             unsafe { elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
         })
     }
 
-    fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        self.elements_by_attr_case(qualified_name, value, false)
+    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+        self.get_elements_by_attr_case(qualified_name, value, false)
     }
 
-    fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         let user_data = Box::new([
             qualified_name.to_owned(),
             value.to_owned(),
