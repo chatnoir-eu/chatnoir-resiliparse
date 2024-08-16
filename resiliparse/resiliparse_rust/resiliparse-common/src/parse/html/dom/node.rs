@@ -40,7 +40,8 @@ pub enum Node {
     Comment(CommentNode),
     Document(DocumentNode),
     DocumentType(DocumentTypeNode),
-    DocumentFragment(DocumentFragmentNode)
+    DocumentFragment(DocumentFragmentNode),
+    Notation(NotationNode), // legacy
 }
 
 impl Deref for Node {
@@ -56,7 +57,8 @@ impl Deref for Node {
             Node::Comment(n) => &n.node_base,
             Node::Document(n) => &n.node_base,
             Node::DocumentType(n) => &n.node_base,
-            Node::DocumentFragment(n) => &n.node_base
+            Node::DocumentFragment(n) => &n.node_base,
+            Node::Notation(n) => &n.node_base, // legacy
         }
     }
 }
@@ -72,7 +74,8 @@ impl DerefMut for Node {
             Node::Comment(n) => &mut n.node_base,
             Node::Document(n) => &mut n.node_base,
             Node::DocumentType(n) => &mut n.node_base,
-            Node::DocumentFragment(n) => &mut n.node_base
+            Node::DocumentFragment(n) => &mut n.node_base,
+            Node::Notation(n) => &mut n.node_base,
         }
     }
 }
@@ -120,6 +123,7 @@ pub enum NodeRef<'a> {
     Document(&'a DocumentNode),
     DocumentType(&'a DocumentTypeNode),
     DocumentFragment(&'a DocumentFragmentNode),
+    Notation(&'a NotationNode),
     Undefined(&'a NodeBase)
 }
 
@@ -137,6 +141,7 @@ impl<'a> Deref for NodeRef<'a> {
             NodeRef::Document(n) => &n.node_base,
             NodeRef::DocumentType(n) => &n.node_base,
             NodeRef::DocumentFragment(n) => &n.node_base,
+            NodeRef::Notation(n) => &n.node_base,
             NodeRef::Undefined(n) => n,
         }
     }
@@ -153,7 +158,8 @@ impl<'a> From<&'a Node> for NodeRef<'a> {
             Node::Comment(n) => NodeRef::Comment(n),
             Node::Document(n) => NodeRef::Document(n),
             Node::DocumentType(n) => NodeRef::DocumentType(n),
-            Node::DocumentFragment(n) => NodeRef::DocumentFragment(n)
+            Node::DocumentFragment(n) => NodeRef::DocumentFragment(n),
+            Node::Notation(n) => NodeRef::Notation(n),
         }
     }
 }
@@ -975,3 +981,31 @@ impl CharacterData for CommentNode {}
 impl ChildNode for CommentNode {}
 
 impl NonDocumentTypeChildNode for CommentNode {}
+
+
+// ------------------------------------------ Notation impl -----------------------------------------
+
+
+define_node_type!(NotationNode, Notation);
+
+impl Notation for NotationNode {
+    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+        str_from_lxb_str_cb(self.node_base.node, lxb_dom_document_type_public_id_noi)
+    }
+
+    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+        str_from_lxb_str_cb(self.node_base.node, lxb_dom_document_type_system_id_noi)
+    }
+
+    #[inline]
+    fn public_id(&self) -> Option<String> {
+        check_node!(self.node_base);
+        unsafe { Some(self.public_id_unchecked()?.to_owned()) }
+    }
+
+    #[inline]
+    fn system_id(&self) -> Option<String> {
+        check_node!(self.node_base);
+        unsafe { Some(self.system_id_unchecked()?.to_owned()) }
+    }
+}
