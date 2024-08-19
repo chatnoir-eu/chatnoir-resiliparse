@@ -56,20 +56,6 @@ impl<T: Clone> From<Vec<T>> for NodeListGeneric<T>  {
 }
 
 impl<'a, T: Clone> NodeListGeneric<T> {
-    pub(super) fn new_live(node: Node, user_data: Option<Box<[String]>>,
-                           f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
-        Self { live: Some(NodeListClosure { n: node, d: user_data, f }),
-            items: Vec::default() }
-    }
-
-    pub fn iter(&self) -> vec::IntoIter<T> {
-        if let Some(closure) = &self.live {
-            (closure.f)(&closure.n, closure.d.as_ref()).into_iter()
-        } else {
-            self.items.clone().into_iter()
-        }
-    }
-
     #[inline]
     pub fn item(&self, index: usize) -> Option<T> {
         Some(self.iter().skip(index).next()?)
@@ -83,6 +69,22 @@ impl<'a, T: Clone> NodeListGeneric<T> {
     #[inline]
     pub fn len(&self) -> usize {
         self.iter().count()
+    }
+
+    pub(super) fn new_live(node: Node, user_data: Option<Box<[String]>>,
+                           f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
+        Self {
+            live: Some(NodeListClosure { n: node, d: user_data, f }),
+            items: Vec::default()
+        }
+    }
+
+    pub fn iter(&self) -> vec::IntoIter<T> {
+        if let Some(closure) = &self.live {
+            (closure.f)(&closure.n, closure.d.as_ref()).into_iter()
+        } else {
+            self.items.clone().into_iter()
+        }
     }
 }
 

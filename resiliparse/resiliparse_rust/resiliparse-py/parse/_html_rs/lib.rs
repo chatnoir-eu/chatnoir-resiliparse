@@ -39,56 +39,6 @@ pub mod _html_rs {
     #[pymodule_export]
     pub use crate::tree::HTMLTree;
 
-    #[pymodule_export]
-    pub use crate::node::NodeType;
-
-    #[pymodule_export]
-    pub use crate::node::Node;
-
-    #[pymodule_export]
-    pub use crate::coll::DOMCollection;
-
-    #[pymodule_export]
-    pub use crate::coll::DOMElementClassList;
-
-    #[pymodule_export]
-    pub use crate::exception::DOMException;
-
-    #[pymodule]
-    pub mod exception {
-        use super::*;
-
-        #[pymodule_init]
-        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
-            init_mod_path!("exception", m)
-        }
-
-        #[pymodule_export]
-        pub use crate::exception::DOMException;
-
-        #[pymodule_export]
-        pub use crate::exception::HTMLParserException;
-
-        #[pymodule_export]
-        pub use crate::exception::CSSParserException;
-    }
-
-    #[pymodule]
-    pub mod coll {
-        use super::*;
-
-        #[pymodule_init]
-        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
-            init_mod_path!("coll", m)
-        }
-
-        #[pymodule_export]
-        pub use crate::coll::DOMCollection;
-
-        #[pymodule_export]
-        pub use crate::coll::DOMElementClassList;
-    }
-
     #[pymodule]
     pub mod node {
         use super::*;
@@ -130,5 +80,46 @@ pub mod _html_rs {
 
         #[pymodule_export]
         pub use crate::node::DocumentFragmentNode;
+    }
+
+    #[pymodule]
+    pub mod coll {
+        use super::*;
+
+        #[pymodule_init]
+        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            init_mod_path!("coll", m)
+        }
+
+        #[pymodule_export]
+        pub use crate::coll::NodeList;
+
+        #[pymodule_export]
+        pub use crate::coll::ElementNodeList;
+
+        // #[pymodule_export]
+        // pub use crate::coll::NamedNodeMap;
+        //
+        // #[pymodule_export]
+        // pub use crate::coll::DOMTokenList;
+    }
+
+    #[pymodule]
+    pub mod exception {
+        use super::*;
+
+        #[pymodule_init]
+        fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            init_mod_path!("exception", m)
+        }
+
+        #[pymodule_export]
+        pub use crate::exception::DOMException;
+
+        #[pymodule_export]
+        pub use crate::exception::HTMLParserException;
+
+        #[pymodule_export]
+        pub use crate::exception::CSSParserException;
     }
 }
