@@ -49,26 +49,36 @@ macro_rules! node_forward_opt_call {
 
 
 #[pyclass(subclass, module = "resiliparse.parse._html_rs.node")]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Node {
-    node: node_impl::Node
+    pub(crate) node: node_impl::Node
 }
 
+impl From<node_impl::Node> for Node {
+    fn from(value: node_impl::Node) -> Self {
+        Node { node: value }
+    }
+}
 
 macro_rules! define_node_type {
     ($Self: ident, $Base: path) => {
         #[pyclass(extends=Node, module = "resiliparse.parse._html_rs.node")]
         #[derive(Clone)]
-        pub struct $Self {}
+        pub struct $Self;
 
         impl $Self {
-            pub fn new<'py>(py: Python<'py>, node: $Base) -> Bound<'py, $Self> {
-                Bound::new(py, (Self {}, Node { node: node.to_node() })).unwrap()
+            pub fn new_bound(py: Python, node: $Base) -> Bound<$Self> {
+                Bound::new(py, (Self {}, node.into())).unwrap()
+            }
+        }
+
+        impl From<$Base> for Node {
+            fn from(value: $Base) -> Self {
+                Node { node: value.to_node() }
             }
         }
     }
 }
-
 
 define_node_type!(ElementNode, node_impl::ElementNode);
 define_node_type!(AttrNode, node_impl::AttrNode);
@@ -85,16 +95,16 @@ define_node_type!(NotationNode, node_impl::NotationNode);
 pub fn create_upcast_node(py: Python, node: node_impl::Node) -> Bound<PyAny> {
     match node {
         // TODO: Replace with Bound::into_super() in PyO3 0.23
-        node_impl::Node::Element(e) => ElementNode::new(py, e).into_any(),
-        node_impl::Node::Attribute(e) => AttrNode::new(py, e).into_any(),
-        node_impl::Node::Text(e) => TextNode::new(py, e).into_any(),
-        node_impl::Node::CdataSection(e) => CdataSectionNode::new(py, e).into_any(),
-        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new(py, e).into_any(),
-        node_impl::Node::Comment(e) => CommentNode::new(py, e).into_any(),
-        node_impl::Node::Document(e) => DocumentNode::new(py, e).into_any(),
-        node_impl::Node::DocumentType(e) => DocumentTypeNode::new(py, e).into_any(),
-        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new(py, e).into_any(),
-        node_impl::Node::Notation(e) => NotationNode::new(py, e).into_any(),
+        node_impl::Node::Element(e) => ElementNode::new_bound(py, e).into_any(),
+        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e).into_any(),
+        node_impl::Node::Text(e) => TextNode::new_bound(py, e).into_any(),
+        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e).into_any(),
+        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e).into_any(),
+        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e).into_any(),
+        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e).into_any(),
+        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e).into_any(),
+        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e).into_any(),
+        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e).into_any(),
     }
 }
 
@@ -157,7 +167,7 @@ impl Node {
 
     #[getter]
     pub fn owner_document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
-        Some(DocumentNode::new(py, self.node.owner_document()?))
+        Some(DocumentNode::new_bound(py, self.node.owner_document()?))
     }
 
     #[getter]
@@ -173,7 +183,7 @@ impl Node {
     #[getter]
     pub fn parent_element<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
         if let node_impl::Node::Element(e) = self.node.parent_node()? {
-            Some(ElementNode::new(py, e))
+            Some(ElementNode::new_bound(py, e))
         } else {
             None
         }
@@ -190,6 +200,10 @@ impl Node {
             false
         }
     }
+    //
+    // pub fn child_nodes<'py>(&self, py: Python<'py>) -> Bound<'py, NodeList> {
+    //
+    // }
 
     pub fn __contains__(&self, node: Bound<'_, PyAny>) -> bool {
         self.contains(node)
