@@ -509,3 +509,12 @@ impl NodeInterface for NodeBase {
         ElementIterator::new(&self)
     }
 }
+
+impl IntoIterator for NodeBase {
+    type Item = Node;
+    type IntoIter = NodeIteratorOwned;
+
+    fn into_iter(self) -> Self::IntoIter {
+        NodeIteratorOwned::new(self)
+    }
+}

@@ -20,7 +20,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::ptr::addr_of_mut;
 use std::sync::Arc;
-
 use crate::parse::html::css::*;
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::*;
@@ -46,6 +45,7 @@ pub enum Node {
     DocumentFragment(DocumentFragmentNode),
     Notation(NotationNode), // legacy
 }
+
 
 impl Deref for Node {
     type Target = NodeBase;
@@ -114,6 +114,7 @@ impl Display for Node {
         Display::fmt(self.deref(), f)
     }
 }
+
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NodeRef<'a> {
@@ -309,6 +310,15 @@ macro_rules! define_node_type {
             }
         }
 
+        impl IntoIterator for $Self {
+            type Item = Node;
+            type IntoIter = NodeIteratorOwned;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.node_base.into_iter()
+            }
+        }
+
         impl Debug for $Self {
             #[inline]
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -370,6 +380,7 @@ impl ChildNode for DocumentTypeNode {}
 
 
 define_node_type!(DocumentNode, Document);
+
 
 impl Document for DocumentNode {
     fn doctype(&self) -> Option<DocumentTypeNode> {

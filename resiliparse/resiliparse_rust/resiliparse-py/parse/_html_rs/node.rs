@@ -17,6 +17,7 @@ use pyo3::prelude::*;
 use pyo3::types::*;
 
 use resiliparse_common::parse::html::dom::node as node_impl;
+use resiliparse_common::parse::html::dom::iter as iter_impl;
 use resiliparse_common::parse::html::dom::traits::*;
 
 
@@ -182,7 +183,35 @@ impl Node {
         self.node.has_child_nodes()
     }
 
-    pub fn contains<'py>(&self, node: Bound<'py, Node>) -> bool {
-        self.node.contains(&node.borrow().node)
+    pub fn contains<'py>(&self, node: Bound<'py, PyAny>) -> bool {
+        if let Ok(n) = node.downcast::<Node>() {
+            self.node.contains(&n.borrow().node)
+        } else {
+            false
+        }
+    }
+
+    pub fn __contains__(&self, node: Bound<'_, PyAny>) -> bool {
+        self.contains(node)
+    }
+
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIter>> {
+        Bound::new(slf.py(), NodeIter { iter: (*slf.node).clone().into_iter() })
+    }
+}
+
+#[pyclass]
+struct NodeIter {
+    iter: iter_impl::NodeIteratorOwned,
+}
+
+#[pymethods]
+impl NodeIter {
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Bound<'_, PyAny>> {
+        Some(create_upcast_node(slf.py(), slf.iter.next()?))
     }
 }
