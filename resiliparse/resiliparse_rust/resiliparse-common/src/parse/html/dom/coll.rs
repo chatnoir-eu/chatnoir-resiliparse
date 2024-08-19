@@ -76,7 +76,7 @@ impl<'a, T: Clone> NodeListGeneric<T> {
     }
 
     #[inline]
-    pub fn items(&self) -> Vec<T> {
+    pub fn values(&self) -> Vec<T> {
         self.iter().collect()
     }
 

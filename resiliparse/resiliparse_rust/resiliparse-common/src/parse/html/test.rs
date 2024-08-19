@@ -180,9 +180,9 @@ fn test_static_collection() {
     assert_eq!(coll.len(), 4);
     assert_eq!(coll.item(0).unwrap().id().unwrap(), "a");
     assert_eq!(coll.item(coll.len() - 1).unwrap().class_name().unwrap(), "bar baz");
-    assert_eq!(coll.items()[..2].len(), 2);
-    assert_eq!(coll.items()[..2][0].id().unwrap(), "a");
-    assert_eq!(coll.items()[..2][1].class_name().unwrap(), "bar");
+    assert_eq!(coll.values()[..2].len(), 2);
+    assert_eq!(coll.values()[..2][0].id().unwrap(), "a");
+    assert_eq!(coll.values()[..2][1].class_name().unwrap(), "bar");
 
     // Iteration
     assert_eq!(coll.iter().map(|e| assert!(e.tag_name().is_some())).count(), coll.len());
