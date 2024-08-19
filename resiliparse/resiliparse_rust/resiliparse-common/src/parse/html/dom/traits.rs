@@ -24,7 +24,7 @@ use std::ops::Add;
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::*;
-use crate::parse::html::dom::iter::{ElementIterator, NodeIterator};
+use crate::parse::html::dom::iter::{ElementIterator, NodeIterator, NodeIteratorOwned};
 use crate::parse::html::dom::node_base::NodeBase;
 
 
@@ -46,7 +46,7 @@ pub enum NodeType {
 
 
 /// Base DOM node interface.
-pub trait NodeInterface: Debug + Display {
+pub trait NodeInterface: IntoIterator + Debug + Display {
     unsafe fn node_name_unchecked(&self) -> Option<&str>;
     unsafe fn node_value_unchecked(&self) -> Option<&str>;
 

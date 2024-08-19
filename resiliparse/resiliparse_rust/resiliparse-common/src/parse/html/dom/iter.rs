@@ -28,6 +28,10 @@ pub(super) struct NodeIteratorRaw {
     next_node: *mut lxb_dom_node_t,
 }
 
+unsafe impl Send for NodeIteratorRaw {}
+unsafe impl Sync for NodeIteratorRaw {}
+
+
 impl NodeIteratorRaw {
     pub(super) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
         if root.is_null() || unsafe { (*root).first_child }.is_null() {
@@ -77,6 +81,26 @@ impl<'a> NodeIterator<'a> {
 }
 
 impl Iterator for NodeIterator<'_> {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        NodeBase::wrap_node(&self.root.tree, self.iterator_raw.next()?)
+    }
+}
+
+pub struct NodeIteratorOwned {
+    root: NodeBase,
+    iterator_raw: NodeIteratorRaw
+}
+
+impl NodeIteratorOwned {
+    pub(super) fn new(root: NodeBase) -> Self {
+        let iterator_raw = unsafe { NodeIteratorRaw::new(root.node) };
+        Self { root, iterator_raw }
+    }
+}
+
+impl Iterator for NodeIteratorOwned {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
