@@ -16,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::*;
 use pyo3::types::*;
 use resiliparse_common::parse::html::dom::coll as coll_impl;
+use resiliparse_common::parse::html::dom::coll::{DOMTokenListInterface, DOMTokenListMutInterface};
 use resiliparse_common::parse::html::dom::traits::NodeInterface;
 use crate::exception::CSSParserException;
 use super::node::*;
@@ -204,17 +205,35 @@ impl NamedNodeMap {
 
 #[pyclass(eq, sequence)]
 #[derive(PartialEq, Eq)]
-pub struct DOMElementClassList {}
+pub struct DOMTokenList {
+    list: coll_impl::DOMTokenListOwned,
+}
 
 #[pymethods]
-impl DOMElementClassList {
-    #[new]
-    pub fn __new__() -> Self {
-        DOMElementClassList {}
+impl DOMTokenList {
+    pub fn value(&self) -> String {
+        self.list.value()
     }
 
-    pub fn add(&self, class_name: &str) -> PyResult<()> {
-        Ok(())
+    pub fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
+        PyTuple::new_bound(py, self.list.iter())
+    }
+
+    pub fn item(&self, index: usize) -> Option<String> {
+        self.list.item(index)
+    }
+
+    pub fn contains(&self, token: &str) -> bool {
+        self.list.contains(token)
+    }
+
+    #[pyo3(signature = (*tokens))]
+    pub fn add<'py>(&mut self, tokens: &Bound<'py, PyTuple>) -> PyResult<()> {
+        if tokens.is_empty() {
+            return Err(PyValueError::new_err("At least one class required."))
+        }
+        let c = tokens.extract::<Vec<String>>()?;
+        Ok(self.list.add(&c.iter().map(String::as_str).collect::<Vec<&str>>()))
     }
 
     pub fn remove(&mut self, class_name: &str) -> PyResult<()> {

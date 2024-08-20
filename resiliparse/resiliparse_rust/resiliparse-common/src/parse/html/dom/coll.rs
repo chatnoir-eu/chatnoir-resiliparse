@@ -221,84 +221,11 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 }
 
-// Cannot derive default implementations for sub traits (yet)
-macro_rules! dom_node_list_impl {
-    ($Self: ident) => {
-        impl DOMTokenListInterface for $Self<'_> {
-            #[inline]
-            fn value(&self) -> String {
-                self.element.class_name().unwrap_or_default()
-            }
-        }
 
-        impl IntoIterator for $Self<'_>  {
-            type Item = String;
-            type IntoIter = vec::IntoIter<String>;
+pub trait DOMTokenListMutInterface: DOMTokenListInterface {
+    fn update_node(&mut self, values: &Vec<String>);
 
-            fn into_iter(self) -> Self::IntoIter {
-                self.iter()
-            }
-        }
-
-        impl PartialEq<&[&str]> for $Self<'_> {
-            fn eq(&self, other: &&[&str]) -> bool {
-                let val = self.values();
-                if other.len() != val.len() {
-                    return false;
-                }
-                val.iter().zip(other.iter()).find(|(a, b)| a != *b).is_none()
-            }
-        }
-
-        impl Debug for $Self<'_> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                write!(f, "[")?;
-                for (i, s) in self.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    f.write_str(&format!("{:?}", s))?;
-                };
-                write!(f, "]")
-            }
-        }
-
-        impl Display for $Self<'_> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                Debug::fmt(self, f)
-            }
-        }
-    }
-}
-
-#[derive(Clone, PartialEq)]
-pub struct DOMTokenList<'a> {
-    element: &'a ElementNode,
-}
-
-impl<'a> DOMTokenList<'a> {
-    pub(super) fn new(element: &'a ElementNode) -> Self {
-        Self { element }
-    }
-}
-
-dom_node_list_impl!(DOMTokenList);
-
-#[derive(PartialEq)]
-pub struct DOMTokenListMut<'a> {
-    element: &'a mut ElementNode
-}
-
-impl<'a> DOMTokenListMut<'a> {
-    pub(super) fn new(element: &'a mut ElementNode) -> Self {
-        Self { element }
-    }
-
-    fn update_node(&mut self, values: &Vec<String>) {
-        self.element.set_class_name(&values.join(" "));
-    }
-
-    pub fn add(&mut self, tokens: &[&str]) {
+    fn add(&mut self, tokens: &[&str]) {
         let mut values = self.values();
         tokens.iter().for_each(|t: &&str| {
             let t_owned = (*t).to_owned();
@@ -309,7 +236,7 @@ impl<'a> DOMTokenListMut<'a> {
         self.update_node(&values);
     }
 
-    pub fn remove(&mut self, tokens: &[&str]) {
+    fn remove(&mut self, tokens: &[&str]) {
         self.update_node(&self
             .iter()
             .filter(|t: &String| !tokens.contains(&t.as_str()))
@@ -317,7 +244,7 @@ impl<'a> DOMTokenListMut<'a> {
         );
     }
 
-    pub fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
+    fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
         let mut repl = false;
         self.update_node(&self
             .iter()
@@ -332,7 +259,7 @@ impl<'a> DOMTokenListMut<'a> {
         repl
     }
 
-    pub fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
+    fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
         if let Some(f) = force {
             if f {
                 self.add(&[token]);
@@ -352,4 +279,118 @@ impl<'a> DOMTokenListMut<'a> {
     }
 }
 
-dom_node_list_impl!(DOMTokenListMut);
+// Cannot derive default implementations for sub traits (yet)
+macro_rules! dom_token_list_impl {
+    ($Self: ty) => {
+        impl DOMTokenListInterface for $Self {
+            #[inline]
+            fn value(&self) -> String {
+                self.element.class_name().unwrap_or_default()
+            }
+        }
+
+        impl IntoIterator for $Self  {
+            type Item = String;
+            type IntoIter = vec::IntoIter<String>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.iter()
+            }
+        }
+
+        impl PartialEq<&[&str]> for $Self {
+            fn eq(&self, other: &&[&str]) -> bool {
+                let val = self.values();
+                if other.len() != val.len() {
+                    return false;
+                }
+                val.iter().zip(other.iter()).find(|(a, b)| a != *b).is_none()
+            }
+        }
+
+        impl Debug for $Self {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "[")?;
+                for (i, s) in self.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(", ")?;
+                    }
+                    f.write_str(&format!("{:?}", s))?;
+                };
+                write!(f, "]")
+            }
+        }
+
+        impl Display for $Self {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                Debug::fmt(self, f)
+            }
+        }
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub struct DOMTokenList<'a> {
+    element: &'a ElementNode,
+}
+
+impl<'a> DOMTokenList<'a> {
+    pub(super) fn new(element: &'a ElementNode) -> Self {
+        Self { element }
+    }
+}
+
+dom_token_list_impl!(DOMTokenList<'_>);
+
+
+#[derive(PartialEq, Eq)]
+pub struct DOMTokenListMut<'a> {
+    element: &'a mut ElementNode
+}
+
+impl<'a> DOMTokenListMut<'a> {
+    pub(super) fn new(element: &'a mut ElementNode) -> Self {
+        Self { element }
+    }
+}
+
+impl DOMTokenListMutInterface for DOMTokenListMut<'_> {
+    fn update_node(&mut self, values: &Vec<String>) {
+        self.element.set_class_name(&values.join(" "));
+    }
+}
+
+dom_token_list_impl!(DOMTokenListMut<'_>);
+
+
+
+#[derive(PartialEq, Eq)]
+pub struct DOMTokenListOwned {
+    element: ElementNode
+}
+
+impl DOMTokenListOwned {
+    pub(super) fn new(element: ElementNode) -> Self {
+        Self { element }
+    }
+}
+
+impl DOMTokenListMutInterface for DOMTokenListOwned {
+    fn update_node(&mut self, values: &Vec<String>) {
+        self.element.set_class_name(&values.join(" "));
+    }
+}
+
+dom_token_list_impl!(DOMTokenListOwned);
+
+impl From<DOMTokenList<'_>> for DOMTokenListOwned {
+    fn from(value: DOMTokenList<'_>) -> Self {
+        Self::new(value.element.clone())
+    }
+}
+
+impl From<DOMTokenListMut<'_>> for DOMTokenListOwned {
+    fn from(value: DOMTokenListMut<'_>) -> Self {
+        Self::new(value.element.clone())
+    }
+}
