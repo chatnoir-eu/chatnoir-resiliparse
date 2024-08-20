@@ -97,9 +97,9 @@ pub mod _html_rs {
         #[pymodule_export]
         pub use crate::coll::ElementNodeList;
 
-        // #[pymodule_export]
-        // pub use crate::coll::NamedNodeMap;
-        //
+        #[pymodule_export]
+        pub use crate::coll::NamedNodeMap;
+
         // #[pymodule_export]
         // pub use crate::coll::DOMTokenList;
     }
