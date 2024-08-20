@@ -66,17 +66,23 @@ impl NodeList {
     fn item<'py>(&self, index: usize, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
         Some(create_upcast_node(py, match &self.list {
             NL::NodeList(l) => l.item(index)?,
-            NL::ElementNodeList(l) => l.item(index)?.to_node(),
-            NL::NamedNodeMap(l) => l.item(index)?.to_node(),
+            NL::ElementNodeList(l) => l.item(index)?.as_node(),
+            NL::NamedNodeMap(l) => l.item(index)?.as_node(),
         }))
     }
 
     // fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
-    //     PyTuple::new_bound(py, match &self.list {
-    //         NL::NodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n)),
-    //         NL::ElementNodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.to_node())),
-    //         NL::NamedNodeMap(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.to_node()))
-    //     })
+    //     // PyTuple::new_bound::<PyAny>(py, match &self.list {
+    //     //     NL::NodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n)).collect(),
+    //     //     NL::ElementNodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.as_node())).collect(),
+    //     //     NL::NamedNodeMap(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.as_node())).collect()
+    //     // })
+    //     let items = match &self.list {
+    //         NL::NodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n)).collect(),
+    //         NL::ElementNodeList(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.as_node())).collect(),
+    //         NL::NamedNodeMap(l) => l.values().into_iter().map(|n| create_upcast_node(py, n.as_node())).collect()
+    //     };
+    //     PyTuple::new_bound(py, items)
     // }
 
     fn __len__(&self) -> usize {
@@ -87,18 +93,18 @@ impl NodeList {
         }
     }
 
-    // fn __contains__<'py>(&self, node: Bound<'py, PyAny>) -> bool {
-    //     if let Ok(n) = node.downcast::<Node>() {
-    //         match &self.list {
-    //             NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
-    //             NL::ElementNodeList(l) => l.iter().any(|i| i == n.borrow().node),
-    //             NL::NamedNodeMap(l) => l.iter().any(|i| i == n.borrow().node),
-    //         }
-    //     } else {
-    //         false
-    //     }
-    // }
-
+    fn __contains__<'py>(&self, node: Bound<'py, PyAny>) -> bool {
+        if let Ok(n) = node.downcast::<Node>() {
+            match &self.list {
+                NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
+                NL::ElementNodeList(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
+                NL::NamedNodeMap(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
+            }
+        } else {
+            false
+        }
+    }
+    //
     // fn __getitem__<'py>(&self, py: Python<'py>, index: usize) -> PyResult<Bound<'py, PyAny>> {
     //     match &self.list {
     //         NL::NodeList(l) |
@@ -138,7 +144,7 @@ impl ElementNodeList {
     //     match &slf.as_super().list {
     //         NodeListType::ElementNodeList(l) => {
     //             match l.elements_by_attr_case("id", element_id, case_insensitive).item(0) {
-    //                 Some(e) => Ok(Some(e.to_node().into())),
+    //                 Some(e) => Ok(Some(e.as_node().into())),
     //                 _ => Ok(None)
     //             }
     //         },
@@ -180,7 +186,7 @@ impl ElementNodeList {
 //                 match l.query_selector(selector) {
 //                     Ok(e) => {
 //                         if let Some(n) = e {
-//                             Ok(Some(n.to_node().into()))
+//                             Ok(Some(n.as_node().into()))
 //                         } else { Ok(None) }
 //                     },
 //                     Err(e) => Err(PyValueError::new_err(e.to_string()))
