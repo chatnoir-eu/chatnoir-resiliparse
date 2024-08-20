@@ -15,6 +15,7 @@
 use std::ops::Deref;
 use pyo3::prelude::*;
 use pyo3::types::*;
+use pyo3::exceptions::*;
 
 use resiliparse_common::parse::html::dom::node as node_impl;
 use resiliparse_common::parse::html::dom::iter as iter_impl;
@@ -67,13 +68,13 @@ macro_rules! define_node_type {
         pub struct $Self;
 
         impl $Self {
-            pub fn new_bound(py: Python, node: $Base) -> Bound<$Self> {
-                Bound::new(py, (Self {}, node.into())).unwrap()
+            pub fn new_bound(py: Python, node: $Base) -> PyResult<Bound<$Self>> {
+                Bound::new(py, (Self {}, node.into()))
             }
         }
 
         impl From<$Base> for Node {
-            fn from(value: $Base) -> Self {
+            fn from(value: $Base) -> Node {
                 Node { node: value.as_node() }
             }
         }
@@ -92,20 +93,20 @@ define_node_type!(DocumentFragmentNode, node_impl::DocumentFragmentNode);
 define_node_type!(NotationNode, node_impl::NotationNode);
 
 
-pub fn create_upcast_node(py: Python, node: node_impl::Node) -> Bound<PyAny> {
-    match node {
+pub fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<Bound<PyAny>> {
+    Ok(match node {
         // TODO: Replace with Bound::into_super() in PyO3 0.23
-        node_impl::Node::Element(e) => ElementNode::new_bound(py, e).into_any(),
-        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e).into_any(),
-        node_impl::Node::Text(e) => TextNode::new_bound(py, e).into_any(),
-        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e).into_any(),
-        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e).into_any(),
-        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e).into_any(),
-        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e).into_any(),
-        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e).into_any(),
-        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e).into_any(),
-        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e).into_any(),
-    }
+        node_impl::Node::Element(e) => ElementNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Text(e) => TextNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e)?.into_any(),
+    })
 }
 
 
@@ -165,9 +166,10 @@ impl Node {
         self.node.text_content()
     }
 
+    // This function was here before
     #[getter]
     pub fn owner_document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
-        Some(DocumentNode::new_bound(py, self.node.owner_document()?))
+        DocumentNode::new_bound(py, self.node.owner_document()?).ok()
     }
 
     #[getter]
@@ -175,15 +177,16 @@ impl Node {
         self.parent_node(py)
     }
 
+
     #[getter]
     pub fn parent_node<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        Some(create_upcast_node(py, self.node.parent_node()?))
+        create_upcast_node(py, self.node.parent_node()?).ok()
     }
 
     #[getter]
     pub fn parent_element<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
         if let node_impl::Node::Element(e) = self.node.parent_node()? {
-            Some(ElementNode::new_bound(py, e))
+            ElementNode::new_bound(py, e).ok()
         } else {
             None
         }
@@ -212,6 +215,16 @@ impl Node {
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIter>> {
         Bound::new(slf.py(), NodeIter { iter: (*slf.node).clone().into_iter() })
     }
+    //
+    // fn __getitem__<'py>(&self, py: Python<'py>, index_or_slice: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    //     if let Ok(s) = index_or_slice.downcast::<PySlice>() {
+    //         // ...
+    //     } else if let Ok(i) = index_or_slice.downcast::<PyInt>() {
+    //         // ...
+    //     } else {
+    //         Err(PyTypeError::new_err("list indices must be integers or slices, not str"))
+    //     }
+    // }
 }
 
 #[pyclass]
@@ -226,6 +239,6 @@ impl NodeIter {
     }
 
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Bound<'_, PyAny>> {
-        Some(create_upcast_node(slf.py(), slf.iter.next()?))
+        create_upcast_node(slf.py(), slf.iter.next()?).ok()
     }
 }

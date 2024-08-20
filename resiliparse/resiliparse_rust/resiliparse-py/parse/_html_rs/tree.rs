@@ -48,7 +48,7 @@ impl HTMLTree {
     pub fn create_element<'py>(&mut self, py: Python<'py>, tag_name: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
         if let Some(mut d) = self.tree.document() {
             match d.create_element(tag_name) {
-                Ok(e) => Ok(Some(ElementNode::new_bound(py, e))),
+                Ok(e) => Ok(ElementNode::new_bound(py, e).ok()),
                 Err(e) => Err(DOMException::new_err(e.to_string()))
             }
         } else {
@@ -59,7 +59,7 @@ impl HTMLTree {
     pub fn create_text_node<'py>(&mut self, py: Python<'py>, text: &str) -> PyResult<Option<Bound<'py, TextNode>>> {
         if let Some(mut d) = self.tree.document() {
             match d.create_text_node(text) {
-                Ok(t) => Ok(Some(TextNode::new_bound(py, t))),
+                Ok(t) => Ok(TextNode::new_bound(py, t).ok()),
                 Err(e) => Err(DOMException::new_err(e.to_string()))
             }
         } else {
@@ -69,17 +69,17 @@ impl HTMLTree {
 
     #[getter]
     pub fn document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
-        Some(DocumentNode::new_bound(py, self.tree.document()?))
+        DocumentNode::new_bound(py, self.tree.document()?).ok()
     }
 
     #[getter]
     pub fn head<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
-        Some(ElementNode::new_bound(py, self.tree.head()?))
+        ElementNode::new_bound(py, self.tree.head()?).ok()
     }
 
     #[getter]
     pub fn body<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
-        Some(ElementNode::new_bound(py, self.tree.body()?))
+        ElementNode::new_bound(py, self.tree.body()?).ok()
     }
 
     #[getter]
