@@ -53,7 +53,8 @@ pub trait NodeInterface: IntoIterator + Debug + Display {
     fn upcast(&self) -> &NodeBase;
     fn upcast_mut(&mut self) -> &mut NodeBase;
     fn as_noderef(&self) -> NodeRef;
-    fn to_node(&self) -> Node;
+    fn as_node(&self) -> Node;
+    fn into_node(self) -> Node;
 
     fn node_type(&self) -> Option<NodeType>;
     fn node_name(&self) -> Option<String>;

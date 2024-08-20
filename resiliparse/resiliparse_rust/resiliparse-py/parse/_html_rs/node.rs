@@ -74,7 +74,7 @@ macro_rules! define_node_type {
 
         impl From<$Base> for Node {
             fn from(value: $Base) -> Self {
-                Node { node: value.to_node() }
+                Node { node: value.as_node() }
             }
         }
     }

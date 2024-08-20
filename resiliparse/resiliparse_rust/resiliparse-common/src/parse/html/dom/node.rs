@@ -225,7 +225,9 @@ macro_rules! define_node_type {
             #[inline(always)]
             fn as_noderef(&self) -> NodeRef { NodeRef::$EnumType(self) }
             #[inline(always)]
-            fn to_node(&self) -> Node { Node::from(self) }
+            fn as_node(&self) -> Node { self.clone().into() }
+            #[inline(always)]
+            fn into_node(self) -> Node { self.into() }
 
             #[inline(always)]
             fn node_type(&self) -> Option<NodeType> { self.node_base.node_type() }
@@ -295,12 +297,6 @@ macro_rules! define_node_type {
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
                 Node::$EnumType(value)
-            }
-        }
-
-        impl From<&$Self> for Node {
-            fn from(value: &$Self) -> Node {
-                Node::$EnumType((*value).clone())
             }
         }
 
@@ -400,14 +396,14 @@ impl Document for DocumentNode {
 
     fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
-        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
             unsafe { elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
         check_node!(self.node_base);
-        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
             unsafe { elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
         })
     }
@@ -423,7 +419,7 @@ impl Document for DocumentNode {
             qualified_name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
-        HTMLCollection::new_live(self.into(), Some(user_data), |n, attr| {
+        HTMLCollection::new_live(self.as_node(), Some(user_data), |n, attr| {
             unsafe {
                 elements_by_attr(
                     n,
@@ -495,7 +491,7 @@ impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), None, |n, _| {
+        HTMLCollection::new_live(self.as_node(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Document(d) = n {
                 let mut child = d.first_element_child();
@@ -523,7 +519,7 @@ impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
 impl ParentNode for DocumentFragmentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), None, |n, _| {
+        HTMLCollection::new_live(self.as_node(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::DocumentFragment(d) = n {
                 let mut child = d.first_element_child();
@@ -672,7 +668,7 @@ impl Element for ElementNode {
 
     fn attributes(&self) -> NamedNodeMap {
         check_node!(self.node_base);
-        NamedNodeMap::new_live(self.into(), None, |n, _| {
+        NamedNodeMap::new_live(self.as_node(), None, |n, _| {
             let mut v = Vec::new();
             unsafe {
                 let mut attr = lxb_dom_element_first_attribute_noi(n.node.cast());
@@ -732,7 +728,7 @@ impl Element for ElementNode {
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
         let mut found = None;
-        let mut node = Some(self.to_node());
+        let mut node = Some(self.as_node());
         while let Some(n) = &node {
             sel_list.match_elements_reverse(n.as_noderef(), |e, _, found| {
                 *found = Some(e.clone());
@@ -757,13 +753,13 @@ impl Element for ElementNode {
     }
 
     fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
             unsafe { elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), Some(Box::new([class_names.to_owned()])), |n, cls| {
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([class_names.to_owned()])), |n, cls| {
             unsafe { elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
         })
     }
@@ -777,7 +773,7 @@ impl Element for ElementNode {
             qualified_name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
-        HTMLCollection::new_live(self.into(), Some(user_data), |n, attr| {
+        HTMLCollection::new_live(self.as_node(), Some(user_data), |n, attr| {
             unsafe {
                 elements_by_attr(
                     &n,
@@ -861,7 +857,7 @@ impl Element for ElementNode {
 
 impl ParentNode for ElementNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(self.into(), None, |n, _| {
+        HTMLCollection::new_live(self.as_node(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Element(e) = n {
                 let mut child = e.first_element_child();

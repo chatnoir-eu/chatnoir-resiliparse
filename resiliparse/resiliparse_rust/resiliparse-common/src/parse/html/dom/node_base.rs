@@ -336,7 +336,12 @@ impl NodeInterface for NodeBase {
     }
 
     #[inline(always)]
-    fn to_node(&self) -> Node {
+    fn as_node(&self) -> Node {
+        unreachable!();
+    }
+
+    #[inline(always)]
+    fn into_node(self) -> Node {
         unreachable!();
     }
 
