@@ -24,7 +24,7 @@ use std::ops::Add;
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::*;
-use crate::parse::html::dom::iter::{ElementIterator, NodeIterator, NodeIteratorOwned};
+use crate::parse::html::dom::iter::{ElementIterator, NodeIterator};
 use crate::parse::html::dom::node_base::NodeBase;
 
 

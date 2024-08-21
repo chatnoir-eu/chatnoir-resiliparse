@@ -64,7 +64,7 @@ fn get_tuple_slice<'py>(tup: &Bound<'py, PyTuple>, index_or_slice: &Bound<'py, P
             .iter()
             .step_by(i.step.abs() as usize);
         Ok(PyTuple::new_bound(index_or_slice.py(), e).into_any())
-    } else if let Ok(mut i) = index_or_slice.downcast::<PyInt>() {
+    } else if let Ok(i) = index_or_slice.downcast::<PyInt>() {
         if i.lt(i)? {
             i.add(tup.len())?;
         }
