@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
 use std::ops::Deref;
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use pyo3::exceptions::*;
-
 use resiliparse_common::parse::html::dom::node as node_impl;
 use resiliparse_common::parse::html::dom::iter as iter_impl;
 use resiliparse_common::parse::html::dom::traits::*;
 use crate::coll::*;
+use crate::exception::*;
 
 
 #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
@@ -63,7 +64,7 @@ impl From<node_impl::Node> for Node {
 }
 
 macro_rules! define_node_type {
-    ($Self: ident, $Base: path) => {
+    ($Self: ident, $BaseEnum: ident, $Base: ty) => {
         #[pyclass(extends=Node, module = "resiliparse.parse._html_rs.node")]
         #[derive(Clone)]
         pub struct $Self;
@@ -71,6 +72,21 @@ macro_rules! define_node_type {
         impl $Self {
             pub fn new_bound(py: Python, node: $Base) -> PyResult<Bound<$Self>> {
                 Bound::new(py, (Self {}, node.into()))
+            }
+
+
+            fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a $Base {
+                match &slf.as_super().node {
+                    node_impl::Node::$BaseEnum(n) => n,
+                    _ => unreachable!()
+                }
+            }
+
+            fn raw_node_mut<'py, 'a>(slf: &'a mut PyRefMut<'py, Self>) -> &'a mut $Base {
+                match &mut slf.as_super().node {
+                    node_impl::Node::$BaseEnum(n) => n,
+                    _ => unreachable!()
+                }
             }
         }
 
@@ -82,16 +98,16 @@ macro_rules! define_node_type {
     }
 }
 
-define_node_type!(ElementNode, node_impl::ElementNode);
-define_node_type!(AttrNode, node_impl::AttrNode);
-define_node_type!(TextNode, node_impl::TextNode);
-define_node_type!(CdataSectionNode, node_impl::CdataSectionNode);
-define_node_type!(ProcessingInstructionNode, node_impl::ProcessingInstructionNode);
-define_node_type!(CommentNode, node_impl::CommentNode);
-define_node_type!(DocumentNode, node_impl::DocumentNode);
-define_node_type!(DocumentTypeNode, node_impl::DocumentTypeNode);
-define_node_type!(DocumentFragmentNode, node_impl::DocumentFragmentNode);
-define_node_type!(NotationNode, node_impl::NotationNode);
+define_node_type!(ElementNode, Element, node_impl::ElementNode);
+define_node_type!(AttrNode, Attribute, node_impl::AttrNode);
+define_node_type!(TextNode, Text, node_impl::TextNode);
+define_node_type!(CdataSectionNode, CdataSection, node_impl::CdataSectionNode);
+define_node_type!(ProcessingInstructionNode, ProcessingInstruction, node_impl::ProcessingInstructionNode);
+define_node_type!(CommentNode, Comment, node_impl::CommentNode);
+define_node_type!(DocumentNode, Document, node_impl::DocumentNode);
+define_node_type!(DocumentTypeNode, DocumentType, node_impl::DocumentTypeNode);
+define_node_type!(DocumentFragmentNode, DocumentFragment, node_impl::DocumentFragmentNode);
+define_node_type!(NotationNode, Notation, node_impl::NotationNode);
 
 
 pub fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<Bound<PyAny>> {
@@ -271,6 +287,197 @@ impl Node {
         self.contains(node)
     }
 }
+
+
+#[pymethods]
+impl ElementNode {
+    fn tag_name(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).tag_name()
+    }
+
+    fn tag(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::tag_name(slf)
+    }
+
+    fn local_name(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).local_name()
+    }
+
+    fn id(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).id()
+    }
+
+    fn class_name(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).class_name()
+    }
+
+    fn class_list(mut slf: PyRefMut<'_, Self>) -> PyResult<Bound<'_, DOMTokenList>> {
+        Bound::new(slf.py(), DOMTokenList::from(Self::raw_node_mut(&mut slf).class_list_mut()))
+    }
+
+    fn attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> Option<String> {
+        Self::raw_node(&slf).attribute(qualified_name)
+    }
+
+    fn attribute_node<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        if let Some(a) = Self::raw_node(&slf).attribute_node(qualified_name) {
+            Ok(Some(create_upcast_node(slf.py(), a.into_node())?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn attribute_names(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
+        PyTuple::new_bound(slf.py(), Self::raw_node(&slf).attribute_names().into_iter())
+    }
+
+    fn has_attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> bool {
+        Self::raw_node(&slf).has_attribute(qualified_name)
+    }
+
+    fn set_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
+        Self::raw_node_mut(&mut slf).set_attribute(qualified_name, value)
+    }
+
+    fn remove_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str) {
+        Self::raw_node_mut(&mut slf).remove_attribute(qualified_name)
+    }
+
+    #[pyo3(signature = (qualified_name, force=None))]
+    fn toggle_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str, force: Option<bool>) -> bool {
+        Self::raw_node_mut(&mut slf).toggle_attribute(qualified_name, force)
+    }
+
+    #[getter]
+    fn attrs(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
+        Self::attribute_names(slf)
+    }
+
+    fn hasattr(slf: PyRef<'_, Self>, qualified_name: &str) -> bool {
+        Self::has_attribute(slf, qualified_name)
+    }
+
+    fn __contains__(slf: PyRef<'_, Self>, qualified_name: &str) -> bool {
+        Self::has_attribute(slf, qualified_name)
+    }
+
+    #[pyo3(signature = (qualified_name, default_value=None))]
+    fn getattr(slf: PyRef<'_, Self>, qualified_name: &str, default_value: Option<&str>) -> Option<String> {
+        Self::attribute(slf, qualified_name).or(default_value.map(str::to_owned))
+    }
+
+    fn __getitem__(slf: PyRef<'_, Self>, qualified_name: &str) -> PyResult<String> {
+        Self::attribute(slf, qualified_name)
+            .map_or_else(|| Err(PyIndexError::new_err(format!("Attribute {} does not exist", qualified_name))),
+                         |a| Ok(a))
+    }
+
+    fn setattr(mut slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
+        Self::set_attribute(slf, qualified_name, value)
+    }
+
+    fn __setitem__(mut slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
+        Self::set_attribute(slf, qualified_name, value)
+    }
+
+    fn delattr(mut slf: PyRefMut<'_, Self>, qualified_name: &str) {
+        Self::remove_attribute(slf, qualified_name)
+    }
+
+    fn __delitem__(mut slf: PyRefMut<'_, Self>, qualified_name: &str) -> PyResult<()> {
+        if Self::raw_node_mut(&mut slf).has_attribute(qualified_name) {
+            Ok(Self::remove_attribute(slf, qualified_name))
+        } else {
+            Err(PyIndexError::new_err(format!("Attribute {} does not exist", qualified_name)))
+        }
+    }
+
+    fn closest<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+       Self::raw_node(&slf).closest(selectors).map_or_else(
+            |e| Err(CSSParserException::new_err(e.to_string())),
+            |n| n.map_or(
+                Ok(None),
+                |n_| Ok(Some(create_upcast_node(slf.py(), n_.into_node())?))
+            )
+       )
+    }
+
+    fn matches<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<bool> {
+       Self::raw_node(&slf).matches(selectors).map_or_else(
+            |e| Err(CSSParserException::new_err(e.to_string())),
+            |n| Ok(n)
+       )
+    }
+
+    fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_tag_name(qualified_name))
+    }
+
+    fn get_elements_by_class_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_class_name(qualified_name))
+    }
+
+    #[pyo3(signature = (attr, qualified_name, case_insensitive=false))]
+    fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, attr: &str, qualified_name: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
+       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case(attr, qualified_name, case_insensitive))
+    }
+
+    #[pyo3(signature = (element_id, case_insensitive=false))]
+    fn get_elements_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
+       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive))
+    }
+
+    #[getter]
+    fn html(slf: PyRef<'_, Self>) -> String {
+        Self::outer_html(slf)
+    }
+
+    #[setter]
+    fn set_html<'py>(mut slf: PyRefMut<'py, Self>, html: &str) {
+        Self::set_inner_html(slf, html)
+    }
+
+    #[getter]
+    fn inner_html(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).inner_html()
+    }
+
+    #[setter]
+    fn set_inner_html<'py>(mut slf: PyRefMut<'py, Self>, inner_html: &str) {
+        Self::raw_node_mut(&mut slf).set_inner_html(inner_html)
+    }
+
+    #[getter]
+    fn outer_html(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).outer_html()
+    }
+
+    #[setter]
+    fn set_outer_html<'py>(mut slf: PyRefMut<'py, Self>, outer_html: &str) {
+        Self::raw_node_mut(&mut slf).set_outer_html(outer_html)
+    }
+
+    #[getter]
+    fn inner_text(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).inner_text()
+    }
+
+    #[setter]
+    fn set_inner_text<'py>(mut slf: PyRefMut<'py, Self>, inner_text: &str) {
+        Self::raw_node_mut(&mut slf).set_inner_text(inner_text)
+    }
+
+    #[getter]
+    fn outer_text(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).outer_text()
+    }
+
+    #[setter]
+    fn set_outer_text<'py>(mut slf: PyRefMut<'py, Self>, outer_text: &str) {
+        Self::raw_node_mut(&mut slf).set_outer_text(outer_text)
+    }
+}
+
 
 #[pyclass]
 struct NodeIter {

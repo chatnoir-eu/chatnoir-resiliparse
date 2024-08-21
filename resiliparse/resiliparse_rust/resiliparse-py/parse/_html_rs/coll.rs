@@ -167,27 +167,27 @@ impl ElementNodeList {
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
-    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selector: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
         if let NL::ElementNodeList(l) = &slf.as_super().list {
-            let res = l.query_selector(selector)
+            let res = l.query_selector(selectors)
                 .or_else(|e| Err(CSSParserException::new_err(e.to_string())))?;
             return Ok(res.map(|e| ElementNode::new_bound(slf.py(), e).unwrap()))
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
-    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selector: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
         if let NL::ElementNodeList(l) = &slf.as_super().list {
-            let res = l.query_selector_all(selector)
+            let res = l.query_selector_all(selectors)
                 .or_else(|e| Err(CSSParserException::new_err(e.to_string())))?;
             return Ok(Self::new_bound(slf.py(), res)?)
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
-    pub fn matches(slf: PyRef<Self>, selector: &str) -> PyResult<bool> {
+    pub fn matches(slf: PyRef<Self>, selectors: &str) -> PyResult<bool> {
         if let NL::ElementNodeList(l) = &slf.as_super().list {
-            return l.matches(selector)
+            return l.matches(selectors)
                 .or_else(|e| Err(CSSParserException::new_err(e.to_string())))
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
@@ -209,6 +209,24 @@ impl NamedNodeMap {
 #[derive(PartialEq, Eq)]
 pub struct DOMTokenList {
     list: coll_impl::DOMTokenListOwned,
+}
+
+impl From<coll_impl::DOMTokenListOwned> for DOMTokenList {
+    fn from(list: coll_impl::DOMTokenListOwned) -> Self {
+        Self { list }
+    }
+}
+
+impl From<coll_impl::DOMTokenList<'_>> for DOMTokenList {
+    fn from(list: coll_impl::DOMTokenList<'_>) -> Self {
+        Self { list: list.into() }
+    }
+}
+
+impl From<coll_impl::DOMTokenListMut<'_>> for DOMTokenList {
+    fn from(list: coll_impl::DOMTokenListMut<'_>) -> Self {
+        Self { list: list.into() }
+    }
 }
 
 #[pymethods]
