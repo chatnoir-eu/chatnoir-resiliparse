@@ -207,7 +207,7 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 
     fn contains(&self, token: &str) -> bool {
-        self.iter().find(|s: &String| s == token).is_some()
+        self.iter().any(|s| s == token)
     }
 
     #[inline]
