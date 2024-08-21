@@ -57,6 +57,23 @@ impl NodeList {
     }
 }
 
+fn get_tuple_slice<'py>(tup: &Bound<'py, PyTuple>, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    if let Ok(s) = index_or_slice.downcast::<PySlice>() {
+        let i = s.indices(tup.len() as isize)?;
+        let e = tup.get_slice(i.start as usize, i.stop as usize)
+            .iter()
+            .step_by(i.step.abs() as usize);
+        Ok(PyTuple::new_bound(index_or_slice.py(), e).into_any())
+    } else if let Ok(mut i) = index_or_slice.downcast::<PyInt>() {
+        if i.lt(i)? {
+            i.add(tup.len())?;
+        }
+        tup.get_item(i.extract()?)
+    } else {
+        Err(PyTypeError::new_err("Indices must be integers or slices"))
+    }
+}
+
 
 #[pymethods]
 impl NodeList {
@@ -88,34 +105,19 @@ impl NodeList {
         }
     }
 
-    fn __contains__<'py>(&self, node: Bound<'py, PyAny>) -> bool {
-        if let Ok(n) = node.downcast::<Node>() {
+    fn __contains__<'py>(&self, node:&Bound<'py, PyAny>) -> bool {
+        node.downcast::<Node>().map_or(false, |n| {
             match &self.list {
                 NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
                 NL::ElementNodeList(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
                 NL::NamedNodeMap(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
             }
-        } else {
-            false
-        }
+        })
     }
 
-    fn __getitem__<'py>(&self, py: Python<'py>, index_or_slice: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let val = self.values(py)?;
-        if let Ok(s) = index_or_slice.downcast::<PySlice>() {
-            let i = s.indices(val.len() as isize)?;
-            let e = val.get_slice(i.start as usize, i.stop as usize)
-                .iter()
-                .step_by(i.step.abs() as usize);
-            Ok(PyTuple::new_bound(py, e).into_any())
-        } else if let Ok(mut i) = index_or_slice.downcast::<PyInt>() {
-            if i.lt(i)? {
-                i.add(val.len())?;
-            }
-            val.get_item(i.extract()?)
-        } else {
-            Err(PyTypeError::new_err("NodeList indices must be integers or slices"))
-        }
+    #[inline(always)]
+    fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        get_tuple_slice(&self.values(index_or_slice.py())?, index_or_slice)
     }
 }
 
@@ -203,7 +205,7 @@ impl NamedNodeMap {
 }
 
 
-#[pyclass(eq, sequence)]
+#[pyclass(subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
 #[derive(PartialEq, Eq)]
 pub struct DOMTokenList {
     list: coll_impl::DOMTokenListOwned,
@@ -227,16 +229,42 @@ impl DOMTokenList {
         self.list.contains(token)
     }
 
-    #[pyo3(signature = (*tokens))]
-    pub fn add<'py>(&mut self, tokens: &Bound<'py, PyTuple>) -> PyResult<()> {
-        if tokens.is_empty() {
-            return Err(PyValueError::new_err("At least one class required."))
-        }
-        let c = tokens.extract::<Vec<String>>()?;
-        Ok(self.list.add(&c.iter().map(String::as_str).collect::<Vec<&str>>()))
+    //noinspection DuplicatedCode
+    #[pyo3(signature = (token, *args))]
+    pub fn add<'py>(&mut self, token: &str, args: &Bound<'py, PyTuple>) -> PyResult<()> {
+        self.list.add(std::iter::once(token).chain(
+            args.extract::<Vec<String>>()?.iter().map(String::as_str)
+        ).collect::<Vec<&str>>().as_slice());
+        Ok(())
     }
 
-    pub fn remove(&mut self, class_name: &str) -> PyResult<()> {
+    //noinspection DuplicatedCode
+    #[pyo3(signature = (token, *args))]
+    pub fn remove<'py>(&mut self, token: &str, args: &Bound<'py, PyTuple>) -> PyResult<()> {
+        self.list.remove(std::iter::once(token).chain(
+            args.extract::<Vec<String>>()?.iter().map(String::as_str)
+        ).collect::<Vec<&str>>().as_slice());
         Ok(())
+    }
+
+    pub fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
+        self.list.replace(old_token, new_token)
+    }
+
+    #[pyo3(signature = (token, force = None))]
+    pub fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
+        self.list.toggle(token, force)
+    }
+
+    fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        get_tuple_slice(&PyTuple::new_bound(index_or_slice.py(), self.list.values().into_iter()), index_or_slice)
+    }
+
+    fn __len__(&self) -> usize {
+        self.list.len()
+    }
+
+    fn __contains__<'py>(&self, token: &Bound<'py, PyAny>) -> bool {
+        token.extract::<String>().map_or(false, |s| self.list.contains(&s))
     }
 }

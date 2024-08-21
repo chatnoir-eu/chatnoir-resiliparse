@@ -196,7 +196,7 @@ impl Node {
         self.node.has_child_nodes()
     }
 
-    pub fn contains<'py>(&self, node: Bound<'py, PyAny>) -> bool {
+    pub fn contains<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
         if let Ok(n) = node.downcast::<Node>() {
             self.node.contains(&n.borrow().node)
         } else {
@@ -208,7 +208,7 @@ impl Node {
     //
     // }
 
-    pub fn __contains__(&self, node: Bound<'_, PyAny>) -> bool {
+    pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
         self.contains(node)
     }
 
@@ -216,7 +216,7 @@ impl Node {
         Bound::new(slf.py(), NodeIter { iter: (*slf.node).clone().into_iter() })
     }
     //
-    // fn __getitem__<'py>(&self, py: Python<'py>, index_or_slice: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    // fn __getitem__<'py>(&self, py: Python<'py>, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     //     if let Ok(s) = index_or_slice.downcast::<PySlice>() {
     //         // ...
     //     } else if let Ok(i) = index_or_slice.downcast::<PyInt>() {
