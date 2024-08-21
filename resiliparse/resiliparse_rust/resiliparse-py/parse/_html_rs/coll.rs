@@ -52,7 +52,7 @@ pub struct NodeList {
 }
 
 impl NodeList {
-    fn new_bound(py: Python, list: coll_impl::NodeList) -> PyResult<Bound<Self>> {
+    pub fn new_bound(py: Python, list: coll_impl::NodeList) -> PyResult<Bound<Self>> {
         Bound::new(py, Self { list: list.into() })
     }
 }
@@ -126,7 +126,7 @@ impl NodeList {
 pub struct ElementNodeList {}
 
 impl ElementNodeList {
-    fn new_bound(py: Python, list: coll_impl::ElementNodeList) -> PyResult<Bound<Self>> {
+    pub fn new_bound(py: Python, list: coll_impl::ElementNodeList) -> PyResult<Bound<Self>> {
         Bound::new(py, (Self {}, NodeList { list: list.into() }))
     }
 }
@@ -199,7 +199,7 @@ impl ElementNodeList {
 pub struct NamedNodeMap {}
 
 impl NamedNodeMap {
-    fn new_bound(py: Python, list: coll_impl::NamedNodeMap) -> PyResult<Bound<Self>> {
+    pub fn new_bound(py: Python, list: coll_impl::NamedNodeMap) -> PyResult<Bound<Self>> {
         Bound::new(py, (Self {}, NodeList { list: list.into() }))
     }
 }
@@ -251,7 +251,7 @@ impl DOMTokenList {
         self.list.replace(old_token, new_token)
     }
 
-    #[pyo3(signature = (token, force = None))]
+    #[pyo3(signature = (token, force=None))]
     pub fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
         self.list.toggle(token, force)
     }

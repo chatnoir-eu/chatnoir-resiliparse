@@ -20,6 +20,7 @@ use pyo3::exceptions::*;
 use resiliparse_common::parse::html::dom::node as node_impl;
 use resiliparse_common::parse::html::dom::iter as iter_impl;
 use resiliparse_common::parse::html::dom::traits::*;
+use crate::coll::*;
 
 
 #[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
@@ -197,34 +198,78 @@ impl Node {
     }
 
     pub fn contains<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
-        if let Ok(n) = node.downcast::<Node>() {
-            self.node.contains(&n.borrow().node)
-        } else {
-            false
-        }
+        node.downcast::<Node>().map_or(false, |n| self.node.contains(&n.borrow().node))
     }
-    //
-    // pub fn child_nodes<'py>(&self, py: Python<'py>) -> Bound<'py, NodeList> {
-    //
-    // }
 
-    pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
-        self.contains(node)
+    #[getter]
+    pub fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, NodeList>> {
+        NodeList::new_bound(py, self.node.child_nodes())
+    }
+
+    #[getter]
+    pub fn first_child<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.node.first_child().map_or(Ok(None), |n| Ok(Some(create_upcast_node(py, n)?)))
+    }
+
+    #[getter]
+    pub fn last_child<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.node.last_child().map_or(Ok(None), |n| Ok(Some(create_upcast_node(py, n)?)))
+    }
+
+    #[getter]
+    pub fn previous_sibling<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.node.previous_sibling().map_or(Ok(None), |n| Ok(Some(create_upcast_node(py, n)?)))
+    }
+
+    #[getter]
+    pub fn prev<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.previous_sibling(py)
+    }
+
+    #[getter]
+    pub fn next_sibling<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.node.next_sibling().map_or(Ok(None), |n| Ok(Some(create_upcast_node(py, n)?)))
+    }
+
+    #[getter]
+    pub fn next<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.previous_sibling(py)
+    }
+
+    #[pyo3(signature = (deep=false))]
+    pub fn clone_node<'py>(&self, py: Python<'py>, deep: bool) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.node.clone_node(deep).map_or(Ok(None), |n| Ok(Some(create_upcast_node(py, n)?)))
+    }
+
+    #[pyo3(signature = (node, reference=None))]
+    pub fn insert_before<'py>(&mut self, node: Bound<'py, Node>, reference: Option<&Bound<'py, Node>>) -> Option<Bound<'py, Node>> {
+        let rb = reference.map(|r| r.borrow().node.clone());
+        self.node.insert_before(&node.borrow().node, rb.as_ref()).and(Some(node))
+    }
+
+    pub fn append_child<'a, 'py>(&mut self, node: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+        self.node.append_child(&node.borrow().node).and(Some(node))
+    }
+
+    pub fn replace_child<'py>(&mut self, new_child: Bound<'py, Node>, old_child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+        self.node.replace_child(&new_child.borrow().node, &old_child.borrow().node).and(Some(old_child))
+    }
+
+    pub fn remove_child<'py>(&mut self, child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+        self.node.remove_child(&child.borrow().node).and(Some(child))
+    }
+
+    pub fn decompose(&mut self) {
+        self.node.decompose()
     }
 
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIter>> {
         Bound::new(slf.py(), NodeIter { iter: (*slf.node).clone().into_iter() })
     }
-    //
-    // fn __getitem__<'py>(&self, py: Python<'py>, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    //     if let Ok(s) = index_or_slice.downcast::<PySlice>() {
-    //         // ...
-    //     } else if let Ok(i) = index_or_slice.downcast::<PyInt>() {
-    //         // ...
-    //     } else {
-    //         Err(PyTypeError::new_err("list indices must be integers or slices, not str"))
-    //     }
-    // }
+
+    pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
+        self.contains(node)
+    }
 }
 
 #[pyclass]

@@ -273,16 +273,15 @@ impl NodeBase {
         Some(node)
     }
 
-    unsafe fn replace_child_unchecked<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
-        if child.parent_node()? != *self || !self.can_have_children_unchecked() {
+    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &'a Node, old_child: &'a Node) -> Option<&'a Node> {
+        if old_child.parent_node()? != *self || !self.can_have_children_unchecked() {
             return None;
         }
-        if node == child {
-            return Some(node);
+        if new_child == old_child {
+            return Some(old_child);
         }
-        self.insert_before_unchecked(node, Some(child))?;
-        self.remove_child_unchecked(child)?;
-        Some(node)
+        self.insert_before_unchecked(new_child, Some(old_child))?;
+        self.remove_child_unchecked(old_child)
     }
 
     unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
@@ -512,6 +511,16 @@ impl NodeInterface for NodeBase {
 
     fn iter_elements(&self) -> ElementIterator {
         ElementIterator::new(&self)
+    }
+
+    fn decompose(&mut self) {
+        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+        unsafe {
+            if !self.node.is_null() && (*self.node).parent.is_null() && (*self.node).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
+                lxb_dom_node_destroy_deep(self.node);
+                self.node = ptr::null_mut();
+            }
+        }
     }
 }
 

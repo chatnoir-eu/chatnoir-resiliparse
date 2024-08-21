@@ -283,6 +283,9 @@ macro_rules! define_node_type {
             fn iter(&self) -> NodeIterator { self.node_base.iter() }
             #[inline(always)]
             fn iter_elements(&self) -> ElementIterator { self.node_base.iter_elements() }
+
+            #[inline(always)]
+            fn decompose(&mut self) { self.node_base.decompose() }
         }
 
         impl From<Node> for $Self {

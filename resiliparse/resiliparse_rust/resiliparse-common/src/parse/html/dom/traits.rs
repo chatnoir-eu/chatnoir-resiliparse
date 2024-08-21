@@ -83,6 +83,8 @@ pub trait NodeInterface: IntoIterator + Debug + Display {
 
     fn iter(&self) -> NodeIterator;
     fn iter_elements(&self) -> ElementIterator;
+
+    fn decompose(&mut self);
 }
 
 
