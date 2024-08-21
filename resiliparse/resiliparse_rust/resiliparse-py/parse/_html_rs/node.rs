@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Deref;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::*;
@@ -488,7 +489,7 @@ impl DocumentTypeNode {
 
 macro_rules! doc_create_x_mixin {
     ($self_func_name: ident, $func_name: ident) => {
-        #[inline(always)]
+        #[inline]
         fn $self_func_name<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
             Self::raw_node_mut(&mut slf).$func_name(data).map_or_else(
                 |e| Err(DOMException::new_err(e.to_string())),
@@ -504,6 +505,59 @@ impl DocumentNode {
     doc_create_x_mixin!(create_cdata_section_, create_cdata_section);
     doc_create_x_mixin!(create_comment_, create_comment);
     doc_create_x_mixin!(create_attribute_, create_attribute);
+}
+
+macro_rules! parent_node_mixin {
+    () => {
+        #[inline]
+        fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+            ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children().into())
+        }
+
+        #[inline]
+        fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+            Self::raw_node(&slf).first_element_child().map_or(
+                Ok(None),
+                |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+            )
+        }
+
+        #[inline]
+        fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+            Self::raw_node(&slf).last_element_child().map_or(
+                Ok(None),
+                |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+            )
+        }
+
+        #[inline]
+        fn child_element_count_(slf: PyRef<'_, Self>) -> usize {
+            Self::raw_node(&slf).child_element_count()
+        }
+
+        #[inline]
+        fn prepend_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+            let n = nodes.extract::<Vec<Node>>()?;
+            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+            Ok(Self::raw_node_mut(&mut slf).prepend(&s))
+        }
+
+        #[inline]
+        fn append_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+            let n = nodes.extract::<Vec<Node>>()?;
+            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+            Ok(Self::raw_node_mut(&mut slf).append(&s))
+        }
+
+        #[inline]
+        fn replace_children_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+            let n = nodes.extract::<Vec<Node>>()?;
+            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+            Ok(Self::raw_node_mut(&mut slf).replace_children(&s))
+        }
+
+        // TODO: query_selector, query_selector_all
+    };
 }
 
 
