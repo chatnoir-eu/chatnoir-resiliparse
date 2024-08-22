@@ -47,7 +47,7 @@ impl Error for DOMError {}
 // --------------------------------------------- Helpers -------------------------------------------
 
 
-unsafe fn element_by_id(node: &NodeBase, id: &str, case_insensitive: bool) -> Option<ElementNode> {
+unsafe fn get_element_by_id(node: &NodeBase, id: &str, case_insensitive: bool) -> Option<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return None;
@@ -60,31 +60,31 @@ unsafe fn element_by_id(node: &NodeBase, id: &str, case_insensitive: bool) -> Op
 }
 
 
-unsafe fn elements_by_attr(node: &NodeBase, qualified_name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
+unsafe fn get_elements_by_attr(node: &NodeBase, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, qualified_name.as_ptr(),
-                             qualified_name.len(), value.as_ptr(), value.len(), case_insensitive);
+    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, name.as_ptr(),
+                             name.len(), value.as_ptr(), value.len(), case_insensitive);
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn elements_by_tag_name(node: &NodeBase, qualified_name: &str) -> Vec<ElementNode> {
+unsafe fn get_elements_by_tag_name(node: &NodeBase, name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_node_by_tag_name(node.node, coll, qualified_name.as_ptr(), qualified_name.len());
+    lxb_dom_node_by_tag_name(node.node, coll, name.as_ptr(), name.len());
     dom_coll_to_vec(&node.tree, coll, true)
 }
 
-unsafe fn elements_by_class_name(node: &NodeBase, class_name: &str) -> Vec<ElementNode> {
+unsafe fn get_elements_by_class_name(node: &NodeBase, class_names: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_elements_by_class_name(node.node.cast(), coll, class_name.as_ptr(), class_name.len());
+    lxb_dom_elements_by_class_name(node.node.cast(), coll, class_names.as_ptr(), class_names.len());
     dom_coll_to_vec(&node.tree, coll, true)
 }
 

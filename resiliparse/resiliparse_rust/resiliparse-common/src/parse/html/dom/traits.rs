@@ -205,12 +205,12 @@ pub trait ParentNode: NodeInterface {
 
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
-    fn element_by_id(&self, element_id: &str) -> Option<ElementNode> {
-        unsafe { element_by_id(self.upcast(), element_id, false) }
+    fn get_element_by_id(&self, id: &str) -> Option<ElementNode> {
+        unsafe { get_element_by_id(self.upcast(), id, false) }
     }
     
-    fn element_by_id_case(&self, element_id: &str, case_insensitive: bool) -> Option<ElementNode> {
-        unsafe { element_by_id(self.upcast(), element_id, case_insensitive) }
+    fn get_element_by_id_case(&self, id: &str, case_insensitive: bool) -> Option<ElementNode> {
+        unsafe { get_element_by_id(self.upcast(), id, case_insensitive) }
     }
 }
 
@@ -304,10 +304,10 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
-    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection;
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
-    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
-    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection;
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
     fn set_inner_html(&mut self, html: &str);
