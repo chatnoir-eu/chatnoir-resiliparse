@@ -167,20 +167,27 @@ impl ElementNodeList {
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
+    //noinspection DuplicatedCode
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
         if let NL::ElementNodeList(l) = &slf.as_super().list {
-            let res = l.query_selector(selectors)
-                .or_else(|e| Err(CSSParserException::new_err(e.to_string())))?;
-            return Ok(res.map(|e| ElementNode::new_bound(slf.py(), e).unwrap()))
+            return l.query_selector(selectors).map_or_else(
+                |e| Err(CSSParserException::new_err(e.to_string())),
+                |e| e.map_or(
+                    Ok(None),
+                    |e_| Ok(Some(ElementNode::new_bound(slf.py(), e_)?))
+                )
+            );
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
+    //noinspection DuplicatedCode
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
         if let NL::ElementNodeList(l) = &slf.as_super().list {
-            let res = l.query_selector_all(selectors)
-                .or_else(|e| Err(CSSParserException::new_err(e.to_string())))?;
-            return Ok(Self::new_bound(slf.py(), res)?)
+            return l.query_selector_all(selectors).map_or_else(
+                |e| Err(CSSParserException::new_err(e.to_string())),
+                |e| Ok(ElementNodeList::new_bound(slf.py(), e)?)
+            );
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
@@ -231,8 +238,14 @@ impl From<coll_impl::DOMTokenListMut<'_>> for DOMTokenList {
 
 #[pymethods]
 impl DOMTokenList {
+    #[getter]
     pub fn value(&self) -> String {
         self.list.value()
+    }
+
+    #[setter]
+    pub fn set_value(&mut self, value: &str) {
+        self.list.set_value(value)
     }
 
     pub fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {

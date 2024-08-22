@@ -57,7 +57,7 @@ pub(crate) fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<
         node_impl::Node::Element(e) => ElementNode::new_bound(py, e)?.into_any(),
         node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e)?.into_any(),
         node_impl::Node::Text(e) => TextNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::CdataSection(e) => CDATASectionNode::new_bound(py, e)?.into_any(),
         node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e)?.into_any(),
         node_impl::Node::Comment(e) => CommentNode::new_bound(py, e)?.into_any(),
         node_impl::Node::Document(e) => DocumentNode::new_bound(py, e)?.into_any(),
@@ -83,12 +83,10 @@ trait _NodeAccessorMixin<T: NodeInterface>: pyo3::PyClass<Frozen=pyo3::pyclass::
 }
 
 trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
-    #[inline]
     fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
         ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children().into())
     }
 
-    #[inline]
     fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
         Self::raw_node(&slf).first_element_child().map_or(
             Ok(None),
@@ -96,7 +94,6 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
         )
     }
 
-    #[inline]
     fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
         Self::raw_node(&slf).last_element_child().map_or(
             Ok(None),
@@ -109,28 +106,199 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
         Self::raw_node(&slf).child_element_count()
     }
 
-    #[inline]
-    fn prepend_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = nodes.extract::<Vec<Node>>()?;
-        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).prepend(&s))
+    fn prepend_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = node.extract::<Vec<Node>>()?;
+        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).prepend(&r))
     }
 
-    #[inline]
-    fn append_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = nodes.extract::<Vec<Node>>()?;
-        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).append(&s))
+    fn append_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = node.extract::<Vec<Node>>()?;
+        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).append(&r))
     }
 
-    #[inline]
     fn replace_children_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = nodes.extract::<Vec<Node>>()?;
-        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).replace_children(&s))
+        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).replace_children(&r))
     }
 
-    // TODO: query_selector, query_selector_all
+    //noinspection DuplicatedCode
+    fn query_selector_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::raw_node(&slf).query_selector(selectors).map_or_else(
+            |e| Err(CSSParserException::new_err(e.to_string())),
+            |e| e.map_or(
+                Ok(None),
+                |e_| Ok(Some(ElementNode::new_bound(slf.py(), e_)?))
+            )
+        )
+    }
+
+    //noinspection DuplicatedCode
+    fn query_selector_all_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        Self::raw_node(&slf).query_selector_all(selectors).map_or_else(
+            |e| Err(CSSParserException::new_err(e.to_string())),
+            |e| Ok(ElementNodeList::new_bound(slf.py(), e)?)
+        )
+    }
+}
+
+
+trait _NonElementParentNodeMixin<T: NonElementParentNode>: _NodeAccessorMixin<T> {
+    fn get_element_by_id_<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::raw_node(&slf).get_element_by_id_case(element_id, case_insensitive).map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+}
+
+
+macro_rules! child_node_funcs {
+    ($func_name: ident, $call_func_name: ident) => {
+        fn $func_name(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+            let mut n = node.extract::<Vec<Node>>()?;
+            let r: Vec<_> = n.iter_mut().map(|n_| &mut n_.node).collect();
+            Self::raw_node_mut(&mut slf).$call_func_name(&r);
+            Ok(())
+        }
+    };
+}
+
+trait _ChildNodeMixin<T: ChildNode>: _NodeAccessorMixin<T> {
+    child_node_funcs!(before_, before);
+    child_node_funcs!(after_, after);
+    child_node_funcs!(replace_with_, replace_with);
+
+    #[inline(always)]
+    fn remove_(mut slf: PyRefMut<'_, Self>) {
+        Self::raw_node_mut(&mut slf).remove();
+    }
+}
+
+
+
+trait _NonDocumentTypeChildNodeMixin<T: NonDocumentTypeChildNode>: _NodeAccessorMixin<T> {
+    fn next_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).next_element_sibling().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+
+    fn previous_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).previous_element_sibling().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+}
+
+
+macro_rules! character_data_node {
+    ($Self: ident, $Base: ty $(, $func_name: ident, $out_type: ty)*) => {
+        #[pymethods]
+        impl $Self {
+            #[getter]
+            #[inline(always)]
+            fn len(slf: PyRef<'_, Self>) -> usize {
+                Self::raw_node(&slf).len()
+            }
+
+            #[getter]
+            #[inline(always)]
+            fn data(slf: PyRef<'_, Self>) -> Option<String> {
+                Self::raw_node(&slf).data()
+            }
+
+            #[setter]
+            #[inline(always)]
+            fn set_data<'py>(mut slf: PyRefMut<'py, Self>, data: &str) {
+                Self::raw_node_mut(&mut slf).set_data(data)
+            }
+
+            #[inline(always)]
+            fn substring_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> Option<String> {
+                Self::raw_node(&slf).substring_data(offset, count)
+            }
+
+            #[inline(always)]
+            fn append_data(mut slf: PyRefMut<'_, Self>, data: &str) {
+                Self::raw_node_mut(&mut slf).append_data(data)
+            }
+
+            #[inline(always)]
+            fn insert_data(mut slf: PyRefMut<'_, Self>, offset: usize, data: &str) {
+                Self::raw_node_mut(&mut slf).insert_data(offset, data)
+            }
+
+            #[inline(always)]
+            fn delete_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize) {
+                Self::raw_node_mut(&mut slf).delete_data(offset, count)
+            }
+
+            #[inline(always)]
+            fn replace_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize, data: &str) {
+                Self::raw_node_mut(&mut slf).replace_data(offset, count, data)
+            }
+
+            $(#[getter]
+            #[inline(always)]
+            fn target(slf: PyRef<'_, Self>) -> $out_type {
+                Self::raw_node(&slf).$func_name()
+            })*
+
+            // _ChildNodeMixin
+            #[inline(always)]
+            fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+                Self::before_(slf, node)
+            }
+
+            #[inline(always)]
+            fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+                Self::after_(slf, node)
+            }
+
+            #[inline(always)]
+            fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+                Self::replace_with_(slf, node)
+            }
+
+            #[inline(always)]
+            fn remove(slf: PyRefMut<'_, Self>) {
+                Self::remove_(slf);
+            }
+
+            // _NonDocumentTypeChildNodeMixin
+            #[inline(always)]
+            #[getter]
+            fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+                Self::next_element_sibling_(slf)
+            }
+
+            #[getter]
+            #[inline(always)]
+            fn next_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+                Self::next_element_sibling_(slf)
+            }
+
+            #[getter]
+            #[inline(always)]
+            fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+                Self::previous_element_sibling_(slf)
+            }
+
+            #[getter]
+            #[inline(always)]
+            fn previous_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+                Self::previous_element_sibling_(slf)
+            }
+        }
+
+        impl _ChildNodeMixin<$Base> for $Self {}
+        impl _NonDocumentTypeChildNodeMixin<$Base> for $Self {}
+    }
 }
 
 
@@ -175,7 +343,7 @@ macro_rules! define_node_type {
 define_node_type!(ElementNode, Element, node_impl::ElementNode);
 define_node_type!(AttrNode, Attribute, node_impl::AttrNode);
 define_node_type!(TextNode, Text, node_impl::TextNode);
-define_node_type!(CdataSectionNode, CdataSection, node_impl::CdataSectionNode);
+define_node_type!(CDATASectionNode, CdataSection, node_impl::CdataSectionNode);
 define_node_type!(ProcessingInstructionNode, ProcessingInstruction, node_impl::ProcessingInstructionNode);
 define_node_type!(CommentNode, Comment, node_impl::CommentNode);
 define_node_type!(DocumentNode, Document, node_impl::DocumentNode);
@@ -225,9 +393,19 @@ impl Node {
         self.node_value()
     }
 
+    #[setter]
+    pub fn set_value(&mut self, value: &str) {
+        self.set_node_value(value)
+    }
+
     #[getter]
     pub fn node_value(&self) -> Option<String> {
         self.node.node_value()
+    }
+
+    #[setter]
+    pub fn set_node_value(&mut self, value: &str) {
+        self.node.set_node_value(value)
     }
 
     #[getter]
@@ -235,9 +413,19 @@ impl Node {
         self.text_content()
     }
 
+    #[setter]
+    pub fn set_text(&mut self, text: &str) {
+        self.set_text_content(text)
+    }
+
     #[getter]
     pub fn text_content(&self) -> Option<String> {
         self.node.text_content()
+    }
+
+    #[setter]
+    pub fn set_text_content(&mut self, text: &str) {
+        self.node.set_text_content(text)
     }
 
     // This function was here before
@@ -347,26 +535,42 @@ impl Node {
 
 #[pymethods]
 impl ElementNode {
+    #[getter]
     fn tag_name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).tag_name()
     }
 
+    #[getter]
     fn tag(slf: PyRef<'_, Self>) -> Option<String> {
         Self::tag_name(slf)
     }
 
+    #[getter]
     fn local_name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).local_name()
     }
 
+    #[getter]
     fn id(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).id()
     }
 
+    #[setter]
+    fn set_id<'py>(mut slf: PyRefMut<'py, Self>, id: &str) {
+        Self::raw_node_mut(&mut slf).set_id(id)
+    }
+
+    #[getter]
     fn class_name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).class_name()
     }
 
+    #[setter]
+    fn set_class_name<'py>(mut slf: PyRefMut<'py, Self>, class_names: &str) {
+        Self::raw_node_mut(&mut slf).set_class_name(class_names)
+    }
+
+    #[getter]
     fn class_list(mut slf: PyRefMut<'_, Self>) -> PyResult<Bound<'_, DOMTokenList>> {
         Bound::new(slf.py(), DOMTokenList::from(Self::raw_node_mut(&mut slf).class_list_mut()))
     }
@@ -383,6 +587,7 @@ impl ElementNode {
         }
     }
 
+    #[getter]
     fn attribute_names(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
         PyTuple::new_bound(slf.py(), Self::raw_node(&slf).attribute_names().into_iter())
     }
@@ -537,20 +742,179 @@ impl ElementNode {
     fn set_outer_text<'py>(mut slf: PyRefMut<'py, Self>, outer_text: &str) {
         Self::raw_node_mut(&mut slf).set_outer_text(outer_text)
     }
+
+    // _ChildNodeMixin
+    #[inline(always)]
+    fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::before_(slf, node)
+    }
+
+    #[inline(always)]
+    fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::after_(slf, node)
+    }
+
+    #[inline(always)]
+    fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_with_(slf, node)
+    }
+
+    #[inline(always)]
+    fn remove(slf: PyRefMut<'_, Self>) {
+        Self::remove_(slf);
+    }
+
+    // _NonDocumentTypeChildNodeMixin
+    #[getter]
+    #[inline(always)]
+    fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::next_element_sibling_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn next_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::next_element_sibling_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::previous_element_sibling_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn previous_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::previous_element_sibling_(slf)
+    }
+
+    // _ParentNodeMixin
+    #[getter]
+    #[inline(always)]
+    fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+        Self::children_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::first_element_child_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::last_element_child_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn child_element_count(slf: PyRef<'_, Self>) -> usize {
+        Self::child_element_count_(slf)
+    }
+
+    #[inline(always)]
+    fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::prepend_(slf, node)
+    }
+
+    #[inline(always)]
+    fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::append_(slf, node)
+    }
+
+    #[inline(always)]
+    fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, nodes)
+    }
+
+    #[inline(always)]
+    fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::query_selector_(slf, selectors)
+    }
+
+    #[inline(always)]
+    fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        Self::query_selector_all_(slf, selectors)
+    }
 }
 
+impl _ChildNodeMixin<node_impl::ElementNode> for ElementNode {}
+impl _NonDocumentTypeChildNodeMixin<node_impl::ElementNode> for ElementNode {}
+impl _ParentNodeMixin<node_impl::ElementNode> for ElementNode {}
+
+
 #[pymethods]
-impl DocumentTypeNode {
+impl AttrNode {
+    #[getter]
+    fn local_name(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).local_name()
+    }
+
+    #[getter]
     fn name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).name()
     }
 
+    #[getter]
+    fn value(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).value()
+    }
+
+    #[setter]
+    fn set_value<'py>(mut slf: PyRefMut<'py, Self>, value: &str) {
+        Self::raw_node_mut(&mut slf).set_value(value)
+    }
+
+    #[getter]
+    fn owner_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).owner_element().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+}
+
+
+impl _ChildNodeMixin<node_impl::DocumentTypeNode> for DocumentTypeNode {}
+
+#[pymethods]
+impl DocumentTypeNode {
+    #[getter]
+    fn name(slf: PyRef<'_, Self>) -> Option<String> {
+        Self::raw_node(&slf).name()
+    }
+
+    #[getter]
     fn public_id(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).public_id()
     }
 
+    #[getter]
     fn system_id(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).system_id()
+    }
+
+    // _ChildNodeMixin
+    #[inline(always)]
+    fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::before_(slf, node)
+    }
+
+    #[inline(always)]
+    fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::after_(slf, node)
+    }
+
+    #[inline(always)]
+    fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_with_(slf, node)
+    }
+
+    #[inline(always)]
+    fn remove(slf: PyRefMut<'_, Self>) {
+        Self::remove_(slf);
     }
 }
 
@@ -566,6 +930,7 @@ macro_rules! doc_create_x {
 
 #[pymethods]
 impl DocumentNode {
+    #[getter]
     fn doctype(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         Self::raw_node(&slf).doctype().map_or(
             Ok(None),
@@ -573,6 +938,7 @@ impl DocumentNode {
         )
     }
 
+    #[getter]
     fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         Self::raw_node(&slf).document_element().map_or(
             Ok(None),
@@ -593,15 +959,6 @@ impl DocumentNode {
     #[pyo3(signature = (name, value, case_insensitive=false))]
     fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, name: &str, value: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
         get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
-    }
-
-    //noinspection DuplicatedCode
-    #[pyo3(signature = (element_id, case_insensitive=false))]
-    fn get_element_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
-        Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive).into_iter().next().map_or(
-            Ok(None),
-            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
-        )
     }
 
     fn create_element<'py>(mut slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
@@ -631,36 +988,137 @@ impl DocumentNode {
     fn create_attribute<'py>(mut slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_attribute, local_name)
     }
+
+    // _ParentNodeMixin
+    #[getter]
+    #[inline(always)]
+    fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+        Self::children_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::first_element_child_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::last_element_child_(slf)
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn child_element_count(slf: PyRef<'_, Self>) -> usize {
+        Self::child_element_count_(slf)
+    }
+
+    #[inline(always)]
+    fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::prepend_(slf, node)
+    }
+
+    #[inline(always)]
+    fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::append_(slf, node)
+    }
+
+    #[inline(always)]
+    fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, nodes)
+    }
+
+    #[inline(always)]
+    fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::query_selector_(slf, selectors)
+    }
+
+    #[inline(always)]
+    fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        Self::query_selector_all_(slf, selectors)
+    }
+
+    // _NonElementParentNodeMixin
+    #[inline(always)]
+    #[pyo3(signature = (element_id, case_insensitive=false))]
+    fn get_element_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::get_element_by_id_(slf, element_id, case_insensitive)
+    }
 }
+
+impl _ParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
+impl _NonElementParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
+
 
 #[pymethods]
-impl AttrNode {
-    fn local_name(slf: PyRef<'_, Self>) -> Option<String> {
-        Self::raw_node(&slf).local_name()
+impl DocumentFragmentNode {
+    // _ParentNodeMixin
+    #[getter]
+    #[inline(always)]
+    fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+        Self::children_(slf)
     }
 
-    fn name(slf: PyRef<'_, Self>) -> Option<String> {
-        Self::raw_node(&slf).name()
+    #[getter]
+    #[inline(always)]
+    fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::first_element_child_(slf)
     }
 
-    fn value(slf: PyRef<'_, Self>) -> Option<String> {
-        Self::raw_node(&slf).value()
+    #[getter]
+    #[inline(always)]
+    fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::last_element_child_(slf)
     }
 
-    fn owner_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
-        Self::raw_node(&slf).owner_element().map_or(
-            Ok(None),
-            |e| Ok(Some(create_upcast_node(slf.py(), e.into_node())?))
-        )
+    #[getter]
+    #[inline(always)]
+    fn child_element_count(slf: PyRef<'_, Self>) -> usize {
+        Self::child_element_count_(slf)
+    }
+
+    #[inline(always)]
+    fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::prepend_(slf, node)
+    }
+
+    #[inline(always)]
+    fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::append_(slf, node)
+    }
+
+    #[inline(always)]
+    fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, nodes)
+    }
+
+    #[inline(always)]
+    fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::query_selector_(slf, selectors)
+    }
+
+    #[inline(always)]
+    fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        Self::query_selector_all_(slf, selectors)
+    }
+
+    // _NonElementParentNodeMixin
+    #[inline(always)]
+    #[pyo3(signature = (element_id, case_insensitive=false))]
+    fn get_element_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::get_element_by_id_(slf, element_id, case_insensitive)
     }
 }
 
-#[pymethods]
-impl ProcessingInstructionNode {
-    fn target(slf: PyRef<'_, Self>) -> Option<String> {
-        Self::raw_node(&slf).target()
-    }
-}
+impl _ParentNodeMixin<node_impl::DocumentFragmentNode> for DocumentFragmentNode {}
+impl _NonElementParentNodeMixin<node_impl::DocumentFragmentNode> for DocumentFragmentNode {}
+
+
+character_data_node!(TextNode, node_impl::TextNode);
+character_data_node!(CDATASectionNode, node_impl::CdataSectionNode);
+character_data_node!(ProcessingInstructionNode, node_impl::ProcessingInstructionNode, target, Option<String>);
+character_data_node!(CommentNode, node_impl::CommentNode);
 
 
 #[pyclass]
