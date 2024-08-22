@@ -223,7 +223,7 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
 
 
 pub trait DOMTokenListMutInterface: DOMTokenListInterface {
-    fn update_node(&mut self, values: &Vec<String>);
+    fn set_value(&mut self, value: &str);
 
     fn add(&mut self, tokens: &[&str]) {
         let mut values = self.values();
@@ -233,20 +233,21 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
                 values.push(t_owned);
             }
         });
-        self.update_node(&values);
+        self.set_value(&values.join(" "));
     }
 
     fn remove(&mut self, tokens: &[&str]) {
-        self.update_node(&self
+        self.set_value(&self
             .iter()
             .filter(|t: &String| !tokens.contains(&t.as_str()))
-            .collect()
+            .collect::<Vec<_>>()
+            .join(" ")
         );
     }
 
     fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
         let mut repl = false;
-        self.update_node(&self
+        self.set_value(&self
             .iter()
             .map(|t: String| {
                 if t == old_token {
@@ -254,7 +255,8 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
                     new_token.to_owned()
                 } else { t }
             })
-            .collect()
+            .collect::<Vec<_>>()
+            .join(" ")
         );
         repl
     }
@@ -355,8 +357,8 @@ impl<'a> DOMTokenListMut<'a> {
 }
 
 impl DOMTokenListMutInterface for DOMTokenListMut<'_> {
-    fn update_node(&mut self, values: &Vec<String>) {
-        self.element.set_class_name(&values.join(" "));
+    fn set_value(&mut self, value: &str) {
+        self.element.set_class_name(value);
     }
 }
 
@@ -376,8 +378,8 @@ impl DOMTokenListOwned {
 }
 
 impl DOMTokenListMutInterface for DOMTokenListOwned {
-    fn update_node(&mut self, values: &Vec<String>) {
-        self.element.set_class_name(&values.join(" "));
+    fn set_value(&mut self, value: &str) {
+        self.element.set_class_name(value);
     }
 }
 

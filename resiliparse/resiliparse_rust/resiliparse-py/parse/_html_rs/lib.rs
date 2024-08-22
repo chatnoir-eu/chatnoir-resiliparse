@@ -21,7 +21,7 @@ use pyo3::prelude::*;
 
 
 macro_rules! init_mod_path {
-    ($name:literal, $m:ident) => {
+    ($name: literal, $m: ident) => {
         // https://github.com/PyO3/pyo3/issues/759#issuecomment-2282197848
         Python::with_gil(|py| {
             py.import_bound("sys")?
@@ -64,7 +64,7 @@ pub mod _html_rs {
         pub use crate::node::TextNode;
 
         #[pymodule_export]
-        pub use crate::node::CdataSectionNode;
+        pub use crate::node::CDATASectionNode;
 
         #[pymodule_export]
         pub use crate::node::ProcessingInstructionNode;
