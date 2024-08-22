@@ -530,6 +530,10 @@ impl Node {
     pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
         self.contains(node)
     }
+
+    pub fn __str__(&self) -> String {
+        self.node_value().unwrap_or("".to_owned())
+    }
 }
 
 
@@ -741,6 +745,10 @@ impl ElementNode {
     #[setter]
     fn set_outer_text<'py>(mut slf: PyRefMut<'py, Self>, outer_text: &str) {
         Self::raw_node_mut(&mut slf).set_outer_text(outer_text)
+    }
+
+    fn __str__(slf: PyRef<'_, Self>) -> String {
+        Self::outer_html(slf)
     }
 
     // _ChildNodeMixin
@@ -989,6 +997,13 @@ impl DocumentNode {
         doc_create_x!(slf, create_attribute, local_name)
     }
 
+    fn __str__(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).first_element_child().map_or_else(
+            || "".to_owned(),
+            |d| d.outer_html()
+        )
+    }
+
     // _ParentNodeMixin
     #[getter]
     #[inline(always)]
@@ -1053,6 +1068,13 @@ impl _NonElementParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
 
 #[pymethods]
 impl DocumentFragmentNode {
+    fn __str__(slf: PyRef<'_, Self>) -> String {
+        Self::raw_node(&slf).first_element_child().map_or_else(
+            || "".to_owned(),
+            |d| d.outer_html()
+        )
+    }
+
     // _ParentNodeMixin
     #[getter]
     #[inline(always)]
