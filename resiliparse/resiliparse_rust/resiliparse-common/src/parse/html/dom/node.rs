@@ -397,34 +397,34 @@ impl Document for DocumentNode {
         Some(DocumentNode { node_base: base })
     }
 
-    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
         check_node!(self.node_base);
-        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
-            unsafe { elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([name.to_owned()])), |n, qn| {
+            unsafe { get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
-    fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection {
+    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         check_node!(self.node_base);
-        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, cls| {
-            unsafe { elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([class_names.to_owned()])), |n, cls| {
+            unsafe { get_elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
         })
     }
 
     #[inline(always)]
-    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        self.get_elements_by_attr_case(qualified_name, value, false)
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection {
+        self.get_elements_by_attr_case(name, value, false)
     }
 
-    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         check_node!(self.node_base);
         let user_data = Box::new([
-            qualified_name.to_owned(),
+            name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
         HTMLCollection::new_live(self.as_node(), Some(user_data), |n, attr| {
             unsafe {
-                elements_by_attr(
+                get_elements_by_attr(
                     n,
                     &attr.unwrap_unchecked()[0],
                     &attr.unwrap_unchecked()[1],
@@ -755,30 +755,30 @@ impl Element for ElementNode {
         Ok(found)
     }
 
-    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(self.as_node(), Some(Box::new([qualified_name.to_owned()])), |n, qn| {
-            unsafe { elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
+    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
+        HTMLCollection::new_live(self.as_node(), Some(Box::new([name.to_owned()])), |n, qn| {
+            unsafe { get_elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         HTMLCollection::new_live(self.as_node(), Some(Box::new([class_names.to_owned()])), |n, cls| {
-            unsafe { elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
+            unsafe { get_elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
         })
     }
 
-    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
-        self.get_elements_by_attr_case(qualified_name, value, false)
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection {
+        self.get_elements_by_attr_case(name, value, false)
     }
 
-    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         let user_data = Box::new([
-            qualified_name.to_owned(),
+            name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
         HTMLCollection::new_live(self.as_node(), Some(user_data), |n, attr| {
             unsafe {
-                elements_by_attr(
+                get_elements_by_attr(
                     &n,
                     &attr.unwrap_unchecked()[0],
                     &attr.unwrap_unchecked()[1],

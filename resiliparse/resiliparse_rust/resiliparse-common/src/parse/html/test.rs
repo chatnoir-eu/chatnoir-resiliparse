@@ -120,8 +120,8 @@ fn test_node_equality() {
 fn test_selection() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
-    tree.document().unwrap().element_by_id("foo").unwrap();
-    assert_eq!(tree.document().unwrap().element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
+    tree.document().unwrap().get_element_by_id("foo").unwrap();
+    assert_eq!(tree.document().unwrap().get_element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
 
     let meta = tree.head().unwrap().get_elements_by_tag_name("meta");
     assert_eq!(meta.len(), 1);
@@ -220,7 +220,7 @@ fn test_dynamic_collection() {
     assert_eq!(coll2.len(), 2);
     assert_eq!(coll3.len(), 2);
 
-    tree.document().unwrap().element_by_id("a").unwrap().remove();
+    tree.document().unwrap().get_element_by_id("a").unwrap().remove();
     assert_eq!(coll1.len(), 1);
     assert_eq!(coll2.len(), 1);
     assert_eq!(coll3.len(), 2);     // CSS match collection are static
@@ -348,8 +348,8 @@ fn test_empty_attribute() {
     assert_eq!(tree.body().unwrap().query_selector_all("#foo").unwrap().len(), 1);
     assert_eq!(tree.body().unwrap().query_selector_all("[class]").unwrap().len(), 3);
     assert_eq!(tree.body().unwrap().query_selector_all("[id]").unwrap().len(), 3);
-    assert!(!tree.document().unwrap().element_by_id("foo").is_none());
-    assert!(tree.document().unwrap().element_by_id("foox").is_none());
+    assert!(!tree.document().unwrap().get_element_by_id("foo").is_none());
+    assert!(tree.document().unwrap().get_element_by_id("foox").is_none());
     assert_eq!(tree.body().unwrap().get_elements_by_class_name("foo").len(), 1);
     assert_eq!(tree.body().unwrap().get_elements_by_class_name("").len(), 0);     // This shouldn't match anything);
     assert_eq!(tree.body().unwrap().get_elements_by_attr("class", "foo").len(), 1);
@@ -362,11 +362,11 @@ fn test_empty_attribute() {
 fn test_serialization() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
-    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().outer_text(), "Hello world!");
-    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().outer_html(), r#"<p id="a">Hello <span class="bar">world</span>!</p>"#);
+    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().outer_text(), "Hello world!");
+    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().outer_html(), r#"<p id="a">Hello <span class="bar">world</span>!</p>"#);
 
-    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().inner_text(), "Hello world!");
-    assert_eq!(tree.document().unwrap().element_by_id("a").unwrap().inner_html(), r#"Hello <span class="bar">world</span>!"#);
+    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().inner_text(), "Hello world!");
+    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().inner_html(), r#"Hello <span class="bar">world</span>!"#);
 
     assert_eq!(tree.head().unwrap().query_selector("title").unwrap().unwrap().to_string(), "<title>Example page</title>");
 
@@ -385,9 +385,9 @@ fn test_serialization() {
         <input id="b" type="checkbox" checked="">
         <input id="c" type="checkbox" checked="checked">
         "#).unwrap();
-    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("a").unwrap()), r#"<input id="a" type="checkbox" checked>"#);
-    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("b").unwrap()), r#"<input id="b" type="checkbox" checked="">"#);
-    assert_eq!(format!("{:?}", inputs.document().unwrap().element_by_id("c").unwrap()), r#"<input id="c" type="checkbox" checked="checked">"#);
+    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("a").unwrap()), r#"<input id="a" type="checkbox" checked>"#);
+    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("b").unwrap()), r#"<input id="b" type="checkbox" checked="">"#);
+    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("c").unwrap()), r#"<input id="c" type="checkbox" checked="checked">"#);
 
     assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 }
@@ -395,7 +395,7 @@ fn test_serialization() {
 #[test]
 fn test_traversal() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let root = tree.document().unwrap().element_by_id("a").unwrap();
+    let root = tree.document().unwrap().get_element_by_id("a").unwrap();
 
     let node_names = root.iter().map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
     assert_eq!(node_names, ["P", "#text", "SPAN", "#text", "#text"]);
@@ -405,7 +405,7 @@ fn test_traversal() {
     }).collect::<Vec<String>>();
     assert_eq!(tag_names, ["P", "SPAN"]);
 
-    let child_nodes = tree.document().unwrap().element_by_id("foo").unwrap().child_nodes();
+    let child_nodes = tree.document().unwrap().get_element_by_id("foo").unwrap().child_nodes();
     let child_node_names = child_nodes.iter()
         .map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
     assert_eq!(child_node_names, ["#text", "P", "#text", "P", "#text"]);
@@ -427,7 +427,7 @@ fn test_callback_traversal() {
 #[test]
 fn test_children() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let element = tree.document().unwrap().element_by_id("a").unwrap();
+    let element = tree.document().unwrap().get_element_by_id("a").unwrap();
 
     assert_eq!(element, element.first_child().unwrap().parent_element().unwrap());
     assert_eq!(element, element.last_child().unwrap().parent_element().unwrap());
@@ -460,7 +460,7 @@ fn test_children() {
 #[test]
 fn test_siblings() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let element = tree.document().unwrap().element_by_id("a").unwrap();
+    let element = tree.document().unwrap().get_element_by_id("a").unwrap();
 
     let e_next: ElementNode = element.first_child().unwrap().next_sibling().unwrap().into();
     assert_eq!(e_next, element.first_element_child().unwrap());
@@ -475,14 +475,14 @@ fn test_siblings() {
     assert_eq!(e_prev.tag_name().unwrap(), "SPAN");
     assert_eq!(e_prev.class_name().unwrap(), "bar");
 
-    let element1 = tree.document().unwrap().element_by_id("foo").unwrap().first_element_child().unwrap();
+    let element1 = tree.document().unwrap().get_element_by_id("foo").unwrap().first_element_child().unwrap();
     assert_eq!(element1.id().unwrap(), "a");
     assert_eq!(TextNode::from(element1.next_sibling().unwrap()).node_value().unwrap().trim(), "");
     assert_eq!(element1.next_element_sibling().unwrap().text_content().unwrap(), "Hello DOM!");
     assert!(element1.previous_sibling().unwrap().previous_sibling().is_none());
     assert!(element1.previous_element_sibling().is_none());
 
-    let element2 = tree.document().unwrap().element_by_id("foo").unwrap().last_element_child().unwrap();
+    let element2 = tree.document().unwrap().get_element_by_id("foo").unwrap().last_element_child().unwrap();
     assert_eq!(element2.id().unwrap(), "b");
     assert_eq!(TextNode::from(element2.previous_sibling().unwrap()).node_value().unwrap().trim(), "");
     assert_eq!(element2.previous_element_sibling().unwrap().text_content().unwrap(), "Hello world!");

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ops::Deref;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::*;
@@ -52,6 +51,91 @@ impl From<node_impl::Node> for Node {
     }
 }
 
+pub(crate) fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<Bound<PyAny>> {
+    Ok(match node {
+        // TODO: Replace with Bound::into_super() in PyO3 0.23
+        node_impl::Node::Element(e) => ElementNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Text(e) => TextNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e)?.into_any(),
+        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e)?.into_any(),
+    })
+}
+
+
+// ------------------------------------ Node Interface Mixins --------------------------------------
+
+
+macro_rules! get_elements_by_x {
+    ($slf: ident, $func_name: ident $(, $args: ident)*) => {
+        ElementNodeList::new_bound($slf.py(), Self::raw_node(&$slf).$func_name($($args),*))
+    };
+}
+
+trait _NodeAccessorMixin<T: NodeInterface>: pyo3::PyClass<Frozen=pyo3::pyclass::boolean_struct::False> {
+    fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a T;
+    fn raw_node_mut<'py, 'a>(slf: &'a mut PyRefMut<'py, Self>) -> &'a mut T;
+}
+
+trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
+    #[inline]
+    fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+        ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children().into())
+    }
+
+    #[inline]
+    fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).first_element_child().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+
+    #[inline]
+    fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).last_element_child().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
+    }
+
+    #[inline]
+    fn child_element_count_(slf: PyRef<'_, Self>) -> usize {
+        Self::raw_node(&slf).child_element_count()
+    }
+
+    #[inline]
+    fn prepend_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = nodes.extract::<Vec<Node>>()?;
+        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).prepend(&s))
+    }
+
+    #[inline]
+    fn append_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = nodes.extract::<Vec<Node>>()?;
+        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).append(&s))
+    }
+
+    #[inline]
+    fn replace_children_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = nodes.extract::<Vec<Node>>()?;
+        let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
+        Ok(Self::raw_node_mut(&mut slf).replace_children(&s))
+    }
+
+    // TODO: query_selector, query_selector_all
+}
+
+
+// ------------------------------------------ Node Types -------------------------------------------
+
 macro_rules! define_node_type {
     ($Self: ident, $BaseEnum: ident, $Base: ty) => {
         #[pyclass(extends=Node, module = "resiliparse.parse._html_rs.node")]
@@ -62,8 +146,9 @@ macro_rules! define_node_type {
             pub fn new_bound(py: Python, node: $Base) -> PyResult<Bound<$Self>> {
                 Bound::new(py, (Self {}, node.into()))
             }
+        }
 
-            #[allow(dead_code)]
+        impl _NodeAccessorMixin<$Base> for $Self {
             fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a $Base {
                 match &slf.as_super().node {
                     node_impl::Node::$BaseEnum(n) => n,
@@ -71,7 +156,6 @@ macro_rules! define_node_type {
                 }
             }
 
-            #[allow(dead_code)]
             fn raw_node_mut<'py, 'a>(slf: &'a mut PyRefMut<'py, Self>) -> &'a mut $Base {
                 match &mut slf.as_super().node {
                     node_impl::Node::$BaseEnum(n) => n,
@@ -98,23 +182,6 @@ define_node_type!(DocumentNode, Document, node_impl::DocumentNode);
 define_node_type!(DocumentTypeNode, DocumentType, node_impl::DocumentTypeNode);
 define_node_type!(DocumentFragmentNode, DocumentFragment, node_impl::DocumentFragmentNode);
 define_node_type!(NotationNode, Notation, node_impl::NotationNode);
-
-
-pub fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<Bound<PyAny>> {
-    Ok(match node {
-        // TODO: Replace with Bound::into_super() in PyO3 0.23
-        node_impl::Node::Element(e) => ElementNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Text(e) => TextNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::CdataSection(e) => CdataSectionNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e)?.into_any(),
-    })
-}
 
 
 #[pymethods]
@@ -398,26 +465,27 @@ impl ElementNode {
        )
     }
 
-    //noinspection DuplicatedCode
-    fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_tag_name(qualified_name))
+    fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_tag_name, name)
+    }
+
+    fn get_elements_by_class_name<'py>(slf: PyRef<'py, Self>, class_names: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_class_name, class_names)
     }
 
     //noinspection DuplicatedCode
-    fn get_elements_by_class_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_class_name(qualified_name))
-    }
-
-    //noinspection DuplicatedCode
-    #[pyo3(signature = (attr, qualified_name, case_insensitive=false))]
-    fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, attr: &str, qualified_name: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case(attr, qualified_name, case_insensitive))
+    #[pyo3(signature = (name, value, case_insensitive=false))]
+    fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, name: &str, value: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
     }
 
     //noinspection DuplicatedCode
     #[pyo3(signature = (element_id, case_insensitive=false))]
-    fn get_elements_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive))
+    fn get_element_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive).into_iter().next().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
     }
 
     #[getter]
@@ -487,79 +555,14 @@ impl DocumentTypeNode {
 }
 
 
-macro_rules! doc_create_x_mixin {
-    ($self_func_name: ident, $func_name: ident) => {
-        #[inline]
-        fn $self_func_name<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-            Self::raw_node_mut(&mut slf).$func_name(data).map_or_else(
-                |e| Err(DOMException::new_err(e.to_string())),
-                |e| Ok(Some(create_upcast_node(slf.py(), e.into_node())?))
-            )
-        }
+macro_rules! doc_create_x {
+    ($slf: ident, $func_name: ident $(, $args: ident)*) => {
+        Self::raw_node_mut(&mut $slf).$func_name($($args),*).map_or_else(
+            |e| Err(DOMException::new_err(e.to_string())),
+            |e| Ok(Some(create_upcast_node($slf.py(), e.into_node())?))
+        )
     };
 }
-
-impl DocumentNode {
-    doc_create_x_mixin!(create_element_, create_element);
-    doc_create_x_mixin!(create_text_node_, create_text_node);
-    doc_create_x_mixin!(create_cdata_section_, create_cdata_section);
-    doc_create_x_mixin!(create_comment_, create_comment);
-    doc_create_x_mixin!(create_attribute_, create_attribute);
-}
-
-macro_rules! parent_node_mixin {
-    () => {
-        #[inline]
-        fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
-            ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children().into())
-        }
-
-        #[inline]
-        fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
-            Self::raw_node(&slf).first_element_child().map_or(
-                Ok(None),
-                |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
-            )
-        }
-
-        #[inline]
-        fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
-            Self::raw_node(&slf).last_element_child().map_or(
-                Ok(None),
-                |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
-            )
-        }
-
-        #[inline]
-        fn child_element_count_(slf: PyRef<'_, Self>) -> usize {
-            Self::raw_node(&slf).child_element_count()
-        }
-
-        #[inline]
-        fn prepend_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-            let n = nodes.extract::<Vec<Node>>()?;
-            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-            Ok(Self::raw_node_mut(&mut slf).prepend(&s))
-        }
-
-        #[inline]
-        fn append_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-            let n = nodes.extract::<Vec<Node>>()?;
-            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-            Ok(Self::raw_node_mut(&mut slf).append(&s))
-        }
-
-        #[inline]
-        fn replace_children_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-            let n = nodes.extract::<Vec<Node>>()?;
-            let s: Vec<&node_impl::Node> = n.iter().map(|n_| &n_.node).collect();
-            Ok(Self::raw_node_mut(&mut slf).replace_children(&s))
-        }
-
-        // TODO: query_selector, query_selector_all
-    };
-}
-
 
 #[pymethods]
 impl DocumentNode {
@@ -577,60 +580,56 @@ impl DocumentNode {
         )
     }
 
-    //noinspection DuplicatedCode
-    fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_tag_name(qualified_name))
+    fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_tag_name, name)
     }
 
     //noinspection DuplicatedCode
-    fn get_elements_by_class_name<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_class_name(qualified_name))
+    fn get_elements_by_class_name<'py>(slf: PyRef<'py, Self>, class_names: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_class_name, class_names)
     }
 
     //noinspection DuplicatedCode
-    #[pyo3(signature = (attr, qualified_name, case_insensitive=false))]
-    fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, attr: &str, qualified_name: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case(attr, qualified_name, case_insensitive))
+    #[pyo3(signature = (name, value, case_insensitive=false))]
+    fn get_elements_by_attr<'py>(slf: PyRef<'py, Self>, name: &str, value: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
+        get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
     }
 
     //noinspection DuplicatedCode
     #[pyo3(signature = (element_id, case_insensitive=false))]
-    fn get_elements_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Bound<'py, ElementNodeList>> {
-       ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive))
+    fn get_element_by_id<'py>(slf: PyRef<'py, Self>, element_id: &str, case_insensitive: bool) -> PyResult<Option<Bound<'py, ElementNode>>> {
+        Self::raw_node(&slf).get_elements_by_attr_case("id", element_id, case_insensitive).into_iter().next().map_or(
+            Ok(None),
+            |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+        )
     }
 
-    fn create_element<'py>(slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::create_element_(slf, local_name)
+    fn create_element<'py>(mut slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        doc_create_x!(slf, create_element, local_name)
     }
 
     fn create_document_fragment(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
-        Self::raw_node_mut(&mut slf).create_document_fragment().map_or_else(
-            |e| Err(DOMException::new_err(e.to_string())),
-            |e| Ok(Some(create_upcast_node(slf.py(), e.into_node())?))
-        )
+        doc_create_x!(slf, create_document_fragment)
     }
 
-    fn create_text_node<'py>(slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::create_text_node_(slf, data)
+    fn create_text_node<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        doc_create_x!(slf, create_text_node, data)
     }
 
-    fn create_cdata_section<'py>(slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::create_cdata_section_(slf, data)
+    fn create_cdata_section<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        doc_create_x!(slf, create_cdata_section, data)
     }
 
-    fn create_comment<'py>(slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::create_comment_(slf, data)
+    fn create_comment<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        doc_create_x!(slf, create_comment, data)
     }
 
     fn create_processing_instruction<'py>(mut slf: PyRefMut<'py, Self>, target: &str, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::raw_node_mut(&mut slf).create_processing_instruction(target, local_name).map_or_else(
-            |e| Err(DOMException::new_err(e.to_string())),
-            |e| Ok(Some(create_upcast_node(slf.py(), e.into_node())?))
-        )
+        doc_create_x!(slf, create_processing_instruction, target, local_name)
     }
 
-    fn create_attribute<'py>(slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Self::create_attribute_(slf, local_name)
+    fn create_attribute<'py>(mut slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        doc_create_x!(slf, create_attribute, local_name)
     }
 }
 
