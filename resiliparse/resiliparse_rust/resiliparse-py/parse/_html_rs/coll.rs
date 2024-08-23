@@ -77,7 +77,7 @@ fn get_tuple_slice<'py>(tup: &Bound<'py, PyTuple>, index_or_slice: &Bound<'py, P
 
 #[pymethods]
 impl NodeList {
-    fn item<'py>(&self, index: usize, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+    pub fn item<'py>(&self, index: usize, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
         create_upcast_node(py, match &self.list {
             NL::NodeList(l) => l.item(index)?,
             NL::ElementNodeList(l) => l.item(index)?.into_node(),
@@ -85,7 +85,7 @@ impl NodeList {
         }).ok()
     }
 
-    fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+    pub fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         let items: Vec<Bound<'py, PyAny>> = match &self.list {
             NL::NodeList(l) => l.values().into_iter()
                 .map(|n| create_upcast_node(py, n).unwrap()).collect(),
@@ -97,7 +97,7 @@ impl NodeList {
         Ok(PyTuple::new_bound(py, items))
     }
 
-    fn __len__(&self) -> usize {
+    pub fn __len__(&self) -> usize {
         match &self.list {
             NL::NodeList(l) => l.len(),
             NL::ElementNodeList(l) => l.len(),
@@ -105,7 +105,7 @@ impl NodeList {
         }
     }
 
-    fn __contains__<'py>(&self, node:&Bound<'py, PyAny>) -> bool {
+    pub fn __contains__<'py>(&self, node:&Bound<'py, PyAny>) -> bool {
         node.downcast::<Node>().map_or(false, |n| {
             match &self.list {
                 NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
@@ -116,7 +116,7 @@ impl NodeList {
     }
 
     #[inline(always)]
-    fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         get_tuple_slice(&self.values(index_or_slice.py())?, index_or_slice)
     }
 }
@@ -287,15 +287,15 @@ impl DOMTokenList {
         self.list.toggle(token, force)
     }
 
-    fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         get_tuple_slice(&PyTuple::new_bound(index_or_slice.py(), self.list.values().into_iter()), index_or_slice)
     }
 
-    fn __len__(&self) -> usize {
+    pub fn __len__(&self) -> usize {
         self.list.len()
     }
 
-    fn __contains__<'py>(&self, token: &Bound<'py, PyAny>) -> bool {
+    pub fn __contains__<'py>(&self, token: &Bound<'py, PyAny>) -> bool {
         token.extract::<String>().map_or(false, |s| self.list.contains(&s))
     }
 }
