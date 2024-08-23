@@ -533,7 +533,7 @@ impl Node {
     }
 
     pub fn __str__(&self) -> String {
-        self.node_value().unwrap_or_else(String::new)
+        self.node.to_string()
     }
 }
 
@@ -747,10 +747,6 @@ impl ElementNode {
     #[setter]
     pub fn set_outer_text<'py>(mut slf: PyRefMut<'py, Self>, outer_text: &str) {
         Self::raw_node_mut(&mut slf).set_outer_text(outer_text)
-    }
-
-    pub fn __str__(slf: PyRef<'_, Self>) -> String {
-        Self::outer_html(slf)
     }
 
     // _ChildNodeMixin
@@ -1002,13 +998,6 @@ impl DocumentNode {
         doc_create_x!(slf, create_attribute, local_name)
     }
 
-    pub fn __str__(slf: PyRef<'_, Self>) -> String {
-        Self::raw_node(&slf).first_element_child().map_or_else(
-            String::new,
-            |d| d.outer_html()
-        )
-    }
-
     // _ParentNodeMixin
     #[getter]
     #[inline(always)]
@@ -1074,13 +1063,6 @@ impl _NonElementParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
 //noinspection DuplicatedCode
 #[pymethods]
 impl DocumentFragmentNode {
-    pub fn __str__(slf: PyRef<'_, Self>) -> String {
-        Self::raw_node(&slf).first_element_child().map_or_else(
-            String::new,
-            |d| d.outer_html()
-        )
-    }
-
     // _ParentNodeMixin
     #[getter]
     #[inline(always)]
