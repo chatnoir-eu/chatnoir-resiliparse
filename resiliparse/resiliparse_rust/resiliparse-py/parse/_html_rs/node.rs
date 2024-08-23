@@ -118,8 +118,8 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
         Ok(Self::raw_node_mut(&mut slf).append(&r))
     }
 
-    fn replace_children_(mut slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = nodes.extract::<Vec<Node>>()?;
+    fn replace_children_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let n = node.extract::<Vec<Node>>()?;
         let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
         Ok(Self::raw_node_mut(&mut slf).replace_children(&r))
     }
@@ -250,16 +250,19 @@ macro_rules! character_data_node {
             })*
 
             // _ChildNodeMixin
+            #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::before_(slf, node)
             }
 
+            #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::after_(slf, node)
             }
 
+            #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::replace_with_(slf, node)
@@ -458,8 +461,8 @@ impl Node {
         self.node.has_child_nodes()
     }
 
-    pub fn contains<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
-        node.downcast::<Node>().map_or(false, |n| self.node.contains(&n.borrow().node))
+    pub fn contains<'py>(&self, node: &Bound<'py, Node>) -> bool {
+        self.node.contains(&node.borrow().node)
     }
 
     #[getter]
@@ -529,7 +532,7 @@ impl Node {
     }
 
     pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
-        self.contains(node)
+        node.downcast::<Node>().map_or(false, |n| self.contains(n))
     }
 
     pub fn __str__(&self) -> String {
@@ -750,16 +753,19 @@ impl ElementNode {
     }
 
     // _ChildNodeMixin
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::before_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::after_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_with_(slf, node)
@@ -820,19 +826,22 @@ impl ElementNode {
         Self::child_element_count_(slf)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        Self::replace_children_(slf, nodes)
+    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, node)
     }
 
     #[inline(always)]
@@ -905,16 +914,19 @@ impl DocumentTypeNode {
     }
 
     // _ChildNodeMixin
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::before_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::after_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_with_(slf, node)
@@ -1023,19 +1035,22 @@ impl DocumentNode {
         Self::child_element_count_(slf)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        Self::replace_children_(slf, nodes)
+    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, node)
     }
 
     #[inline(always)]
@@ -1088,19 +1103,22 @@ impl DocumentFragmentNode {
         Self::child_element_count_(slf)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
+    #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, nodes: &Bound<'_, PyTuple>) -> PyResult<()> {
-        Self::replace_children_(slf, nodes)
+    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+        Self::replace_children_(slf, node)
     }
 
     #[inline(always)]

@@ -261,20 +261,24 @@ impl DOMTokenList {
     }
 
     //noinspection DuplicatedCode
-    #[pyo3(signature = (token, *args))]
-    pub fn add<'py>(&mut self, token: &str, args: &Bound<'py, PyTuple>) -> PyResult<()> {
-        self.list.add(std::iter::once(token).chain(
-            args.extract::<Vec<String>>()?.iter().map(String::as_str)
-        ).collect::<Vec<&str>>().as_slice());
+    #[pyo3(signature = (*token))]
+    pub fn add<'py>(&mut self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
+        self.list.add(token.extract::<Vec<String>>()?
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<&str>>()
+            .as_slice());
         Ok(())
     }
 
     //noinspection DuplicatedCode
-    #[pyo3(signature = (token, *args))]
-    pub fn remove<'py>(&mut self, token: &str, args: &Bound<'py, PyTuple>) -> PyResult<()> {
-        self.list.remove(std::iter::once(token).chain(
-            args.extract::<Vec<String>>()?.iter().map(String::as_str)
-        ).collect::<Vec<&str>>().as_slice());
+    #[pyo3(signature = (*token))]
+    pub fn remove<'py>(&mut self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
+        self.list.remove(token.extract::<Vec<String>>()?
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<&str>>()
+            .as_slice());
         Ok(())
     }
 
