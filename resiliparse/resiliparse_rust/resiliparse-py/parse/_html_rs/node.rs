@@ -588,11 +588,11 @@ impl ElementNode {
         Bound::new(slf.py(), DOMTokenList::from(Self::raw_node_mut(&mut slf).class_list_mut()))
     }
 
-    pub fn attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> Option<String> {
+    pub fn get_attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> Option<String> {
         Self::raw_node(&slf).attribute(qualified_name)
     }
 
-    pub fn attribute_node<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn get_attribute_node<'py>(slf: PyRef<'py, Self>, qualified_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         if let Some(a) = Self::raw_node(&slf).attribute_node(qualified_name) {
             Ok(Some(create_upcast_node(slf.py(), a.into_node())?))
         } else {
@@ -601,7 +601,7 @@ impl ElementNode {
     }
 
     #[getter]
-    pub fn attribute_names(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
+    pub fn get_attribute_names(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
         PyTuple::new_bound(slf.py(), Self::raw_node(&slf).attribute_names().into_iter())
     }
 
@@ -624,7 +624,7 @@ impl ElementNode {
 
     #[getter]
     pub fn attrs(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
-        Self::attribute_names(slf)
+        Self::get_attribute_names(slf)
     }
 
     pub fn hasattr(slf: PyRef<'_, Self>, qualified_name: &str) -> bool {
@@ -637,11 +637,11 @@ impl ElementNode {
 
     #[pyo3(signature = (qualified_name, default_value=None))]
     pub fn getattr(slf: PyRef<'_, Self>, qualified_name: &str, default_value: Option<&str>) -> Option<String> {
-        Self::attribute(slf, qualified_name).or(default_value.map(str::to_owned))
+        Self::get_attribute(slf, qualified_name).or(default_value.map(str::to_owned))
     }
 
     pub fn __getitem__(slf: PyRef<'_, Self>, qualified_name: &str) -> PyResult<String> {
-        Self::attribute(slf, qualified_name).map_or_else(
+        Self::get_attribute(slf, qualified_name).map_or_else(
             || Err(PyIndexError::new_err(format!("Attribute {} does not exist", qualified_name))),
             |a| Ok(a))
     }
