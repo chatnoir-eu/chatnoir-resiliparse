@@ -14,10 +14,8 @@
 
 use pyo3::prelude::*;
 use resiliparse_common::parse::html::tree as tree_impl;
-use resiliparse_common::parse::html::dom::traits::*;
 use crate::exception::*;
 use crate::node::*;
-
 
 
 #[pyclass]
@@ -45,45 +43,44 @@ impl HTMLTree {
         }
     }
 
-    pub fn create_element<'py>(&mut self, py: Python<'py>, tag_name: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
-        if let Some(mut d) = self.tree.document() {
-            match d.create_element(tag_name) {
-                Ok(e) => Ok(ElementNode::new_bound(py, e).ok()),
-                Err(e) => Err(DOMException::new_err(e.to_string()))
-            }
-        } else {
-            Err(DOMException::new_err("No document node."))
-        }
+    pub fn create_element<'py>(slf: PyRef<'py, Self>, tag_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        Self::document(slf).map_or_else(
+            || Err(DOMException::new_err("No document node.")),
+            |d| DocumentNode::create_element(d.borrow_mut(), tag_name)
+        )
     }
 
-    pub fn create_text_node<'py>(&mut self, py: Python<'py>, text: &str) -> PyResult<Option<Bound<'py, TextNode>>> {
-        if let Some(mut d) = self.tree.document() {
-            match d.create_text_node(text) {
-                Ok(t) => Ok(TextNode::new_bound(py, t).ok()),
-                Err(e) => Err(DOMException::new_err(e.to_string()))
-            }
-        } else {
-            Err(DOMException::new_err("No document node."))
-        }
+    pub fn create_text_node<'py>(slf: PyRef<'py, Self>, text: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        Self::document(slf).map_or_else(
+            || Err(DOMException::new_err("No document node.")),
+            |d| DocumentNode::create_text_node(d.borrow_mut(), text)
+        )
     }
 
     #[getter]
-    pub fn document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
-        DocumentNode::new_bound(py, self.tree.document()?).ok()
+    pub fn document(slf: PyRef<'_, Self>) -> Option<Bound<'_, DocumentNode>> {
+        DocumentNode::new_bound(slf.py(), slf.tree.document()?).ok()
     }
 
     #[getter]
-    pub fn head<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
-        ElementNode::new_bound(py, self.tree.head()?).ok()
+    pub fn head(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNode>> {
+        ElementNode::new_bound(slf.py(), slf.tree.head()?).ok()
     }
 
     #[getter]
-    pub fn body<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
-        ElementNode::new_bound(py, self.tree.body()?).ok()
+    pub fn body(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNode>> {
+        ElementNode::new_bound(slf.py(), slf.tree.body()?).ok()
     }
 
     #[getter]
-    pub fn title(&self) -> Option<String> {
-        self.tree.title()
+    pub fn title(slf: PyRef<'_, Self>) -> Option<String> {
+        slf.tree.title()
+    }
+
+    pub fn __str__(slf: PyRef<'_, Self>) -> String {
+        slf.tree.document().map_or_else(
+            String::new,
+            |d| d.to_string()
+        )
     }
 }
