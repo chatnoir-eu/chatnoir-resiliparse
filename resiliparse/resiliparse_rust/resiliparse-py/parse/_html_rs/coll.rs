@@ -105,7 +105,7 @@ impl NodeList {
         }
     }
 
-    pub fn __contains__<'py>(&self, node:&Bound<'py, PyAny>) -> bool {
+    pub fn __contains__<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
         node.downcast::<Node>().map_or(false, |n| {
             match &self.list {
                 NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
