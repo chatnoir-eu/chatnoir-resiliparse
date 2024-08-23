@@ -85,7 +85,7 @@ impl NodeList {
         }).ok()
     }
 
-    pub fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+    pub fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let items: Vec<Bound<'py, PyAny>> = match &self.list {
             NL::NodeList(l) => l.values().into_iter()
                 .map(|n| create_upcast_node(py, n).unwrap()).collect(),
@@ -94,7 +94,7 @@ impl NodeList {
             NL::NamedNodeMap(l) => l.values().into_iter()
                 .map(|n| create_upcast_node(py, n.into_node()).unwrap()).collect()
         };
-        Ok(PyTuple::new_bound(py, items))
+        Ok(PyList::new_bound(py, items))
     }
 
     pub fn __len__(&self) -> usize {
@@ -115,9 +115,13 @@ impl NodeList {
         })
     }
 
+    pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(self.values(py)?.call_method0("__repr__")?)
+    }
+
     #[inline(always)]
     pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        get_tuple_slice(&self.values(index_or_slice.py())?, index_or_slice)
+        get_tuple_slice(&self.values(index_or_slice.py())?.to_tuple(), index_or_slice)
     }
 }
 
@@ -248,8 +252,8 @@ impl DOMTokenList {
         self.list.set_value(value)
     }
 
-    pub fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
-        PyTuple::new_bound(py, self.list.iter())
+    pub fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
+        PyList::new_bound(py, self.list.iter())
     }
 
     pub fn item(&self, index: usize) -> Option<String> {
@@ -266,7 +270,7 @@ impl DOMTokenList {
         self.list.add(token.extract::<Vec<String>>()?
             .iter()
             .map(String::as_str)
-            .collect::<Vec<&str>>()
+            .collect::<Vec<_>>()
             .as_slice());
         Ok(())
     }
@@ -277,7 +281,7 @@ impl DOMTokenList {
         self.list.remove(token.extract::<Vec<String>>()?
             .iter()
             .map(String::as_str)
-            .collect::<Vec<&str>>()
+            .collect::<Vec<_>>()
             .as_slice());
         Ok(())
     }
@@ -301,5 +305,9 @@ impl DOMTokenList {
 
     pub fn __contains__<'py>(&self, token: &Bound<'py, PyAny>) -> bool {
         token.extract::<String>().map_or(false, |s| self.list.contains(&s))
+    }
+
+    pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(self.values(py).call_method0("__repr__")?)
     }
 }

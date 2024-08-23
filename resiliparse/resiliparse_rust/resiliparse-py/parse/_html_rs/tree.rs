@@ -18,7 +18,7 @@ use crate::exception::*;
 use crate::node::*;
 
 
-#[pyclass]
+#[pyclass(module = "resiliparse.parse._html_rs")]
 pub struct HTMLTree {
     tree: tree_impl::HTMLTree
 }
@@ -79,8 +79,8 @@ impl HTMLTree {
 
     pub fn __str__(slf: PyRef<'_, Self>) -> String {
         slf.tree.document().map_or_else(
-            String::new,
-            |d| d.to_string()
+            || "<Invalid Document>".to_owned(),
+            |d| format!("{}", d)
         )
     }
 }
