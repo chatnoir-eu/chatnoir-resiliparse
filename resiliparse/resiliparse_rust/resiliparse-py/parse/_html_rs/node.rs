@@ -536,7 +536,11 @@ impl Node {
     }
 
     pub fn __str__(&self) -> String {
-        self.node.to_string()
+        format!("{}", self.node)
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self.node)
     }
 }
 

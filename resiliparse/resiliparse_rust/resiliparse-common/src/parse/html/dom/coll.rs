@@ -110,6 +110,13 @@ impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
     }
 }
 
+impl<T: Clone + Display> Display for NodeListGeneric<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.iter().map(|n| Display::fmt(&n, f)).collect::<Result<_, _>>()
+    }
+}
+
+
 pub type NodeList = NodeListGeneric<Node>;
 pub type ElementNodeList = NodeListGeneric<ElementNode>;
 pub type HTMLCollection = ElementNodeList;
