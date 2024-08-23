@@ -82,19 +82,26 @@ impl PartialEq<NodeRef<'_>> for &NodeBase {
 
 impl Debug for NodeBase {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut tag_repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
-        if let Node::Element(element) = self.into() {
-            tag_repr = format!("<{}", tag_repr.to_lowercase());
+        let mut repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
+        let node: Node = self.as_node();
+        if let Node::Element(element) = node {
+            repr = format!("<{}", repr.to_lowercase());
             element.attributes().iter().for_each(|attr| {
-                tag_repr.push(' ');
-                tag_repr.push_str(&attr.name().unwrap());
+                repr.push(' ');
+                repr.push_str(&attr.name().unwrap());
                 if attr.value().is_some() {
-                    tag_repr.push_str(&format!("={:?}", attr.value().unwrap()));
+                    repr.push_str(&format!("={:?}", attr.value().unwrap()));
                 }
             });
-            tag_repr.push('>');
+            repr.push('>');
+        } else if let Node::Attribute(attr) = node {
+            repr = format!("[{}={:?}]", repr, attr.node_value());
+        } else if let Node::Text(text) = node {
+            repr = format!("{:?}", text.node_value().unwrap_or_else(String::new));
+        } else if let Node::Comment(comment) = node {
+            repr = format!("<-- {} -->", comment.node_value().unwrap_or_else(String::new));
         }
-        f.write_str(&tag_repr)
+        f.write_str(&repr)
     }
 }
 
@@ -331,17 +338,17 @@ impl NodeInterface for NodeBase {
 
     #[inline(always)]
     fn as_noderef(&self) -> NodeRef {
-        unreachable!();
+        panic!("Cannot construct NodeRef from unbound NodeBase!");
     }
 
     #[inline(always)]
     fn as_node(&self) -> Node {
-        unreachable!();
+        self.clone().into()
     }
 
     #[inline(always)]
     fn into_node(self) -> Node {
-        unreachable!();
+        self.into()
     }
 
     fn node_type(&self) -> Option<NodeType> {
