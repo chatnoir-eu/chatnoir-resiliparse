@@ -632,7 +632,7 @@ impl Element for ElementNode {
         DOMTokenList::new(self)
     }
 
-    fn class_list_mut(&mut self) -> DOMTokenListMut {
+    fn class_list_mut(&mut self) -> DOMTokenListMut<'_> {
         DOMTokenListMut::new(self)
     }
 
@@ -731,16 +731,16 @@ impl Element for ElementNode {
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
         let mut found = None;
-        let mut node = Some(self.as_node());
-        while let Some(n) = &node {
+        let mut node = Some(self.clone());
+        while let Some(n) = node {
             sel_list.match_elements_reverse(n.as_noderef(), |e, _, found| {
-                *found = Some(e.clone());
+                *found = Some(e);
                 TraverseAction::Stop
             }, &mut found);
             if found.is_some() {
                 return Ok(found);
             }
-            node = n.parent_node();
+            node = n.parent_element();
         }
         Ok(None)
     }

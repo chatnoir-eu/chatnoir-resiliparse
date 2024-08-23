@@ -14,7 +14,7 @@
 
 use std::str::FromStr;
 
-use crate::parse::html::dom::coll::DOMTokenListInterface;
+use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::tree::HTMLTree;
@@ -534,7 +534,7 @@ fn create_nodes() {
     assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
 
     // Appending a DocumentFragment moves the child nodes into the document.
-    doc.first_element_child().unwrap().append_child(&Node::from(&frag));
+    doc.first_element_child().unwrap().append_child(&frag.as_node());
     assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), element.as_node());
     assert!(frag.first_child().is_none());
 }
