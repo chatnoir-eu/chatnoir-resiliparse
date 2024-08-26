@@ -20,12 +20,13 @@
 use std::cmp::max;
 use std::fmt::{Debug, Display};
 use std::ops::Add;
-
+use std::ptr;
+use std::ptr::addr_of;
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
-use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::*;
-use crate::parse::html::dom::iter::{ElementIterator, NodeIterator};
-use crate::parse::html::dom::node_base::NodeBase;
+use crate::parse::html::dom::coll::*;
+use crate::parse::html::dom::iter::*;
+use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
 
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -44,47 +45,293 @@ pub enum NodeType {
     Notation = 0x0C,    // legacy
 }
 
+pub(crate) trait NodeInterfaceBaseImpl {
+    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> where Self: Sized;
+    fn tree_(&self) -> Arc<HTMLDocument>;
+    fn node_ptr_(&self) -> *mut lxb_dom_node_t;
+    fn reset_node_ptr_(&mut self);
+
+    #[inline(always)]
+    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
+        (*self.node_ptr_()).owner_document
+    }
+
+    unsafe fn iter_raw(&self) -> NodeIteratorRaw {
+        NodeIteratorRaw::new(self.node_ptr_())
+    }
+
+    unsafe fn node_name_unchecked(&self) -> Option<&str> {
+        str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_node_name)
+    }
+
+    /// Node text value.
+    unsafe fn node_value_unchecked(&self) -> Option<&str> {
+        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+        match (*self.node_ptr_()).type_ {
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_attr_value_noi),
+            LXB_DOM_NODE_TYPE_TEXT | LXB_DOM_NODE_TYPE_CDATA_SECTION |
+            LXB_DOM_NODE_TYPE_COMMENT | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION =>
+                str_from_lxb_str_t(addr_of!((*(self.node_ptr_() as *const lxb_dom_character_data_t)).data)),
+            _ => None
+        }
+    }
+
+    unsafe fn can_have_children_unchecked(&self) -> bool {
+        matches!((*self.node_ptr_()).type_,
+            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
+                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
+                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
+        )
+    }
+
+    unsafe fn insert_before_unchecked<'a>(&mut self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+        if let Some(c) = child {
+            if c.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(c) {
+                return None;
+            }
+            if node == c {
+                return Some(node);
+            }
+            // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+            if let Node::DocumentFragment(d) = node {
+                d.child_nodes().iter().for_each(|c2| {
+                    lxb_dom_node_insert_before(c.node_ptr_(), c2.node_ptr_());
+                });
+                // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+                (*d.node_ptr_()).first_child = ptr::null_mut();
+                (*d.node_ptr_()).last_child = ptr::null_mut();
+            } else {
+                lxb_dom_node_insert_before(c.node_ptr_(), node.node_ptr_());
+            }
+            Some(node)
+        } else {
+            self.append_child_unchecked(node)
+        }
+    }
+
+    unsafe fn append_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        if !self.can_have_children_unchecked() {
+            return None;
+        }
+        // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+        if let Node::DocumentFragment(d) = node {
+            d.child_nodes().iter().for_each(|c| {
+                lxb_dom_node_insert_child(self.node_ptr_(), c.node_ptr_());
+            });
+            // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+            (*d.node_ptr_()).first_child = ptr::null_mut();
+            (*d.node_ptr_()).last_child = ptr::null_mut();
+        } else {
+            lxb_dom_node_insert_child(self.node_ptr_(), node.node_ptr_());
+        }
+        Some(node)
+    }
+
+    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &'a Node, old_child: &'a Node) -> Option<&'a Node> {
+        if old_child.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() {
+            return None;
+        }
+        if new_child == old_child {
+            return Some(old_child);
+        }
+        self.insert_before_unchecked(new_child, Some(old_child))?;
+        self.remove_child_unchecked(old_child)
+    }
+
+    unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        if node.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() {
+            return None;
+        }
+        lxb_dom_node_remove(node.node_ptr_());
+        Some(node)
+    }
+}
+
 
 /// Base DOM node interface.
-pub trait NodeInterface: IntoIterator + Debug + Display {
-    unsafe fn node_name_unchecked(&self) -> Option<&str>;
-    unsafe fn node_value_unchecked(&self) -> Option<&str>;
+#[allow(private_bounds)]
+pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
+    fn node_type(&self) -> Option<NodeType> {
+        use lxb_dom_node_type_t::*;
+        match unsafe { self.node_ptr_().as_ref()? }.type_ {
+            LXB_DOM_NODE_TYPE_ELEMENT => Some(NodeType::Element),
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => Some(NodeType::Attribute),
+            LXB_DOM_NODE_TYPE_TEXT => Some(NodeType::Text),
+            LXB_DOM_NODE_TYPE_CDATA_SECTION => Some(NodeType::CdataSection),
+            LXB_DOM_NODE_TYPE_ENTITY_REFERENCE => Some(NodeType::EntityReference),
+            LXB_DOM_NODE_TYPE_ENTITY => Some(NodeType::Entity),
+            LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => Some(NodeType::ProcessingInstruction),
+            LXB_DOM_NODE_TYPE_COMMENT => Some(NodeType::Comment),
+            LXB_DOM_NODE_TYPE_DOCUMENT => Some(NodeType::Document),
+            LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => Some(NodeType::DocumentType),
+            LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => Some(NodeType::DocumentFragment),
+            LXB_DOM_NODE_TYPE_NOTATION => Some(NodeType::Notation),
+            _ => None
+        }
+    }
 
-    fn upcast(&self) -> &NodeBase;
-    fn upcast_mut(&mut self) -> &mut NodeBase;
-    fn as_noderef(&self) -> NodeRef;
     fn as_node(&self) -> Node;
     fn into_node(self) -> Node;
 
-    fn node_type(&self) -> Option<NodeType>;
-    fn node_name(&self) -> Option<String>;
-    fn node_value(&self) -> Option<String>;
-    fn set_node_value(&mut self, value: &str);
-    fn text_content(&self) -> Option<String>;
-    fn set_text_content(&mut self, content: &str);
+    /// DOM element tag or node name.
+    fn node_name(&self) -> Option<String> {
+        check_node!(self);
+        unsafe { Some(self.node_name_unchecked()?.to_owned()) }
+    }
 
-    fn owner_document(&self) -> Option<DocumentNode>;
-    fn parent_node(&self) -> Option<Node>;
-    fn parent_element(&self) -> Option<ElementNode>;
+    /// Node text value.
+    #[inline]
+    fn node_value(&self) -> Option<String> {
+        check_node!(self);
+        unsafe { Some(self.node_value_unchecked()?.to_owned()) }
+    }
 
-    fn has_child_nodes(&self) -> bool;
-    fn contains(&self, node: &Node) -> bool;
-    fn child_nodes(&self) -> NodeList;
-    fn first_child(&self) -> Option<Node>;
-    fn last_child(&self) -> Option<Node>;
-    fn previous_sibling(&self) -> Option<Node>;
-    fn next_sibling(&self) -> Option<Node>;
-    fn clone_node(&self, deep: bool) -> Option<Node>;
+    fn set_node_value(&mut self, value: &str) {
+        check_node!(self);
+        unsafe { lxb_dom_node_text_content_set(self.node_ptr_(), value.as_ptr(), value.len()); }
+    }
 
-    fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node>;
-    fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node>;
-    fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node>;
-    fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node>;
+    /// Text contents of this DOM node and its children.
+    fn text_content(&self) -> Option<String> {
+        check_node!(self);
+        let ret_value;
+        unsafe {
+            let mut l = 0;
+            let t = lxb_dom_node_text_content(self.node_ptr_(), &mut l);
+            ret_value = str_from_lxb_char_t(t, l).map(String::from);
+            lxb_dom_document_destroy_text_noi(self.doc_ptr_unchecked(), t);
+        }
+        ret_value
+    }
 
-    fn iter(&self) -> NodeIterator;
-    fn iter_elements(&self) -> ElementIterator;
+    #[inline]
+    fn set_text_content(&mut self, content: &str) {
+        self.set_node_value(content)
+    }
 
-    fn decompose(&mut self);
+    fn owner_document(&self) -> Option<DocumentNode> {
+        check_node!(self);
+        let d = unsafe { self.doc_ptr_unchecked() };
+        if !d.is_null() {
+            Some(wrap_raw_node(&self.tree_(), d.cast())?.into())
+        } else {
+            None
+        }
+    }
+
+    /// Parent of this node.
+    fn parent_node(&self) -> Option<Node> {
+        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.parent })
+    }
+
+    #[inline]
+    fn parent_element(&self) -> Option<ElementNode> {
+        if let Node::Element(n) = self.parent_node()? {
+            Some(n)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn has_child_nodes(&self) -> bool {
+        self.first_child().is_some()
+    }
+
+    fn contains(&self, node: &Node) -> bool {
+        check_nodes!(self, node);
+        if self.node_ptr_() == node.node_ptr_() {
+            return true;
+        }
+        unsafe {
+            self.iter_raw()
+                .find(|&n| n == node.node_ptr_())
+                .is_some()
+        }
+    }
+
+    /// List of child nodes.
+    fn child_nodes(&self) -> NodeList {
+        NodeList::new_live(&wrap_raw_node(&self.tree_(), self.node_ptr_()).unwrap(), None, |n, _| {
+            let mut nodes = Vec::new();
+            let mut child = n.first_child();
+            while let Some(c) = child {
+                child = c.next_sibling();
+                nodes.push(c);
+            }
+            nodes
+        })
+    }
+
+    /// First child element of this DOM node.
+    fn first_child(&self) -> Option<Node> {
+        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.first_child })
+    }
+
+    /// Last child element of this DOM node.
+    fn last_child(&self) -> Option<Node> {
+        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.last_child })
+    }
+
+    /// Previous sibling node.
+    fn previous_sibling(&self) -> Option<Node> {
+        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.prev })
+    }
+
+    /// Next sibling node.
+    fn next_sibling(&self) -> Option<Node> {
+        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.next })
+    }
+
+    fn clone_node(&self, deep: bool) -> Option<Node> {
+        check_node!(self);
+        wrap_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(self.node_ptr_(), deep) })
+    }
+
+    fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
+        check_nodes!(self, node);
+        if child.is_some() {
+            check_nodes!(node, child?);
+            if self.node_ptr_() == child?.node_ptr_() {
+                return None;
+            }
+        }
+        unsafe { self.insert_before_unchecked(node, child) }
+    }
+
+    fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        check_nodes!(self, node);
+        unsafe { self.append_child_unchecked(node) }
+    }
+
+    fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+        check_nodes!(self, node);
+        check_nodes!(node, child);
+        unsafe { self.replace_child_unchecked(node, child) }
+    }
+
+    fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+        check_nodes!(self, node);
+        unsafe { self.remove_child_unchecked(node) }
+    }
+
+    fn iter(&self) -> NodeIterator where Self: Sized {
+        NodeIterator::new(self)
+    }
+
+    fn iter_elements(&self) -> ElementIterator where Self: Sized {
+        ElementIterator::new(self)
+    }
+
+    fn decompose(&mut self) {
+        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+        unsafe {
+            if !self.node_ptr_().is_null() && (*self.node_ptr_()).parent.is_null() && (*self.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
+                lxb_dom_node_destroy_deep(self.node_ptr_());
+                self.reset_node_ptr_();
+            }
+        }
+    }
 }
 
 
@@ -106,7 +353,7 @@ pub trait ShadowRoot: DocumentOrShadowRoot {}
 /// Document node.
 pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn doctype(&self) -> Option<DocumentTypeNode>;
-    fn document_element(&self) -> Option<DocumentNode>;
+    fn document_element(&self) -> Option<ElementNode>;
 
     fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
     fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
@@ -183,9 +430,9 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
-        sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
+        sel_list.match_elements(&self.as_node(), |e, _, ctx| {
             ctx.push(e);
             TraverseAction::Stop
         }, &mut result);
@@ -193,9 +440,9 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.upcast().tree, selectors)?;
+        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::new();
-        sel_list.match_elements(self.as_noderef(), |e, _, ctx| {
+        sel_list.match_elements(&self.as_node(), |e, _, ctx| {
             ctx.push(e);
             TraverseAction::Ok
         }, &mut result);
@@ -206,11 +453,11 @@ pub trait ParentNode: NodeInterface {
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
     fn get_element_by_id(&self, id: &str) -> Option<ElementNode> {
-        unsafe { get_element_by_id(self.upcast(), id, false) }
+        unsafe { get_element_by_id(&self.as_node(), id, false) }
     }
     
     fn get_element_by_id_case(&self, id: &str, case_insensitive: bool) -> Option<ElementNode> {
-        unsafe { get_element_by_id(self.upcast(), id, case_insensitive) }
+        unsafe { get_element_by_id(&self.as_node(), id, case_insensitive) }
     }
 }
 
@@ -240,9 +487,8 @@ pub trait ChildNode: NodeInterface {
     }
 
     fn remove(&mut self) {
-        let node = self.upcast_mut();
-        check_node!(node);
-        unsafe { lxb_dom_node_remove(node.node); }
+        check_node!(self);
+        unsafe { lxb_dom_node_remove(self.node_ptr_()); }
     }
 }
 

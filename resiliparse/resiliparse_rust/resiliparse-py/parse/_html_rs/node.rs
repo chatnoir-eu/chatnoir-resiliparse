@@ -528,7 +528,7 @@ impl Node {
     }
 
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIter>> {
-        Bound::new(slf.py(), NodeIter { iter: (*slf.node).clone().into_iter() })
+        Bound::new(slf.py(), NodeIter { iter: slf.node.clone().into_iter() })
     }
 
     pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
@@ -957,17 +957,20 @@ macro_rules! doc_create_x {
 impl DocumentNode {
     #[getter]
     pub fn doctype(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
-        Self::raw_node(&slf).doctype().map_or(
-            Ok(None),
+        Self::raw_node(&slf).doctype().map_or_else(
+            || Err(DOMException::new_err("No Document node")),
             |d| Ok(Some(create_upcast_node(slf.py(), d.into_node())?))
         )
     }
 
     #[getter]
-    pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
-        Self::raw_node(&slf).document_element().map_or(
-            Ok(None),
-            |d| Ok(Some(create_upcast_node(slf.py(), d.into_node())?))
+    pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+        Self::raw_node(&slf).document_element().map_or_else(
+            || Err(DOMException::new_err("No Document node")),
+            |d| d.first_element_child().map_or(
+                Ok(None),
+                |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?))
+            )
         )
     }
 

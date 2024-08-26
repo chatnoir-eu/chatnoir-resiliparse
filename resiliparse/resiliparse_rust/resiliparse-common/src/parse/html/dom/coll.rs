@@ -26,18 +26,18 @@ use crate::parse::html::dom::traits::{Element, ParentNode};
 
 
 #[derive(Clone)]
-pub(super) struct NodeListClosure<T> {
+pub(crate) struct NodeListClosure<T: Clone> {
     n: Node,
     d: Option<Box<[String]>>,
     f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>
 }
 
-pub struct NodeListGeneric<T> {
+pub struct NodeListGeneric<T: Clone> {
     live: Option<NodeListClosure<T>>,
     items: Vec<T>,
 }
 
-impl<T> Default for NodeListGeneric<T> {
+impl<T: Clone> Default for NodeListGeneric<T> {
     fn default() -> Self {
         NodeListGeneric { live: None, items: Vec::default() }
     }
@@ -71,10 +71,10 @@ impl<'a, T: Clone> NodeListGeneric<T> {
         self.iter().count()
     }
 
-    pub(super) fn new_live(node: Node, user_data: Option<Box<[String]>>,
+    pub(crate) fn new_live(node: &Node, user_data: Option<Box<[String]>>,
                            f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
         Self {
-            live: Some(NodeListClosure { n: node, d: user_data, f }),
+            live: Some(NodeListClosure { n: node.clone(), d: user_data, f }),
             items: Vec::default()
         }
     }
@@ -344,7 +344,7 @@ pub struct DOMTokenList<'a> {
 }
 
 impl<'a> DOMTokenList<'a> {
-    pub(super) fn new(element: &'a ElementNode) -> Self {
+    pub(crate) fn new(element: &'a ElementNode) -> Self {
         Self { element }
     }
 }
@@ -358,7 +358,7 @@ pub struct DOMTokenListMut<'a> {
 }
 
 impl<'a> DOMTokenListMut<'a> {
-    pub(super) fn new(element: &'a mut ElementNode) -> Self {
+    pub(crate) fn new(element: &'a mut ElementNode) -> Self {
         Self { element }
     }
 }
@@ -379,7 +379,7 @@ pub struct DOMTokenListOwned {
 }
 
 impl DOMTokenListOwned {
-    pub(super) fn new(element: ElementNode) -> Self {
+    pub(crate) fn new(element: ElementNode) -> Self {
         Self { element }
     }
 }

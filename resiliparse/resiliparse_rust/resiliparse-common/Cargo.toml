@@ -11,4 +11,7 @@ documentation.workspace = true
 crate-type = ["lib"]
 
 [build-dependencies]
-bindgen = "^0.69.4"
+bindgen = "0.70"
+
+[dependencies]
+parking_lot = "0.12"

@@ -16,13 +16,14 @@
 
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
+use parking_lot::ReentrantMutex;
 use std::ptr;
 use std::ptr::addr_of_mut;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::str::FromStr;
-
+use std::sync::atomic::{AtomicPtr, Ordering};
 use crate::parse::html::dom::node::*;
-use crate::parse::html::dom::node_base::NodeBase;
+use crate::parse::html::dom::traits::*;
 use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
@@ -82,7 +83,7 @@ impl HTMLTree {
             }
         }
 
-        Ok(HTMLTree { doc: Arc::new(HTMLDocument { html_document: Mutex::new(doc_ptr) }) })
+        Ok(HTMLTree { doc: Arc::new(HTMLDocument { html_document: ReentrantMutex::new(AtomicPtr::new(doc_ptr)) }) })
     }
 }
 
@@ -137,29 +138,33 @@ impl TryFrom<&[u8]> for HTMLTree {
 
 impl HTMLTree {
     /// Get Lexbor raw pointer to HTML document.
-    fn get_html_document_raw(&self) -> Option<&mut lxb_html_document_t> {
-        unsafe { self.doc.doc_ptr()?.as_mut() }
+    unsafe fn get_html_document_raw(&self) -> Option<&lxb_html_document_t> {
+        self.doc.doc_ptr().as_ref()
+    }
+
+    unsafe fn get_html_document_ptr(&self) -> *mut lxb_html_document_t {
+        self.doc.doc_ptr()
     }
 
     #[inline]
     /// Get DOM document root node.
     pub fn document(&self) -> Option<DocumentNode> {
-        Some(NodeBase::wrap_node(
-            &self.doc, addr_of_mut!(self.get_html_document_raw()?.dom_document.node))?.into())
+        let ptr = unsafe { self.get_html_document_ptr() };
+        if !ptr.is_null() {
+            Some(DocumentNode::new(&self.doc, ptr.cast())?)
+        } else {
+            None
+        }
     }
 
     /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
-        Some(ElementNode {
-            node_base: NodeBase::new_base(&self.doc, self.get_html_document_raw()?.head as *mut lxb_dom_node_t)?
-        })
+        Some(ElementNode::new(&self.doc, unsafe { self.get_html_document_raw()? }.head.cast())?)
     }
 
     /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
-        Some(ElementNode {
-            node_base: NodeBase::new_base(&self.doc, self.get_html_document_raw()?.body as *mut lxb_dom_node_t)?
-        })
+        Some(ElementNode::new(&self.doc, unsafe { self.get_html_document_raw()? }.body.cast())?)
     }
 
     /// Get HTML `<title>` contents as string.
@@ -167,7 +172,7 @@ impl HTMLTree {
     pub fn title(&self) -> Option<String> {
         unsafe {
             let mut size = 0;
-            let t = lxb_html_document_title(self.get_html_document_raw()?, addr_of_mut!(size));
+            let t = lxb_html_document_title(self.get_html_document_ptr(), addr_of_mut!(size));
             Some(str_from_lxb_char_t(t, size)?.to_owned())
         }
     }
@@ -176,25 +181,23 @@ impl HTMLTree {
 
 /// Internal heap-allocated and reference-counted HTMLTree.
 #[derive(Debug)]
-pub(super) struct HTMLDocument {
-    html_document: Mutex<*mut lxb_html_document_t>
+pub(crate) struct HTMLDocument {
+    html_document: ReentrantMutex<AtomicPtr<lxb_html_document_t>>
 }
 
 impl HTMLDocument {
-    pub(super) unsafe fn doc_ptr(&self) -> Option<*mut lxb_html_document_t> {
-        match self.html_document.lock() {
-            Ok(p) => Some(*p),
-            _ => None
-        }
+    pub(crate) unsafe fn doc_ptr(&self) -> *mut lxb_html_document_t {
+        self.html_document.lock().load(Ordering::Relaxed)
     }
 }
 
 impl Drop for HTMLDocument {
     fn drop(&mut self) {
-        if let Ok(mut p) = self.html_document.lock() {
-            if !p.is_null() {
-                unsafe { lxb_html_document_destroy(*p); };
-                *p = ptr::null_mut();
+        let guard = self.html_document.get_mut();
+        if !guard.load(Ordering::Relaxed).is_null() {
+            unsafe {
+                lxb_html_document_destroy(guard.load(Ordering::Relaxed));
+                *guard.get_mut() = ptr::null_mut();
             }
         }
     }
