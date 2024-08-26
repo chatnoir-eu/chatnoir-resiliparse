@@ -170,6 +170,8 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         }
     }
 
+    fn as_noderef(&self) -> NodeRef;
+    fn as_noderef_mut(&mut self) -> NodeRefMut;
     fn as_node(&self) -> Node;
     fn into_node(self) -> Node;
 
@@ -252,7 +254,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     /// List of child nodes.
     fn child_nodes(&self) -> NodeList {
-        NodeList::new_live(&wrap_raw_node(&self.tree_(), self.node_ptr_()).unwrap(), None, |n, _| {
+        NodeList::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes = Vec::new();
             let mut child = n.first_child();
             while let Some(c) = child {
@@ -316,7 +318,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     fn iter(&self) -> NodeIterator where Self: Sized {
-        NodeIterator::new(self)
+        NodeIterator::new(self.as_noderef())
     }
 
     fn iter_elements(&self) -> ElementIterator where Self: Sized {
@@ -432,7 +434,7 @@ pub trait ParentNode: NodeInterface {
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
-        sel_list.match_elements(&self.as_node(), |e, _, ctx| {
+        sel_list.match_elements(&self.as_noderef(), |e, _, ctx| {
             ctx.push(e);
             TraverseAction::Stop
         }, &mut result);
@@ -442,7 +444,7 @@ pub trait ParentNode: NodeInterface {
     fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::new();
-        sel_list.match_elements(&self.as_node(), |e, _, ctx| {
+        sel_list.match_elements(&self.as_noderef(), |e, _, ctx| {
             ctx.push(e);
             TraverseAction::Ok
         }, &mut result);
@@ -453,11 +455,11 @@ pub trait ParentNode: NodeInterface {
 /// NonElementParentNode mixin trait.
 pub trait NonElementParentNode: NodeInterface {
     fn get_element_by_id(&self, id: &str) -> Option<ElementNode> {
-        unsafe { get_element_by_id(&self.as_node(), id, false) }
+        unsafe { get_element_by_id(&self.as_noderef(), id, false) }
     }
     
     fn get_element_by_id_case(&self, id: &str, case_insensitive: bool) -> Option<ElementNode> {
-        unsafe { get_element_by_id(&self.as_node(), id, case_insensitive) }
+        unsafe { get_element_by_id(&self.as_noderef(), id, case_insensitive) }
     }
 }
 

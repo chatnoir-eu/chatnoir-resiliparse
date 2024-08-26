@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 use std::ptr::addr_of_mut;
 use std::sync::{Arc, Weak};
 
-use crate::parse::html::dom::node::{ElementNode, Node};
+use crate::parse::html::dom::node::{ElementNode, NodeRef};
 use crate::parse::html::dom::traits::NodeInterfaceBaseImpl;
 use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
@@ -122,7 +122,7 @@ impl<'a> CSSSelectorList<'a> {
         }
     }
 
-    pub fn match_elements<T, F>(&self, root_node: &Node, cb: F, custom_data: &mut T)
+    pub fn match_elements<T, F>(&self, root_node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         let tree = self.tree.upgrade().unwrap();
         unsafe { assert_eq!(tree.doc_ptr(), root_node.tree_().doc_ptr()) };
@@ -132,7 +132,7 @@ impl<'a> CSSSelectorList<'a> {
         }
     }
 
-    pub fn match_elements_reverse<T, F>(&self, node: &Node, cb: F, custom_data: &mut T)
+    pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         unsafe {
             if (*node.node_ptr_()).parent.is_null() || (*node.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
