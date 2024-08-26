@@ -52,6 +52,34 @@ pub enum Node {
     Notation(NotationNode), // legacy
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum NodeRef<'a> {
+    Element(&'a ElementNode),
+    Attribute(&'a AttrNode),
+    Text(&'a TextNode),
+    CdataSection(&'a CdataSectionNode),
+    ProcessingInstruction(&'a ProcessingInstructionNode),
+    Comment(&'a CommentNode),
+    Document(&'a DocumentNode),
+    DocumentType(&'a DocumentTypeNode),
+    DocumentFragment(&'a DocumentFragmentNode),
+    Notation(&'a NotationNode), // legacy
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum NodeRefMut<'a> {
+    Element(&'a mut ElementNode),
+    Attribute(&'a mut AttrNode),
+    Text(&'a mut TextNode),
+    CdataSection(&'a mut CdataSectionNode),
+    ProcessingInstruction(&'a mut ProcessingInstructionNode),
+    Comment(&'a mut CommentNode),
+    Document(&'a mut DocumentNode),
+    DocumentType(&'a mut DocumentTypeNode),
+    DocumentFragment(&'a mut DocumentFragmentNode),
+    Notation(&'a mut NotationNode), // legacy
+}
+
 
 macro_rules! unwrap_node {
     ($node: ident) => {
@@ -70,6 +98,23 @@ macro_rules! unwrap_node {
     };
 }
 
+macro_rules! unwrap_noderef {
+    ($Enum: ident, $node: ident) => {
+        match $node {
+            $Enum::Element(n) => *n,
+            $Enum::Attribute(n) => *n,
+            $Enum::Text(n) => *n,
+            $Enum::CdataSection(n) => *n,
+            $Enum::ProcessingInstruction(n) => *n,
+            $Enum::Comment(n) => *n,
+            $Enum::Document(n) => *n,
+            $Enum::DocumentType(n) => *n,
+            $Enum::DocumentFragment(n) => *n,
+            $Enum::Notation(n) => *n, // legacy
+        }
+    };
+}
+
 impl Deref for Node {
     type Target = dyn NodeInterface;
 
@@ -79,12 +124,46 @@ impl Deref for Node {
 }
 
 impl DerefMut for Node {
-    fn deref_mut (&mut self) -> &mut Self::Target {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         unwrap_node!(self)
     }
 }
 
+impl<'a> Deref for NodeRef<'a> {
+    type Target = dyn NodeInterface;
+
+    fn deref(&self) -> &Self::Target {
+        unwrap_noderef!(NodeRef, self)
+    }
+}
+
+impl<'a> Deref for NodeRefMut<'a> {
+    type Target = dyn NodeInterface;
+
+    fn deref(&self) -> &Self::Target {
+        unwrap_noderef!(NodeRefMut, self)
+    }
+}
+
+impl<'a> DerefMut for NodeRefMut<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unwrap_noderef!(NodeRefMut, self)
+    }
+}
+
 impl Display for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.deref(), f)
+    }
+}
+
+impl Display for NodeRef<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.deref(), f)
+    }
+}
+
+impl Display for NodeRefMut<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.deref(), f)
     }
@@ -99,6 +178,8 @@ impl IntoIterator for Node {
     }
 }
 
+
+// --------------------------------------- Node Type Macros ----------------------------------------
 
 macro_rules! check_node {
     ($node: expr) => {
@@ -120,9 +201,6 @@ macro_rules! check_nodes {
     }
 }
 pub(crate) use check_nodes;
-
-
-// --------------------------------------- Node Type Macros ----------------------------------------
 
 macro_rules! define_node_type {
     ($Self: ident, $EnumType: ident) => {
@@ -161,6 +239,16 @@ macro_rules! define_node_type {
 
         impl NodeInterface for $Self {
             #[inline(always)]
+            fn as_noderef(&self) -> NodeRef {
+                NodeRef::$EnumType(self)
+            }
+
+            #[inline(always)]
+            fn as_noderef_mut(&mut self) -> NodeRefMut {
+                NodeRefMut::$EnumType(self)
+            }
+
+            #[inline(always)]
             fn as_node(&self) -> Node {
                 self.clone().into()
             }
@@ -197,6 +285,18 @@ macro_rules! define_node_type {
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
                 Node::$EnumType(value)
+            }
+        }
+
+        impl<'a> From<&'a $Self> for NodeRef<'a> {
+            fn from(value: &'a $Self) -> NodeRef<'a> {
+                NodeRef::$EnumType(value)
+            }
+        }
+
+        impl<'a> From<&'a mut $Self> for NodeRefMut<'a> {
+            fn from(value: &'a mut $Self) -> NodeRefMut<'a> {
+                NodeRefMut::$EnumType(value)
             }
         }
 
@@ -305,14 +405,14 @@ impl Document for DocumentNode {
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
         check_node!(self);
-        HTMLCollection::new_live(&self.as_node(), Some(Box::new([name.to_owned()])), |n, qn| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| {
             unsafe { get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         check_node!(self);
-        HTMLCollection::new_live(&self.as_node(), Some(Box::new([class_names.to_owned()])), |n, cls| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| {
             unsafe { get_elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
         })
     }
@@ -328,10 +428,10 @@ impl Document for DocumentNode {
             name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_node(), Some(user_data), |n, attr| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| {
             unsafe {
                 get_elements_by_attr(
-                    n,
+                    &n.as_noderef(),
                     &attr.unwrap_unchecked()[0],
                     &attr.unwrap_unchecked()[1],
                     &attr.unwrap_unchecked()[2] == "true")
@@ -400,7 +500,7 @@ impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_node(), None, |n, _| {
+        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Document(d) = n {
                 let mut child = d.first_element_child();
@@ -428,7 +528,7 @@ impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
 impl ParentNode for DocumentFragmentNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_node(), None, |n, _| {
+        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::DocumentFragment(d) = n {
                 let mut child = d.first_element_child();
@@ -576,7 +676,7 @@ impl Element for ElementNode {
 
     fn attributes(&self) -> NamedNodeMap {
         check_node!(self);
-        NamedNodeMap::new_live(&self.as_node(), None, |n, _| {
+        NamedNodeMap::new_live(&self.as_noderef(), None, |n, _| {
             let mut v = Vec::new();
             unsafe {
                 let mut attr = lxb_dom_element_first_attribute_noi(n.node_ptr_().cast());
@@ -638,7 +738,7 @@ impl Element for ElementNode {
         let mut found = None;
         let mut node = Some(self.clone());
         while let Some(n) = node {
-            sel_list.match_elements_reverse(&n.as_node(), |e, _, found| {
+            sel_list.match_elements_reverse(&n.as_noderef(), |e, _, found| {
                 *found = Some(e);
                 TraverseAction::Stop
             }, &mut found);
@@ -653,7 +753,7 @@ impl Element for ElementNode {
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut found = false;
-        sel_list.match_elements_reverse(&self.as_node(), |_, _, found| {
+        sel_list.match_elements_reverse(&self.as_noderef(), |_, _, found| {
             *found = true;
             TraverseAction::Stop
         }, &mut found);
@@ -661,13 +761,13 @@ impl Element for ElementNode {
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_node(), Some(Box::new([name.to_owned()])), |n, qn| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| {
             unsafe { get_elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_node(), Some(Box::new([class_names.to_owned()])), |n, cls| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| {
             unsafe { get_elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
         })
     }
@@ -681,10 +781,10 @@ impl Element for ElementNode {
             name.to_owned(),
             value.to_owned(),
             case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_node(), Some(user_data), |n, attr| {
+        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| {
             unsafe {
                 get_elements_by_attr(
-                    &n,
+                    &n.as_noderef(),
                     &attr.unwrap_unchecked()[0],
                     &attr.unwrap_unchecked()[1],
                     &attr.unwrap_unchecked()[2] == "true")
@@ -765,7 +865,7 @@ impl Element for ElementNode {
 
 impl ParentNode for ElementNode {
     fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_node(), None, |n, _| {
+        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Element(e) = n {
                 let mut child = e.first_element_child();

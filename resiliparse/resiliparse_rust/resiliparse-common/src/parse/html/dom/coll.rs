@@ -21,7 +21,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::vec;
 
 use crate::parse::html::css::CSSParserError;
-use crate::parse::html::dom::node::{AttrNode, ElementNode, Node};
+use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{Element, ParentNode};
 
 
@@ -71,10 +71,10 @@ impl<'a, T: Clone> NodeListGeneric<T> {
         self.iter().count()
     }
 
-    pub(crate) fn new_live(node: &Node, user_data: Option<Box<[String]>>,
+    pub(crate) fn new_live(node: &NodeRef, user_data: Option<Box<[String]>>,
                            f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
         Self {
-            live: Some(NodeListClosure { n: node.clone(), d: user_data, f }),
+            live: Some(NodeListClosure { n: node.as_node(), d: user_data, f }),
             items: Vec::default()
         }
     }

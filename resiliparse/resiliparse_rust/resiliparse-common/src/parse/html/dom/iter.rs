@@ -19,7 +19,7 @@
 use std::ptr;
 
 use crate::parse::html::dom::wrap_raw_node;
-use crate::parse::html::dom::node::{ElementNode, Node};
+use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::NodeInterface;
 use crate::third_party::lexbor::*;
 
@@ -70,24 +70,33 @@ impl Iterator for NodeIteratorRaw {
     }
 }
 
+// -------------------------------------- Generic Iterators ----------------------------------------
+
+macro_rules! impl_iterator_for {
+    ($Self: ty) => {
+        impl Iterator for $Self {
+            type Item = Node;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
+            }
+        }
+    };
+}
+
 pub struct NodeIterator<'a> {
-    root: &'a dyn NodeInterface,
+    root: NodeRef<'a>,
     iterator_raw: NodeIteratorRaw
 }
 
 impl<'a> NodeIterator<'a> {
-    pub(crate) fn new(root: &'a dyn NodeInterface) -> Self {
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node_ptr_()) } }
+    pub(crate) fn new(root: NodeRef<'a>) -> Self {
+        Self { root: root.clone(), iterator_raw: unsafe { NodeIteratorRaw::new(root.node_ptr_()) } }
     }
 }
 
-impl Iterator for NodeIterator<'_> {
-    type Item = Node;
+impl_iterator_for!(NodeIterator<'_>);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
-    }
-}
 
 pub struct NodeIteratorOwned {
     root: Node,
@@ -96,18 +105,15 @@ pub struct NodeIteratorOwned {
 
 impl NodeIteratorOwned {
     pub(crate) fn new(root: Node) -> Self {
-        let iterator_raw = unsafe { NodeIteratorRaw::new(root.node_ptr_()) };
-        Self { root, iterator_raw }
+        let ptr = root.node_ptr_();
+        Self { root: root, iterator_raw: unsafe { NodeIteratorRaw::new(ptr) } }
     }
 }
 
-impl Iterator for NodeIteratorOwned {
-    type Item = Node;
+impl_iterator_for!(NodeIteratorOwned);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
-    }
-}
+
+// --------------------------------------- ElementIterator -----------------------------------------
 
 pub struct ElementIterator<'a> {
     root: &'a dyn NodeInterface,

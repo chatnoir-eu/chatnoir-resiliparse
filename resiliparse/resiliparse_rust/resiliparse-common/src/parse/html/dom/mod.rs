@@ -145,7 +145,7 @@ unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Re
     Ok(AttrNode::new(&doc.tree_(), attr.cast()).unwrap())
 }
 
-unsafe fn get_element_by_id(node: &Node, id: &str, case_insensitive: bool) -> Option<ElementNode> {
+unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) -> Option<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return None;
@@ -161,7 +161,7 @@ unsafe fn get_element_by_id(node: &Node, id: &str, case_insensitive: bool) -> Op
     }
 }
 
-unsafe fn get_elements_by_attr(node: &Node, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
+unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
