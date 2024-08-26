@@ -20,7 +20,7 @@ use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::*;
 
 
-pub(super) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
+pub(crate) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
     unsafe {
         let html_str = lexbor_str_create();
         if html_str.is_null() {
@@ -33,7 +33,7 @@ pub(super) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
     }
 }
 
-pub(super) fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
+pub(crate) fn node_format_visible_text(node: *mut lxb_dom_node_t) -> String {
     let mut ctx = WalkCtx { text: String::new() };
     unsafe { dom_node_walk(node, node_format_cb_begin, node_format_cb_end, &mut ctx); }
     ctx.text

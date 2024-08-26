@@ -16,17 +16,17 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::ptr;
 use std::sync::Arc;
 
 use crate::parse::html::dom::node::*;
-use crate::parse::html::dom::node_base::NodeBase;
+use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
 use crate::parse::html::tree::HTMLDocument;
 use crate::third_party::lexbor::*;
 
 pub mod coll;
 pub mod iter;
 pub mod node;
-pub mod node_base;
 pub mod traits;
 
 
@@ -44,60 +44,159 @@ impl Display for DOMError {
 impl Error for DOMError {}
 
 
-// --------------------------------------------- Helpers -------------------------------------------
+// -------------------------------------- Crate-public Helpers -------------------------------------
+
+pub(crate) fn wrap_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
+    use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+    match unsafe { node.as_ref()?.type_ } {
+        LXB_DOM_NODE_TYPE_ELEMENT =>
+            Some(Node::Element(ElementNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_ATTRIBUTE =>
+            Some(Node::Attribute(AttrNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_TEXT =>
+            Some(Node::Text(TextNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_CDATA_SECTION =>
+            Some(Node::CdataSection(CdataSectionNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION =>
+            Some(Node::ProcessingInstruction(ProcessingInstructionNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_COMMENT =>
+            Some(Node::Comment(CommentNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_DOCUMENT =>
+            Some(Node::Document(DocumentNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_DOCUMENT_TYPE =>
+            Some(Node::DocumentType(DocumentTypeNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT =>
+            Some(Node::DocumentFragment(DocumentFragmentNode::new(&tree, node)?)),
+        LXB_DOM_NODE_TYPE_NOTATION =>
+            Some(Node::Notation(NotationNode::new(&tree, node)?)),
+        _ => None
+    }
+}
 
 
-unsafe fn get_element_by_id(node: &NodeBase, id: &str, case_insensitive: bool) -> Option<ElementNode> {
+// ----------------------------------------- Private Helpers ---------------------------------------
+
+unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Result<ElementNode, DOMError> {
+    let element = lxb_dom_document_create_element(
+        doc.node_ptr_().cast(), local_name.as_ptr(), local_name.len(), ptr::null_mut());
+    ElementNode::new(&doc.tree_(), element.cast()).map_or_else(
+        || Err(DOMError { msg: "ElementNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_document_fragment_unchecked(doc: &DocumentNode) -> Result<DocumentFragmentNode, DOMError> {
+    let doc_frag = lxb_dom_document_create_document_fragment(doc.node_ptr_().cast());
+    DocumentFragmentNode::new(&doc.tree_(), doc_frag.cast()).map_or_else(
+        || Err(DOMError { msg: "DocumentFragmentNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_text_node_unchecked(doc: &DocumentNode, data: &str) -> Result<TextNode, DOMError> {
+    let text = lxb_dom_document_create_text_node(
+        doc.node_ptr_().cast(), data.as_ptr(), data.len());
+    TextNode::new(&doc.tree_(), text.cast()).map_or_else(
+        || Err(DOMError { msg: "TextNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_cdata_section_unchecked(doc: &DocumentNode, data: &str) -> Result<CdataSectionNode, DOMError> {
+    let cdata = lxb_dom_document_create_cdata_section(
+        doc.node_ptr_().cast(), data.as_ptr(), data.len());
+    CdataSectionNode::new(&doc.tree_(), cdata.cast()).map_or_else(
+        || Err(DOMError { msg: "CdataSectionNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_comment_unchecked(doc: &DocumentNode, data: &str) -> Result<CommentNode, DOMError> {
+    let comment = lxb_dom_document_create_comment(
+        doc.node_ptr_().cast(), data.as_ptr(), data.len());
+    CommentNode::new(&doc.tree_(), comment.cast()).map_or_else(
+        || Err(DOMError { msg: "CommentNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_processing_instruction_unchecked(doc: &DocumentNode, target: &str, data: &str)
+    -> Result<ProcessingInstructionNode, DOMError> {
+    let proc = lxb_dom_document_create_processing_instruction(
+        doc.node_ptr_().cast(), target.as_ptr(), target.len(), data.as_ptr(), data.len());
+    ProcessingInstructionNode::new(&doc.tree_(), proc.cast()).map_or_else(
+        || Err(DOMError { msg: "ProcessingInstructionNode allocation failed".to_owned() }),
+        |n| Ok(n)
+    )
+}
+
+unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Result<AttrNode, DOMError> {
+    let attr = lxb_dom_attr_interface_create(doc.node_ptr_().cast());
+    if attr.is_null() {
+        return Err(DOMError { msg: "AttrNode allocation failed".to_owned() })
+    }
+    let status = unsafe {
+        lxb_dom_attr_set_name(attr, local_name.as_ptr(), local_name.len(), true)
+    };
+    if status != lexbor_status_t::LXB_STATUS_OK {
+        lxb_dom_attr_interface_destroy(attr);
+        return Err(DOMError { msg: "Failed to set attribute name".to_owned() } );
+    }
+    Ok(AttrNode::new(&doc.tree_(), attr.cast()).unwrap())
+}
+
+unsafe fn get_element_by_id(node: &Node, id: &str, case_insensitive: bool) -> Option<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return None;
     }
-    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
+    lxb_dom_elements_by_attr(node.node_ptr_() as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
                              id.as_ptr(), id.len(), case_insensitive);
     let matched_node = lxb_dom_collection_node_noi(coll, 0);
     lxb_dom_collection_destroy(coll, true);
-    Some(ElementNode { node_base: NodeBase::new_base(&node.tree, matched_node)? })
+    if !matched_node.is_null() {
+        Some(ElementNode::new(&node.tree_(), matched_node)?)
+    } else {
+        None
+    }
 }
 
-
-unsafe fn get_elements_by_attr(node: &NodeBase, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
+unsafe fn get_elements_by_attr(node: &Node, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_elements_by_attr(node.node as *mut lxb_dom_element_t, coll, name.as_ptr(),
+    lxb_dom_elements_by_attr(node.node_ptr_() as *mut lxb_dom_element_t, coll, name.as_ptr(),
                              name.len(), value.as_ptr(), value.len(), case_insensitive);
-    dom_coll_to_vec(&node.tree, coll, true)
+    dom_coll_to_vec(&node.tree_(), coll, true)
 }
 
-unsafe fn get_elements_by_tag_name(node: &NodeBase, name: &str) -> Vec<ElementNode> {
+unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_node_by_tag_name(node.node, coll, name.as_ptr(), name.len());
-    dom_coll_to_vec(&node.tree, coll, true)
+    lxb_dom_node_by_tag_name(node.node_ptr_(), coll, name.as_ptr(), name.len());
+    dom_coll_to_vec(&node.tree_(), coll, true)
 }
 
-unsafe fn get_elements_by_class_name(node: &NodeBase, class_names: &str) -> Vec<ElementNode> {
+unsafe fn get_elements_by_class_name(node: &Node, class_names: &str) -> Vec<ElementNode> {
     let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_elements_by_class_name(node.node.cast(), coll, class_names.as_ptr(), class_names.len());
-    dom_coll_to_vec(&node.tree, coll, true)
+    lxb_dom_elements_by_class_name(node.node_ptr_().cast(), coll, class_names.as_ptr(), class_names.len());
+    dom_coll_to_vec(&node.tree_(), coll, true)
 }
 
 unsafe fn dom_coll_to_vec(tree: &Arc<HTMLDocument>, coll: *mut lxb_dom_collection_t,
                           destroy: bool) -> Vec<ElementNode> {
-    let mut v = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
+    let mut coll_vec = Vec::<ElementNode>::with_capacity(lxb_dom_collection_length_noi(coll));
     for i in 0..lxb_dom_collection_length_noi(coll) {
-        if let Some(b) = NodeBase::new_base(&tree, lxb_dom_collection_node_noi(coll, i)) {
-            v.push(ElementNode { node_base: b });
-        }
+        coll_vec.push(ElementNode::new(&tree, lxb_dom_collection_node_noi(coll, i)).unwrap());
     }
     if destroy {
         lxb_dom_collection_destroy(coll, true);
     }
-    v
+    coll_vec
 }

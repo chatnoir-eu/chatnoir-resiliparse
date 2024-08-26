@@ -18,12 +18,13 @@
 
 use std::ptr;
 
+use crate::parse::html::dom::wrap_raw_node;
 use crate::parse::html::dom::node::{ElementNode, Node};
-use crate::parse::html::dom::node_base::NodeBase;
+use crate::parse::html::dom::traits::NodeInterface;
 use crate::third_party::lexbor::*;
 
 
-pub(super) struct NodeIteratorRaw {
+pub(crate) struct NodeIteratorRaw {
     root: *mut lxb_dom_node_t,
     next_node: *mut lxb_dom_node_t,
 }
@@ -33,7 +34,7 @@ unsafe impl Sync for NodeIteratorRaw {}
 
 
 impl NodeIteratorRaw {
-    pub(super) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
+    pub(crate) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
         if root.is_null() || unsafe { (*root).first_child }.is_null() {
             Self { root: ptr::null_mut(), next_node: ptr::null_mut() }
         } else {
@@ -70,13 +71,13 @@ impl Iterator for NodeIteratorRaw {
 }
 
 pub struct NodeIterator<'a> {
-    root: &'a NodeBase,
+    root: &'a dyn NodeInterface,
     iterator_raw: NodeIteratorRaw
 }
 
 impl<'a> NodeIterator<'a> {
-    pub(super) fn new(root: &'a NodeBase) -> Self {
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node) } }
+    pub(crate) fn new(root: &'a dyn NodeInterface) -> Self {
+        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node_ptr_()) } }
     }
 }
 
@@ -84,18 +85,18 @@ impl Iterator for NodeIterator<'_> {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
-        NodeBase::wrap_node(&self.root.tree, self.iterator_raw.next()?)
+        wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
     }
 }
 
 pub struct NodeIteratorOwned {
-    root: NodeBase,
+    root: Node,
     iterator_raw: NodeIteratorRaw
 }
 
 impl NodeIteratorOwned {
-    pub(super) fn new(root: NodeBase) -> Self {
-        let iterator_raw = unsafe { NodeIteratorRaw::new(root.node) };
+    pub(crate) fn new(root: Node) -> Self {
+        let iterator_raw = unsafe { NodeIteratorRaw::new(root.node_ptr_()) };
         Self { root, iterator_raw }
     }
 }
@@ -104,18 +105,18 @@ impl Iterator for NodeIteratorOwned {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
-        NodeBase::wrap_node(&self.root.tree, self.iterator_raw.next()?)
+        wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
     }
 }
 
 pub struct ElementIterator<'a> {
-    root: &'a NodeBase,
+    root: &'a dyn NodeInterface,
     iterator_raw: NodeIteratorRaw
 }
 
 impl<'a> ElementIterator<'a> {
-    pub(super) fn new(root: &'a NodeBase) -> Self {
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node) } }
+    pub(crate) fn new(root: &'a dyn NodeInterface) -> Self {
+        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(root.node_ptr_()) } }
     }
 }
 
@@ -123,12 +124,12 @@ impl Iterator for ElementIterator<'_> {
     type Item = ElementNode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let tree = &self.root.tree;
+        let tree = &self.root.tree_();
         while let Some(next) = unsafe { self.iterator_raw.next()?.as_ref() } {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 continue
             }
-            if let Some(Node::Element(e)) = NodeBase::wrap_node(tree, self.iterator_raw.next()?) {
+            if let Some(Node::Element(e)) = wrap_raw_node(tree, self.iterator_raw.next()?) {
                 return Some(e)
             }
         }
