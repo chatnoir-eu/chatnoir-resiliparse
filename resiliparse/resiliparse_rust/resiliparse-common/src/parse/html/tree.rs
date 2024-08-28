@@ -83,7 +83,7 @@ impl HTMLTree {
             }
         }
 
-        Ok(HTMLTree { doc: Arc::new(HTMLDocument { html_document: ReentrantMutex::new(AtomicPtr::new(doc_ptr)) }) })
+        Ok(HTMLTree { doc: Arc::new(HTMLDocument::new(doc_ptr)) })
     }
 }
 
@@ -189,6 +189,10 @@ impl HTMLDocument {
     pub(crate) unsafe fn doc_ptr(&self) -> *mut lxb_html_document_t {
         self.html_document.lock().load(Ordering::Relaxed)
     }
+
+    pub(crate) fn new(doc: *mut lxb_html_document_t) -> Self {
+        HTMLDocument { html_document: ReentrantMutex::new(AtomicPtr::new(doc)) }
+    }
 }
 
 impl Drop for HTMLDocument {
@@ -202,6 +206,3 @@ impl Drop for HTMLDocument {
         }
     }
 }
-
-unsafe impl Send for HTMLDocument {}
-unsafe impl Sync for HTMLDocument {}

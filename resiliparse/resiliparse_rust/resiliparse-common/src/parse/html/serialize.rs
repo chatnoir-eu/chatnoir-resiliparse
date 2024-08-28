@@ -21,6 +21,9 @@ use crate::third_party::lexbor::*;
 
 
 pub(crate) fn node_serialize_html(node: *mut lxb_dom_node_t) -> String {
+    if node.is_null() {
+        return String::new();
+    }
     unsafe {
         let html_str = lexbor_str_create();
         if html_str.is_null() {
