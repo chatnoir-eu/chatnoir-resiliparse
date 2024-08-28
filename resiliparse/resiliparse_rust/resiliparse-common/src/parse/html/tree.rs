@@ -16,12 +16,11 @@
 
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use parking_lot::ReentrantMutex;
+use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
 use std::ptr;
 use std::ptr::addr_of_mut;
 use std::sync::Arc;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicPtr, Ordering};
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::lexbor::*;
@@ -143,7 +142,7 @@ impl HTMLTree {
     }
 
     unsafe fn get_html_document_ptr(&self) -> *mut lxb_html_document_t {
-        self.doc.doc_ptr()
+        *self.doc.doc_ptr()
     }
 
     #[inline]
@@ -182,26 +181,30 @@ impl HTMLTree {
 /// Internal heap-allocated and reference-counted HTMLTree.
 #[derive(Debug)]
 pub(crate) struct HTMLDocument {
-    html_document: ReentrantMutex<AtomicPtr<lxb_html_document_t>>
+    html_document: ReentrantMutex<*mut lxb_html_document_t>
 }
 
+unsafe impl Send for HTMLDocument {}
+unsafe impl Sync for HTMLDocument {}
+
+
 impl HTMLDocument {
-    pub(crate) unsafe fn doc_ptr(&self) -> *mut lxb_html_document_t {
-        self.html_document.lock().load(Ordering::Relaxed)
+    pub(crate) unsafe fn doc_ptr(&self) -> ReentrantMutexGuard<*mut lxb_html_document_t> {
+        self.html_document.lock()
     }
 
     pub(crate) fn new(doc: *mut lxb_html_document_t) -> Self {
-        HTMLDocument { html_document: ReentrantMutex::new(AtomicPtr::new(doc)) }
+        HTMLDocument { html_document: ReentrantMutex::new(doc) }
     }
 }
 
 impl Drop for HTMLDocument {
     fn drop(&mut self) {
-        let guard = self.html_document.get_mut();
-        if !guard.load(Ordering::Relaxed).is_null() {
+        let doc = self.html_document.get_mut();
+        if !doc.is_null() {
             unsafe {
-                lxb_html_document_destroy(guard.load(Ordering::Relaxed));
-                *guard.get_mut() = ptr::null_mut();
+                lxb_html_document_destroy(*doc);
+                *doc = ptr::null_mut();
             }
         }
     }
