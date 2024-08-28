@@ -18,9 +18,9 @@
 
 use std::ptr;
 use parking_lot::ReentrantMutex;
-use crate::parse::html::dom::wrap_raw_node;
+use crate::parse::html::dom::wrap_any_raw_node;
 use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
-use crate::parse::html::dom::traits::NodeInterface;
+use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
 use crate::third_party::lexbor::*;
 
 
@@ -79,7 +79,7 @@ macro_rules! impl_iterator_for {
             type Item = Node;
 
             fn next(&mut self) -> Option<Self::Item> {
-                wrap_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
+                wrap_any_raw_node(&self.root.tree_(), self.iterator_raw.next()?)
             }
         }
     };
@@ -137,9 +137,7 @@ impl Iterator for ElementIterator<'_> {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 continue
             }
-            if let Some(Node::Element(e)) = wrap_raw_node(tree, self.iterator_raw.next()?) {
-                return Some(e)
-            }
+            return ElementNode::new(&tree, self.iterator_raw.next()?);
         }
         None
     }

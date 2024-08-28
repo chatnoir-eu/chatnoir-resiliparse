@@ -215,8 +215,7 @@ macro_rules! define_node_type {
             fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> {
                 if !node.is_null() {
                     unsafe { (*node).ref_count += 1 };
-                    let n = Some(Self { tree: tree.clone(), node: ReentrantMutex::new(node) });
-                    n
+                    Some(Self { tree: tree.clone(), node: ReentrantMutex::new(node) })
                 } else {
                     None
                 }
