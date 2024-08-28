@@ -216,7 +216,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         check_node!(self);
         let d = unsafe { self.doc_ptr_unchecked() };
         if !d.is_null() {
-            Some(wrap_raw_node(&self.tree_(), d.cast())?.into())
+            Some(DocumentNode::new(&self.tree_(), d.cast())?)
         } else {
             None
         }
@@ -224,7 +224,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     /// Parent of this node.
     fn parent_node(&self) -> Option<Node> {
-        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.parent })
+        wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.parent })
     }
 
     #[inline]
@@ -268,27 +268,27 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     /// First child element of this DOM node.
     fn first_child(&self) -> Option<Node> {
-        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.first_child })
+        wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.first_child })
     }
 
     /// Last child element of this DOM node.
     fn last_child(&self) -> Option<Node> {
-        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.last_child })
+        wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.last_child })
     }
 
     /// Previous sibling node.
     fn previous_sibling(&self) -> Option<Node> {
-        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.prev })
+        wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.prev })
     }
 
     /// Next sibling node.
     fn next_sibling(&self) -> Option<Node> {
-        wrap_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.next })
+        wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.next })
     }
 
     fn clone_node(&self, deep: bool) -> Option<Node> {
         check_node!(self);
-        wrap_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(*self.node_ptr_(), deep) })
+        wrap_any_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(*self.node_ptr_(), deep) })
     }
 
     fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {

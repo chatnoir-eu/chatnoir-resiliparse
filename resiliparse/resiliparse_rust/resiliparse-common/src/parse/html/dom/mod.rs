@@ -46,7 +46,7 @@ impl Error for DOMError {}
 
 // -------------------------------------- Crate-public Helpers -------------------------------------
 
-pub(crate) fn wrap_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
+pub(crate) fn wrap_any_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
     use crate::third_party::lexbor::lxb_dom_node_type_t::*;
     match unsafe { node.as_ref()?.type_ } {
         LXB_DOM_NODE_TYPE_ELEMENT =>
