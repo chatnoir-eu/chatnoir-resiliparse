@@ -229,10 +229,9 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     #[inline]
     fn parent_element(&self) -> Option<ElementNode> {
-        if let Node::Element(n) = self.parent_node()? {
-            Some(n)
-        } else {
-            None
+        match self.parent_node()? {
+            Node::Element(n) => Some(n),
+            _ => None,
         }
     }
 
@@ -380,23 +379,17 @@ pub trait ParentNode: NodeInterface {
 
     /// First element child of this DOM node.
     fn first_element_child(&self) -> Option<ElementNode> {
-        let mut child = self.first_child()?;
-        loop {
-            match child {
-                Node::Element(c) => return Some(c),
-                _ => { child = child.next_sibling()? }
-            }
+        check_node!(self);
+        unsafe {
+            next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).first_child)
         }
     }
 
     /// Last element child element of this DOM node.
     fn last_element_child(&self) -> Option<ElementNode> {
-        let mut child = self.last_child()?;
-        loop {
-            if let Node::Element(c) = child {
-                return Some(c);
-            }
-            child = child.previous_sibling()?;
+        check_node!(self);
+        unsafe {
+            previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).last_child)
         }
     }
 
@@ -497,23 +490,17 @@ pub trait ChildNode: NodeInterface {
 pub trait NonDocumentTypeChildNode: NodeInterface {
     /// Previous sibling element node.
     fn previous_element_sibling(&self) -> Option<ElementNode> {
-        let mut p = self.previous_sibling()?;
-        loop {
-            if let Node::Element(s) = p {
-                return Some(s);
-            }
-            p = p.previous_sibling()?;
+        check_node!(self);
+        unsafe {
+            previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).prev)
         }
     }
 
     /// Next sibling element node.
     fn next_element_sibling(&self) -> Option<ElementNode> {
-        let mut p = self.next_sibling()?;
-        loop {
-            if let Node::Element(s) = p {
-                return Some(s);
-            }
-            p = p.next_sibling()?;
+        check_node!(self);
+        unsafe {
+            next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).next)
         }
     }
 }
