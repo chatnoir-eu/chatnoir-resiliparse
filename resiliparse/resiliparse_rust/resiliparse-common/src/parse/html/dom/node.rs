@@ -209,13 +209,12 @@ macro_rules! define_node_type {
             pub(crate) node: ReentrantMutex<AtomicPtr<lxb_dom_node_t>>,
         }
 
-        unsafe impl Send for $Self {}
-        unsafe impl Sync for $Self {}
-
         impl NodeInterfaceBaseImpl for $Self {
             fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> {
                 if !node.is_null() {
-                    Some(Self { tree: tree.clone(), node: ReentrantMutex::new(AtomicPtr::new(node)) })
+                    unsafe { (*node).ref_count += 1 };
+                    let n = Some(Self { tree: tree.clone(), node: ReentrantMutex::new(AtomicPtr::new(node)) });
+                    n
                 } else {
                     None
                 }
@@ -259,6 +258,24 @@ macro_rules! define_node_type {
             }
         }
 
+        impl Drop for $Self {
+            fn drop(&mut self) {
+                if self.node_ptr_().is_null() {
+                    return;
+                }
+
+                use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+                unsafe {
+                    if (*self.node_ptr_()).parent.is_null() && (*self.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
+                        lxb_dom_node_destroy(self.node_ptr_());
+                    } else {
+                        (*self.node_ptr_()).ref_count -= 1;
+                    }
+                    self.reset_node_ptr_();
+                }
+            }
+        }
+
         impl Clone for $Self {
             fn clone(&self) -> Self {
                 $Self::new(&self.tree_(), self.node_ptr_()).unwrap()
@@ -269,7 +286,7 @@ macro_rules! define_node_type {
 
         impl PartialEq<$Self> for $Self {
             fn eq(&self, other: &Self) -> bool {
-                self.node_ptr_() == other.node_ptr_()
+                self.node_ptr_() == other.node_ptr_() && !self.node_ptr_().is_null()
             }
         }
 
@@ -311,7 +328,11 @@ macro_rules! define_node_type {
 
         impl Debug for $Self {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                let mut repr = self.node_name().unwrap_or_else(|| "#undef".to_owned());
+                if self.node_ptr_().is_null() {
+                    return f.write_str("<#undef>");
+                }
+
+                let mut repr = self.node_name().unwrap();
                 let node: Node = self.as_node();
                 if let Node::Element(element) = node {
                     repr = format!("<{}", repr.to_lowercase());
@@ -342,11 +363,11 @@ macro_rules! define_node_type {
     }
 }
 
-
 // --------------------------------------- DocumentType impl ---------------------------------------
 
 
 define_node_type!(DocumentTypeNode, DocumentType);
+
 
 //noinspection DuplicatedCode
 impl DocumentType for DocumentTypeNode {
@@ -758,7 +779,7 @@ impl Element for ElementNode {
             if e_inner.matches(selectors)? {
                 return Ok(Some(e_inner));
             }
-            node = n.parent_element();
+            e = e_inner.parent_element();
         }
         Ok(None)
     }

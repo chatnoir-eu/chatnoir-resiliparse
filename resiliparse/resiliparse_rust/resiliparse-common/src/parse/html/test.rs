@@ -538,3 +538,67 @@ fn create_nodes() {
     assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), element.as_node());
     assert!(frag.first_child().is_none());
 }
+
+#[test]
+fn node_reference_counting() {
+    let tree =  HTMLTree::from_str(HTML).unwrap();
+    let doc = tree.document().unwrap();
+
+    // Keep grandchild reference
+    let mut grandchild = doc.first_element_child().unwrap().first_element_child().unwrap();
+
+    // Minimum reference count should be 2 (1 Lexbor + 1 Resiliparse)
+    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 2);
+
+    // Create a few more clones
+    let mut grandchild2 = grandchild.clone();
+    assert!(grandchild2.has_child_nodes());
+    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 3);
+    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 3);
+
+    let grandchild3 = grandchild.clone();
+    assert!(grandchild2.has_child_nodes());
+    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 4);
+    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 4);
+
+    // Check parent state
+    assert!(doc.first_element_child().is_some());
+    assert!(grandchild.has_child_nodes());
+
+    // Decompose parent
+    doc.first_element_child().unwrap().decompose();
+    assert!(!doc.first_element_child().is_some());
+    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 3);
+    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 3);
+    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 3);
+
+    // Test that grandchild is still valid, but empty.
+    // Thanks to reference counting, this should not cause segfaults!
+    assert_eq!(grandchild.node_name().unwrap(), "HEAD");
+    assert_eq!(grandchild, grandchild2);
+    assert_eq!(grandchild, grandchild3);
+    assert!(!grandchild.has_child_nodes());
+    assert!(!grandchild2.has_child_nodes());
+    assert!(!grandchild3.has_child_nodes());
+
+    // Decompose empty grandchild and its clones
+    grandchild.decompose();
+    assert!(grandchild.node_name().is_none());
+
+    assert!(grandchild.node_ptr_().is_null());
+    assert!(!grandchild2.node_ptr_().is_null());
+    assert!(!grandchild3.node_ptr_().is_null());
+    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 2);
+    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 2);
+
+    // Drop tree and document in the "wrong" order
+    drop(tree);
+    drop(doc);
+    assert_eq!(grandchild3.node_name().unwrap(), "HEAD");
+
+    // Decompose dangling grandchild2
+    grandchild2.decompose();
+    assert!(grandchild2.node_ptr_().is_null());
+    assert!(!grandchild3.node_ptr_().is_null());
+    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 1);
+}

@@ -17,7 +17,8 @@
 //! Tools for iterating DOM (sub) trees.
 
 use std::ptr;
-
+use std::sync::atomic::AtomicPtr;
+use parking_lot::ReentrantMutex;
 use crate::parse::html::dom::wrap_raw_node;
 use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::NodeInterface;
@@ -25,20 +26,20 @@ use crate::third_party::lexbor::*;
 
 
 pub(crate) struct NodeIteratorRaw {
-    root: *mut lxb_dom_node_t,
-    next_node: *mut lxb_dom_node_t,
+    root: ReentrantMutex<AtomicPtr<lxb_dom_node_t>>,
+    next_node: ReentrantMutex<AtomicPtr<lxb_dom_node_t>>,
 }
-
-unsafe impl Send for NodeIteratorRaw {}
-unsafe impl Sync for NodeIteratorRaw {}
 
 
 impl NodeIteratorRaw {
     pub(crate) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
         if root.is_null() || unsafe { (*root).first_child }.is_null() {
-            Self { root: ptr::null_mut(), next_node: ptr::null_mut() }
+            Self { root: Default::default(), next_node: Default::default() }
         } else {
-            Self { root, next_node: root }
+            Self {
+                root: ReentrantMutex::new(AtomicPtr::new(root)),
+                next_node: ReentrantMutex::new(AtomicPtr::new(root))
+            }
         }
     }
 }
@@ -47,23 +48,25 @@ impl Iterator for NodeIteratorRaw {
     type Item = *mut lxb_dom_node_t;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next_node.is_null() {
+        let next = self.next_node.get_mut().get_mut();
+        let root = self.root.get_mut().get_mut();
+        if next.is_null() || root.is_null() {
             return None;
         }
 
-        let return_node = self.next_node;
+        let return_node = next.clone();
         unsafe {
-            if !(*self.next_node).first_child.is_null() {
-                self.next_node = (*self.next_node).first_child;
+            if !(*(*next)).first_child.is_null() {
+                *next = (*(*next)).first_child;
             } else {
-                while self.next_node != self.root && (*self.next_node).next.is_null() {
-                    self.next_node = (*self.next_node).parent;
+                while next != root && (*(*next)).next.is_null() {
+                    *next = (*(*next)).parent;
                 }
-                if self.next_node == self.root {
-                    self.next_node = ptr::null_mut();
+                if next == root {
+                    *next = ptr::null_mut();
                     return Some(return_node);
                 }
-                self.next_node = (*self.next_node).next;
+                *next = (*(*next)).next;
             }
         }
         Some(return_node)

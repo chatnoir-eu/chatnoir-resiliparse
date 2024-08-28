@@ -326,13 +326,11 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     fn decompose(&mut self) {
-        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
-        unsafe {
-            if !self.node_ptr_().is_null() && (*self.node_ptr_()).parent.is_null() && (*self.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
-                lxb_dom_node_destroy_deep(self.node_ptr_());
-                self.reset_node_ptr_();
-            }
+        if self.node_ptr_().is_null() {
+            return;
         }
+        unsafe { lxb_dom_node_destroy_deep(self.node_ptr_()); }
+        self.reset_node_ptr_();
     }
 }
 
