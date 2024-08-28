@@ -212,13 +212,11 @@ macro_rules! define_node_type {
         unsafe impl Sync for $Self {}
 
         impl NodeInterfaceBaseImpl for $Self {
-            fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> {
+            fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self {
                 if !node.is_null() {
                     unsafe { (*node).ref_count += 1 };
-                    Some(Self { tree: tree.clone(), node: ReentrantMutex::new(node) })
-                } else {
-                    None
                 }
+                Self { tree: tree.clone(), node: ReentrantMutex::new(node) }
             }
 
             #[inline(always)]
@@ -279,7 +277,7 @@ macro_rules! define_node_type {
 
         impl Clone for $Self {
             fn clone(&self) -> Self {
-                $Self::new(&self.tree_(), *self.node_ptr_()).unwrap()
+                $Self::new(&self.tree_(), *self.node_ptr_())
             }
         }
 
@@ -417,7 +415,7 @@ impl Document for DocumentNode {
         check_node!(self);
         unsafe {
             let doctype = self.doc_ptr_unchecked().as_ref()?.doctype;
-            Some(DocumentTypeNode::new(&self.tree_(),doctype.cast())?)
+            Some(DocumentTypeNode::new(&self.tree_(),doctype.cast()))
         }
     }
 
@@ -688,7 +686,7 @@ impl Element for ElementNode {
         if attr.is_null() {
             return None;
         }
-        Some(AttrNode::new(&self.tree_(), attr.cast())?)
+        Some(AttrNode::new(&self.tree_(), attr.cast()))
     }
 
     fn attribute_names(&self) -> Vec<String> {
@@ -703,7 +701,7 @@ impl Element for ElementNode {
             unsafe {
                 let mut attr = lxb_dom_element_first_attribute_noi(n.node_ptr_().cast());
                 while !attr.is_null() {
-                    v.push(AttrNode::new(&n.tree_(), attr.cast()).unwrap());
+                    v.push(AttrNode::new(&n.tree_(), attr.cast()));
                     attr = lxb_dom_element_next_attribute_noi(attr);
                 }
             };
@@ -965,7 +963,7 @@ impl Attr for AttrNode {
             if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            ElementNode::new(&self.tree_(), (*attr).owner.cast())
+            Some(ElementNode::new(&self.tree_(), (*attr).owner.cast()))
         }
     }
 }

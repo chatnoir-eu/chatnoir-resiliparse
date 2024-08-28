@@ -137,20 +137,16 @@ impl TryFrom<&[u8]> for HTMLTree {
 
 impl HTMLTree {
     /// Get Lexbor raw pointer to HTML document.
-    unsafe fn get_html_document_raw(&self) -> Option<&lxb_html_document_t> {
-        self.doc.doc_ptr().as_ref()
-    }
-
-    unsafe fn get_html_document_ptr(&self) -> *mut lxb_html_document_t {
+    fn get_html_document_ptr(&self) -> *mut lxb_html_document_t {
         *self.doc.doc_ptr()
     }
 
     #[inline]
     /// Get DOM document root node.
     pub fn document(&self) -> Option<DocumentNode> {
-        let ptr = unsafe { self.get_html_document_ptr() };
+        let ptr = self.get_html_document_ptr();
         if !ptr.is_null() {
-            Some(DocumentNode::new(&self.doc, ptr.cast())?)
+            Some(DocumentNode::new(&self.doc, ptr.cast()))
         } else {
             None
         }
@@ -158,12 +154,22 @@ impl HTMLTree {
 
     /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
-        Some(ElementNode::new(&self.doc, unsafe { self.get_html_document_raw()? }.head.cast())?)
+        let ptr = self.get_html_document_ptr();
+        if !ptr.is_null() {
+            Some(ElementNode::new(&self.doc, unsafe { *ptr }.head.cast()))
+        } else {
+            None
+        }
     }
 
     /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
-        Some(ElementNode::new(&self.doc, unsafe { self.get_html_document_raw()? }.body.cast())?)
+        let ptr = self.get_html_document_ptr();
+        if !ptr.is_null() {
+            Some(ElementNode::new(&self.doc, unsafe { *ptr }.body.cast()))
+        } else {
+            None
+        }
     }
 
     /// Get HTML `<title>` contents as string.
@@ -189,7 +195,7 @@ unsafe impl Sync for HTMLDocument {}
 
 
 impl HTMLDocument {
-    pub(crate) unsafe fn doc_ptr(&self) -> ReentrantMutexGuard<*mut lxb_html_document_t> {
+    pub(crate) fn doc_ptr(&self) -> ReentrantMutexGuard<*mut lxb_html_document_t> {
         self.html_document.lock()
     }
 

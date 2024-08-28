@@ -137,7 +137,7 @@ impl Iterator for ElementIterator<'_> {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 continue
             }
-            return ElementNode::new(&tree, self.iterator_raw.next()?);
+            return Some(ElementNode::new(&tree, self.iterator_raw.next()?));
         }
         None
     }
