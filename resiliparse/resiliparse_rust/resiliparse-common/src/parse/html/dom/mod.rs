@@ -20,9 +20,10 @@ use std::ptr;
 use std::sync::Arc;
 
 use crate::parse::html::dom::node::*;
-use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
+use crate::parse::html::dom::traits::{Element, NodeInterface, NodeInterfaceBaseImpl};
 use crate::parse::html::tree::HTMLDocument;
 use crate::third_party::lexbor::*;
+use crate::third_party::lexbor::lxb_dom_node_type_t::*;
 
 pub mod coll;
 pub mod iter;
@@ -47,7 +48,6 @@ impl Error for DOMError {}
 // -------------------------------------- Crate-public Helpers -------------------------------------
 
 pub(crate) fn wrap_any_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
-    use crate::third_party::lexbor::lxb_dom_node_type_t::*;
     match unsafe { node.as_ref()?.type_ } {
         LXB_DOM_NODE_TYPE_ELEMENT =>
             Some(Node::Element(ElementNode::new(&tree, node))),
@@ -75,6 +75,26 @@ pub(crate) fn wrap_any_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_nod
 
 
 // ----------------------------------------- Private Helpers ---------------------------------------
+
+unsafe fn next_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
+    while !child.is_null() {
+        if (*child).type_ == LXB_DOM_NODE_TYPE_ELEMENT {
+            return Some(ElementNode::new(tree, child))
+        }
+        child = (*child).next;
+    }
+    None
+}
+
+unsafe fn previous_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
+    while !child.is_null() {
+        if (*child).type_ == LXB_DOM_NODE_TYPE_ELEMENT {
+            return Some(ElementNode::new(tree, child))
+        }
+        child = (*child).prev;
+    }
+    None
+}
 
 unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Result<ElementNode, DOMError> {
     let element = lxb_dom_document_create_element(
