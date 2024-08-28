@@ -65,11 +65,11 @@ pub struct CSSSelectorList<'a> {
 impl<'a> CSSSelectorList<'a> {
     pub(crate) fn parse_selectors(tree: &Arc<HTMLDocument>, selectors: &str) -> Result<CSSSelectorList<'a>, CSSParserError> {
         unsafe {
-            if lxb_html_document_css_init(tree.doc_ptr()) != LXB_HTML_STATUS_OK {
+            if lxb_html_document_css_init(*tree.doc_ptr()) != LXB_HTML_STATUS_OK {
                 return Err(CSSParserError { msg: "Failed to initialize CSS parser.".to_owned() });
             }
 
-            let parser = (*tree.doc_ptr()).css.parser;
+            let parser = (*(*tree.doc_ptr())).css.parser;
             let sel_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
             if (*parser).status != LXB_STATUS_OK {
                 let mut msg = String::default();
@@ -92,7 +92,7 @@ impl<'a> CSSSelectorList<'a> {
     pub(crate) unsafe fn match_elements_unchecked<Ctx>(
         &self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut Ctx) {
         if let Some(t) = self.tree.upgrade() {
-            lxb_selectors_find((*t.doc_ptr()).css.selectors,
+            lxb_selectors_find((*(*t.doc_ptr())).css.selectors,
                                root_node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
     }
@@ -100,7 +100,7 @@ impl<'a> CSSSelectorList<'a> {
     pub(crate) unsafe fn match_elements_unchecked_reverse<T>(
         &self, node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) {
         if let Some(t) = self.tree.upgrade() {
-            lxb_selectors_find_reverse((*t.doc_ptr()).css.selectors,
+            lxb_selectors_find_reverse((*(*t.doc_ptr())).css.selectors,
                                        node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
     }
@@ -125,25 +125,25 @@ impl<'a> CSSSelectorList<'a> {
     pub fn match_elements<T, F>(&self, root_node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         let tree = self.tree.upgrade().unwrap();
-        unsafe { assert_eq!(tree.doc_ptr(), root_node.tree_().doc_ptr()) };
+        unsafe { assert_eq!(*tree.doc_ptr(), *root_node.tree_().doc_ptr()) };
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
-            self.match_elements_unchecked(root_node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
+            self.match_elements_unchecked(*root_node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
     }
 
     pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         unsafe {
-            if (*node.node_ptr_()).parent.is_null() || (*node.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
+            if (*(*node.node_ptr_())).parent.is_null() || (*(*node.node_ptr_())).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
                 return;
             }
         }
         let tree = self.tree.upgrade().unwrap();
-        unsafe { assert_eq!(tree.doc_ptr(), node.tree_().doc_ptr()) };
+        unsafe { assert_eq!(*tree.doc_ptr(), *node.tree_().doc_ptr()) };
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
-            self.match_elements_unchecked_reverse(node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
+            self.match_elements_unchecked_reverse(*node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
     }
 }

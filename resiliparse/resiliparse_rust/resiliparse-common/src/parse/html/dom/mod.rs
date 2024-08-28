@@ -150,7 +150,7 @@ unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) ->
     if coll.is_null() {
         return None;
     }
-    lxb_dom_elements_by_attr(node.node_ptr_() as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
+    lxb_dom_elements_by_attr(*node.node_ptr_() as *mut lxb_dom_element_t, coll, "id".as_ptr(), 2,
                              id.as_ptr(), id.len(), case_insensitive);
     let matched_node = lxb_dom_collection_node_noi(coll, 0);
     lxb_dom_collection_destroy(coll, true);
@@ -166,7 +166,7 @@ unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_ins
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_elements_by_attr(node.node_ptr_() as *mut lxb_dom_element_t, coll, name.as_ptr(),
+    lxb_dom_elements_by_attr(*node.node_ptr_() as *mut lxb_dom_element_t, coll, name.as_ptr(),
                              name.len(), value.as_ptr(), value.len(), case_insensitive);
     dom_coll_to_vec(&node.tree_(), coll, true)
 }
@@ -176,7 +176,7 @@ unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> 
     if coll.is_null() {
         return Vec::default();
     }
-    lxb_dom_node_by_tag_name(node.node_ptr_(), coll, name.as_ptr(), name.len());
+    lxb_dom_node_by_tag_name(*node.node_ptr_(), coll, name.as_ptr(), name.len());
     dom_coll_to_vec(&node.tree_(), coll, true)
 }
 

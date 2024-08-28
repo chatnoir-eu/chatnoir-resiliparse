@@ -22,6 +22,7 @@ use std::fmt::{Debug, Display};
 use std::ops::Add;
 use std::ptr;
 use std::ptr::addr_of;
+use parking_lot::{ReentrantMutexGuard};
 use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
 use crate::parse::html::dom::*;
 use crate::parse::html::dom::coll::*;
@@ -48,36 +49,36 @@ pub enum NodeType {
 pub(crate) trait NodeInterfaceBaseImpl {
     fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> where Self: Sized;
     fn tree_(&self) -> Arc<HTMLDocument>;
-    fn node_ptr_(&self) -> *mut lxb_dom_node_t;
+    fn node_ptr_(&self) -> ReentrantMutexGuard<*mut lxb_dom_node_t>;
     fn reset_node_ptr_(&mut self);
 
     #[inline(always)]
     unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
-        (*self.node_ptr_()).owner_document
+        (*(*self.node_ptr_())).owner_document
     }
 
     unsafe fn iter_raw(&self) -> NodeIteratorRaw {
-        NodeIteratorRaw::new(self.node_ptr_())
+        NodeIteratorRaw::new(*self.node_ptr_())
     }
 
     unsafe fn node_name_unchecked(&self) -> Option<&str> {
-        str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_node_name)
+        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_node_name)
     }
 
     /// Node text value.
     unsafe fn node_value_unchecked(&self) -> Option<&str> {
         use crate::third_party::lexbor::lxb_dom_node_type_t::*;
-        match (*self.node_ptr_()).type_ {
-            LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_attr_value_noi),
+        match (*(*self.node_ptr_())).type_ {
+            LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi),
             LXB_DOM_NODE_TYPE_TEXT | LXB_DOM_NODE_TYPE_CDATA_SECTION |
             LXB_DOM_NODE_TYPE_COMMENT | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION =>
-                str_from_lxb_str_t(addr_of!((*(self.node_ptr_() as *const lxb_dom_character_data_t)).data)),
+                str_from_lxb_str_t(addr_of!((*(*(self.node_ptr_()) as *const lxb_dom_character_data_t)).data)),
             _ => None
         }
     }
 
     unsafe fn can_have_children_unchecked(&self) -> bool {
-        matches!((*self.node_ptr_()).type_,
+        matches!((*(*self.node_ptr_())).type_,
             lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
                 | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
                 | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
@@ -86,7 +87,7 @@ pub(crate) trait NodeInterfaceBaseImpl {
 
     unsafe fn insert_before_unchecked<'a>(&mut self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
         if let Some(c) = child {
-            if c.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(c) {
+            if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(c) {
                 return None;
             }
             if node == c {
@@ -95,13 +96,13 @@ pub(crate) trait NodeInterfaceBaseImpl {
             // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
             if let Node::DocumentFragment(d) = node {
                 d.child_nodes().iter().for_each(|c2| {
-                    lxb_dom_node_insert_before(c.node_ptr_(), c2.node_ptr_());
+                    lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
                 });
                 // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-                (*d.node_ptr_()).first_child = ptr::null_mut();
-                (*d.node_ptr_()).last_child = ptr::null_mut();
+                (*(*d.node_ptr_())).first_child = ptr::null_mut();
+                (*(*d.node_ptr_())).last_child = ptr::null_mut();
             } else {
-                lxb_dom_node_insert_before(c.node_ptr_(), node.node_ptr_());
+                lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
             }
             Some(node)
         } else {
@@ -116,19 +117,19 @@ pub(crate) trait NodeInterfaceBaseImpl {
         // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
         if let Node::DocumentFragment(d) = node {
             d.child_nodes().iter().for_each(|c| {
-                lxb_dom_node_insert_child(self.node_ptr_(), c.node_ptr_());
+                lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
             });
             // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-            (*d.node_ptr_()).first_child = ptr::null_mut();
-            (*d.node_ptr_()).last_child = ptr::null_mut();
+            (*(*d.node_ptr_())).first_child = ptr::null_mut();
+            (*(*d.node_ptr_())).last_child = ptr::null_mut();
         } else {
-            lxb_dom_node_insert_child(self.node_ptr_(), node.node_ptr_());
+            lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
         }
         Some(node)
     }
 
     unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &'a Node, old_child: &'a Node) -> Option<&'a Node> {
-        if old_child.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() {
+        if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
         if new_child == old_child {
@@ -139,10 +140,10 @@ pub(crate) trait NodeInterfaceBaseImpl {
     }
 
     unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
-        if node.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() {
+        if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
-        lxb_dom_node_remove(node.node_ptr_());
+        lxb_dom_node_remove(*node.node_ptr_());
         Some(node)
     }
 }
@@ -190,7 +191,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn set_node_value(&mut self, value: &str) {
         check_node!(self);
-        unsafe { lxb_dom_node_text_content_set(self.node_ptr_(), value.as_ptr(), value.len()); }
+        unsafe { lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len()); }
     }
 
     /// Text contents of this DOM node and its children.
@@ -199,7 +200,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         let ret_value;
         unsafe {
             let mut l = 0;
-            let t = lxb_dom_node_text_content(self.node_ptr_(), &mut l);
+            let t = lxb_dom_node_text_content(*self.node_ptr_(), &mut l);
             ret_value = str_from_lxb_char_t(t, l).map(String::from);
             lxb_dom_document_destroy_text_noi(self.doc_ptr_unchecked(), t);
         }
@@ -242,12 +243,12 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn contains(&self, node: &Node) -> bool {
         check_nodes!(self, node);
-        if self.node_ptr_() == node.node_ptr_() {
+        if *self.node_ptr_() == *node.node_ptr_() {
             return true;
         }
         unsafe {
             self.iter_raw()
-                .find(|&n| n == node.node_ptr_())
+                .find(|&n| n == *node.node_ptr_())
                 .is_some()
         }
     }
@@ -287,14 +288,14 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn clone_node(&self, deep: bool) -> Option<Node> {
         check_node!(self);
-        wrap_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(self.node_ptr_(), deep) })
+        wrap_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(*self.node_ptr_(), deep) })
     }
 
     fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
         check_nodes!(self, node);
         if child.is_some() {
             check_nodes!(node, child?);
-            if self.node_ptr_() == child?.node_ptr_() {
+            if *self.node_ptr_() == *child?.node_ptr_() {
                 return None;
             }
         }
@@ -329,7 +330,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         if self.node_ptr_().is_null() {
             return;
         }
-        unsafe { lxb_dom_node_destroy_deep(self.node_ptr_()); }
+        unsafe { lxb_dom_node_destroy_deep(*self.node_ptr_()); }
         self.reset_node_ptr_();
     }
 }
@@ -488,7 +489,7 @@ pub trait ChildNode: NodeInterface {
 
     fn remove(&mut self) {
         check_node!(self);
-        unsafe { lxb_dom_node_remove(self.node_ptr_()); }
+        unsafe { lxb_dom_node_remove(*self.node_ptr_()); }
     }
 }
 

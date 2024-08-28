@@ -548,18 +548,18 @@ fn node_reference_counting() {
     let mut grandchild = doc.first_element_child().unwrap().first_element_child().unwrap();
 
     // Minimum reference count should be 2 (1 Lexbor + 1 Resiliparse)
-    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 2);
+    assert_eq!(unsafe { *(*grandchild.node_ptr_()) }.ref_count, 2);
 
     // Create a few more clones
     let mut grandchild2 = grandchild.clone();
     assert!(grandchild2.has_child_nodes());
-    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 3);
-    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 3);
+    assert_eq!(unsafe { *(*grandchild.node_ptr_()) }.ref_count, 3);
+    assert_eq!(unsafe { *(*grandchild2.node_ptr_()) }.ref_count, 3);
 
     let grandchild3 = grandchild.clone();
     assert!(grandchild2.has_child_nodes());
-    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 4);
-    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 4);
+    assert_eq!(unsafe { *(*grandchild.node_ptr_()) }.ref_count, 4);
+    assert_eq!(unsafe { *(*grandchild3.node_ptr_()) }.ref_count, 4);
 
     // Check parent state
     assert!(doc.first_element_child().is_some());
@@ -568,9 +568,9 @@ fn node_reference_counting() {
     // Decompose parent
     doc.first_element_child().unwrap().decompose();
     assert!(!doc.first_element_child().is_some());
-    assert_eq!(unsafe { *grandchild.node_ptr_() }.ref_count, 3);
-    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 3);
-    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 3);
+    assert_eq!(unsafe { *(*grandchild.node_ptr_()) }.ref_count, 3);
+    assert_eq!(unsafe { *(*grandchild2.node_ptr_()) }.ref_count, 3);
+    assert_eq!(unsafe { *(*grandchild3.node_ptr_()) }.ref_count, 3);
 
     // Test that grandchild is still valid, but empty.
     // Thanks to reference counting, this should not cause segfaults!
@@ -588,8 +588,8 @@ fn node_reference_counting() {
     assert!(grandchild.node_ptr_().is_null());
     assert!(!grandchild2.node_ptr_().is_null());
     assert!(!grandchild3.node_ptr_().is_null());
-    assert_eq!(unsafe { *grandchild2.node_ptr_() }.ref_count, 2);
-    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 2);
+    assert_eq!(unsafe { *(*grandchild2.node_ptr_()) }.ref_count, 2);
+    assert_eq!(unsafe { *(*grandchild3.node_ptr_()) }.ref_count, 2);
 
     // Drop tree and document in the "wrong" order
     drop(tree);
@@ -600,5 +600,5 @@ fn node_reference_counting() {
     grandchild2.decompose();
     assert!(grandchild2.node_ptr_().is_null());
     assert!(!grandchild3.node_ptr_().is_null());
-    assert_eq!(unsafe { *grandchild3.node_ptr_() }.ref_count, 1);
+    assert_eq!(unsafe { *(*grandchild3.node_ptr_()) }.ref_count, 1);
 }
