@@ -113,7 +113,7 @@ impl<'a> CSSSelectorList<'a> {
         }
 
         let ctx_cast = ctx as *mut MatchContextWrapper<T, F>;
-        let new_element = ElementNode::new(&(*ctx_cast).tree.upgrade().unwrap(), node).unwrap();
+        let new_element = ElementNode::new(&(*ctx_cast).tree.upgrade().unwrap(), node);
         let status = ((*ctx_cast).f)(new_element, spec, &mut (*ctx_cast).custom_data);
         match status {
             TraverseAction::Ok => LXB_STATUS_OK,
@@ -125,7 +125,7 @@ impl<'a> CSSSelectorList<'a> {
     pub fn match_elements<T, F>(&self, root_node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
         let tree = self.tree.upgrade().unwrap();
-        unsafe { assert_eq!(*tree.doc_ptr(), *root_node.tree_().doc_ptr()) };
+        assert_eq!(*tree.doc_ptr(), *root_node.tree_().doc_ptr());
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked(*root_node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
@@ -140,7 +140,7 @@ impl<'a> CSSSelectorList<'a> {
             }
         }
         let tree = self.tree.upgrade().unwrap();
-        unsafe { assert_eq!(*tree.doc_ptr(), *node.tree_().doc_ptr()) };
+        assert_eq!(*tree.doc_ptr(), *node.tree_().doc_ptr());
         let mut ctx_wrapper = MatchContextWrapper { f: cb, tree: Arc::downgrade(&tree), custom_data };
         unsafe {
             self.match_elements_unchecked_reverse(*node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)

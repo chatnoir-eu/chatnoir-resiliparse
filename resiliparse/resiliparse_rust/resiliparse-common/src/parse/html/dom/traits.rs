@@ -47,7 +47,7 @@ pub enum NodeType {
 }
 
 pub(crate) trait NodeInterfaceBaseImpl {
-    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Self> where Self: Sized;
+    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self where Self: Sized;
     fn tree_(&self) -> Arc<HTMLDocument>;
     fn node_ptr_(&self) -> ReentrantMutexGuard<*mut lxb_dom_node_t>;
     fn reset_node_ptr_(&mut self);
@@ -216,7 +216,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         check_node!(self);
         let d = unsafe { self.doc_ptr_unchecked() };
         if !d.is_null() {
-            Some(DocumentNode::new(&self.tree_(), d.cast())?)
+            Some(DocumentNode::new(&self.tree_(), d.cast()))
         } else {
             None
         }
