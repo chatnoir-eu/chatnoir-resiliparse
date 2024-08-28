@@ -734,16 +734,29 @@ impl Element for ElementNode {
     }
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
-        let mut found = None;
-        let mut node = Some(self.clone());
-        while let Some(n) = node {
-            sel_list.match_elements_reverse(&n.as_noderef(), |e, _, found| {
-                *found = Some(e);
-                TraverseAction::Stop
-            }, &mut found);
-            if found.is_some() {
-                return Ok(found);
+        // TODO: Efficient implementation broken until https://github.com/lexbor/lexbor/issues/248 is fixed.
+        // let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
+        // let mut found = None;
+        // let mut node = Some(self.clone());
+        // while let Some(n) = node {
+        //     println!("Finding Selectors: {:?}", selectors);
+        //     sel_list.match_elements_reverse(&n.as_noderef(), |e, _, found| {
+        //         println!("Selectors: {:?}, Found: {:?}", selectors, e);
+        //         *found = Some(e);
+        //         TraverseAction::Stop
+        //     }, &mut found);
+        //     if found.is_some() {
+        //         return Ok(found);
+        //     }
+        //     node = n.parent_element();
+        // }
+        // Ok(None)
+
+        // Inefficient implementation:
+        let mut e = Some(self.clone());
+        while let Some(e_inner) = e {
+            if e_inner.matches(selectors)? {
+                return Ok(Some(e_inner));
             }
             node = n.parent_element();
         }
@@ -751,13 +764,10 @@ impl Element for ElementNode {
     }
 
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
-        let mut found = false;
-        sel_list.match_elements_reverse(&self.as_noderef(), |_, _, found| {
-            *found = true;
-            TraverseAction::Stop
-        }, &mut found);
-        Ok(found)
+        self.owner_document().map_or(
+            Ok(false),
+            |d| Ok(d.query_selector(selectors)?.is_some_and(|e| e == *self))
+        )
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
