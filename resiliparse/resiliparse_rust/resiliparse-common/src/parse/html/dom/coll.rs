@@ -338,7 +338,7 @@ macro_rules! dom_token_list_impl {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq)]
 pub struct DOMTokenList<'a> {
     element: &'a ElementNode,
 }
@@ -352,7 +352,7 @@ impl<'a> DOMTokenList<'a> {
 dom_token_list_impl!(DOMTokenList<'_>);
 
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq)]
 pub struct DOMTokenListMut<'a> {
     element: &'a mut ElementNode
 }
@@ -373,7 +373,7 @@ dom_token_list_impl!(DOMTokenListMut<'_>);
 
 
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq)]
 pub struct DOMTokenListOwned {
     element: ElementNode
 }

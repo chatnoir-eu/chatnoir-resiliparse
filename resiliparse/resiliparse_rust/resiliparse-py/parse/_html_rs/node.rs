@@ -39,7 +39,7 @@ pub enum NodeType {
 }
 
 #[pyclass(subclass, module = "resiliparse.parse._html_rs.node")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
 pub struct Node {
     pub(crate) node: node_impl::Node
 }
