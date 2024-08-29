@@ -108,20 +108,26 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
 
     fn prepend_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).prepend(&r))
+        Ok(Self::raw_node_mut(&mut slf).prepend(&n.iter()
+            .map(|n_| n_.node.as_noderef())
+            .collect::<Vec<_>>()
+        ))
     }
 
     fn append_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).append(&r))
+        Ok(Self::raw_node_mut(&mut slf).append(&n.iter()
+            .map(|n_| n_.node.as_noderef())
+            .collect::<Vec<_>>()
+        ))
     }
 
     fn replace_children_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        let r: Vec<_> = n.iter().map(|n_| &n_.node).collect();
-        Ok(Self::raw_node_mut(&mut slf).replace_children(&r))
+        Ok(Self::raw_node_mut(&mut slf).replace_children(&n.iter()
+            .map(|n_| n_.node.as_noderef())
+            .collect::<Vec<_>>()
+        ))
     }
 
     //noinspection DuplicatedCode
@@ -462,7 +468,7 @@ impl Node {
     }
 
     pub fn contains<'py>(&self, node: &Bound<'py, Node>) -> bool {
-        self.node.contains(&node.borrow().node)
+        self.node.contains(&node.borrow().node.as_noderef())
     }
 
     #[getter]
@@ -506,21 +512,27 @@ impl Node {
     }
 
     #[pyo3(signature = (node, reference=None))]
-    pub fn insert_before<'py>(&mut self, node: Bound<'py, Node>, reference: Option<&Bound<'py, Node>>) -> Option<Bound<'py, Node>> {
-        let rb = reference.map(|r| r.borrow().node.clone());
-        self.node.insert_before(&node.borrow().node, rb.as_ref()).and(Some(node))
+    pub fn insert_before<'py>(&mut self, node: Bound<'py, Node>, reference: Option<Bound<'py, Node>>) -> Option<Bound<'py, Node>> {
+        let b;
+        let refnode = if let Some(r) = &reference {
+            b = r.borrow();
+            Some(b.node.as_noderef())
+        } else {
+            None
+        };
+        self.node.insert_before(&node.borrow().node.as_noderef(), refnode).and(Some(node))
     }
 
     pub fn append_child<'a, 'py>(&mut self, node: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
-        self.node.append_child(&node.borrow().node).and(Some(node))
+        self.node.append_child(&node.borrow().node.as_noderef()).and(Some(node))
     }
 
     pub fn replace_child<'py>(&mut self, new_child: Bound<'py, Node>, old_child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
-        self.node.replace_child(&new_child.borrow().node, &old_child.borrow().node).and(Some(old_child))
+        self.node.replace_child(&new_child.borrow().node.as_noderef(), &old_child.borrow().node.as_noderef()).and(Some(old_child))
     }
 
     pub fn remove_child<'py>(&mut self, child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
-        self.node.remove_child(&child.borrow().node).and(Some(child))
+        self.node.remove_child(&child.borrow().node.as_noderef()).and(Some(child))
     }
 
     pub fn decompose(&mut self) {

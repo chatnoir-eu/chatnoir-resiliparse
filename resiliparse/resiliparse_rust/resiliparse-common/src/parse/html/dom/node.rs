@@ -332,8 +332,8 @@ macro_rules! define_node_type {
                 }
 
                 let mut repr = self.node_name().unwrap();
-                let node: Node = self.as_node();
-                if let Node::Element(element) = node {
+                let node = self.as_noderef();
+                if let NodeRef::Element(element) = node {
                     repr = format!("<{}", repr.to_lowercase());
                     element.attributes().iter().for_each(|attr| {
                         repr.push(' ');
@@ -343,11 +343,11 @@ macro_rules! define_node_type {
                         }
                     });
                     repr.push('>');
-                } else if let Node::Attribute(attr) = node {
+                } else if let NodeRef::Attribute(attr) = node {
                     repr = format!("[{}={:?}]", repr, attr.node_value());
-                } else if let Node::Text(text) = node {
+                } else if let NodeRef::Text(text) = node {
                     repr = format!("{:?}", text.node_value().unwrap_or_else(String::new));
-                } else if let Node::Comment(comment) = node {
+                } else if let NodeRef::Comment(comment) = node {
                     repr = format!("<-- {} -->", comment.node_value().unwrap_or_else(String::new));
                 }
                 f.write_str(&repr)

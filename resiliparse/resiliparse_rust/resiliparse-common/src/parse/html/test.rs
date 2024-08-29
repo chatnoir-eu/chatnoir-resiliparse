@@ -315,7 +315,7 @@ fn test_attributes() {
 
     // Cannot append children to attributes
     assert!(attr.append_child(
-        &tree.document().unwrap().create_element("foo").unwrap().into()).is_none());
+        &tree.document().unwrap().create_element("foo").unwrap().as_noderef()).is_none());
     assert_eq!(attr.child_nodes().len(), 0);
 }
 
@@ -520,8 +520,8 @@ fn create_nodes() {
     assert_eq!(proc.node_value().unwrap(), "version=\"1.0\" foo=\"bar\"");
     assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\">");
 
-    frag.append_child(&element.as_node());
-    element.append(&[&text.into(), &comment.into(), &proc.into()]);
+    frag.append_child(&element.as_noderef());
+    element.append(&[text.as_noderef(), comment.as_noderef(), proc.as_noderef()]);
     attr.set_value("abc");
     assert_eq!(attr.node_value().unwrap(), "abc");
 
@@ -534,7 +534,7 @@ fn create_nodes() {
     assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
 
     // Appending a DocumentFragment moves the child nodes into the document.
-    doc.first_element_child().unwrap().append_child(&frag.as_node());
+    doc.first_element_child().unwrap().append_child(&frag.as_noderef());
     assert_eq!(doc.first_element_child().unwrap().last_child().unwrap(), element.as_node());
     assert!(frag.first_child().is_none());
 }

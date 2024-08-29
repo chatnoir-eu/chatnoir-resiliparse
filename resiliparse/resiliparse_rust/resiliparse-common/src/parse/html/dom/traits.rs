@@ -85,16 +85,16 @@ pub(crate) trait NodeInterfaceBaseImpl {
         )
     }
 
-    unsafe fn insert_before_unchecked<'a>(&mut self, node: &'a Node, child: Option<&Node>) -> Option<&'a Node> {
+    unsafe fn insert_before_unchecked<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef>) -> Option<NodeRef<'a>> {
         if let Some(c) = child {
-            if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(c) {
+            if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(&c) {
                 return None;
             }
-            if node == c {
-                return Some(node);
+            if node == &c {
+                return Some(node.clone());
             }
             // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-            if let Node::DocumentFragment(d) = node {
+            if let NodeRef::DocumentFragment(d) = node {
                 d.child_nodes().iter().for_each(|c2| {
                     lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
                 });
@@ -104,18 +104,18 @@ pub(crate) trait NodeInterfaceBaseImpl {
             } else {
                 lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
             }
-            Some(node)
+            Some(node.clone())
         } else {
             self.append_child_unchecked(node)
         }
     }
 
-    unsafe fn append_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         if !self.can_have_children_unchecked() {
             return None;
         }
         // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-        if let Node::DocumentFragment(d) = node {
+        if let NodeRef::DocumentFragment(d) = node {
             d.child_nodes().iter().for_each(|c| {
                 lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
             });
@@ -125,26 +125,26 @@ pub(crate) trait NodeInterfaceBaseImpl {
         } else {
             lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
         }
-        Some(node)
+        Some(node.clone())
     }
 
-    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &'a Node, old_child: &'a Node) -> Option<&'a Node> {
+    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &NodeRef<'a>, old_child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
         if new_child == old_child {
-            return Some(old_child);
+            return Some(old_child.clone());
         }
-        self.insert_before_unchecked(new_child, Some(old_child))?;
+        self.insert_before_unchecked(new_child, Some(old_child.clone()))?;
         self.remove_child_unchecked(old_child)
     }
 
-    unsafe fn remove_child_unchecked<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
         lxb_dom_node_remove(*node.node_ptr_());
-        Some(node)
+        Some(node.clone())
     }
 }
 
@@ -240,7 +240,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         self.first_child().is_some()
     }
 
-    fn contains(&self, node: &Node) -> bool {
+    fn contains(&self, node: &NodeRef) -> bool {
         check_nodes!(self, node);
         if *self.node_ptr_() == *node.node_ptr_() {
             return true;
@@ -290,29 +290,29 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         wrap_any_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(*self.node_ptr_(), deep) })
     }
 
-    fn insert_before<'a>(&mut self, node: &'a Node, child: Option<&'a Node>) -> Option<&'a Node> {
+    fn insert_before<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef<'a>>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
-        if child.is_some() {
-            check_nodes!(node, child?);
-            if *self.node_ptr_() == *child?.node_ptr_() {
+        if let Some(c) = &child {
+            check_nodes!(node, c);
+            if *self.node_ptr_() == *c.node_ptr_() {
                 return None;
             }
         }
         unsafe { self.insert_before_unchecked(node, child) }
     }
 
-    fn append_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+    fn append_child<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         unsafe { self.append_child_unchecked(node) }
     }
 
-    fn replace_child<'a>(&mut self, node: &'a Node, child: &'a Node) -> Option<&'a Node> {
+    fn replace_child<'a>(&mut self, node: &NodeRef<'a>, child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         check_nodes!(node, child);
         unsafe { self.replace_child_unchecked(node, child) }
     }
 
-    fn remove_child<'a>(&mut self, node: &'a Node) -> Option<&'a Node> {
+    fn remove_child<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         unsafe { self.remove_child_unchecked(node) }
     }
@@ -403,22 +403,22 @@ pub trait ParentNode: NodeInterface {
         count
     }
 
-    fn prepend(&mut self, nodes: &[&Node]) {
+    fn prepend(&mut self, nodes: &[NodeRef]) {
         let fc = self.first_child();
-        nodes.iter().rev().for_each(|&n| {
-            self.insert_before(n, fc.as_ref());
+        nodes.iter().rev().for_each(|n| {
+            self.insert_before(n, fc.as_ref().map(|n_| n_.as_noderef()));
         });
     }
 
-    fn append(&mut self, nodes: &[&Node]) {
-        nodes.iter().for_each(|&n| {
+    fn append(&mut self, nodes: &[NodeRef]) {
+        nodes.iter().for_each(|n| {
             self.append_child(n);
         });
     }
 
-    fn replace_children(&mut self, nodes: &[&Node]) {
+    fn replace_children(&mut self, nodes: &[NodeRef]) {
         while let Some(c) = self.first_child() {
-            self.remove_child(&c);
+            self.remove_child(&c.as_noderef());
         }
         self.append(nodes);
     }
@@ -461,7 +461,7 @@ pub trait ChildNode: NodeInterface {
         if let Some(p) = &mut self.parent_node() {
             let anchor = self.parent_node();
             nodes.iter().for_each(|n| {
-                p.insert_before(n, anchor.as_ref());
+                p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
             });
         }
     }
@@ -470,7 +470,7 @@ pub trait ChildNode: NodeInterface {
         if let Some(p) = &mut self.parent_node() {
             let anchor = self.next_sibling();
             nodes.iter().for_each(|n| {
-                p.insert_before(n, anchor.as_ref());
+                p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
             });
         }
     }
