@@ -21,8 +21,7 @@ use resiliparse_common::parse::html::dom::traits::*;
 use crate::coll::*;
 use crate::exception::*;
 
-
-#[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
+#[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE", module = "resiliparse.parse._html_rs.node")]
 #[derive(PartialEq, Eq)]
 pub enum NodeType {
     Element = 0x01,
@@ -300,7 +299,7 @@ macro_rules! character_data_node {
 
             #[getter]
             #[inline(always)]
-            pub fn previous_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+            pub fn prev_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
                 Self::previous_element_sibling_(slf)
             }
         }
@@ -813,7 +812,7 @@ impl ElementNode {
 
     #[getter]
     #[inline(always)]
-    pub fn previous_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn prev_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
         Self::previous_element_sibling_(slf)
     }
 
@@ -1168,7 +1167,7 @@ character_data_node!(ProcessingInstructionNode, node_impl::ProcessingInstruction
 character_data_node!(CommentNode, node_impl::CommentNode);
 
 
-#[pyclass]
+#[pyclass(module = "resiliparse.parse._html_rs.node")]
 pub struct NodeIter {
     iter: iter_impl::NodeIteratorOwned,
 }

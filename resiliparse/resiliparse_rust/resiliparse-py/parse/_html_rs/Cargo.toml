@@ -4,8 +4,14 @@ edition.workspace = true
 
 [lib]
 path = "lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "^0.22.2", features = ["extension-module"] }
 resiliparse-common = { path = "../../../resiliparse-common" }
+pyo3.workspace = true
+#pyo3-stub-gen.workspace = true
+
+#[[bin]]
+#name = "stub_gen"
+#path = "bin/stub_gen.rs"
+#doc = false
