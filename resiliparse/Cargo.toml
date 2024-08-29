@@ -12,3 +12,7 @@ publish = false
 description = "Resiliparse Rust library"
 authors = ["Janek Bevendorff"]
 documentation = "https://resiliparse.chatnoir.eu/"
+
+[workspace.dependencies]
+pyo3 = { version = "^0.22.2", features = ["extension-module"] }
+#pyo3-stub-gen = { version = "^0.6.0", default-features = false }
