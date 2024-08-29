@@ -263,15 +263,15 @@ macro_rules! define_node_type {
                     return;
                 }
 
-                use crate::third_party::lexbor::lxb_dom_node_type_t::*;
                 unsafe {
-                    if (*(*self.node_ptr_())).parent.is_null() && (*(*self.node_ptr_())).type_ != LXB_DOM_NODE_TYPE_DOCUMENT {
-                        lxb_dom_node_destroy(*self.node_ptr_());
+                    if (*(*self.node_ptr_())).parent.is_null() && (*(*self.node_ptr_())).ref_count < 2 {
+                        // Destroy orphaned nodes if we're the only ones still holding a reference
+                        lxb_dom_node_destroy_deep(*self.node_ptr_());
                     } else {
                         (*(*self.node_ptr_())).ref_count -= 1;
                     }
-                    self.reset_node_ptr_();
                 }
+                self.reset_node_ptr_();
             }
         }
 
