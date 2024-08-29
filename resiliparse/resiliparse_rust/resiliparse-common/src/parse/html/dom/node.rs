@@ -289,6 +289,42 @@ macro_rules! define_node_type {
             }
         }
 
+        impl PartialEq<Node> for $Self {
+            fn eq(&self, other: &Node) -> bool {
+                self.as_noderef() == other.as_noderef()
+            }
+        }
+
+        impl PartialEq<$Self> for Node {
+            fn eq(&self, other: &$Self) -> bool {
+                self.as_noderef() == other.as_noderef()
+            }
+        }
+
+        impl PartialEq<NodeRef<'_>> for $Self {
+            fn eq(&self, other: &NodeRef) -> bool {
+                &self.as_noderef() == other
+            }
+        }
+
+        impl PartialEq<$Self> for NodeRef<'_> {
+            fn eq(&self, other: &$Self) -> bool {
+                self == &other.as_noderef()
+            }
+        }
+
+        impl PartialEq<NodeRefMut<'_>> for $Self {
+            fn eq(&self, other: &NodeRefMut) -> bool {
+                self.as_noderef() == other.as_noderef()
+            }
+        }
+
+        impl PartialEq<$Self> for NodeRefMut<'_> {
+            fn eq(&self, other: &$Self) -> bool {
+                self.as_noderef() == other.as_noderef()
+            }
+        }
+
         impl From<Node> for $Self {
             fn from(value: Node) -> $Self {
                 match value {
