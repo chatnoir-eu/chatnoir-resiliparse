@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use pyo3::prelude::*;
+use pyo3::types::*;
 use resiliparse_common::parse::html::tree as tree_impl;
 use crate::exception::*;
 use crate::node::*;
@@ -36,8 +37,8 @@ impl HTMLTree {
     #[allow(unused_variables)]
     #[staticmethod]
     #[pyo3(signature = (document, encoding="utf-8", errors="ignore"))]
-    pub fn parse_from_bytes(document: &[u8], encoding: &str, errors: &str) -> PyResult<Self> {
-        match tree_impl::HTMLTree::try_from(document) {
+    pub fn parse_from_bytes<'py>(document: &Bound<'py, PyBytes>, encoding: &str, errors: &str) -> PyResult<Self> {
+        match tree_impl::HTMLTree::try_from(document.as_bytes()) {
             Ok(t) => Ok(Self { tree: t }),
             _ => Err(HTMLParserException::new_err("Failed to parse HTML document."))
         }
