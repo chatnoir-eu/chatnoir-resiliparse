@@ -248,12 +248,12 @@ macro_rules! define_node_type {
 
             #[inline(always)]
             fn as_node(&self) -> Node {
-                self.clone().into()
+                Node::$EnumType(self.clone())
             }
 
             #[inline(always)]
             fn into_node(self) -> Node {
-                self.into()
+                Node::$EnumType(self)
             }
         }
 
@@ -336,19 +336,7 @@ macro_rules! define_node_type {
 
         impl From<$Self> for Node {
             fn from(value: $Self) -> Node {
-                Node::$EnumType(value)
-            }
-        }
-
-        impl<'a> From<&'a $Self> for NodeRef<'a> {
-            fn from(value: &'a $Self) -> NodeRef<'a> {
-                NodeRef::$EnumType(value)
-            }
-        }
-
-        impl<'a> From<&'a mut $Self> for NodeRefMut<'a> {
-            fn from(value: &'a mut $Self) -> NodeRefMut<'a> {
-                NodeRefMut::$EnumType(value)
+                value.into_node()
             }
         }
 
