@@ -37,7 +37,7 @@ pub use crate::parse::html::dom::traits::NodeType;
 
 // ----------------------------------------- Node Base Enum ----------------------------------------
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Node {
     Element(ElementNode),
     Attribute(AttrNode),
@@ -51,7 +51,7 @@ pub enum Node {
     Notation(NotationNode), // legacy
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum NodeRef<'a> {
     Element(&'a ElementNode),
     Attribute(&'a AttrNode),
@@ -65,7 +65,7 @@ pub enum NodeRef<'a> {
     Notation(&'a NotationNode), // legacy
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum NodeRefMut<'a> {
     Element(&'a mut ElementNode),
     Attribute(&'a mut AttrNode),
@@ -280,8 +280,6 @@ macro_rules! define_node_type {
                 $Self::new(&self.tree_(), *self.node_ptr_())
             }
         }
-
-        impl Eq for $Self {}
 
         impl PartialEq<$Self> for $Self {
             fn eq(&self, other: &Self) -> bool {

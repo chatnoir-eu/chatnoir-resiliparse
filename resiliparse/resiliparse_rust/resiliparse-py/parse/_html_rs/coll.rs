@@ -217,7 +217,7 @@ impl NamedNodeMap {
 
 
 #[pyclass(subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq)]
 pub struct DOMTokenList {
     list: coll_impl::DOMTokenListOwned,
 }
