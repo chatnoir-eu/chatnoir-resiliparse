@@ -158,10 +158,16 @@ fn test_selection() {
     assert!(!tree.body().unwrap().matches(".barbaz").unwrap());
     assert!(!tree.body().unwrap().first_element_child().unwrap().matches("div").unwrap());
 
-    // Find closest matching ancestor (or self)
+    // Find the closest matching ancestor (or self)
     assert_eq!(tree.body().unwrap().closest("body").unwrap().unwrap(), tree.body().unwrap());
     assert!(tree.body().unwrap().closest("htmlx").unwrap().is_none());
-    assert_eq!(tree.body().unwrap().closest("html").unwrap().unwrap(), tree.document().unwrap().first_element_child().unwrap());
+    assert_eq!(
+        tree.document().unwrap().query_selector(".bar.baz").unwrap().unwrap().closest("[id]").unwrap().unwrap(),
+        tree.document().unwrap().query_selector("p#b").unwrap().unwrap());
+    assert_eq!(
+        tree.body().unwrap().closest("html").unwrap().unwrap(),
+        tree.document().unwrap().first_element_child().unwrap());
+
     let child = tree.body().unwrap().query_selector(".bar").unwrap().unwrap();
     assert_eq!(child.closest("p").unwrap().unwrap(), tree.body().unwrap().query_selector("#a").unwrap().unwrap());
     assert_eq!(child.closest("main").unwrap().unwrap(), tree.body().unwrap().query_selector("#foo").unwrap().unwrap());
