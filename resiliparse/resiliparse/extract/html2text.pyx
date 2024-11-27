@@ -37,8 +37,14 @@ __all__ = [
 
 cdef extern from * nogil:
     """
+    enum FormattingOpts {
+        FORMAT_OFF = 0,
+        FORMAT_BASIC = 1,
+        FORMAT_MINIMAL_HTML = 2
+    };
+
     struct ExtractOpts {
-        bool preserve_formatting = true;
+        FormattingOpts preserve_formatting = FORMAT_BASIC;
         bool list_bullets = true;
         bool links = false;
         bool alt_texts = true;
@@ -65,8 +71,13 @@ cdef extern from * nogil:
         std::shared_ptr<std::string> text_contents = NULL;
     };
     """
+    ctypedef enum FormattingOpts:
+        FORMAT_OFF
+        FORMAT_BASIC
+        FORMAT_MINIMAL_HTML
+
     cdef struct ExtractOpts:
-        bint preserve_formatting
+        FormattingOpts preserve_formatting
         bint list_bullets
         bint links
         bint alt_texts
@@ -150,7 +161,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         _ensure_text_contents(extract_nodes)
         node_char_data = <lxb_dom_character_data_t*>ctx.node
         element_text_sv = string_view(<const char*>node_char_data.data.data, node_char_data.data.length)
-        if last_node.is_pre and ctx.opts.preserve_formatting:
+        if last_node.is_pre and ctx.opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
             deref(last_node.text_contents).append(<string>element_text_sv)
         else:
             element_text = _get_collapsed_string(<string>element_text_sv)
@@ -233,7 +244,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     for i in range(extract_nodes.size()):
         current_node = extract_nodes[i].get()
 
-        if opts.preserve_formatting:
+        if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
             if current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL] \
                     or (current_node.tag_id == LXB_TAG_LI and list_depth == 0):
                 if current_node.is_end_tag:
@@ -268,9 +279,9 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             continue
 
         if list_depth > 0:
-            if current_node.is_pre and opts.preserve_formatting:
+            if current_node.is_pre and opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
                 element_text = _indent_newlines(element_text, list_depth + <size_t>opts.list_bullets)
-            if opts.preserve_formatting:
+            if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
                 list_item_indent = string(2 * list_depth + 2 * <size_t>(
                         not bullet_deferred and opts.list_bullets), <char>b' ')
             if bullet_deferred:
@@ -282,7 +293,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                 bullet_deferred = False
             element_text = list_item_indent + element_text
 
-        if opts.preserve_formatting and current_node.tag_id in [LXB_TAG_TD, LXB_TAG_TH]:
+        if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC and current_node.tag_id in [LXB_TAG_TD, LXB_TAG_TH]:
             if not output.empty() and output.back() != b'\n':
                 output.append(b'\t\t')
 
@@ -580,7 +591,7 @@ cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_speci
 
 
 def extract_plain_text(html,
-                       bint preserve_formatting=True,
+                       preserve_formatting=True,
                        bint main_content=False,
                        bint list_bullets=True,
                        bint alt_texts=True,
@@ -598,7 +609,8 @@ def extract_plain_text(html,
     Extracts all visible text (excluding script/style elements, comment nodes etc.)
     and collapses consecutive white space characters. If ``preserve_formatting`` is
     ``True``, line breaks, paragraphs, other block-level elements, list elements, and
-    ``<pre>``-formatted text will be preserved.
+    ``<pre>``-formatted text will be preserved. Use the special value ``'minimal_html'`` to
+    add minimal HTML markup to the formatted output.
 
     Extraction of particular elements and attributes such as links, alt texts, or form fields
     can be configured individually by setting the corresponding parameter to ``True``.
@@ -606,8 +618,9 @@ def extract_plain_text(html,
 
     :param html: HTML as DOM tree or Unicode string
     :type html: HTMLTree or str
-    :param preserve_formatting: preserve basic block-level formatting
-    :type preserve_formatting: bool
+    :param preserve_formatting: preserve basic block-level formatting (use ``'minimal_html'`` for minimal HTML
+                                markup in output)
+    :type preserve_formatting: bool or t.Literal['minimal_html']
     :param main_content: apply simple heuristics for extracting only "main-content" elements
     :type main_content: bool
     :param list_bullets: insert bullets / numbers for list items
@@ -650,11 +663,17 @@ def extract_plain_text(html,
         skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label', })
     cdef string skip_selector = <string>b','.join(skip_selectors)
 
+    cdef FormattingOpts formatting_opts = FormattingOpts.FORMAT_OFF
+    if preserve_formatting == 'minimal_html':
+        formatting_opts = FormattingOpts.FORMAT_MINIMAL_HTML
+    elif preserve_formatting:
+        formatting_opts = FormattingOpts.FORMAT_BASIC
+
     cdef string extracted
     with nogil:
         extracted = _extract_plain_text_impl(
             tree,
-            preserve_formatting,
+            formatting_opts,
             main_content,
             list_bullets,
             alt_texts,
@@ -666,7 +685,7 @@ def extract_plain_text(html,
     return extracted.decode(errors='ignore')
 
 cdef string _extract_plain_text_impl(HTMLTree tree,
-                                     bint preserve_formatting,
+                                     FormattingOpts preserve_formatting,
                                      bint main_content,
                                      bint list_bullets,
                                      bint alt_texts,
