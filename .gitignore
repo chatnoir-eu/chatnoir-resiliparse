@@ -168,3 +168,6 @@ resiliparse/**/*.html
 
 # data directories
 wikidumps/
+
+# 3rd-party library dir
+lib-third-party/
