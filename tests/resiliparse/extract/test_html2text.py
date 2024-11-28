@@ -51,20 +51,21 @@ tree = HTMLTree.parse(html)
 
 
 def test_basic_extraction():
-    assert extract_plain_text(html, alt_texts=False, preserve_formatting=False) == \
-           "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
-    assert extract_plain_text(tree, alt_texts=False, preserve_formatting=False) == \
-           "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
+    for inp in [html, tree]:    # Run twice, once with string input, once with HTML tree
+        assert extract_plain_text(inp, alt_texts=False, preserve_formatting=False) == \
+               "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
 
-    assert extract_plain_text(html, alt_texts=False, list_bullets=False) == \
-           "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
-    assert extract_plain_text(tree, alt_texts=False, list_bullets=False) == \
-           "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+        assert extract_plain_text(inp, alt_texts=False, list_bullets=False) == \
+               "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
-    assert extract_plain_text(html, alt_texts=False) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
-    assert extract_plain_text(tree, alt_texts=False) == \
-        "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+        assert extract_plain_text(inp, alt_texts=False) == \
+            "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+
+        assert extract_plain_text(inp, alt_texts=False, preserve_formatting='minimal_html') == \
+            "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+
+        assert extract_plain_text(inp, alt_texts=False, preserve_formatting='minimal_html', list_bullets=False) == \
+            "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
 
     with pytest.raises(TypeError):
         extract_plain_text(123)
