@@ -7,12 +7,17 @@
 set -xe
 
 mkdir -p lib-third-party && cd lib-third-party
+export BASE_DIR="$(pwd)"
+export CPATH="${BASE_DIR}/include:$CPATH"
+export LIBRARY_PATH="${BASE_DIR}/lib:$LIBRARY_PATH"
+export LD_LIBRARY_PATH="${BASE_DIR}/lib:$LD_LIBRARY_PATH"
 
 curl -Lf https://gitlab.freedesktop.org/uchardet/uchardet/-/archive/v0.0.8/uchardet-v0.0.8.tar.gz | tar xz \
     && (cd uchardet-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/.. \
+            -DCMAKE_INSTALL_PREFIX="${BASE_DIR}" \
+            -DCMAKE_MODULE_PATH="${BASE_DIR}/lib/cmake" \
             -DCMAKE_CXX_STANDARD=17 \
             -DLEXBOR_BUILD_STATIC=ON \
             -B build \
@@ -23,7 +28,8 @@ curl -Lf https://github.com/lexbor/lexbor/archive/refs/tags/v2.3.0.tar.gz | tar 
     && (cd lexbor-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/.. \
+            -DCMAKE_INSTALL_PREFIX="${BASE_DIR}" \
+            -DCMAKE_MODULE_PATH="${BASE_DIR}/lib/cmake" \
             -DLEXBOR_BUILD_SHARED=ON \
             -DLEXBOR_BUILD_STATIC=OFF \
             -DLEXBOR_OPTIMIZATION_LEVEL=-O3 \
@@ -35,7 +41,8 @@ curl -Lf https://github.com/abseil/abseil-cpp/releases/download/20240116.1/absei
     && (cd abseil-cpp-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/.. \
+            -DCMAKE_INSTALL_PREFIX="${BASE_DIR}" \
+            -DCMAKE_MODULE_PATH="${BASE_DIR}/lib/cmake" \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_CXX_STANDARD=17 \
             -DBUILD_SHARED_LIBS=OFF \
@@ -47,7 +54,8 @@ curl -Lf https://github.com/google/re2/releases/download/2024-04-01/re2-2024-04-
     && (cd re2-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/.. \
+            -DCMAKE_INSTALL_PREFIX="${BASE_DIR}" \
+            -DCMAKE_MODULE_PATH="${BASE_DIR}/lib/cmake" \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_CXX_STANDARD=17 \
             -DBUILD_SHARED_LIBS=ON \
