@@ -295,6 +295,8 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     cdef vector[size_t] list_numbering
     cdef string list_item_indent = <const char*>b' '
     cdef bint skip_lead_margin = False
+    cdef const char* element_name = NULL
+    cdef size_t element_name_len = 0
 
     output.reserve(reserve_size)
 
@@ -309,44 +311,31 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     predec(list_depth)
                     list_numbering.pop_back()
                     bullet_deferred = False
-                    if opts.list_bullets and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
-                        output.append(string(2 * list_depth, <char>b' '))
-                        output.append(b'</ul>' if current_node.tag_id == LXB_TAG_UL else b'</ol>')
                 else:
                     preinc(list_depth)
                     list_numbering.push_back(<size_t>(current_node.tag_id == LXB_TAG_OL))
-                    if opts.list_bullets and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
-                        output.append(b'\n\n' if list_depth == 1 else b'\n')
-                        output.append(string(2 * (list_depth - 1), <char>b' '))
-                        output.append(b'<ul>' if current_node.tag_id == LXB_TAG_UL else b'<ol>')
 
             if current_node.tag_id == LXB_TAG_LI:
                 if opts.list_bullets and current_node.is_end_tag and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
                     output.append(<const char*>b'</li>')
                 bullet_deferred = True
 
-            if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
-                if current_node.tag_id in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
-                    if not current_node.is_end_tag and not output.empty():
-                        # Since we skip leading margins, add newline before tag (except at start of the output)
-                        output.append(b'\n\n' if current_node.make_big_block else b'\n')
-                    output.push_back(b'<')
-                    if current_node.is_end_tag:
-                        output.push_back(b'/')
-                    output.push_back(b'h')
-                    output.push_back(<char> b'1' + <char> (current_node.tag_id - LXB_TAG_H1))
-                    output.push_back(b'>')
-                    skip_lead_margin = True
-                elif current_node.tag_id == LXB_TAG_P:
-                    if not current_node.is_end_tag and not output.empty():
-                        output.append(b'\n\n')
-                    output.append(b'</p>' if current_node.is_end_tag else b'<p>')
-                    skip_lead_margin = True
-                elif current_node.tag_id == LXB_TAG_PRE:
-                    if not current_node.is_end_tag and not output.empty():
-                        output.push_back(b'\n')
-                    output.append(b'</pre>' if current_node.is_end_tag else b'<pre>')
-                    skip_lead_margin = True
+            # Add a select number of start/end tags if minimal HTML formatting is on.
+            # <li> tags are still added with the `bullet_deferred` mechanism to handle multi-line indents.
+            if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML and current_node.tag_id in [
+                    LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6,
+                    LXB_TAG_P, LXB_TAG_PRE, LXB_TAG_UL, LXB_TAG_OL]:
+                if not current_node.is_end_tag and not output.empty():
+                    # Since we skip leading margins, add newline before tag (except at start of the output)
+                    output.append(b'\n\n' if current_node.make_big_block else b'\n')
+                output.append(string(2 * (list_depth - (1 if list_depth > 0 and not current_node.is_end_tag else 0)), <char>b' '))
+                output.push_back(b'<')
+                if current_node.is_end_tag:
+                    output.push_back(b'/')
+                element_name = <const char*>lxb_dom_element_qualified_name(<lxb_dom_element_t*>current_node.reference_node, &element_name_len)
+                output.append(element_name, element_name_len)
+                output.push_back(b'>')
+                skip_lead_margin = True
 
             # Add margins
             if current_node.make_block and (not skip_lead_margin or current_node.is_end_tag):
