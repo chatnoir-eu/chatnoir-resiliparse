@@ -53,6 +53,15 @@ cdef extern from * nogil:
     }
 
     /**
+     * Strip leading white space from a C++ string.
+     */
+    inline std::string lstrip_str(const std::string& s) {
+        const char* start = s.data();
+        size_t l = lstrip_c_str(&start, s.size());
+        return l != s.size() ? std::string(start, l) : s;
+    }
+
+    /**
      * Strip trailing white space from a C++ string.
      */
     inline std::string rstrip_str(std::string&& s) {
@@ -82,6 +91,7 @@ cdef extern from * nogil:
     cdef size_t lstrip_c_str(const char** s_ptr, size_t l)
     cdef size_t strip_c_str(const char** s_ptr, size_t l)
 
+    cdef string lstrip_str(string s)
     cdef string rstrip_str(string s)
     cdef string strip_str(string s)
 
