@@ -51,3 +51,11 @@ h6 {
     padding-top: 24px;
     margin: 24px 0;
 }
+
+.project-logo {
+    background: white;
+    border: 0;
+    border-radius: 15%;
+    height: 36px;
+    width: 50px;
+}

@@ -3,3 +3,4 @@ resiliparse[all]
 sphinx
 sphinx-click
 sphinx_rtd_theme
+sphinx-nefertiti

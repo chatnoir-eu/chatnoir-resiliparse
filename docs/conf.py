@@ -37,7 +37,7 @@ master_doc = 'index'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx_click',
-    'sphinx_rtd_theme'
+    # 'sphinx_rtd_theme'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,12 +56,68 @@ highlight_language = "none"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+# html_theme = 'sphinx_rtd_theme'
+# html_theme_options = {
+#     'collapse_navigation': False,
+#     'display_version': True,
+#     'style_external_links': True,
+# }
+
+html_theme = "sphinx_nefertiti"
 html_theme_options = {
-    'collapse_navigation': False,
-    'display_version': True,
-    'style_external_links': True,
+    "documentation_font": "Open Sans",
+    "documentation_font_size": "1.0rem",
+    "monospace_font": "Ubuntu Mono",
+    "monospace_font_size": "1.1rem",
+
+    "style": "red",
+    "pygments_light_style": "pastie",
+    "pygments_dark_style": "dracula",
+
+    "logo": "chatnoir.svg",
+    "logo_width": 50,
+    "logo_height": 36,
+    "logo_alt": "Nefertiti-for-Sphinx",
+
+    "repository_url": "https://github.com/chatnoir-eu/chatnoir-resiliparse",
+    "repository_name": "chatnoir-resiliparse",
+
+    "header_links": [
+        {
+            "text": "Chatnoir",
+            "link": "https://www.chatnoir.eu"
+        },
+        {
+            "text": "Resiliparse",
+            "dropdown": (
+                {
+                    "text": "Parsing Utilities",
+                    "link": "man/parse",
+                    "match": "/man/parse/*",
+                },
+                {
+                    "text": "Extraction Utilities",
+                    "link": "man/extract",
+                    "match": "/man/extract/*",
+                },
+                {
+                    "text": "Process Guards",
+                    "link": "man/process-guard",
+                },
+                {
+                    "text": "Itertools",
+                    "link": "man/itertools",
+                }
+            ),
+        },
+        {
+            "text": "FastWARC",
+            "link": "man/fastwarc",
+            "match": "/man/fastwarc/*"
+        }
+    ],
 }
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

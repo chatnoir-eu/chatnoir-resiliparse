@@ -8,6 +8,7 @@ Resiliparse HTML parsing and DOM traversal utilities API documentation.
 .. automodule:: resiliparse.parse.html
    :members:
    :special-members: __iter__, __getitem__, __setitem__
+   :no-index:
 
    .. autoclass:: NodeType
       :members:
