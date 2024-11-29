@@ -325,7 +325,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML and current_node.tag_id in [
                     LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6,
                     LXB_TAG_P, LXB_TAG_PRE, LXB_TAG_UL, LXB_TAG_OL]:
-                if not current_node.is_end_tag and not output.empty():
+                if not current_node.is_end_tag and not output.empty() and current_node.pre_depth == 0:
                     # Since we skip leading margins, add newline before tag (except at start of the output)
                     output.append(b'\n\n' if current_node.make_big_block else b'\n')
                 output.append(string(2 * (list_depth - (1 if list_depth > 0 and not current_node.is_end_tag else 0)), <char>b' '))
@@ -338,7 +338,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                 skip_lead_margin = True
 
             # Add margins
-            if current_node.make_block and (not skip_lead_margin or current_node.is_end_tag):
+            if current_node.make_block and (not skip_lead_margin or current_node.is_end_tag) and current_node.pre_depth == 0:
                 if not current_node.collapse_margins or (not output.empty() and output.back() != b'\n'):
                     output.push_back(<char> b'\n')
                 if current_node.make_big_block and not bullet_deferred and \
