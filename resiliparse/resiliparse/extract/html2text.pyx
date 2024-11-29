@@ -284,7 +284,8 @@ cdef inline string _indent_newlines(const string& element_text, size_t depth) no
     return tmp_text
 
 
-cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes, const ExtractOpts& opts) noexcept nogil:
+cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_nodes,
+                                     const ExtractOpts& opts, size_t reserve_size) noexcept nogil:
     cdef size_t i
     cdef string output
     cdef string element_text
@@ -293,11 +294,13 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     cdef size_t list_depth = 0
     cdef vector[size_t] list_numbering
     cdef string list_item_indent = <const char*>b' '
-    cdef string wrap_tag
+    cdef bint skip_lead_margin = False
+
+    output.reserve(reserve_size)
 
     for i in range(extract_nodes.size()):
         current_node = extract_nodes[i].get()
-        wrap_tag.clear()
+        skip_lead_margin = False
 
         if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
             if current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL] \
@@ -306,24 +309,47 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     predec(list_depth)
                     list_numbering.pop_back()
                     bullet_deferred = False
-                    if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                    if opts.list_bullets and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
                         output.append(string(2 * list_depth, <char>b' '))
                         output.append(b'</ul>' if current_node.tag_id == LXB_TAG_UL else b'</ol>')
                 else:
                     preinc(list_depth)
                     list_numbering.push_back(<size_t>(current_node.tag_id == LXB_TAG_OL))
-                    if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                    if opts.list_bullets and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
                         output.append(b'\n\n' if list_depth == 1 else b'\n')
                         output.append(string(2 * (list_depth - 1), <char>b' '))
                         output.append(b'<ul>' if current_node.tag_id == LXB_TAG_UL else b'<ol>')
 
             if current_node.tag_id == LXB_TAG_LI:
-                if current_node.is_end_tag and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                if opts.list_bullets and current_node.is_end_tag and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
                     output.append(<const char*>b'</li>')
                 bullet_deferred = True
 
+            if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                if current_node.tag_id in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
+                    if not current_node.is_end_tag and not output.empty():
+                        # Since we skip leading margins, add newline before tag (except at start of the output)
+                        output.append(b'\n\n' if current_node.make_big_block else b'\n')
+                    output.push_back(b'<')
+                    if current_node.is_end_tag:
+                        output.push_back(b'/')
+                    output.push_back(b'h')
+                    output.push_back(<char> b'1' + <char> (current_node.tag_id - LXB_TAG_H1))
+                    output.push_back(b'>')
+                    skip_lead_margin = True
+                elif current_node.tag_id == LXB_TAG_P:
+                    if not current_node.is_end_tag and not output.empty():
+                        output.append(b'\n\n')
+                    output.append(b'</p>' if current_node.is_end_tag else b'<p>')
+                    skip_lead_margin = True
+                elif current_node.tag_id == LXB_TAG_PRE:
+                    if not current_node.is_end_tag and not output.empty():
+                        output.push_back(b'\n')
+                    output.append(b'</pre>' if current_node.is_end_tag else b'<pre>')
+                    skip_lead_margin = True
+
             # Add margins
-            if current_node.make_block:
+            if current_node.make_block and (not skip_lead_margin or current_node.is_end_tag):
                 if not current_node.collapse_margins or (not output.empty() and output.back() != b'\n'):
                     output.push_back(<char> b'\n')
                 if current_node.make_big_block and not bullet_deferred and \
@@ -345,18 +371,6 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
         if element_text.empty():
             continue
 
-        if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
-            if current_node.tag_id in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6]:
-                wrap_tag = <const char*>b'h'
-                wrap_tag.push_back(<char>b'1' + <char>(current_node.tag_id - LXB_TAG_H1))
-            elif current_node.tag_id == LXB_TAG_P:
-                wrap_tag = <const char*>b'p'
-            elif current_node.tag_id == LXB_TAG_PRE:
-                wrap_tag = <const char*>b'pre'
-
-        if not wrap_tag.empty():
-            element_text = string(b'<') + wrap_tag + <const char*>b'>' + element_text + <const char*>b'</' + wrap_tag + <const char*>b'>'
-
         if list_depth > 0:
             if current_node.pre_depth and opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
                 element_text = _indent_newlines(element_text, list_depth + <size_t>opts.list_bullets)
@@ -371,9 +385,9 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     elif opts.list_bullets:
                         list_item_indent += to_string(list_numbering.back()) + <const char*>b'. '
                         preinc(list_numbering.back())
-                    bullet_deferred = False
-                elif opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                elif opts.list_bullets and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
                     list_item_indent += <const char*> b'<li>'
+                bullet_deferred = False
 
             element_text = list_item_indent + element_text
 
@@ -836,6 +850,8 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         pnode = pnode.parent
 
     cdef vector[shared_ptr[ExtractNode]] extract_nodes
+    cdef size_t chars_extracted = 0
+    cdef size_t nodes_extracted = 0
     extract_nodes.reserve(150)
     while ctx.node:
         # Skip everything except element and text nodes
@@ -852,6 +868,10 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
             continue
 
         _extract_cb(extract_nodes, ctx, is_end_tag)
+        if extract_nodes.size() > nodes_extracted and deref(extract_nodes.back()).text_contents:
+            chars_extracted += deref(deref(extract_nodes.back()).text_contents).size()
+            preinc(nodes_extracted)
+
         ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
-    return rstrip_str(_serialize_extract_nodes(extract_nodes, ctx.opts))
+    return rstrip_str(_serialize_extract_nodes(extract_nodes, ctx.opts, <size_t>(chars_extracted * 1.2)))
