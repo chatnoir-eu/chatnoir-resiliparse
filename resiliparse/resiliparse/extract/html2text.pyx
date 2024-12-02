@@ -284,7 +284,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     cdef ExtractNode* current_node = NULL
     cdef bint bullet_deferred = False
     cdef size_t list_depth = 0
-    cdef bint previous_was_big_block = False
+    cdef size_t margin_size = 0
     cdef vector[size_t] list_numbering
     cdef string list_item_indent = <const char*>b' '
     cdef const char* element_name = NULL
@@ -313,7 +313,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
 
             if current_node.tag_id == LXB_TAG_LI:
                 if opts.list_bullets and current_node.is_end_tag and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
-                    output.append(<const char*>b'</li>')
+                    output.append(<const char*>b'</li>\n')
                 bullet_deferred = True
 
             # Add a select number of start/end tags if minimal HTML formatting is on.
@@ -335,36 +335,39 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     output.append(element_text_prefix)
                     element_text_prefix.clear()
 
-        # Add margins
-        if current_node.make_block and not output.empty():
-            if current_node.collapse_margins or opts.preserve_formatting == FormattingOpts.FORMAT_OFF and not current_node.pre_depth:
-                output = rstrip_str(move(output))
-            if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
-                # Add \n to if this is a block, \n\n if it's a big block
-                output.append(2 if current_node.make_big_block else 1, <char>b'\n')
-                # Add second \n if previous was a big block
-                if previous_was_big_block and not current_node.make_big_block and not current_node.pre_depth:
-                    output.push_back(<char>b'\n')
-                previous_was_big_block = current_node.make_big_block
-            else:
-                output.push_back(<char>b' ')
+            # Set follow-up margins
+            if current_node.make_block:
+                if current_node.collapse_margins:
+                    margin_size = max(margin_size, 2u if current_node.make_big_block else 1u)
+                else:
+                    margin_size += 2u if current_node.make_big_block else 1u
 
         # From here on process only text nodes
         if current_node.text_contents.get() == NULL:
             continue
 
         element_text = deref(current_node.text_contents)
-        if not output.empty() and isspace(output.back()) and (
-                not current_node.pre_depth or opts.preserve_formatting == FormattingOpts.FORMAT_OFF):
+        if not current_node.pre_depth or opts.preserve_formatting == FormattingOpts.FORMAT_OFF:
             element_text = lstrip_str(element_text)
-
-        if current_node.escape_text_contents:
-            element_text = _escape_html(element_text.data(), element_text.size())
 
         if element_text.empty():
             continue
 
-        if list_depth > 0:
+        if current_node.escape_text_contents:
+            element_text = _escape_html(element_text.data(), element_text.size())
+
+        # Add margins
+        if margin_size:
+            if not current_node.pre_depth or opts.preserve_formatting == FormattingOpts.FORMAT_OFF:
+                output = rstrip_str(move(output))
+            if opts.preserve_formatting == FormattingOpts.FORMAT_OFF and not output.empty() and output.back() != b' ':
+                output.push_back(<char>b' ')
+            elif opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC and not output.empty():
+                output.append(margin_size, <char>b'\n')
+        margin_size = 0
+
+        # Add deferred list indents
+        if list_depth > 0 and current_node.make_block:
             if current_node.pre_depth and opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
                 element_text = _indent_newlines(element_text, list_depth + <size_t>opts.list_bullets)
             if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
@@ -382,8 +385,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     element_text = string(b'<li>') + element_text
                 bullet_deferred = False
 
-            if not output.empty() and output.back() == b'\n':
-                element_text = list_item_indent + element_text
+            element_text = list_item_indent + element_text
 
         if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC and current_node.tag_id in [LXB_TAG_TD, LXB_TAG_TH]:
             if not output.empty() and output.back() != b'\n':
