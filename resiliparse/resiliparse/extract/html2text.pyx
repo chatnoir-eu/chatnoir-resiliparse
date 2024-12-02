@@ -160,29 +160,29 @@ cdef string _escape_html(const char* data, size_t length) noexcept nogil:
 
 
 cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractContext& ctx, bint is_end_tag) noexcept nogil:
-    cdef shared_ptr[ExtractNode] last_node_shared
-    cdef ExtractNode* last_node = NULL
-    cdef bint is_block = ctx.node.type == LXB_DOM_NODE_TYPE_ELEMENT and is_block_element(ctx.node.local_name)
-    cdef bint pre_depth = 0
-    if not extract_nodes.empty():
-        last_node = extract_nodes.back().get()
-        pre_depth = last_node.pre_depth
+    cdef shared_ptr[ExtractNode] current_node
+    cdef shared_ptr[ExtractNode] last_node
 
-    if not last_node or is_block or ctx.depth < last_node.depth or last_node.is_end_tag \
-            or (ctx.opts.links and ctx.node.local_name == LXB_TAG_A) or ctx.node.local_name == LXB_TAG_TEXTAREA:
-        last_node_shared = make_shared[ExtractNode]()
-        extract_nodes.push_back(last_node_shared)
-        last_node = extract_nodes.back().get()
-        last_node.reference_node = ctx.node
-        last_node.depth = ctx.depth
-        last_node.make_block = is_block
-        last_node.make_big_block = ctx.node.local_name in [LXB_TAG_P, LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4]
-        last_node.tag_id = ctx.node.local_name
-        last_node.pre_depth = pre_depth
+    if not extract_nodes.empty():
+        last_node = extract_nodes.back()
+        current_node = last_node
+
+    cdef bint is_block = ctx.node.type == LXB_DOM_NODE_TYPE_ELEMENT and (
+            is_block_element(ctx.node.local_name) or ctx.node.local_name == LXB_TAG_TEXTAREA)
+
+    if not last_node or is_block or ctx.depth < deref(last_node).depth or (ctx.opts.links and ctx.node.local_name == LXB_TAG_A):
+        current_node = make_shared[ExtractNode]()
+        extract_nodes.push_back(current_node)
+        deref(current_node).reference_node = ctx.node
+        deref(current_node).depth = ctx.depth
+        deref(current_node).make_block = is_block
+        deref(current_node).make_big_block = ctx.node.local_name in [LXB_TAG_P, LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4]
+        deref(current_node).tag_id = ctx.node.local_name
+        deref(current_node).pre_depth = deref(last_node).pre_depth if last_node else 0
         if ctx.node.local_name in [LXB_TAG_PRE, LXB_TAG_TEXTAREA]:
-            last_node.pre_depth += 1 if not is_end_tag else -1
-        last_node.is_end_tag = is_end_tag
-        last_node.escape_text_contents = ctx.opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML
+            current_node.get().pre_depth += 1 if not is_end_tag else -1
+        deref(current_node).is_end_tag = is_end_tag
+        deref(current_node).escape_text_contents = ctx.opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML
 
     cdef lxb_dom_character_data_t* node_char_data = NULL
     cdef string node_char_data_escaped
@@ -194,30 +194,27 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         node_char_data = <lxb_dom_character_data_t*>ctx.node
         element_text = string(<const char*>node_char_data.data.data, node_char_data.data.length)
 
-        if last_node.tag_id == LXB_TAG_A and ctx.opts.preserve_formatting >= FormattingOpts.FORMAT_MINIMAL_HTML:
+        if deref(current_node).tag_id == LXB_TAG_A and ctx.opts.preserve_formatting >= FormattingOpts.FORMAT_MINIMAL_HTML:
             # Escape <a> inner text
             element_text = _escape_html(element_text.data(), element_text.size())
 
-        if not last_node.pre_depth or ctx.opts.preserve_formatting == FormattingOpts.FORMAT_OFF:
+        if not deref(current_node).pre_depth or ctx.opts.preserve_formatting == FormattingOpts.FORMAT_OFF:
             element_text = _get_collapsed_string(element_text)
-            if element_text == b' ' and (not last_node or not last_node.make_block):
-                # Don't add more than one space-only element in a row or at the start
-                return
 
         if not element_text.empty():
-            deref(last_node.text_contents).append(element_text)
+            deref(deref(current_node).text_contents).append(element_text)
 
     elif ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return
 
     elif ctx.node.local_name in [LXB_TAG_BR, LXB_TAG_HR]:
         _ensure_text_contents(extract_nodes)
-        last_node.collapse_margins = False
+        deref(current_node).collapse_margins = False
 
     elif ctx.opts.links and ctx.node.local_name == LXB_TAG_A:
         element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'href'))
         _ensure_text_contents(extract_nodes)
-        last_node.make_block = False
+        deref(current_node).make_block = False
 
         if ctx.opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
             if not is_end_tag:
@@ -226,21 +223,21 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
                 element_text.append(b'">')
             else:
                 element_text.append(b'</a>')
-            deref(last_node.text_contents).append(element_text)
-            last_node.escape_text_contents = False
+            deref(deref(current_node).text_contents).append(element_text)
+            deref(current_node).escape_text_contents = False
 
         elif is_end_tag:
             element_text.append(b' (')
             element_text.append(<string>element_text_sv)
             element_text.push_back(b')')
-            deref(last_node.text_contents).append(element_text)
+            deref(deref(current_node).text_contents).append(element_text)
 
     elif ctx.opts.alt_texts and ctx.node.local_name in [LXB_TAG_IMG, LXB_TAG_AREA]:
         _ensure_text_contents(extract_nodes)
         element_text_sv = get_node_attr_sv(ctx.node, b'alt')
-        last_node.make_block = False
+        deref(current_node).make_block = False
         if not element_text_sv.empty():
-            deref(last_node.text_contents).append(<string>element_text_sv)
+            deref(deref(current_node).text_contents).append(<string>element_text_sv)
 
     elif ctx.opts.form_fields and ctx.node.local_name in [LXB_TAG_TEXTAREA, LXB_TAG_BUTTON]:
         if not is_end_tag:
@@ -248,7 +245,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
         else:
             element_text.push_back(b']')
         _ensure_text_contents(extract_nodes)
-        deref(last_node.text_contents).append(element_text)
+        deref(deref(current_node).text_contents).append(element_text)
 
     elif ctx.opts.form_fields and ctx.node.local_name == LXB_TAG_INPUT:
         element_text_sv = strip_sv(get_node_attr_sv(ctx.node, b'type'))
@@ -263,7 +260,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
                 element_text.append(<string> element_text_sv)
                 element_text.push_back(b']')
                 _ensure_text_contents(extract_nodes)
-                deref(last_node.text_contents).append(element_text)
+                deref(deref(current_node).text_contents).append(element_text)
 
 
 cdef inline string _indent_newlines(const string& element_text, size_t depth) noexcept nogil:
@@ -310,8 +307,9 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                     list_numbering.push_back(<size_t>(current_node.tag_id == LXB_TAG_OL))
 
             # Add <pre> tags immediately
-            if current_node.tag_id == LXB_TAG_PRE:
-                output.append(b'</pre>' if current_node.is_end_tag else b'\n<pre>')
+            if current_node.tag_id == LXB_TAG_PRE and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
+                output.append(b'</pre>\n' if current_node.is_end_tag else b'\n<pre>')
+                current_node.make_block = False
 
             if current_node.tag_id == LXB_TAG_LI:
                 if opts.list_bullets and current_node.is_end_tag and opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML:
@@ -342,8 +340,10 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             if current_node.collapse_margins or opts.preserve_formatting == FormattingOpts.FORMAT_OFF and not current_node.pre_depth:
                 output = rstrip_str(move(output))
             if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
+                # Add \n to if this is a block, \n\n if it's a big block
                 output.append(2 if current_node.make_big_block else 1, <char>b'\n')
-                if previous_was_big_block and not current_node.make_big_block:
+                # Add second \n if previous was a big block
+                if previous_was_big_block and not current_node.make_big_block and not current_node.pre_depth:
                     output.push_back(<char>b'\n')
                 previous_was_big_block = current_node.make_big_block
             else:
@@ -354,7 +354,8 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             continue
 
         element_text = deref(current_node.text_contents)
-        if not output.empty() and isspace(output.back()) and not current_node.pre_depth:
+        if not output.empty() and isspace(output.back()) and (
+                not current_node.pre_depth or opts.preserve_formatting == FormattingOpts.FORMAT_OFF):
             element_text = lstrip_str(element_text)
 
         if current_node.escape_text_contents:
