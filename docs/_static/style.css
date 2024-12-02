@@ -59,3 +59,7 @@ h6 {
     height: 36px;
     width: 50px;
 }
+
+html.light body {
+    background-color: #fff;
+}
