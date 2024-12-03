@@ -3,7 +3,7 @@ FROM quay.io/pypa/manylinux_2_28_${TARGET_ARCH}:latest
 
 RUN set -x \
     && yum install -y \
-          gcc-toolset-12-libasan-devel \
+          gcc-toolset-13-libasan-devel \
           lz4-devel \
           zlib-devel
 
