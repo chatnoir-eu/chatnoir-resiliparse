@@ -205,7 +205,7 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
     elif ctx.node.type != LXB_DOM_NODE_TYPE_ELEMENT:
         return
 
-    elif ctx.node.local_name in [LXB_TAG_BR, LXB_TAG_HR]:
+    elif ctx.node.local_name == LXB_TAG_BR and ctx.opts.preserve_formatting == FormattingOpts.FORMAT_BASIC:
         _ensure_text_contents(extract_nodes)
         deref(current_node).collapse_margins = False
 
@@ -302,6 +302,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
     cdef bint bullet_inserted = False
     cdef size_t list_depth = 0
     cdef size_t margin_size = 0
+    cdef size_t uncollapsed_margin_count = 0
     cdef vector[size_t] list_numbering
     cdef string list_item_indent = <const char*>b' '
     cdef const char* element_name = NULL
@@ -314,6 +315,9 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
 
         # Basic and minimal HTML formatting
         if opts.preserve_formatting >= FormattingOpts.FORMAT_BASIC:
+            if current_node.make_block and not current_node.collapse_margins:
+                uncollapsed_margin_count += 1
+
             # List tags
             if (current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL]
                     or (current_node.tag_id == LXB_TAG_LI and list_depth == 0)):
@@ -361,19 +365,25 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
             if current_node.pre_depth:
                 current_node.make_block = False
 
+            # Explicit line breaks
+            if current_node.tag_id == LXB_TAG_BR:
+                output.append(b'<br>')
+
             # Add a select number of start/end tags if minimal HTML formatting is on.
             if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML and (
                     current_node.tag_id in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]
                     or (current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL] and opts.list_bullets)):
 
                 # Add margin before start tag and skip after
-                if not current_node.is_end_tag and not current_node.pre_depth:
+                if (not current_node.is_end_tag and not current_node.pre_depth) or (
+                        uncollapsed_margin_count and current_node.collapse_margins):
                     if current_node.collapse_margins:
                         margin_size = max(margin_size, <size_t>(current_node.make_block + current_node.make_big_block))
                     else:
                         margin_size += <size_t>(current_node.make_block + current_node.make_big_block)
                     _make_margin(output, margin_size, current_node, opts)
                     current_node.make_block = False
+                    uncollapsed_margin_count = 0
 
                 # Indent if in list (indent ul and ol start tags on level less)
                 if opts.list_bullets:
@@ -419,6 +429,7 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
 
         # Make margins and indents
         _make_margin(output, margin_size, current_node, opts)
+        uncollapsed_margin_count = 0
 
         # Indent list items if basic formatting is used (follow-up lines without bullets are indented more)
         if list_depth and opts.preserve_formatting == FormattingOpts.FORMAT_BASIC:
@@ -748,7 +759,7 @@ def extract_plain_text(html,
     If ``preserve_formatting`` is ``True``, line breaks, paragraphs, other block-level elements,
     list elements, and pre-formatted text will be preserved. Use the special value ``'minimal_html'`` to
     add reduced HTML markup to the formatted output, preserving headings (``<h1-6>``), paragraphs (``<p>``),
-    lists (``<ul>``, ``<ol>``), ``<pre>`` text, and links (``<a>``, if ``links=True``).
+    lists (``<ul>``, ``<ol>``), ``<pre>`` text, ``<br>`` line breaks, and links (``<a>``, if ``links=True``).
 
     Extraction of particular elements and attributes such as links, alt texts, or form fields
     can be configured individually by setting the corresponding parameter to ``True``.

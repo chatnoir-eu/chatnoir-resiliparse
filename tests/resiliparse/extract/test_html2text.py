@@ -98,7 +98,7 @@ Copyright (C) 2021 Foo Bar"""
 </ul>
 foo bar
 
-<p>baz
+<p>baz<br>
 bar</p>
 
 Copyright (C) 2021 Foo Bar"""
@@ -118,7 +118,7 @@ Copyright (C) 2021 Foo Bar"""
 </ul>
 foo bar
 
-<p>baz
+<p>baz<br>
 bar</p>
 
 Some image Cannot display object
@@ -133,7 +133,7 @@ Nav 1
 
 foo bar
 
-<p>baz
+<p>baz<br>
 bar</p>
 
 Some image Cannot display object
@@ -500,27 +500,34 @@ foo
         "Hello World link (https://example.com/?foo=bar&bar=baz) Some code <html>& foo <html> <html>& <html>& [ <html>& ]"
 
 
-def test_linebreaks():
+def test_margin_collapsing():
     html = """\
 <p>Hello
 World</p>
 
-<p>Hello<br>World<br><br><br><br>!</p>
-<div>Hello<br>World<br><br><br><br>!</div>"""
+<p>Hello<br>World<br><br><br><br></p>
+
+<p>Hello<br>World<br><br><br><br></p>
+
+<div>Hello World</div>"""
 
     assert extract_plain_text(html, preserve_formatting=True) == """\
 Hello World
 
-Hello\nWorld\n\n\n\n!
-
-Hello\nWorld\n\n\n\n!"""
+Hello\nWorld\n\n\n
+Hello\nWorld\n\n\n
+Hello World"""
 
     assert extract_plain_text(html, preserve_formatting='minimal_html') == """\
 <p>Hello World</p>
 
-<p>Hello\nWorld\n\n\n\n!</p>
+<p>Hello<br>
+World<br><br><br><br></p>
 
-Hello\nWorld\n\n\n\n!"""
+<p>Hello<br>
+World<br><br><br><br></p>
+
+Hello World"""
 
 
 def test_real_word_data():
