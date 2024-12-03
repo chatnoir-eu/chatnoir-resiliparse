@@ -43,8 +43,10 @@ def mock_bulk(*, operations=None, **_):
     return resp
 
 
-def es_setup(self):
-    client = mock.Mock()
+
+@mock.patch('elasticsearch.Elasticsearch')
+def mock_es_setup(self, mock_elastic):
+    client = mock_elastic.Elasticsearch()
     client.options.return_value = client
     client.bulk = mock_bulk
     client.transport.serializers.get_serializer.return_value = json
@@ -52,7 +54,7 @@ def es_setup(self):
 
 
 # Use mock client
-es._ElasticsearchBulkIndex.setup = es_setup
+es._ElasticsearchBulkIndex.setup = mock_es_setup
 
 
 INDEX_DOCS = [
