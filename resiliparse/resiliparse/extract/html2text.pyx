@@ -260,18 +260,6 @@ cdef void _extract_cb(vector[shared_ptr[ExtractNode]]& extract_nodes, ExtractCon
                 deref(deref(current_node).text_contents).append(element_text)
 
 
-cdef inline string _indent_newlines(const string& element_text, size_t depth) noexcept nogil:
-    cdef string indent = string(2 * depth, <char>b' ')
-    cdef string tmp_text
-    tmp_text.reserve(element_text.size() + 10 * indent.size())
-    for i in range(element_text.size()):
-        tmp_text.push_back(element_text[i])
-        if element_text[i] == b'\n':
-            tmp_text.append(indent)
-
-    return tmp_text
-
-
 cdef inline void _make_indent(string& output, size_t list_depth, const ExtractNode* current_node, const ExtractOpts& opts) noexcept nogil:
     if not list_depth:
         return
