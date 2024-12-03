@@ -113,8 +113,7 @@ Output:
     Some image
     Copyright (C) 2021 Foo Bar
 
-If you want the most compact extraction possible without any formatting, set ``preserve_formatting=False``:
-
+For the most compact extraction without any formatting, set ``preserve_formatting=False``:
 
 .. code-block:: python
 
@@ -127,9 +126,38 @@ Output:
     Index Contact foo Link baz bar Some image Copyright (C) 2021 Foo Bar
 
 
+Minimal HTML Conversion
+-----------------------
+
+Instead of rendering a pure plain text version of the source document, Resiliparse can also spice up the plain text output with minimal HTML markup to retain some of the document's structural information. For a minimal HTML rendering, set ``preserve_formatting='minimal_html'`` (instead of the default ``preserve_formatting=True``):
+
+.. code-block:: python
+
+    print(extract_plain_text(html, preserve_formatting='minimal_html', links=True))
+
+Output:
+
+.. code-block:: html
+
+    <ul>
+      <li><a href="/">Index</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+
+    <h1>foo <a href="#foo">Link</a></h1>
+
+    <p>baz<br>
+    bar</p>
+
+    Some image
+    Copyright (C) 2021 Foo Bar
+
+With ``preserve_formatting='minimal_html'``, Resiliparse will retain headings (``<h1>`` -- ``<h6>``), paragraphs (``<p>``), pre-formatted text (``<pre>``), explicit line breaks (``<br>``), list items (``<ul>`` / ``<ol>`` and ``<li>``; unless ``list_bullets=False``), and anchor links (``<a href="...">``; only if ``links=True``, defaults to ``False``). Any additional attributes on those elements will not be preserved.
+
+
 Main Content Extraction
 -----------------------
-HTML2Text can also do very simple and fast rule-based main content extraction (also called boilerplate removal). Setting ``main_content=True`` will apply a set of rules for removing page elements such as navigation blocks, sidebars, footers, some ads, and (as far as they are possible to detect without rendering the page) invisible elements:
+Resiliparse HTML2Text can also do very simple and fast rule-based main content extraction (also called boilerplate removal). Setting ``main_content=True`` will apply a set of rules for removing page elements such as navigation blocks, sidebars, footers, some ads, and (as far as they are possible to detect without rendering the page) invisible elements:
 
 .. code-block:: python
 
