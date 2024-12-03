@@ -18,6 +18,7 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   FORCE_COLOR: "1"
+  CIBW_ENVIRONMENT: "FORCE_COLOR=1"
 
 jobs:
   build-wheels:
