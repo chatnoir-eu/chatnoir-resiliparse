@@ -55,17 +55,89 @@ def test_basic_extraction():
         assert extract_plain_text(inp, alt_texts=False, preserve_formatting=False) == \
                "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
 
-        assert extract_plain_text(inp, alt_texts=False, list_bullets=False) == \
-               "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+        assert extract_plain_text(inp, alt_texts=False, list_bullets=False) == """\
+  Nav 1
 
-        assert extract_plain_text(inp, alt_texts=False) == \
-            "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+  Nav 2
 
-        assert extract_plain_text(inp, alt_texts=False, preserve_formatting='minimal_html') == \
-            "  \u2022 Nav 1\n  \u2022 Nav 2\n\n    \u2022 Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+    Nav 3
 
-        assert extract_plain_text(inp, alt_texts=False, preserve_formatting='minimal_html', list_bullets=False) == \
-            "  Nav 1\n  Nav 2\n\n    Nav 3\n\nfoo bar\n\nbaz\nbar\n\nCopyright (C) 2021 Foo Bar"
+foo bar
+
+baz
+bar
+
+Copyright (C) 2021 Foo Bar"""
+
+        assert extract_plain_text(inp, alt_texts=False) == """\
+  \u2022 Nav 1
+
+  \u2022 Nav 2
+
+    \u2022 Nav 3
+
+foo bar
+
+baz
+bar
+
+Copyright (C) 2021 Foo Bar"""
+
+        assert extract_plain_text(inp, alt_texts=False, preserve_formatting='minimal_html') == """\
+<ul>
+  <li>Nav 1</li>
+  <li>
+
+  <p>Nav 2  </p>
+
+  <ul>
+    <li>
+
+    <p>Nav 3    </p></li>
+  </ul></li>
+</ul>
+foo bar
+
+<p>baz
+bar</p>
+
+Copyright (C) 2021 Foo Bar"""
+
+        assert extract_plain_text(inp, alt_texts=True, preserve_formatting='minimal_html') == """\
+<ul>
+  <li>Nav 1</li>
+  <li>
+
+  <p>Nav 2  </p>
+
+  <ul>
+    <li>
+
+    <p>Nav 3    </p></li>
+  </ul></li>
+</ul>
+foo bar
+
+<p>baz
+bar</p>
+
+Some image Cannot display object
+Copyright (C) 2021 Foo Bar"""
+
+        assert extract_plain_text(inp, alt_texts=True, preserve_formatting='minimal_html', list_bullets=False) == """\
+Nav 1
+
+<p>Nav 2</p>
+
+<p>Nav 3</p>
+
+foo bar
+
+<p>baz
+bar</p>
+
+Some image Cannot display object
+Copyright (C) 2021 Foo Bar"""
 
     with pytest.raises(TypeError):
         extract_plain_text(123)
@@ -74,6 +146,7 @@ def test_basic_extraction():
 def test_alt_text_extraction():
     assert extract_plain_text(tree, alt_texts=True) == """\
   \u2022 Nav 1
+
   \u2022 Nav 2
 
     \u2022 Nav 3
@@ -90,6 +163,7 @@ Copyright (C) 2021 Foo Bar"""
 def test_link_href_extraction():
     assert extract_plain_text(tree, alt_texts=False, links=True) == """\
   \u2022 Nav 1
+
   \u2022 Nav 2
 
     \u2022 Nav 3
@@ -105,6 +179,7 @@ Copyright (C) 2021 Foo Bar"""
 def test_form_field_extraction():
     assert extract_plain_text(tree, alt_texts=False, form_fields=True) == """\
   \u2022 Nav 1
+
   \u2022 Nav 2
 
     \u2022 Nav 3
@@ -121,6 +196,7 @@ Copyright (C) 2021 Foo Bar"""
 def test_noscript_extraction():
     assert extract_plain_text(tree, alt_texts=False, noscript=True) == """\
   \u2022 Nav 1
+
   \u2022 Nav 2
 
     \u2022 Nav 3
@@ -188,10 +264,9 @@ J</pre>
   E
 
   F
-      G
-          H
-  J"""
-    assert extract_plain_text(tree, list_bullets=False) == expected_without_bullets
+    G
+        H
+J"""
 
     expected_with_bullets = """\
   \u2022 A
@@ -202,19 +277,58 @@ J</pre>
     E
 
   \u2022 F
-        G
-            H
-    J"""
-    assert extract_plain_text(tree, list_bullets=True) == expected_with_bullets
+    G
+        H
+J"""
+
+    expected_html_without_bullets = """\
+A
+B
+C
+D
+
+<p>E</p>
+
+<pre>F
+    G
+        H
+J</pre>"""
+
+    expected_html_with_bullets = """\
+<ul>
+  <li>A</li>
+  <li>B
+C
+D
+
+  <p>E  </p></li>
+  <li> <pre>F
+    G
+        H
+J</pre></li>
+</ul>"""
 
     expected_textarea = """
 [ K
         L
-     ]"""
+    ]"""
+
+    assert extract_plain_text(tree, list_bullets=False) == expected_without_bullets
+    assert extract_plain_text(tree, list_bullets=True) == expected_with_bullets
+
+
     assert extract_plain_text(tree, list_bullets=False, form_fields=True) == \
            expected_without_bullets + expected_textarea
     assert extract_plain_text(tree, list_bullets=True, form_fields=True) == \
            expected_with_bullets + expected_textarea
+
+    assert extract_plain_text(tree, list_bullets=True, preserve_formatting='minimal_html') == expected_html_with_bullets
+    assert extract_plain_text(tree, list_bullets=False, preserve_formatting='minimal_html') == expected_html_without_bullets
+
+    assert extract_plain_text(tree, list_bullets=True, preserve_formatting='minimal_html', form_fields=True) == \
+           expected_html_with_bullets + expected_textarea
+    assert extract_plain_text(tree, list_bullets=False, preserve_formatting='minimal_html', form_fields=True) == \
+           expected_html_without_bullets + expected_textarea
 
 
 def test_ordered_list():
@@ -256,6 +370,7 @@ def test_ordered_list():
       H
       I
   J"""
+
     assert extract_plain_text(tree, list_bullets=True) == """\
   \u2022 A
   \u2022 B
@@ -268,9 +383,33 @@ def test_ordered_list():
       2. I
   1. J"""
 
+    assert extract_plain_text(tree, list_bullets=True, preserve_formatting='minimal_html') == """\
+<ul>
+  <li>A</li>
+  <li>B
+  <ol>
+    <li>C</li>
+    <li>D
+    <ol>
+      <li>E</li>
+      <li>F</li>
+    </ol></li>
+    <li>G
+    <ol>
+      <li>H</li>
+      <li>I</li>
+    </ol></li>
+  </ol></li>
+</ul>
+<ol>
+  <li>J</li>
+</ol>"""
+
+    assert extract_plain_text(tree, list_bullets=False, preserve_formatting='minimal_html') == \
+           "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ"
+
 
 def test_empty_list_items():
-
     html = """<body>
     <ul>
         <li>A</li>
@@ -284,11 +423,104 @@ def test_empty_list_items():
     </ul>
     </body>"""
 
-    tree = HTMLTree.parse(html)
-    assert extract_plain_text(tree, list_bullets=False) == \
+    assert extract_plain_text(html, list_bullets=False) == \
            '  A\n  B'
-    assert extract_plain_text(tree, list_bullets=True) == \
+    assert extract_plain_text(html, list_bullets=True) == \
            '  \u2022 A\n  \u2022 B'
+
+
+def test_html_escaping():
+    html = """\
+<h1>Hello World</h1>
+<p><a href="https://example.com/?foo=bar&amp;bar=baz">link</a></p>
+<pre>
+Some code
+&lt;html&gt;&amp;
+<p>foo</p>
+</pre>
+&lt;html&gt;
+<h2>&lt;html&gt;&amp;</h2>
+<ul>
+    <li>&lt;html&gt;&amp;</li>
+</ul>
+<textarea>&lt;html&gt;&amp;</textarea>"""
+
+    expected = """\
+<h1>Hello World</h1>
+
+<p>{link}</p>
+
+<pre>Some code
+&lt;html&gt;&amp;
+<p>foo</p>
+</pre>
+&lt;html&gt;
+
+<h2>&lt;html&gt;&amp;</h2>
+
+<ul>
+  <li>&lt;html&gt;&amp;</li>
+</ul>{textarea}"""
+
+    link_expected = 'link'
+    textarea_expected = ''
+    assert extract_plain_text(html, preserve_formatting='minimal_html') == \
+            expected.format(link=link_expected, textarea=textarea_expected)
+
+    link_expected = '<a href="https://example.com/?foo=bar&amp;bar=baz">link</a>'
+    textarea_expected = '\n[ &lt;html&gt;&amp; ]'
+    assert extract_plain_text(html, preserve_formatting='minimal_html', links=True, form_fields=True) == \
+            expected.format(link=link_expected, textarea=textarea_expected)
+
+    expected = """\
+Hello World
+
+{link}
+
+Some code
+<html>&
+
+foo
+<html>
+
+<html>&
+
+  • <html>&
+[ <html>& ]"""
+
+    link_expected = 'link'
+    assert extract_plain_text(html, preserve_formatting=True, links=False, form_fields=True) == \
+        expected.format(link=link_expected)
+
+    link_expected = 'link (https://example.com/?foo=bar&bar=baz)'
+    assert extract_plain_text(html, preserve_formatting=True, links=True, form_fields=True) == \
+        expected.format(link=link_expected)
+
+    assert extract_plain_text(html, preserve_formatting=False, links=True, form_fields=True) == \
+        "Hello World link (https://example.com/?foo=bar&bar=baz) Some code <html>& foo <html> <html>& <html>& [ <html>& ]"
+
+
+def test_linebreaks():
+    html = """\
+<p>Hello
+World</p>
+
+<p>Hello<br>World<br><br><br><br>!</p>
+<div>Hello<br>World<br><br><br><br>!</div>"""
+
+    assert extract_plain_text(html, preserve_formatting=True) == """\
+Hello World
+
+Hello\nWorld\n\n\n\n!
+
+Hello\nWorld\n\n\n\n!"""
+
+    assert extract_plain_text(html, preserve_formatting='minimal_html') == """\
+<p>Hello World</p>
+
+<p>Hello\nWorld\n\n\n\n!</p>
+
+Hello\nWorld\n\n\n\n!"""
 
 
 def test_real_word_data():
