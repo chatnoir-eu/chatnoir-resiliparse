@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from Cython.Shadow import returns
+
 # distutils: language = c++
 
 from cython.operator cimport dereference as deref, preincrement as preinc, predecrement as predec
-from jmespath.ast import current_node
 from libcpp.set cimport set as stl_set
 from libc.string cimport memcpy
 from libcpp.memory cimport make_shared, shared_ptr
