@@ -14,7 +14,7 @@ fi
 
 UCHARDET_VERSION=0.0.8
 LEXBOR_VERSION=2.4.0
-ABSEILL_VERSION=20240722.0
+ABSEIL_VERSION=20240722.0
 RE2_VERSION=2024-07-02
 
 export BASE_DIR="$(pwd)"
@@ -46,7 +46,7 @@ curl -Lf https://github.com/lexbor/lexbor/archive/refs/tags/v${LEXBOR_VERSION}.t
         && cmake --build build -j$(nproc) --target install) \
     && rm -rf lexbor*
 
-curl -Lf https://github.com/abseil/abseil-cpp/releases/download/${ABSEILL_VERSION}/abseil-cpp-${ABSEILL_VERSION}.tar.gz | tar xz \
+curl -Lf https://github.com/abseil/abseil-cpp/releases/download/${ABSEIL_VERSION}/abseil-cpp-${ABSEIL_VERSION}.tar.gz | tar xz \
     && (cd abseil-cpp-* && mkdir build \
         && cmake \
             -DCMAKE_BUILD_TYPE=Release \
