@@ -75,7 +75,7 @@ def bulk_index_with_args(docs, **args):
                | beam.Create(docs)
                | es.ElasticsearchBulkIndex({}, **args))
 
-    assert_that(ids, equal_to([d['_id'] for d in docs]))
+        assert_that(ids, equal_to([d['_id'] for d in docs]))
 
 
 @pytest.mark.slow
@@ -115,7 +115,7 @@ def test_bulk_index_with_error():
                | beam.Create(INDEX_DOCS)
                | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=0))
 
-    assert_that(ids, equal_to([]))
+        assert_that(ids, equal_to([]))
 
     # Retry non-client error
     MOCK_RETURN_CODE = 500
@@ -125,8 +125,8 @@ def test_bulk_index_with_error():
                    | beam.Create(INDEX_DOCS)
                    | es.ElasticsearchBulkIndex({}, ignore_400=True, max_retries=1, initial_backoff=0.01))
 
-    assert 'elasticsearch.helpers.BulkIndexError' in exc_info.value.args[0]
-    assert_that(ids, equal_to([]))
+        assert 'elasticsearch.helpers.BulkIndexError' in exc_info.value.args[0]
+        assert_that(ids, equal_to([]))
 
     MOCK_RETURN_CODE = 200
 
@@ -149,4 +149,4 @@ def test_bulk_kv_pairs():
             ids = (pipeline
                    | beam.Create(docs)
                    | es.ElasticsearchBulkIndex({}, default_index='index_name'))
-        assert_that(ids, equal_to([d[0] for d in docs]))
+            assert_that(ids, equal_to([d[0] for d in docs]))
