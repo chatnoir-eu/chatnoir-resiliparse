@@ -24,6 +24,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.whl
 MANIFEST
 
 # IDEs
@@ -169,5 +170,6 @@ resiliparse/**/*.html
 # data directories
 wikidumps/
 
-# 3rd-party library dir
-lib-third-party/
+# third-party dependencies
+vcpkg/
+vcpkg_installed/

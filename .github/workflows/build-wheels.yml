@@ -18,6 +18,7 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   FORCE_COLOR: "1"
+  MACOSX_DEPLOYMENT_TARGET: "12.0"
 
 jobs:
   build-wheels:
@@ -27,17 +28,18 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
+      CIBW_TEST_SKIP: "*-manylinux_aarch64 *-macosx_x86_64"   # x86_64 tests are flaky on arm64
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64"
       # CIBW_ARCHS_LINUX: "x86_64 aarch64"  # https://github.com/pypa/cibuildwheel/issues/1771#issuecomment-1973003145
       CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
       CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
-      CIBW_TEST_SKIP: "*-macosx_arm64 *-manylinux_aarch64"    # ARM64 wheels cannot be tested
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-        DYLD_LIBRARY_PATH=$LIBRARY_PATH delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
+        DYLD_LIBRARY_PATH=$(pwd)/vcpkg_installed/$(echo {delocate_archs} | sed s/x86_64/x64/)-osx/lib
+        delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}
       CIBW_BEFORE_BUILD_WINDOWS: "python -m pip install delvewheel"
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
-        delvewheel repair --add-path C:\vcpkg\installed\x64-windows\bin -w {dest_dir} {wheel}
+        delvewheel repair --add-path vcpkg_installed\x64-windows\bin -w {dest_dir} {wheel}
 
     steps:
       - name: Checkout
@@ -48,34 +50,29 @@ jobs:
         id: cache-vcpkg
         if: runner.os == 'macOS' || runner.os == 'Windows'
         with:
-          path: |
-            /usr/local/share/vcpkg/installed
-            C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-17     # INCREMENT ME!!
+          path: ./vcpkg_installed
+          key: ${{ runner.os }}-vcpkg-19     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          set -e
-
-          VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports --overlay-triplets .vcpkg/triplets install"
-          PKG_LIST="lexbor lz4 re2 uchardet zlib"
+          set -xe
 
           # Windows
           if [ -d /c/vcpkg ]; then
-            $VCPKG_CMD --triplet=x64-windows $PKG_LIST
+            vcpkg install --triplet=x64-windows
 
           # MacOS
           elif [ "$(uname -s)" == "Darwin" ]; then
-            sudo chown runner:admin /usr/local/share
-            git clone https://github.com/Microsoft/vcpkg /usr/local/share/vcpkg
-            /usr/local/share/vcpkg/bootstrap-vcpkg.sh
-            ln -s /usr/local/share/vcpkg/vcpkg /usr/local/bin
-            vcpkg integrate install
-
-            $VCPKG_CMD --triplet=x64-osx $PKG_LIST
-            $VCPKG_CMD --triplet=arm64-osx $PKG_LIST
+            git clone https://github.com/Microsoft/vcpkg
+            ./vcpkg/bootstrap-vcpkg.sh
+          
+            # Use to two install roots and merge manually, otherwise the second install clears out the previous
+            ./vcpkg/vcpkg install --triplet=x64-osx
+            ./vcpkg/vcpkg install --triplet=arm64-osx --x-install-root vcpkg_installed2
+            cp -a vcpkg_installed2/* vcpkg_installed/
+            rm -r vcpkg_installed2
 
           else
             echo "Unsupported platform." >&2
@@ -94,7 +91,7 @@ jobs:
       #     platforms: aarch64
 
       - name: Build FastWARC
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           package-dir: fastwarc
           output-dir: wheelhouse
@@ -102,7 +99,7 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
       - name: Build Resiliparse
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           package-dir: resiliparse
           output-dir: wheelhouse
@@ -144,7 +141,7 @@ jobs:
           platforms: all
 
       - name: Build FastWARC
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           package-dir: fastwarc
           output-dir: wheelhouse
@@ -152,7 +149,7 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
 
       - name: Build Resiliparse
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           package-dir: resiliparse
           output-dir: wheelhouse

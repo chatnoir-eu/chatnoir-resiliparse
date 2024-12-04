@@ -1,2 +1,4 @@
 */
-!compile-third-party-libs.sh
+!.vcpkg/
+!vcpkg.json
+!vcpkg-configuration.json

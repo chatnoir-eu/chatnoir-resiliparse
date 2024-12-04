@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "lexbor",
+    "lz4",
+    "re2",
+    "uchardet",
+    "zlib"
+  ]
+}

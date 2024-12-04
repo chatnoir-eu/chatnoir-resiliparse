@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import platform
 import sys
 
 from Cython.Build import cythonize
@@ -28,6 +29,21 @@ ASAN = bool(int(os.getenv('ASAN', 0)))
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 CXX = distutils.ccompiler.get_default_compiler()
 
+# Construct vcpkg lib and include paths
+def _vcpkg_path():
+    osname = platform.system().lower().replace('darwin', 'osx')
+    arch = platform.machine().lower().replace('x86_64', 'x64').replace('amd64', 'x64')
+    if osname == 'linux' and arch == 'arm64':
+        arch = 'aarch64'
+    triplet = f'{arch}-{osname}'
+
+    if os.environ.get('RESILIPARSE_VCPKG_PATH'):
+        return os.path.join(os.environ['RESILIPARSE_VCPKG_PATH'], triplet)
+    return os.path.join(os.path.dirname(ROOT_DIR), 'vcpkg_installed', triplet)
+
+INCLUDE_PATH = os.path.join(_vcpkg_path(), 'include')
+LIBRARY_PATH = os.path.join(_vcpkg_path(), 'lib')
+
 
 def get_cpp_args():
     cpp_args = {}
@@ -39,11 +55,12 @@ def get_cpp_args():
         cpp_args.update(dict(
             extra_compile_args=['-std=c++17',
                                 f'-O{0 if DEBUG else 3}',
+                                f'-I{INCLUDE_PATH}',
                                 '-Wall',
                                 '-Wno-deprecated-declarations',
                                 '-Wno-unreachable-code',
                                 '-Wno-unused-function'],
-            extra_link_args=['-std=c++17']
+            extra_link_args=['-std=c++17', f'-L{LIBRARY_PATH}']
         ))
         if DEBUG:
             cpp_args['extra_compile_args'].append('-Werror')
@@ -53,8 +70,11 @@ def get_cpp_args():
 
     elif CXX == 'msvc':
         cpp_args.update(dict(
-            extra_compile_args=['/std:c++latest', '/W3', '/O2'],
-            extra_link_args=[]
+            extra_compile_args=['/std:c++latest',
+                                '/W3',
+                                f'/O{"d" if DEBUG else 2}',
+                                f'/I{INCLUDE_PATH}'],
+            extra_link_args=[f'/LIBPATH:{LIBRARY_PATH}']
         ))
         if DEBUG:
             cpp_args['extra_compile_args'].append('/WX')

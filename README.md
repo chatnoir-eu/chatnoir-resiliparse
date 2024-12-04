@@ -49,41 +49,44 @@ FastWARC is being distributed as its own package and can be installed like so:
 ```bash
 pip install fastwarc
 ```
-For optimal performance, however, it is recommended to build FastWARC from sources instead of relying on the pre-built binaries. See below for more information.
-
 ## Building From Source
-To build Resiliparse or FastWARC from sources, you need to install all required build-time dependencies first. On Ubuntu, this is done as follows:
+To build Resiliparse and FastWARC from sources, you need to install all required build-time dependencies listed in `vcpkg.json`. It's possible to install them globally via your package manager, but the easiest and most consistent way is to use [vcpkg](https://vcpkg.io/en/):
 ```bash
-# Add Lexbor repository
-curl -sL https://lexbor.com/keys/lexbor_signing.key | \
-  sudo gpg --dearmor --output /etc/apt/trusted.gpg.d/lexbor.gpg
-echo "deb https://packages.lexbor.com/ubuntu/ $(lsb_release -sc) liblexbor" | \
-    sudo tee /etc/apt/sources.list.d/lexbor.list
+# Install vcpkg itself (skip if you have a working vcpkg installation already)
+git clone https://github.com/Microsoft/vcpkg
+./vcpkg/bootstrap-vcpkg.sh
 
-# Install build dependencies (requires libre2-dev>=2022-04-01)
-sudo apt update
-sudo apt install build-essential python3-dev zlib1g-dev \
-    liblz4-dev libuchardet-dev liblexbor-dev libre2-dev
+# Install dependencies to vcpkg_installed (must be run from sources root)
+./vcpkg/vcpkg install --triplet=x64-linux
 ```
-Then, to build the actual packages, run:
+Replace the triplet value with one suitable for your platform. Valid values are: `x64-windows`, `x64-osx`, `arm64-osx`, `aarch64-linux` (or any of the vcpkg default triplets).
+
+After installing the dependencies, you can build the actual Python packages:
 ```bash
-# Optional: Create a fresh venv first
+# Create a fresh venv first (recommended)
 python3 -m venv venv && source venv/bin/activate
 
-# Build and install Resiliparse
-pip install -e resiliparse
+# Option 1: Build and install in editable mode (best for development)
+python3 -m pip install -e ./fastwarc ./resiliparse
 
-# Build and install FastWARC
-pip install -e fastwarc
+# Option 2 (alternative): Build and install wheels in separate steps (best for redistribution)
+python3 -m pip wheel -w build ./fastwarc ./resiliparse
+ls ./build/*.whl | xargs python3 -m pip install
 ```
-Instead of building the packages from this repository, you can also build them from the PyPi source packages:
+In most cases, the build routine should be smart enough to detect the location of the installed vcpkg dependencies. However, in some cases you may be getting errors about missing header files or undefined symbols. This can happen if you don't build from the source repository, use Python's new `build` module, or run `pip wheel` with `--isolated`. To work around that, set the `RESILIPARSE_VCPKG_PATH` environment variable to the absolute path of the vcpkg installation directory:
 ```bash
-# Build Resiliparse from PyPi
-pip install --no-binary resiliparse resiliparse
-
-# Build FastWARC from PyPi
-pip install --no-binary fastwarc fastwarc
+export RESILIPARSE_VCPKG_PATH="$(pwd)/vcpkg_installed"
 ```
+
+**NOTE:** Unless you fix up the wheels to embed the linked shared libraries (via [auditwheel](https://github.com/pypa/auditwheel) on Linux, [delocate-wheel](https://github.com/matthew-brett/delocate) on macOS, or [delvewheel](https://github.com/adang1345/delvewheel) on Windows), you will have to add the vcpkg library directory (`vcpkg_installed/TRIPLET/lib`) to your library search path to use them. On Linux, add the directory path to the `LD_LIBRARY_PATH` environment variable, on macOS to `DYLD_LIBRARY_PATH`. On Windows, you have to add the directory to the `Path` environment variable.
+
+Here's an example of how to use `auditwheel` on Linux to fix up the build wheels:
+```bash
+LD_LIBRARY_PATH=$(pwd)/vcpkg_installed/x64-linux/lib \
+  auditwheel repair --plat linux_x86_64 build/Resiliparse*.whl build/FastWARC*.whl
+```
+(Please note that `linux_x86_64` platform wheels are [not suitable for general redistribution](https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/#platform-tag).)
+
 
 ## Cite Us
 
