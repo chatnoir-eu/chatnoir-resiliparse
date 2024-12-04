@@ -54,12 +54,16 @@ build = "cp3*"
 build-frontend = "build"
 test-extras = ["all", "test"]
 
+[tool.cibuildwheel.linux.environment]
+FORCE_COLOR = "1"
+
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_x86_64"
 
   [tool.cibuildwheel.overrides.environment]
   CPATH = "/usr/local/share/vcpkg/installed/x64-osx/include"
   LIBRARY_PATH = "/usr/local/share/vcpkg/installed/x64-osx/lib"
+  FORCE_COLOR = "1"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"
@@ -67,6 +71,7 @@ select = "*-macosx_arm64"
   [tool.cibuildwheel.overrides.environment]
   CPATH = "/usr/local/share/vcpkg/installed/arm64-osx/include"
   LIBRARY_PATH = "/usr/local/share/vcpkg/installed/arm64-osx/lib"
+  FORCE_COLOR = "1"
 
 [tool.cibuildwheel.windows.environment]
 INCLUDE = 'C:\\vcpkg\\installed\\x64-windows\\include'

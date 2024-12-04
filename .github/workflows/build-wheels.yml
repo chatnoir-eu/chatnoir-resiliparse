@@ -18,14 +18,13 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   FORCE_COLOR: "1"
-  CIBW_ENVIRONMENT: "FORCE_COLOR=1"
 
 jobs:
   build-wheels:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-12 ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     env:
       CIBW_SKIP: "*-musllinux*"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
@@ -63,13 +62,21 @@ jobs:
           VCPKG_CMD="vcpkg --overlay-ports .vcpkg/ports --overlay-triplets .vcpkg/triplets install"
           PKG_LIST="lexbor lz4 re2 uchardet zlib"
 
-          if [ -d /usr/local/share/vcpkg/ports ]; then
-            # MacOS
+          # Windows
+          if [ -d /c/vcpkg ]; then
+            $VCPKG_CMD --triplet=x64-windows $PKG_LIST
+
+          # MacOS
+          elif [ "$(uname -s)" == "Darwin" ]; then
+            sudo chown runner:admin /usr/local/share
+            git clone https://github.com/Microsoft/vcpkg /usr/local/share/vcpkg
+            /usr/local/share/vcpkg/bootstrap-vcpkg.sh
+            ln -s /usr/local/share/vcpkg/vcpkg /usr/local/bin
+            vcpkg integrate install
+
             $VCPKG_CMD --triplet=x64-osx $PKG_LIST
             $VCPKG_CMD --triplet=arm64-osx $PKG_LIST
-          elif [ -d /c/vcpkg ]; then
-            # Windows
-            $VCPKG_CMD --triplet=x64-windows $PKG_LIST
+
           else
             echo "Unsupported platform." >&2
             exit 1
