@@ -32,3 +32,4 @@ RUN set -x \
 ENV CPATH="/opt/libs/include"
 ENV LIBRARY_PATH="/opt/libs/lib"
 ENV LD_LIBRARY_PATH="/opt/libs/lib"
+ENV FORCE_COLOR="1"

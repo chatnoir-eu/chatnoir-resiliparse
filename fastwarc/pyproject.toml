@@ -42,10 +42,3 @@ archs = "native"
 build = "cp3*"
 build-frontend = "build"
 test-extras = ["all", "test"]
-
-[tool.cibuildwheel.linux.environment]
-CPATH = "/opt/libs/include"
-LIBRARY_PATH = "/opt/libs/lib"
-LD_LIBRARY_PATH = "/opt/libs/lib"
-FORCE_COLOR = "1"
-
