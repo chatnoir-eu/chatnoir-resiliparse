@@ -465,7 +465,7 @@ cdef inline bint _is_unprintable_pua(lxb_dom_node_t* node) noexcept nogil:
 cdef RE2Options re_opts
 re_opts.set_case_sensitive(False)
 
-cdef RE2 article_cls_regex = RE2(rb'(?:^|[\s_-])(?:article|entry|post|story|single[_-]?post|main[_-]content)(?:content|body|text|page)?(?:$|[\s_-])', re_opts)
+cdef RE2 article_cls_regex = RE2(rb'(?:^|[\s_-])(?:article|entry|post|story|single[_-]?post|(?:main[_-])?content|body|text|page)?(?:$|[\s_-])', re_opts)
 cdef RE2 nav_cls_regex = RE2(rb'(?:^|\s)(?:(?:l|m|wp|main|site|page|sub|article|global|sticky|main)[_-]*)?(?:nav(?:igation)?|menu(?:[_-]item)?|drop[_-]?down|bread[_-]?crumbs?)|(?:links?[_-]?(?:bar|box|list|container|section|wrapp(?:er))?)(?:$|[\s_-])', re_opts)
 cdef RE2 recommended_cls_regex = RE2(rb'(?:^|[\s_-])(?:trends|trending|recommended|featured|popular|editors?[_-]picks|related|read-next|(?:related|more|other)[_-]?(?:links|articles|posts|guides|stories))(?:$|[\s_-])', re_opts)
 cdef RE2 landmark_id_regex = RE2(rb'^(?:(?:l|wp|global|page|site|full|sticky)[_-]*)?(?:(?:head|foot)(?:er)?|right)$', re_opts)
@@ -474,7 +474,7 @@ cdef RE2 footer_cls_regex = RE2(rb'(?:^|[\s_-])(?:global|page|site|copyright)?(?
 cdef RE2 post_meta_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:post|entry|article(?:page)?|content|story|section)[_-]*(?:text[_-]*)?(?:footer|teaser|meta(?:[_-]?data)?|subline|sidebar|author(?:name)?|published|timestamp|date|posted[_-]?on|info|labels?|tags?|keywords|category)|by[_-]?line|date[_-]?line|author-date|submitted(?:-by)?)|meta[_-]?data(?:$|[\s_-])', re_opts)
 cdef RE2 sidebar_cls_regex = RE2(rb'(?:^|\s)(?:(?:l|wp|right|left|global|sticky)[_-]*)?(?:(?:side|sticky)[_-]?(?:bars?|box)|one-third)(?:$|[\s_-])', re_opts)
 cdef RE2 search_cls_regex = RE2(rb'(?:^|[\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\s)', re_opts)
-cdef RE2 skip_link_cls_regex = RE2(rb'(?:^|\s)(?:link[_-]?)?(?:skip(?:[_-]?(?:to|link))?|scroll[_-]?(?:up|down)|next|prev(?:ious)?|permalink|pagination)(?:$|\s|[_-]?(?:post|article))', re_opts)
+cdef RE2 skip_link_cls_regex = RE2(rb'(?:^|\s)(?:link[_-]?)?(?:skip(?:[_-]?(?:to|link))?|scroll[_-]?(?:up|down)|next|prev(?:ious)?|permalink|pagination|skip-to-(?:main-)?content)(?:$|\s|[_-]?(?:post|article))', re_opts)
 cdef RE2 display_cls_regex = RE2(rb'(?:^|\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0|nocontent|expandable)(?:-xs|-sm|-lg|-2?xl)?(?:$|\s)', re_opts)
 cdef RE2 display_css_regex = RE2(rb'(?:^|;\s*)(?:display\s?:\s?none|visibility\s?:\s?hidden)(?:$|\s?;)', re_opts)
 cdef RE2 modal_cls_regex = RE2(rb'(?:^|\s)(?:wp-|p-|-l)?(?:modal|popup|lightbox)(?:[_-]*(?:window|pane|box))?(?:$|[\s_-])', re_opts)
@@ -485,6 +485,7 @@ cdef RE2 social_cls_regex = RE2(rb'(?:^|\s|__|--|mobile-|desktop-|l-|m-|c-)(?:so
 cdef RE2 comments_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:article|user|post)[_-]*)?(?:(?:no[_-]?)?comments?|comment[_-]?list|reply)(?:$|[\s_-])', re_opts)
 cdef RE2 logo_cls_regex = RE2(rb'(?:brand(?:ing)?[_-]*)?logo(?:$|\s)', re_opts)
 cdef RE2 print_cls_regex = RE2(rb'(?:^|\s)print[_-]', re_opts)
+cdef RE2 other_junk_cls_regex = RE2(rb'(?:^|\s)short-view-count(?:$|[\s_-])')
 
 
 cdef inline bint regex_search_not_empty(const string_view s, const RE2& r) noexcept nogil:
@@ -525,7 +526,8 @@ cdef stl_set[string] blacklist_aria_roles = [b'alert', b'banner', b'checkbox', b
 
 
 # noinspection DuplicatedCode
-cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments) noexcept nogil:
+cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments,
+                                       bint allow_post_meta) noexcept nogil:
     """
     Perform a rule-based check whether the given element is a "main-content" element.
     
@@ -634,7 +636,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
             return False
 
         # Post meta
-        if regex_search_not_empty(cls_attr, post_meta_cls_regex):
+        if not allow_post_meta and regex_search_not_empty(cls_attr, post_meta_cls_regex):
             return False
 
         # Social media and feedback forms
@@ -650,6 +652,10 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
             or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-ad', 7) \
             or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-advertisement', 18) \
             or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-text-ad', 12):
+        return False
+
+    # Other junk
+    if regex_search_not_empty(cls_attr, other_junk_cls_regex):
         return False
 
 
@@ -733,6 +739,7 @@ def extract_plain_text(html,
                        bint form_fields=False,
                        bint noscript=False,
                        bint comments=True,
+                       bint post_meta=True,
                        skip_elements=None):
     """
     extract_plain_text(html, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
@@ -770,6 +777,8 @@ def extract_plain_text(html,
     :param noscript: extract contents of <noscript> elements
     :param comments: treat comment sections as main content
     :type comments: bool
+    :param post_meta: preserve blog post / article meta data in main content extract
+    :type post_meta: bool
     :param skip_elements: list of CSS selectors for elements to skip
     :type skip_elements: t.Iterable[str] or None
     :type noscript: bool
@@ -817,6 +826,7 @@ def extract_plain_text(html,
             form_fields,
             noscript,
             comments,
+            post_meta,
             skip_selector)
     return extracted.decode(errors='ignore')
 
@@ -829,6 +839,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint form_fields,
                                      bint noscript,
                                      bint comments,
+                                     bint post_meta,
                                      string skip_selector) noexcept nogil:
     """Internal extractor implementation not requiring GIL."""
 
@@ -898,7 +909,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
 
         # Skip blacklisted or non-main-content nodes
         if blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
-                (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments)):
+                (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments, post_meta)):
             is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
