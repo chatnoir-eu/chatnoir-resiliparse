@@ -191,3 +191,5 @@ Output:
     foo baz bar Sorry, your browser doesn't support JavaScript!
 
 By default, news article or blog post meta information (author, date, etc.), and user comments are considered main content. You can extraction of the meta data with ``post_meta=False`` and comment extraction with ``comments=False`.
+
+Elements marked as hidden by certain class names or inline CSS are not considered main content by default, but you can keep them with ``hidden_elements=True``.

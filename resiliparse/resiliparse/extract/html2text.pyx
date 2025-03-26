@@ -527,14 +527,16 @@ cdef stl_set[string] blacklist_aria_roles = [b'alert', b'banner', b'checkbox', b
 
 
 # noinspection DuplicatedCode
-cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint allow_comments,
-                                       bint allow_post_meta) noexcept nogil:
+cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint keep_comments,
+                                       bint keep_post_meta, bint keep_hidden) noexcept nogil:
     """
     Perform a rule-based check whether the given element is a "main-content" element.
     
     :param node: node to check
     :param body_depth: DOM depth of element counted from the document's BODY
-    :param allow_comments: treat comment sections as main content
+    :param keep_comments: treat comment sections as main content
+    :param keep_post_meta: treat article / blog post meta data as main content
+    :param keep_hidden: keep elements that are hidden by classes or inline CSS
     :return: true if element is a main content element
     """
 
@@ -622,7 +624,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     cdef string_view cls_and_id_attr = <string_view>cls_and_id_attr_str
 
     # Hidden elements
-    if regex_search_not_empty(cls_attr, display_cls_regex) \
+    if not keep_hidden and regex_search_not_empty(cls_attr, display_cls_regex) \
             or regex_search_not_empty(get_node_attr_sv(node, b'style'), display_css_regex):
         return False
 
@@ -637,7 +639,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
             return False
 
         # Post meta
-        if not allow_post_meta and regex_search_not_empty(cls_attr, post_meta_cls_regex):
+        if not keep_post_meta and regex_search_not_empty(cls_attr, post_meta_cls_regex):
             return False
 
         # Social media and feedback forms
@@ -697,7 +699,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
         return False
 
     # Comments section
-    if not allow_comments and node.local_name and regex_search_not_empty(cls_and_id_attr, comments_cls_regex):
+    if not keep_comments and node.local_name and regex_search_not_empty(cls_and_id_attr, comments_cls_regex):
         return False
 
     # Global search bar
@@ -741,6 +743,7 @@ def extract_plain_text(html,
                        bint noscript=False,
                        bint comments=True,
                        bint post_meta=True,
+                       bint hidden_elements=False,
                        skip_elements=None):
     """
     extract_plain_text(html, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=False, \
@@ -780,6 +783,8 @@ def extract_plain_text(html,
     :type comments: bool
     :param post_meta: preserve blog post / article meta data in main content extract
     :type post_meta: bool
+    :param hidden_elements: keep elements hidden by inline CSS or class names
+    :type hidden_elements: bool
     :param skip_elements: list of CSS selectors for elements to skip
     :type skip_elements: t.Iterable[str] or None
     :type noscript: bool
@@ -828,6 +833,7 @@ def extract_plain_text(html,
             noscript,
             comments,
             post_meta,
+            hidden_elements,
             skip_selector)
     return extracted.decode(errors='ignore')
 
@@ -841,6 +847,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint noscript,
                                      bint comments,
                                      bint post_meta,
+                                     bint hidden_elements,
                                      string skip_selector) noexcept nogil:
     """Internal extractor implementation not requiring GIL."""
 
@@ -910,7 +917,8 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
 
         # Skip blacklisted or non-main-content nodes
         if blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
-                (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments, post_meta)):
+                (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments,
+                                                            post_meta, hidden_elements)):
             is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
