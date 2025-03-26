@@ -476,7 +476,7 @@ cdef RE2 post_meta_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:post|entry|article(?:pag
 cdef RE2 sidebar_cls_regex = RE2(rb'(?:^|\s)(?:(?:l|wp|right|left|global|sticky)[_-]*)?(?:(?:side|sticky)[_-]?(?:bars?|box)|one-third)(?:$|[\s_-])', re_opts)
 cdef RE2 search_cls_regex = RE2(rb'(?:^|[\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\s)', re_opts)
 cdef RE2 skip_link_cls_regex = RE2(rb'(?:^|\s)(?:link[_-]?)?(?:skip(?:[_-]?(?:to|link))?|scroll[_-]?(?:up|down)|next|prev(?:ious)?|permalink|pagination|skip-to-(?:main-)?content)(?:$|\s|[_-]?(?:post|article))', re_opts)
-cdef RE2 display_cls_regex = RE2(rb'(?:^|\s)(?:is[_-])?(?:display-none|hidden|invisible|collapsed|h-0|nocontent|expandable)(?:-xs|-sm|-lg|-2?xl)?(?:$|\s)', re_opts)
+cdef RE2 display_cls_regex = RE2(rb'(?:^|\s)(?:(?:is|visually)[_-])?(?:display-none|hidden|invisible|collapsed|h-0|nocontent|expandable)(?:-xs|-sm|-lg|-2?xl)?(?:$|\s)', re_opts)
 cdef RE2 display_css_regex = RE2(rb'(?:^|;\s*)(?:display\s?:\s?none|visibility\s?:\s?hidden)(?:$|\s?;)', re_opts)
 cdef RE2 modal_cls_regex = RE2(rb'(?:^|\s)(?:wp-|p-|-l)?(?:modal|popup|lightbox)(?:[_-]*(?:window|pane|box))?(?:$|[\s_-])', re_opts)
 cdef RE2 gallery_cls_regex = RE2(rb'(?:^|[\s_-])(?:gallery|carousel)(?:$|[\s_-])', re_opts)
@@ -486,7 +486,7 @@ cdef RE2 social_cls_regex = RE2(rb'(?:^|\s|__|--|mobile-|desktop-|l-|m-|c-)(?:so
 cdef RE2 comments_cls_regex = RE2(rb'(?:^|[\s_-])(?:(?:article|user|post)[_-]*)?(?:(?:no[_-]?)?comments?|comment[_-]?list|reply)(?:$|[\s_-])', re_opts)
 cdef RE2 logo_cls_regex = RE2(rb'(?:brand(?:ing)?[_-]*)?logo(?:$|\s)', re_opts)
 cdef RE2 print_cls_regex = RE2(rb'(?:^|\s)print[_-]', re_opts)
-cdef RE2 other_junk_cls_regex = RE2(rb'(?:^|\s)short-view-count(?:$|[\s_-])')
+cdef RE2 other_junk_cls_regex = RE2(rb'(?:^|\s)short-view-count|spinner(?:$|[\s_-])')
 
 
 cdef inline bint regex_search_not_empty(const string_view s, const RE2& r) noexcept nogil:
