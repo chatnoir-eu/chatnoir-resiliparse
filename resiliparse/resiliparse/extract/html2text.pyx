@@ -357,7 +357,8 @@ cdef string _serialize_extract_nodes(vector[shared_ptr[ExtractNode]]& extract_no
                 output.append(b'<br>')
 
             # Add a select number of start/end tags if minimal HTML formatting is on.
-            if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML and (
+            if opts.preserve_formatting == FormattingOpts.FORMAT_MINIMAL_HTML and \
+                    current_node.reference_node.first_child != NULL and (
                     current_node.tag_id in [LXB_TAG_H1, LXB_TAG_H2, LXB_TAG_H3, LXB_TAG_H4, LXB_TAG_H5, LXB_TAG_H6, LXB_TAG_P]
                     or (current_node.tag_id in [LXB_TAG_UL, LXB_TAG_OL] and opts.list_bullets)):
 
