@@ -105,6 +105,7 @@ jobs:
           output-dir: wheelhouse
         env:
           CIBW_BEFORE_TEST: >-
+            ls -l wheelhouse &&
             python -c "import glob, platform; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/FastWARC-*cp' + ''.join(map(str, platform.python_version_tuple()[:2])) + '-*_' + platform.machine().lower() + '.whl')[0])" &&
             python -m pip install -r fastwarc.txt
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
