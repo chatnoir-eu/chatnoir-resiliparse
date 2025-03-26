@@ -64,7 +64,7 @@ def get_cpp_args():
                                 '-Wno-deprecated-declarations',
                                 '-Wno-unreachable-code',
                                 '-Wno-unused-function'],
-            extra_link_args=['-std=c++17', f'-L{LIBRARY_PATH}', '-rpath', f'{LIBRARY_PATH}']
+            extra_link_args=['-std=c++17', f'-L{LIBRARY_PATH}', f'-Wl,-rpath,{LIBRARY_PATH}']
         ))
         if DEBUG:
             cpp_args['extra_compile_args'].append('-Werror')
