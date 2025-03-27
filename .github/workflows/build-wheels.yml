@@ -307,8 +307,8 @@ jobs:
           grep -vE "fastwarc|resiliparse" docs/requirements.txt | xargs python -m pip install
 
           PYTHON_ABI="cp${PYTHON_VERSION/./}"
-          find wheelhouse -name "FastWARC-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
-          find wheelhouse -name "Resiliparse-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
+          find wheelhouse -name "fastwarc-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
+          find wheelhouse -name "resiliparse-*-${PYTHON_ABI}-*-manylinux_x86_64.whl" | xargs -I% python -m pip install "%[all]"
 
           cd docs
           make html
@@ -347,8 +347,8 @@ jobs:
 
           python3 -m pip install twine
 
-          TWINE_PASSWORD="$TWINE_PASSWORD1" python3 -m twine upload FastWARC-*.whl fastwarc-*.tar.gz
-          TWINE_PASSWORD="$TWINE_PASSWORD2" python3 -m twine upload Resiliparse-*.whl resiliparse-*.tar.gz
+          TWINE_PASSWORD="$TWINE_PASSWORD1" python3 -m twine upload fastwarc-*.whl fastwarc-*.tar.gz
+          TWINE_PASSWORD="$TWINE_PASSWORD2" python3 -m twine upload resiliparse-*.whl resiliparse-*.tar.gz
 
       - name: Wait
         run: sleep 30
