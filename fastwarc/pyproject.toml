@@ -31,6 +31,9 @@ test = [
   "lz4"
 ]
 
+[project.scripts]
+fastwarc = "fastwarc.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["fastwarc*"]
 
