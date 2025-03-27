@@ -20,7 +20,6 @@ import sys
 
 from Cython.Build import cythonize
 from Cython.Distutils.build_ext import new_build_ext as build_ext
-import distutils.ccompiler
 from setuptools import Extension, setup
 
 TRACE = bool(int(os.getenv('TRACE', 0)))
@@ -28,65 +27,68 @@ DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
 ASAN = bool(int(os.getenv('ASAN', 0)))
 
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
-CXX = distutils.ccompiler.get_default_compiler()
-
-# Construct vcpkg lib and include paths
-def _vcpkg_path():
-    osname = platform.system().lower().replace('darwin', 'osx')
-    arch = platform.machine().lower()
-    if os.environ.get('_PYTHON_HOST_PLATFORM', '').startswith('macosx-'):
-        arch = os.environ['_PYTHON_HOST_PLATFORM'].split('-')[-1]
-    elif osname == 'linux' and arch == 'arm64':
-        arch = 'aarch64'
-    arch = arch.replace('x86_64', 'x64').replace('amd64', 'x64')
-    triplet = f'{arch}-{osname}'
-
-    if os.environ.get('RESILIPARSE_VCPKG_PATH'):
-        return os.path.join(os.environ['RESILIPARSE_VCPKG_PATH'], triplet)
-    return os.path.join(os.path.dirname(ROOT_DIR), 'vcpkg_installed', triplet)
-
-INCLUDE_PATH = os.path.join(_vcpkg_path(), 'include')
-LIBRARY_PATH = os.path.join(_vcpkg_path(), 'lib')
 
 
-def get_cpp_args():
-    cpp_args = {}
+class resiliparse_build_ext(build_ext):
+    def build_extension(self, ext):
+        for k, v in self.get_cpp_args().items():
+            setattr(ext, k, v)
+        return super().build_extension(ext)
 
-    if TRACE:
-        cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
+    def get_vcpkg_path(self):
+        osname = platform.system().lower().replace('darwin', 'osx')
+        arch = platform.machine().lower()
+        if os.environ.get('_PYTHON_HOST_PLATFORM', '').startswith('macosx-'):
+            arch = os.environ['_PYTHON_HOST_PLATFORM'].split('-')[-1]
+        elif osname == 'linux' and arch == 'arm64':
+            arch = 'aarch64'
+        arch = arch.replace('x86_64', 'x64').replace('amd64', 'x64')
+        triplet = f'{arch}-{osname}'
 
-    if CXX == 'unix':
-        cpp_args.update(dict(
-            extra_compile_args=['-std=c++17',
-                                f'-O{0 if DEBUG else 3}',
-                                f'-I{INCLUDE_PATH}',
-                                '-Wall',
-                                '-Wno-deprecated-declarations',
-                                '-Wno-unreachable-code',
-                                '-Wno-unused-function'],
-            extra_link_args=['-std=c++17', f'-L{LIBRARY_PATH}', f'-Wl,-rpath,{LIBRARY_PATH}']
-        ))
-        if DEBUG:
-            cpp_args['extra_compile_args'].append('-Werror')
-        if ASAN:
-            cpp_args['extra_compile_args'].append('-fsanitize=address')
-            cpp_args['extra_link_args'].append('-fsanitize=address')
-        if platform.system() == 'Darwin':
-            cpp_args['extra_link_args'].append('-headerpad_max_install_names')
+        if os.environ.get('RESILIPARSE_VCPKG_PATH'):
+            return os.path.join(os.environ['RESILIPARSE_VCPKG_PATH'], triplet)
+        return os.path.join(os.path.dirname(ROOT_DIR), 'vcpkg_installed', triplet)
 
-    elif CXX == 'msvc':
-        cpp_args.update(dict(
-            extra_compile_args=['/std:c++latest',
-                                '/W3',
-                                f'/O{"d" if DEBUG else 2}',
-                                f'/I{INCLUDE_PATH}'],
-            extra_link_args=[f'/LIBPATH:{LIBRARY_PATH}']
-        ))
-        if DEBUG:
-            cpp_args['extra_compile_args'].append('/WX')
-            cpp_args['extra_link_args'].append('/WX')
+    def get_cpp_args(self):
+        include_path = os.path.join(self.get_vcpkg_path(), 'include')
+        library_path = os.path.join(self.get_vcpkg_path(), 'lib')
+        cpp_args = {}
 
-    return cpp_args
+        if TRACE:
+            cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
+
+        if self.compiler.compiler_type == 'unix':
+            cpp_args.update(dict(
+                extra_compile_args=['-std=c++17',
+                                    f'-O{0 if DEBUG else 3}',
+                                    f'-I{include_path}',
+                                    '-Wall',
+                                    '-Wno-deprecated-declarations',
+                                    '-Wno-unreachable-code',
+                                    '-Wno-unused-function'],
+                extra_link_args=['-std=c++17', f'-L{library_path}', f'-Wl,-rpath,{library_path}']
+            ))
+            if DEBUG:
+                cpp_args['extra_compile_args'].append('-Werror')
+            if ASAN:
+                cpp_args['extra_compile_args'].append('-fsanitize=address')
+                cpp_args['extra_link_args'].append('-fsanitize=address')
+            if platform.system() == 'Darwin':
+                cpp_args['extra_link_args'].append('-headerpad_max_install_names')
+
+        elif self.compiler.compiler_type == 'msvc':
+            cpp_args.update(dict(
+                extra_compile_args=['/std:c++latest',
+                                    '/W3',
+                                    f'/O{"d" if DEBUG else 2}',
+                                    f'/I{include_path}'],
+                extra_link_args=[f'/LIBPATH:{library_path}']
+            ))
+            if DEBUG:
+                cpp_args['extra_compile_args'].append('/WX')
+                cpp_args['extra_link_args'].append('/WX')
+
+        return cpp_args
 
 
 def get_cython_args():
@@ -105,27 +107,25 @@ def get_cython_args():
 
 
 def get_ext_modules():
-    cpp_args = get_cpp_args()
-
     resiliparse_extensions = [
         Extension('resiliparse.itertools',
-                  sources=[f'resiliparse/itertools.pyx'], **cpp_args),
+                  sources=[f'resiliparse/itertools.pyx']),
         Extension('resiliparse.extract.html2text',
-                  sources=[f'resiliparse/extract/html2text.pyx'], libraries=['lexbor', 're2'], **cpp_args),
+                  sources=[f'resiliparse/extract/html2text.pyx'], libraries=['lexbor', 're2']),
         Extension('resiliparse.parse.encoding',
-                  sources=[f'resiliparse/parse/encoding.pyx'], libraries=['uchardet', 'lexbor'], **cpp_args),
+                  sources=[f'resiliparse/parse/encoding.pyx'], libraries=['uchardet', 'lexbor']),
         Extension('resiliparse.parse.html',
-                  sources=[f'resiliparse/parse/html.pyx'], libraries=['lexbor'], **cpp_args),
+                  sources=[f'resiliparse/parse/html.pyx'], libraries=['lexbor']),
         Extension('resiliparse.parse.http',
-                  sources=[f'resiliparse/parse/http.pyx'], **cpp_args),
+                  sources=[f'resiliparse/parse/http.pyx']),
         Extension('resiliparse.parse.lang',
-                  sources=[f'resiliparse/parse/lang.pyx'], **cpp_args),
+                  sources=[f'resiliparse/parse/lang.pyx']),
     ]
     if os.name == 'posix':
         # Process Guards are unsupported on Windows
         resiliparse_extensions.append(
             Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.pyx'],
-                      libraries=['pthread'], **cpp_args)
+                      libraries=['pthread'])
         )
 
     return cythonize(resiliparse_extensions, **get_cython_args())
@@ -138,7 +138,7 @@ if fastwarc_headers:
 
 setup(
     ext_modules=get_ext_modules(),
-    cmdclass=dict(build_ext=build_ext),
+    cmdclass=dict(build_ext=resiliparse_build_ext),
     exclude_package_data={
         '': [] if 'sdist' in sys.argv else ['*.pxd', '*.pxi', '*.pyx', '*.h', '*.cpp']
     }
