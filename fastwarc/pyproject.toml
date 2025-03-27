@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=65.0", "Cython>=0.29.33"]
+requires = ["setuptools>=77.0.0", "Cython>=0.29.33"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,7 @@ description = "A high-performance WARC parsing library for Python written in C++
 authors = [
   { name = "Janek Bevendorff" }
 ]
-license = { text = "Apache License 2.0" }
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
