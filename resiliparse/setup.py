@@ -130,6 +130,7 @@ def get_ext_modules():
 
     return cythonize(resiliparse_extensions, **get_cython_args())
 
+
 # Copy FastWARC headers
 fastwarc_headers = glob.glob(os.path.join(ROOT_DIR, '..', 'fastwarc', 'fastwarc', "*.pxd"))
 if fastwarc_headers:
