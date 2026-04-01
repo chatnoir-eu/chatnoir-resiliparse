@@ -37,7 +37,7 @@ from resiliparse_inc.cstdlib cimport strtol
 from resiliparse_inc.utility cimport move
 
 from fastwarc.stream_io cimport BufferedReader, BytesIOStream, CompressingStream, GZipStream, BrotliStream, \
-    IOStream, PythonIOStreamAdapter
+    IOStream, wrap_stream
 from fastwarc.stream_io import ReaderStaleError
 
 __all__ = [
@@ -837,8 +837,7 @@ cdef class WarcRecord:
         return True
 
     # noinspection PyTypeChecker
-    cpdef size_t write(self, stream, bint checksum_data=False, bytes payload_digest=None,
-                       size_t chunk_size=16384) except -1:
+    cpdef size_t write(self, stream, bint checksum_data=False, bytes payload_digest=None, size_t chunk_size=16384) except -1:
         """
         Write WARC record onto a stream.
 
@@ -894,33 +893,22 @@ cdef class WarcRecord:
         block_buf.seek(0)
         return self._write_impl(block_buf, stream, False, chunk_size)
 
-    cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size) except -1:
-        cdef IOStream out_stream_wrapped
+    cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size,
+                            fsspec_args=None) except -1:
         cdef size_t bytes_written = 0
         cdef bint compress_member_started = False
 
-        if isinstance(out_stream, IOStream):
-            out_stream_wrapped = <IOStream>out_stream
-
-            if isinstance(out_stream, CompressingStream):
-                bytes_written = (<CompressingStream>out_stream_wrapped).begin_member()
-                compress_member_started = True
-
-        elif isinstance(out_stream, object) and hasattr(out_stream, 'write'):
-            out_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, out_stream)
-        else:
-            raise TypeError(f"Object of type '{type(out_stream).__name__}' is not a valid stream.")
+        cdef IOStream out_stream_wrapped = wrap_stream(out_stream, 'wb', fsspec_args=False)
+        if isinstance(out_stream, CompressingStream):
+            bytes_written = (<CompressingStream>out_stream_wrapped).begin_member()
+            compress_member_started = True
 
         cdef BufferedReader in_reader_wrapped = None
         cdef IOStream in_stream_wrapped = None
         if isinstance(in_stream, BufferedReader):
             in_reader_wrapped = <BufferedReader>in_stream
-        elif isinstance(in_stream, IOStream):
-            in_stream_wrapped = <IOStream>in_stream
-        elif isinstance(in_stream, object) and hasattr(in_stream, 'read'):
-            in_stream_wrapped = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, in_stream)
         else:
-            raise TypeError(f"Object of type '{type(in_stream).__name__}' is not a valid stream.")
+            in_stream_wrapped = wrap_stream(in_stream, 'rb', fsspec_args=False)
 
         bytes_written += self._headers.write(out_stream_wrapped)
         bytes_written += out_stream_wrapped.write_(b'\r\n', 2)
@@ -1106,8 +1094,14 @@ cdef class ArchiveIterator:
     """
     WARC record stream iterator.
 
-    :param stream: input stream (preferably an :class:`~fastwarc.stream_io.IOStream`,
-                   but any file-like Python object is fine)
+    The iterator can be initialized from either an :class:`fastwarc.stream_io.IOStream`, a file-like
+    Python object, or a string. In the case of a string, it is treated as a file path or a URL.
+    If installed, `fsspec <https://filesystem-spec.readthedocs.io/>`__ is used for opening the file or URL
+    (unless ``fsspec_args=False``), and a :class:`PythonIOStreamAdapter` is returned. If ``fsspec`` is not
+    installed, a :class:`FileStream` is returned instead.
+
+    :param stream: input stream (:class:`~fastwarc.stream_io.IOStream` or file-like Python object)
+                   or file name/URL as string
     :param parse_http: whether to parse HTTP records automatically (disable for better performance if not needed)
     :type parse_http: bool
     :param record_types: bitmask of :class:`WarcRecordType` record types to return (others will be skipped)
@@ -1127,6 +1121,7 @@ cdef class ArchiveIterator:
     :param auto_decode: automatically decode record body if Content-Encoding or Transfer-Encoding headers are set
                         (accepted values: ``'none'`` [default], ``'content'``, ``'transfer'``, ``'all'``,
                         has no effect if ``parse_http`` is ``False``)
+    :param fsspec_args: dict of arguments to pass to ``fsspec`` or ``False`` to disable ``fsspec``
     :type auto_decode: str
     """
 
@@ -1136,7 +1131,8 @@ cdef class ArchiveIterator:
     def __cinit__(self, stream, uint16_t record_types=any_type, bint parse_http=True,
                   size_t min_content_length=strnpos, size_t max_content_length=strnpos,
                   func_filter=None, bint verify_digests=False, bint strict_mode=True,
-                  str auto_decode='none'):
+                  str auto_decode='none', fsspec_args=None):
+        self.fsspec_args = fsspec_args or {}
         self._set_stream(stream)
         self.record = None
         self.iter = None
@@ -1272,14 +1268,7 @@ cdef class ArchiveIterator:
 
         This method is for internal use and should not be called by external users.
         """
-        if not isinstance(stream, IOStream):
-            for attr in ('read', 'tell', 'close'):
-                if not hasattr(stream, attr):
-                    raise AttributeError(f"Object of type '{type(stream).__name__}' has no attribute '{attr}'.")
-            stream = PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, stream)
-
-        cdef IOStream stream_ = <IOStream>stream
-        self.reader = BufferedReader.__new__(BufferedReader, stream_)
+        self.reader = BufferedReader.__new__(BufferedReader, wrap_stream(stream, 'rb', self.fsspec_args))
         self.record = None
         return True
 

@@ -76,10 +76,16 @@ The central class for stream-processing WARC files is :class:`fastwarc.warc.Arch
 
   from fastwarc.warc import ArchiveIterator
 
-  for record in ArchiveIterator(open('warcfile.warc.gz', 'rb')):
+  # Explicit file-like object
+  with open('warcfile.warc.gz', 'rb') as f:
+      for record in ArchiveIterator(f):
+          print(record.record_id)
+
+  # File path
+  for record in ArchiveIterator('warcfile.warc.gz'):
       print(record.record_id)
 
-This will iterate over all records in the file and print out their IDs. You can pass any file-like Python object to :class:`.ArchiveIterator`, for either an uncompressed or a GZip- or LZ4-compressed WARC. FastWARC will try to auto-detect the stream format, but if you know the compression algorithm beforehand, you can speed up the process a little by explicitly passing a :class:`.GZipStream` or :class:`.LZ4Stream` object instead:
+This will iterate over all records in the file and print out their IDs. You can pass any file-like Python object or a file path as a string to :class:`.ArchiveIterator`. The stream or file can be either uncompressed or a GZip- or LZ4-compressed WARC. FastWARC will try to auto-detect the stream format, but if you know the compression algorithm beforehand, you can speed up the process a little by explicitly passing a :class:`.GZipStream` or :class:`.LZ4Stream` object instead:
 
 .. code-block:: python
 
@@ -91,12 +97,36 @@ This will iterate over all records in the file and print out their IDs. You can 
   # LZ4:
   stream = LZ4Stream(open('warcfile.warc.lz4', 'rb'))
 
-As a further optimization for local files, it is recommended that you use a :class:`.FileStream` instead of a Python file object. :class:`.FileStream` is a native file reader that circumvents the entire Python I/O stack for better performance:
+As a further (micro-)optimization for local files, you can you use a :class:`.FileStream` instead of a file-like Python object. :class:`.FileStream` is a native file reader that circumvents the entire Python I/O stack for better performance:
 
 .. code-block:: python
 
   from fastwarc.stream_io import *
   stream = GZipStream(FileStream('warcfile.warc.gz', 'rb'))
+
+If `fsspec <https://filesystem-spec.readthedocs.io/>`__ is installed (which is a dependency if you installed FastWARC as ``fastwarc[fsspec]``), you can also use a (remote) URL instead of a local file path:
+
+.. code-block:: python
+
+  from fastwarc.warc import ArchiveIterator
+
+  # Read remote S3 object (with optional credentials, needs s3fs installed)
+  creds = {'key': '...',
+           'secret': '...',
+           'endpoint_url': '...'}
+  for record in ArchiveIterator('s3://mybucket/warcfile.warc.gz', fsspec_args=creds):
+      print(record.record_id)
+
+Create your own :class:`fsspec.core.OpenFile` object if you need more control:
+
+.. code-block:: python
+
+  from fsspec import open as fsspec_open
+
+  with fsspec_open('s3://mybucket/warcfile.warc.gz', 'rb', **creds) as f:
+      for record in ArchiveIterator(f):
+          print(record.record_id)
+
 
 Filtering Records
 -----------------

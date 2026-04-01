@@ -38,6 +38,8 @@ def test_archive_iterator():
     iterate_warc(LZ4Stream(FileStream(os.path.join(DATA_DIR, 'warcfile.warc.lz4'))))
     iterate_warc(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb'))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()))
+    iterate_warc(os.path.join(DATA_DIR, 'warcfile.warc'))
+    iterate_warc('file://' + os.path.join(DATA_DIR, 'warcfile.warc'))
 
 
 def test_stream_type_auto_detection():
@@ -52,6 +54,10 @@ def test_stream_type_auto_detection():
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc'), 'rb').read()))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc.gz'), 'rb').read()))
     iterate_warc(io.BytesIO(open(os.path.join(DATA_DIR, 'warcfile.warc.lz4'), 'rb').read()))
+
+    iterate_warc('file://' + os.path.join(DATA_DIR, 'warcfile.warc'))
+    iterate_warc('file://' + os.path.join(DATA_DIR, 'warcfile.warc.gz'))
+    iterate_warc('file://' + os.path.join(DATA_DIR, 'warcfile.warc.lz4'))
 
 
 def test_transfer_content_encoding():

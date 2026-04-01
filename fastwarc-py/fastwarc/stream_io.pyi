@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import ContextManager, Optional, Type, Union, BinaryIO, Protocol
+from typing import Any, ContextManager, Dict, Literal, Optional, Type, Union, BinaryIO, Protocol
 
 class _GenericIOStream(Protocol):
     def write(self, data: bytes) -> int: ...
@@ -26,9 +26,16 @@ class IOStream(ContextManager[IOStream]):
     ) -> None: ...
 
 
+def wrap_stream(
+        raw_stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
+        mode: str = 'rb',
+        fsspec_args: Optional[Union[Dict[Any, Any], Literal[False]]] = None
+) -> IOStream: ...
+
+
 class BufferedReader:
     def __init__(
-        self, stream: Union[IOStream, BinaryIO, _GenericIOStream], buf_size: int = 65536, negotiate_stream: bool = True
+        self, stream: IOStream, buf_size: int = 65536, negotiate_stream: bool = True
     ) -> None: ...
     def close(self) -> None: ...
     def consume(self, size: int = -1) -> int: ...
@@ -43,7 +50,7 @@ class BytesIOStream(IOStream):
 
 
 class FileStream(IOStream):
-    def __init__(self, filename: str, mode: str = "rb") -> None: ...
+    def __init__(self, filename: str, mode: str = 'rb') -> None: ...
 
 
 class CompressingStream(IOStream):
@@ -53,22 +60,31 @@ class CompressingStream(IOStream):
 
 class BrotliStream(CompressingStream):
     def __init__(
-        self, raw_stream: Union[IOStream, BinaryIO, _GenericIOStream], quality: int = 11, lgwin: int = 22, lgblock: int = 0
+            self,
+            raw_stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
+            quality: int = 11,
+            lgwin: int = 22,
+            lgblock: int = 0,
+            fsspec_args: Optional[Union[Dict[Any, Any], Literal[False]]] = None
     ) -> None: ...
 
 
 class GZipStream(CompressingStream):
     def __init__(
-        self, raw_stream: Union[IOStream, BinaryIO, _GenericIOStream], compression_level: int = 9, zlib: bool = False
+            self, raw_stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
+            compression_level: int = 9,
+            zlib: bool = False,
+            fsspec_args: Optional[Union[Dict[Any, Any], Literal[False]]] = None
     ) -> None: ...
 
 
 class LZ4Stream(CompressingStream):
     def __init__(
-        self,
-        raw_stream: Union[IOStream, BinaryIO, _GenericIOStream],
-        compression_level: int = 12,
-        favor_dec_speed: bool = True,
+            self,
+            raw_stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
+            compression_level: int = 12,
+            favor_dec_speed: bool = True,
+            fsspec_args: Optional[Union[Dict[Any, Any], Literal[False]]] = None
     ) -> None: ...
     def prepopulate(self, initial_data: bytes) -> None: ...
 

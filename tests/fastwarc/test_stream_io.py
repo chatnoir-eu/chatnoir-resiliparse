@@ -67,6 +67,38 @@ def test_file_stream():
         validate_stream_io(sio.FileStream(os.path.join(tmpdir, 'testfile.txt'), 'w+'))
 
 
+def test_file_path_url():
+    try:
+        import fsspec
+        has_fsspec = True
+    except ModuleNotFoundError:
+        has_fsspec = False
+
+    stream = sio.wrap_stream(os.path.join(DATA_DIR, 'warcfile.warc'), fsspec_args=False)
+    assert type(stream) is sio.FileStream
+    data = stream.read(5)
+    assert data == b'WARC/'
+
+    stream = sio.wrap_stream(os.path.join(DATA_DIR, 'warcfile.warc'))
+    assert type(stream) is (sio.PythonIOStreamAdapter if has_fsspec else sio.FileStream)
+    data = stream.read(5)
+    assert data == b'WARC/'
+
+    if not has_fsspec:
+        pytest.skip('fsspec is not installed. Skipping URL tests')
+
+    stream = sio.wrap_stream('file://' + os.path.join(DATA_DIR, 'warcfile.warc'))
+    assert type(stream) is sio.PythonIOStreamAdapter
+    data = stream.read(5)
+    assert data == b'WARC/'
+
+    with pytest.raises(ValueError):
+        sio.wrap_stream('filexxxx://' + os.path.join(DATA_DIR, 'warcfile.warc'))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        validate_stream_io(sio.wrap_stream('file://' + os.path.join(tmpdir, 'testfile.txt'), 'wb+'))
+
+
 def test_bytes_io_stream():
     validate_stream_io(sio.BytesIOStream(b''))
 

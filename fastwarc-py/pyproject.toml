@@ -26,11 +26,17 @@ homepage = "https://resiliparse.chatnoir.eu"
 documentation = "https://resiliparse.chatnoir.eu"
 
 [project.optional-dependencies]
-all = []
+all = [
+  "fastwarc[fsspec]"
+]
+fsspec = [
+  "fsspec"
+]
 test = [
+  "fastwarc[all]",
   "pytest>=7.2.2",
   "pytest-cov>=4.0.0",
-  "lz4"
+  "lz4",
 ]
 
 [project.scripts]

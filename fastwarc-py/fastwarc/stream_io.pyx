@@ -130,6 +130,37 @@ cdef class IOStream:
         pass
 
 
+cpdef IOStream wrap_stream(raw_stream, str mode='rb', fsspec_args=None):
+    """
+    Wrap ``raw_stream`` into a :class:`PythonIOStreamAdapter` if it is a file-like Python object or
+    return ``raw_stream`` unmodified if it is an :class:`IOStream` already.
+    Instead of a stream, you can also pass a string, which is treated as a file path or a URL. If
+    installed, `fsspec <https://filesystem-spec.readthedocs.io/>`__ is used for opening the file or URL
+    (unless ``fsspec_args=False``), and a :class:`PythonIOStreamAdapter` is returned. If ``fsspec`` is not
+    installed, a :class:`FileStream` is returned instead.
+
+    :param raw_stream: stream to wrap
+    :param mode: stream mode for fsspec open
+    :type mode: str
+    :param fsspec_args: dict of arguments to pass to ``fsspec`` (set to ``False`` to disable ``fsspec``)
+    :type fsspec_args: dict
+    :return: wrapped stream
+    :rtype: IOStream
+    """
+    if isinstance(raw_stream, IOStream):
+        return raw_stream
+    elif isinstance(raw_stream, str):
+        if fsspec_args is not False:
+            try:
+                import fsspec
+                return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter,
+                                                     fsspec.open(raw_stream, mode, **(fsspec_args or {})).open())
+            except ModuleNotFoundError:
+                pass
+        return FileStream(raw_stream)
+    return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, raw_stream)
+
+
 # noinspection PyAttributeOutsideInit
 @cython.auto_pickle(False)
 cdef class BytesIOStream(IOStream):
@@ -304,23 +335,6 @@ cdef class PythonIOStreamAdapter(IOStream):
             pass
 
 
-cpdef IOStream wrap_stream(raw_stream):
-    """
-    Wrap ``raw_stream`` into a :class:`PythonIOStreamAdapter` if it is a Python object or
-    return ``raw_stream`` unmodified if it is a :class:`IOStream` already.
-    
-    :param raw_stream: stream to wrap
-    :return: wrapped stream
-    :rtype: IOStream
-    """
-    if isinstance(raw_stream, IOStream):
-        return raw_stream
-    elif isinstance(raw_stream, object) and hasattr(raw_stream, 'read'):
-        return PythonIOStreamAdapter.__new__(PythonIOStreamAdapter, raw_stream)
-    else:
-        raise ValueError(f"Object of type '{type(raw_stream).__name__}' is not a valid stream.")
-
-
 @cython.auto_pickle(False)
 cdef class CompressingStream(IOStream):
     """Base class for compressed :class:`IOStream` types."""
@@ -350,18 +364,20 @@ cdef class GZipStream(CompressingStream):
     """
     GZip :class:`IOStream` implementation.
 
-    :param raw_stream: raw data stream
+    :param raw_stream: raw data stream or file name / URL
     :param compression_level: GZip compression level (for compression only)
     :type compression_level: int
     :param zlib: use raw deflate / zlib format instead of gzip
     :type zlib: bool
+    :param fsspec_args: dict of arguments to pass to ``fsspec`` (set to ``False`` to disable ``fsspec``)
+    :type fsspec_args: dict
     """
 
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint zlib=False):
-        self.raw_stream = wrap_stream(raw_stream)
+    def __cinit__(self, raw_stream, compression_level=Z_BEST_COMPRESSION, bint zlib=False, fsspec_args=None):
+        self.raw_stream = wrap_stream(raw_stream, fsspec_args=fsspec_args)
         self.member_started = False
         self.working_buf_filled = 0u
         self.stream_state = CompressingStreamState.UNINIT
@@ -589,18 +605,20 @@ cdef class LZ4Stream(CompressingStream):
     """
     LZ4 :class:`IOStream` implementation.
 
-    :param raw_stream: raw data stream
+    :param raw_stream: raw data stream or file name / URL
     :param compression_level: LZ4 compression level (for compression only)
     :type compression_level: int
     :param favor_dec_speed: favour decompression speed over compression speed and size
     :type favor_dec_speed: bool
+    :param fsspec_args: dict of arguments to pass to ``fsspec`` (set to ``False`` to disable ``fsspec``)
+    :type fsspec_args: dict
     """
 
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True):
-        self.raw_stream = wrap_stream(raw_stream)
+    def __cinit__(self, raw_stream, compression_level=LZ4HC_CLEVEL_MAX, favor_dec_speed=True, fsspec_args=None):
+        self.raw_stream = wrap_stream(raw_stream, fsspec_args=fsspec_args)
         self.cctx = NULL
         self.dctx = NULL
         self.working_buf = string()
@@ -757,7 +775,7 @@ cdef class BrotliStream(CompressingStream):
     Implementation relies on Google's ``brotli`` Python package, will be ported to native
     C version in a later version.
 
-    :param raw_stream: raw data stream
+    :param raw_stream: raw data stream or file name / URL
     :param quality: compression quality (higher quality means better compression, but less speed)
     :type quality: int
     :param lgwin: Base 2 logarithm of the sliding window size in the range 16 to 24
@@ -765,12 +783,14 @@ cdef class BrotliStream(CompressingStream):
     :param lgblock: Base 2 logarithm of the maximum input block size in the range 16 to 24
                     (will be set based on quality of value is 0)
     :type lgblock: int
+    :param fsspec_args: dict of arguments to pass to ``fsspec`` (set to ``False`` to disable ``fsspec``)
+    :type fsspec_args: dict
     """
     def __init__(self, *args, **kwargs):
         pass
 
-    def __cinit__(self, raw_stream, size_t quality=11, size_t lgwin=22, size_t lgblock=0):
-        self.raw_stream = raw_stream
+    def __cinit__(self, raw_stream, size_t quality=11, size_t lgwin=22, size_t lgblock=0, fsspec_args=None):
+        self.raw_stream = wrap_stream(raw_stream, fsspec_args)
         self.quality = quality
         self.lgwin = lgwin
         self.lgblock = lgblock

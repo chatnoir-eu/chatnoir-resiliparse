@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import (
+    Any,
     Union,
     Optional,
     Iterator,
@@ -91,7 +92,7 @@ class WarcRecord:
     def verify_payload_digest(self, consume: bool = False) -> bool: ...
     def write(
         self,
-        stream: Union[IOStream, BinaryIO, _GenericIOStream],
+        stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
         checksum_data: bool = False,
         payload_digest: Optional[bytes] = None,
         chunk_size: int = 16384
@@ -102,7 +103,7 @@ class WarcRecord:
 class ArchiveIterator(Iterable[WarcRecord]):
     def __init__(
         self,
-        stream: Union[IOStream, BinaryIO, _GenericIOStream],
+        stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
         record_types: WarcRecordType = any_type,
         parse_http: bool = True,
         min_content_length: int = -1,
@@ -111,6 +112,7 @@ class ArchiveIterator(Iterable[WarcRecord]):
         verify_digests: bool = False,
         strict_mode: bool = True,
         auto_decode: Literal["none", "content", "transfer", "all"] = "none",
+        fsspec_args: Optional[Union[Dict[Any, Any], Literal[False]]] = None
     ) -> None: ...
     def __iter__(self) -> Iterator[WarcRecord]: ...
     def __next__(self) -> WarcRecord: ...

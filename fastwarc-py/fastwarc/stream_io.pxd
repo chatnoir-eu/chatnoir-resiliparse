@@ -30,6 +30,9 @@ cdef class IOStream:
     cpdef void close(self) except *
 
 
+cpdef IOStream wrap_stream(raw_stream, str mode=*, fsspec_args=*)
+
+
 cdef class PythonIOStreamAdapter(IOStream):
     cdef object py_stream
 
@@ -140,3 +143,4 @@ cdef class BufferedReader:
     cdef bint _fill_buf(self) except -1
     cdef inline string_view* _get_buf(self) noexcept nogil
     cdef inline size_t _consume_buf(self, size_t size) noexcept nogil
+
