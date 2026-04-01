@@ -92,7 +92,7 @@ class WarcRecord:
     def verify_payload_digest(self, consume: bool = False) -> bool: ...
     def write(
         self,
-        stream: Union[IOStream, BinaryIO, _GenericIOStream, str],
+        stream: Union[IOStream, BinaryIO, _GenericIOStream],
         checksum_data: bool = False,
         payload_digest: Optional[bytes] = None,
         chunk_size: int = 16384

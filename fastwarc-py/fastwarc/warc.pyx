@@ -893,8 +893,7 @@ cdef class WarcRecord:
         block_buf.seek(0)
         return self._write_impl(block_buf, stream, False, chunk_size)
 
-    cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size,
-                            fsspec_args=None) except -1:
+    cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size) except -1:
         cdef size_t bytes_written = 0
         cdef bint compress_member_started = False
 

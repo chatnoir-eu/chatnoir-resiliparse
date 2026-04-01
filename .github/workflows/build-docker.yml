@@ -7,6 +7,7 @@ on:
       - ci/*
     paths:
       - Dockerfile
+      - .github/workflows/build-docker.yml
 
   pull_request:
     types:
@@ -22,23 +23,23 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
+        runner:
+          - {os: ubuntu-24.04, platform: linux/amd64}
+          - {os: ubuntu-24.04-arm, platform: linux/arm64}
+
+    runs-on: ${{ matrix.runner.os }}
     steps:
       - name: Prepare
         run: |
-          if [ "${{ matrix.platform }}" = "linux/amd64" ]; then
+          if [ "${{ matrix.runner.platform }}" = "linux/amd64" ]; then
             echo "TARGET_ARCH=x86_64" >> $GITHUB_ENV
-          elif [ "${{ matrix.platform }}" = "linux/arm64" ]; then
+          elif [ "${{ matrix.runner.platform }}" = "linux/arm64" ]; then
             echo "TARGET_ARCH=aarch64" >> $GITHUB_ENV
           fi
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
@@ -48,19 +49,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build
         id: docker_build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./
           file: ./Dockerfile
           push: ${{ github.ref == 'refs/heads/develop' }}
-          platforms: ${{ matrix.platform }}
+          platforms: ${{ matrix.runner.platform }}
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/resiliparse-manylinux_2_28_${{ env.TARGET_ARCH }}:latest
           build-args: |
             TARGET_ARCH=${{ env.TARGET_ARCH }}

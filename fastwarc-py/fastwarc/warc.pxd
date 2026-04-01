@@ -82,8 +82,7 @@ cdef class WarcRecord:
     cpdef bint verify_payload_digest(self, bint consume=*) except -1
 
     cdef bint _verify_digest(self, const string& base32_digest, bint consume) except -1
-    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size,
-                            fsspec_args=*) except -1
+    cdef size_t _write_impl(self, in_reader, out_stream, bint write_payload_headers, size_t chunk_size) except -1
     cdef inline bint _assert_not_stale(self) except 0
 
 
