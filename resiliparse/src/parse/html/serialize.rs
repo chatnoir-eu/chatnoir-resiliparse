@@ -49,7 +49,7 @@ struct WalkCtx {
 type WalkCbFn = unsafe fn(*mut lxb_dom_node_t, &mut WalkCtx) -> lexbor_action_t::Type;
 
 
-unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: WalkCbFn, ctx: &mut WalkCtx) {
+unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: WalkCbFn, ctx: &mut WalkCtx) { unsafe {
     if root.is_null() {
         return;
     }
@@ -76,7 +76,7 @@ unsafe fn dom_node_walk(root: *mut lxb_dom_node_t, begin_fn: WalkCbFn, end_fn: W
             node = (*node).next;
         }
     }
-}
+}}
 
 fn is_block_element(local_name: lxb_tag_id_enum_t::Type) -> bool {
     use lxb_tag_id_enum_t::*;
@@ -90,7 +90,7 @@ fn is_block_element(local_name: lxb_tag_id_enum_t::Type) -> bool {
         LXB_TAG_PRE | LXB_TAG_SECTION | LXB_TAG_TABLE | LXB_TAG_TFOOT | LXB_TAG_UL | LXB_TAG_VIDEO)
 }
 
-unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
+unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type { unsafe {
     use lexbor_action_t::*;
     use lxb_dom_node_type_t::*;
 
@@ -131,16 +131,16 @@ unsafe fn node_format_cb_begin(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> 
             LEXBOR_ACTION_OK
         }
     }
-}
+}}
 
-unsafe fn node_format_cb_end(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type {
+unsafe fn node_format_cb_end(node: *mut lxb_dom_node_t, ctx: &mut WalkCtx) -> lexbor_action_t::Type { unsafe {
     use lexbor_action_t::*;
     if node.is_null() {
         return LEXBOR_ACTION_STOP;
     }
     insert_block((*node).local_name as lxb_tag_id_enum_t::Type, &mut ctx.text);
     LEXBOR_ACTION_OK
-}
+}}
 
 #[inline]
 fn insert_block(tag_name: lxb_tag_id_enum_t::Type, text: &mut String) {

@@ -82,32 +82,32 @@ impl<'a> CSSSelectorList<'a> {
         }
     }
 
-    unsafe extern "C" fn css_log_serialize_cb(data: *const lxb_char_t, size: usize, ctx: *mut c_void) -> lxb_status_t {
+    unsafe extern "C" fn css_log_serialize_cb(data: *const lxb_char_t, size: usize, ctx: *mut c_void) -> lxb_status_t { unsafe {
         if let Some(s) = str_from_lxb_char_t(data, size) {
             (*(ctx as *mut String)).push_str(s);
         }
         LXB_STATUS_OK
-    }
+    }}
 
     pub(crate) unsafe fn match_elements_unchecked<Ctx>(
-        &self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut Ctx) {
+        &self, root_node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut Ctx) { unsafe {
         if let Some(t) = self.tree.upgrade() {
             lxb_selectors_find((*(*t.doc_ptr())).css.selectors,
                                root_node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
-    }
+    }}
 
     pub(crate) unsafe fn match_elements_unchecked_reverse<T>(
-        &self, node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) {
+        &self, node: *mut lxb_dom_node_t, cb: lxb_selectors_cb_f, ctx: &mut T) { unsafe {
         if let Some(t) = self.tree.upgrade() {
             lxb_selectors_find_reverse((*(*t.doc_ptr())).css.selectors,
                                        node, self.selector_list, cb, addr_of_mut!(*ctx).cast());
         }
-    }
+    }}
 
     unsafe extern "C" fn match_cb_adapter<T, F>(
         node: *mut lxb_dom_node_t, spec: lxb_css_selector_specificity_t, ctx: *mut c_void) -> lxb_status_t
-        where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {
+        where F: Fn(ElementNode, u32, &mut T) -> TraverseAction { unsafe {
         if node.is_null() || (*node).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
             return LXB_STATUS_OK;
         }
@@ -120,7 +120,7 @@ impl<'a> CSSSelectorList<'a> {
             TraverseAction::Stop => LXB_STATUS_STOP,
             TraverseAction::Err => LXB_STATUS_ERROR
         }
-    }
+    }}
 
     pub fn match_elements<T, F>(&self, root_node: &NodeRef, cb: F, custom_data: &mut T)
         where F: Fn(ElementNode, u32, &mut T) -> TraverseAction {

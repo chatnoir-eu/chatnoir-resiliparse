@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ascii::AsciiExt;
-use std::borrow;
 use std::collections::HashMap;
 use std::io;
-use std::path::Iter;
-use std::sync::Arc;
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::WINDOWS_1252;
-use parking_lot::RwLock;
 use uuid::Uuid;
 
 
@@ -118,6 +113,7 @@ impl CaseInsensitiveKey {
         CaseInsensitiveKey(s.into())
     }
 
+    #[allow(dead_code)]
     fn as_str(&self) -> &str {
         &self.0
     }
@@ -771,12 +767,10 @@ impl WarcRecord {
         bytes_written += 2;
 
         // Write HTTP headers if parsed
-        if self.http_parsed {
-            if let Some(ref http_headers) = self.http_headers {
-                bytes_written += http_headers.write(writer)?;
-                writer.write_all(b"\r\n")?;
-                bytes_written += 2;
-            }
+        if self.http_parsed && let Some(ref http_headers) = self.http_headers {
+            bytes_written += http_headers.write(writer)?;
+            writer.write_all(b"\r\n")?;
+            bytes_written += 2;
         }
 
         // Write content

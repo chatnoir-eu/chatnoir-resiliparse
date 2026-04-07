@@ -8,7 +8,7 @@ members = [
 
 [workspace.package]
 version = "0.16.0"
-edition = "2021"
+edition = "2024"
 publish = false
 description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
 authors = ["Janek Bevendorff"]

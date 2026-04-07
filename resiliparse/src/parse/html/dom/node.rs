@@ -392,17 +392,17 @@ define_node_type!(DocumentTypeNode, DocumentType);
 
 //noinspection DuplicatedCode
 impl DocumentType for DocumentTypeNode {
-    unsafe fn name_unchecked(&self) -> Option<&str> {
+    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_name_noi)
-    }
+    }}
 
-    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+    unsafe fn public_id_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi)
-    }
+    }}
 
-    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+    unsafe fn system_id_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi)
-    }
+    }}
 
     #[inline]
     fn name(&self) -> Option<String> {
@@ -594,28 +594,28 @@ define_node_type!(ElementNode, Element);
 
 impl Element for ElementNode {
     /// DOM element tag or node name.
-    unsafe fn tag_name_unchecked(&self) -> Option<&str> {
+    unsafe fn tag_name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_tag_name)
-    }
+    }}
 
-    unsafe fn local_name_unchecked(&self) -> Option<&str> {
+    unsafe fn local_name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_local_name)
-    }
+    }}
 
-    unsafe fn id_unchecked(&self) -> Option<&str> {
+    unsafe fn id_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_id_noi)
-    }
+    }}
 
     #[inline]
-    unsafe fn name_unchecked(&self) -> Option<&str> {
+    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
         self.attribute_unchecked("name")
-    }
+    }}
 
-    unsafe fn class_name_unchecked(&self) -> Option<&str> {
+    unsafe fn class_name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_class_noi)
-    }
+    }}
 
-    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> {
+    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> { unsafe {
         let mut size = 0;
         let name = lxb_dom_element_get_attribute(
             self.node_ptr_().cast(),
@@ -627,9 +627,9 @@ impl Element for ElementNode {
         } else {
             str_from_lxb_char_t(name, size)
         }
-    }
+    }}
 
-    unsafe fn attribute_names_unchecked(&self) -> Vec<&str> {
+    unsafe fn attribute_names_unchecked(&self) -> Vec<&str> { unsafe {
         let mut attr =  lxb_dom_element_first_attribute_noi(self.node_ptr_().cast());
         let mut name_vec = Vec::new();
         while !attr.is_null() {
@@ -639,7 +639,7 @@ impl Element for ElementNode {
             attr = lxb_dom_element_next_attribute_noi(attr);
         }
         name_vec
-    }
+    }}
 
     /// DOM element tag or node name.
     #[inline]
@@ -947,17 +947,17 @@ impl NonDocumentTypeChildNode for ElementNode {}
 define_node_type!(AttrNode, Attribute);
 
 impl Attr for AttrNode {
-    unsafe fn name_unchecked(&self) -> Option<&str> {
+    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_qualified_name)
-    }
+    }}
 
-    unsafe fn local_name_unchecked(&self) -> Option<&str> {
+    unsafe fn local_name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_local_name_noi)
-    }
+    }}
 
-    unsafe fn value_unchecked(&self) -> Option<&str> {
+    unsafe fn value_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi)
-    }
+    }}
 
     #[inline]
     fn local_name(&self) -> Option<String> {
@@ -1065,13 +1065,13 @@ define_node_type!(NotationNode, Notation);
 
 //noinspection DuplicatedCode
 impl Notation for NotationNode {
-    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+    unsafe fn public_id_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi)
-    }
+    }}
 
-    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+    unsafe fn system_id_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi)
-    }
+    }}
 
     #[inline]
     fn public_id(&self) -> Option<String> {

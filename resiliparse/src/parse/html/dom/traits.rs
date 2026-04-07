@@ -53,20 +53,20 @@ pub(crate) trait NodeInterfaceBaseImpl {
     fn reset_node_ptr_(&mut self);
 
     #[inline(always)]
-    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
+    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t { unsafe {
         (*(*self.node_ptr_())).owner_document
-    }
+    }}
 
-    unsafe fn iter_raw(&self) -> NodeIteratorRaw {
+    unsafe fn iter_raw(&self) -> NodeIteratorRaw { unsafe {
         NodeIteratorRaw::new(*self.node_ptr_())
-    }
+    }}
 
-    unsafe fn node_name_unchecked(&self) -> Option<&str> {
+    unsafe fn node_name_unchecked(&self) -> Option<&str> { unsafe {
         str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_node_name)
-    }
+    }}
 
     /// Node text value.
-    unsafe fn node_value_unchecked(&self) -> Option<&str> {
+    unsafe fn node_value_unchecked(&self) -> Option<&str> { unsafe {
         use crate::third_party::lexbor::lxb_dom_node_type_t::*;
         match (*(*self.node_ptr_())).type_ {
             LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi),
@@ -75,17 +75,17 @@ pub(crate) trait NodeInterfaceBaseImpl {
                 str_from_lxb_str_t(addr_of!((*(*(self.node_ptr_()) as *const lxb_dom_character_data_t)).data)),
             _ => None
         }
-    }
+    }}
 
-    unsafe fn can_have_children_unchecked(&self) -> bool {
+    unsafe fn can_have_children_unchecked(&self) -> bool { unsafe {
         matches!((*(*self.node_ptr_())).type_,
             lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
                 | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
                 | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
         )
-    }
+    }}
 
-    unsafe fn insert_before_unchecked<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef>) -> Option<NodeRef<'a>> {
+    unsafe fn insert_before_unchecked<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef>) -> Option<NodeRef<'a>> { unsafe {
         if let Some(c) = child {
             if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(&c) {
                 return None;
@@ -108,9 +108,9 @@ pub(crate) trait NodeInterfaceBaseImpl {
         } else {
             self.append_child_unchecked(node)
         }
-    }
+    }}
 
-    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
         if !self.can_have_children_unchecked() {
             return None;
         }
@@ -126,9 +126,9 @@ pub(crate) trait NodeInterfaceBaseImpl {
             lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
         }
         Some(node.clone())
-    }
+    }}
 
-    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &NodeRef<'a>, old_child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &NodeRef<'a>, old_child: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
         if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
@@ -137,15 +137,15 @@ pub(crate) trait NodeInterfaceBaseImpl {
         }
         self.insert_before_unchecked(new_child, Some(old_child.clone()))?;
         self.remove_child_unchecked(old_child)
-    }
+    }}
 
-    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
         if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
             return None;
         }
         lxb_dom_node_remove(*node.node_ptr_());
         Some(node.clone())
-    }
+    }}
 }
 
 
