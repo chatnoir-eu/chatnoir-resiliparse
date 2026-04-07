@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ascii::AsciiExt;
 use std::borrow;
 use std::collections::HashMap;
 use std::io;
@@ -205,7 +206,7 @@ impl HeaderMap {
     ///
     /// * `status_line` - New status line
     pub fn set_status_line(&mut self, status_line: impl AsRef<[u8]>) {
-        self.status_line = status_line.as_ref().to_vec();
+        self.status_line = status_line.as_ref().trim_ascii().to_vec();
     }
 
     /// HTTP status code (unset if header block is not an HTTP header block).
@@ -435,9 +436,9 @@ impl HeaderMap {
     fn add_continuation(&mut self, value: &[u8]) {
         if let Some(last) = self.headers.last_mut() {
             last.1.push(b' ');
-            last.1.extend_from_slice(value);
+            last.1.extend_from_slice(value.trim_ascii());
         } else {
-            self.headers.push((Vec::new(), value.to_vec()));
+            self.headers.push((Vec::new(), value.trim_ascii().to_vec()));
         }
     }
 }
@@ -636,103 +637,160 @@ impl WarcRecord {
         self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
         self.stale = false;
     }
-    // TODO: Unchecked conversion AI slop from here on:
 
-    // /// Parse HTTP headers and advance content reader.
-    // ///
-    // /// It is safe to call this method multiple times, even if the record is not an HTTP record.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
-    // pub fn parse_http(&mut self, strict_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
-    //     if self.http_parsed || !self.is_http {
-    //         return Ok(());
-    //     }
-    //
-    //     let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
-    //     let mut cursor = io::Cursor::new(&self.content);
-    //
-    //     let bytes_consumed = parse_header_block(&mut cursor, &mut http_headers, true, strict_mode)?;
-    //
-    //     // Update content to skip HTTP headers
-    //     self.content = self.content[bytes_consumed..].to_vec();
-    //     self.content_length = self.content.len();
-    //
-    //     self.http_headers = Some(http_headers);
-    //     self.http_parsed = true;
-    //
-    //     // Parse charset if present
-    //     if let Some(ref headers) = self.http_headers {
-    //         if let Some(content_type) = headers.get("content-type") {
-    //             if let Some(charset_pos) = content_type.to_lowercase().find("charset=") {
-    //                 let charset_start = charset_pos + 8;
-    //                 let charset = content_type[charset_start..]
-    //                     .split(';')
-    //                     .next()
-    //                     .unwrap_or("")
-    //                     .trim()
-    //                     .to_lowercase();
-    //
-    //                 // Validate charset
-    //                 if !charset.is_empty() {
-    //                     self.http_charset = Some(charset);
-    //                 }
-    //             }
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-    //
-    // /// "Freeze" a record by baking in the remaining payload stream contents.
-    // ///
-    // /// Freezing a record makes the `WarcRecord` instance copyable and reusable by decoupling
-    // /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
-    // /// frozen record maintains an internal buffer the size of the remaining payload stream contents
-    // /// at the time of calling `freeze()`.
-    // ///
-    // /// Freezing a record will advance the underlying raw stream.
-    // pub fn freeze(&mut self) {
-    //     self.frozen = true;
-    // }
-    //
-    // /// Write WARC record onto a stream.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `writer` - Output stream
-    // ///
-    // /// # Returns
-    // ///
-    // /// Number of bytes written
-    // pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
-    //     let mut bytes_written = 0;
-    //
-    //     // Write WARC headers
-    //     bytes_written += self.headers.write(writer)?;
-    //     writer.write_all(b"\r\n")?;
-    //     bytes_written += 2;
-    //
-    //     // Write HTTP headers if parsed
-    //     if self.http_parsed {
-    //         if let Some(ref http_headers) = self.http_headers {
-    //             bytes_written += http_headers.write(writer)?;
-    //             writer.write_all(b"\r\n")?;
-    //             bytes_written += 2;
-    //         }
-    //     }
-    //
-    //     // Write content
-    //     writer.write_all(&self.content)?;
-    //     bytes_written += self.content.len();
-    //
-    //     // Write record separator
-    //     writer.write_all(b"\r\n\r\n")?;
-    //     bytes_written += 4;
-    //
-    //     Ok(bytes_written)
-    // }
+    /// Parse a header block from a buffered reader.
+    ///
+    /// Helper function for parsing WARC or HTTP header blocks.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Input reader
+    /// * `target` - Header map to fill
+    /// * `has_status_line` - Whether first line is a status line or already a header
+    /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes read from `reader`
+    pub fn parse_header_block<R: io::BufRead>(&self,
+                                              reader: &mut R,
+                                              target: &mut HeaderMap,
+                                              has_status_line: bool) -> Result<usize, io::Error> {
+        let mut bytes_consumed = 0;
+        let mut line = Vec::new();
+        let mut expect_first_line = has_status_line;
+
+        loop {
+            line.clear();
+            let n = reader.read_until(b'\n', &mut line)?;
+            if n == 0 {
+                break;
+            }
+            bytes_consumed += n;
+
+            // Trim (CR)LF line endings
+            let trimmed = line
+                .strip_suffix(b"\r\n")
+                .or_else(|| line.strip_suffix(b"\n"))
+                .unwrap_or(&line);
+
+            // End of header
+            if trimmed.is_empty() {
+                break;
+            }
+
+            if matches!(trimmed.first(), Some(b' ' | b'\t')) {
+                target.add_continuation(trimmed);
+                continue;
+            }
+
+            // Status line
+            if expect_first_line {
+                target.set_status_line(trimmed);
+                expect_first_line = false;
+                continue;
+            }
+
+            // Parse header line
+            if let Some(colon_pos) = trimmed.iter().position(|&c| c == b':') {
+                let value = if colon_pos + 1 < trimmed.len() {
+                    &trimmed[colon_pos + 1..]
+                } else {
+                    b""
+                };
+                target.append_bytes(&trimmed[..colon_pos], value);
+            } else {
+                // Invalid header, try to preserve it
+                target.add_continuation(trimmed);
+            }
+        }
+
+        Ok(bytes_consumed)
+    }
+
+    /// Parse HTTP headers and advance content reader.
+    ///
+    /// It is safe to call this method multiple times, even if the record is not an HTTP record.
+    pub fn parse_http(&mut self) -> Result<(), io::Error> {
+        if self.http_parsed || !self.is_http {
+            return Ok(());
+        }
+
+        let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
+        let mut cursor = io::Cursor::new(&self.content);
+        let bytes_consumed = self.parse_header_block(&mut cursor, &mut http_headers, true)?;
+
+        // Parse charset if present
+        if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
+            let charset_key = "charset=";
+            if let Some(charset_pos) = content_type.find(charset_key) {
+                let charset_start = charset_pos + charset_key.len();
+                self.http_charset = content_type[charset_start..]
+                    .split(';')
+                    .next()
+                    .map(|c| c.trim_ascii().to_owned());
+            }
+        }
+
+        // Update content to skip HTTP headers
+        self.content = self.content[bytes_consumed..].to_vec();
+        self.content_length = self.content.len();
+        self.http_headers = Some(http_headers);
+        self.http_parsed = true;
+
+        Ok(())
+    }
+
+    /// "Freeze" a record by baking in the remaining payload stream contents.
+    ///
+    /// Freezing a record makes the `WarcRecord` instance copyable and reusable by decoupling
+    /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
+    /// frozen record maintains an internal buffer the size of the remaining payload stream contents
+    /// at the time of calling `freeze()`.
+    ///
+    /// Freezing a record will advance the underlying raw stream.
+    pub fn freeze(&mut self) {
+        self.frozen = true;
+    }
+
+    /// Write WARC record onto a stream.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Output stream
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written
+    pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut bytes_written = 0;
+
+        // Write WARC headers
+        bytes_written += self.headers.write(writer)?;
+        writer.write_all(b"\r\n")?;
+        bytes_written += 2;
+
+        // Write HTTP headers if parsed
+        if self.http_parsed {
+            if let Some(ref http_headers) = self.http_headers {
+                bytes_written += http_headers.write(writer)?;
+                writer.write_all(b"\r\n")?;
+                bytes_written += 2;
+            }
+        }
+
+        // Write content
+        writer.write_all(&self.content)?;
+        bytes_written += self.content.len();
+
+        // Write record separator
+        writer.write_all(b"\r\n\r\n")?;
+        bytes_written += 4;
+
+        Ok(bytes_written)
+    }
+
+    // TODO: Unchecked conversion AI slop from here on:
     //
     // /// Verify whether record digest is valid.
     // ///
@@ -796,76 +854,6 @@ impl WarcRecord {
 //     Payload,
 // }
 //
-// /// Parse a header block from a buffered reader.
-// ///
-// /// Helper function for parsing WARC or HTTP header blocks.
-// ///
-// /// # Arguments
-// ///
-// /// * `reader` - Input reader
-// /// * `target` - Header map to fill
-// /// * `has_status_line` - Whether first line is a status line or already a header
-// /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
-// ///
-// /// # Returns
-// ///
-// /// Number of bytes read from `reader`
-// pub fn parse_header_block<R: BufRead>(
-//     reader: &mut R,
-//     target: &mut HeaderMap,
-//     has_status_line: bool,
-//     strict_mode: bool,
-// ) -> Result<usize, std::io::Error> {
-//     let mut bytes_consumed = 0;
-//     let mut line = String::new();
-//     let mut first_line = has_status_line;
-//
-//     loop {
-//         line.clear();
-//         let n = reader.read_line(&mut line)?;
-//         if n == 0 {
-//             break;
-//         }
-//         bytes_consumed += n;
-//
-//         // Remove trailing newline
-//         let trimmed = line.trim_end_matches(&['\r', '\n'][..]);
-//
-//         // Empty line signals end of headers
-//         if trimmed.is_empty() {
-//             break;
-//         }
-//
-//         // Check for continuation line (starts with whitespace)
-//         if trimmed.starts_with(|c: char| c.is_whitespace()) {
-//             target.add_continuation(trimmed.trim().as_bytes());
-//             continue;
-//         }
-//
-//         // Status line
-//         if first_line {
-//             target.set_status_line(trimmed.as_bytes());
-//             first_line = false;
-//             continue;
-//         }
-//
-//         // Parse header line
-//         if let Some(colon_pos) = trimmed.find(':') {
-//             let key = trimmed[..colon_pos].trim();
-//             let value = if colon_pos + 1 < trimmed.len() {
-//                 trimmed[colon_pos + 1..].trim()
-//             } else {
-//                 ""
-//             };
-//             target.append_header(key.as_bytes(), value.as_bytes());
-//         } else {
-//             // Invalid header, try to preserve it
-//             target.add_continuation(trimmed.as_bytes());
-//         }
-//     }
-//
-//     Ok(bytes_consumed)
-// }
 //
 // /// Archive iterator configuration.
 // #[derive(Debug, Clone)]
