@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::io;
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::WINDOWS_1252;
+use md5::Digest;
 use uuid::Uuid;
 
 
@@ -102,7 +103,13 @@ impl From<WarcRecordType> for &'static str {
     }
 }
 
-
+#[derive(Debug)]
+pub enum DigestError {
+    Missing(String),
+    Unsupported(String),
+    Error(String),
+    NoPayload(String)
+}
 
 /// Case-insensitive string key for headers
 #[derive(Debug, Eq, Clone)]
@@ -785,67 +792,128 @@ impl WarcRecord {
     }
 
     // TODO: Unchecked conversion AI slop from here on:
-    //
-    // /// Verify whether record digest is valid.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `digest_str` - Digest string from header (e.g., "sha1:BASE32HASH")
-    // /// * `digest_type` - Type of digest (block or payload)
-    // ///
-    // /// # Returns
-    // ///
-    // /// `true` if digest exists and is valid
-    // pub fn verify_digest(&self, digest_str: &str, digest_type: DigestType) -> Result<bool, Box<dyn std::error::Error>> {
-    //     let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
-    //     if parts.len() != 2 {
-    //         return Ok(false);
-    //     }
-    //
-    //     let algorithm = parts[0];
-    //     let expected_digest = parts[1];
-    //
-    //     let data = match digest_type {
-    //         DigestType::Block => &self.content,
-    //         DigestType::Payload => {
-    //             // For payload, would need to skip HTTP headers
-    //             &self.content
-    //         }
-    //     };
-    //
-    //     let computed = match algorithm {
-    //         "sha1" => {
-    //             use sha1::{Sha1, Digest};
-    //             let mut hasher = Sha1::new();
-    //             hasher.update(data);
-    //             base64::encode(hasher.finalize())
-    //         }
-    //         "md5" => {
-    //             use md5::{Md5, Digest};
-    //             let mut hasher = Md5::new();
-    //             hasher.update(data);
-    //             base64::encode(hasher.finalize())
-    //         }
-    //         _ => return Err(format!("Unsupported hash algorithm: {}", algorithm).into()),
-    //     };
-    //
-    //     Ok(computed == expected_digest)
-    // }
+
+    /// Verify whether record digest is valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `consume` - Do not create an in-memory copy of the record stream
+    ///               (will fully consume the rest of the record)
+    ///
+    /// # Returns
+    ///
+    /// `true` if digest exists and is valid
+    pub fn verify_block_digest(&mut self, consume: bool) -> Result<bool, DigestError> {
+        self.headers
+            .get("WARC-Block-Digest")
+            .ok_or_else(|| DigestError::Missing("Missing WARC-Block-Digest header".into()))
+            .and_then(|d| self._verify_digest(&d, consume))
+    }
+
+    /// Verify whether record block digest is valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `consume` - Do not create an in-memory copy of the record stream
+    ///               (will fully consume the rest of the record)
+    ///
+    /// # Returns
+    ///
+    /// `true` if digest exists and is valid
+    pub fn verify_payload_digest(&mut self, consume: bool) -> Result<bool, DigestError> {
+        if !self.http_parsed || !self.is_http {
+            return Err(DigestError::NoPayload("HTTP payload not parsed or missing".into()));
+        }
+
+        self.headers
+            .get("WARC-Payload-Digest")
+            .ok_or_else(|| DigestError::Missing("Missing WARC-Payload-Digest header".into()))
+            .and_then(|d| self._verify_digest(&d, consume))
+    }
+
+    /// Verify whether record block digest is valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `digest_str` - Digest string from header (e.g., "sha1:BASE32HASH")
+    /// * `consume` - Do not create an in-memory copy of the record stream
+    ///               (will fully consume the rest of the record)
+    ///
+    /// # Returns
+    ///
+    /// `true` if digest exists and is valid, None if digest header is missing or invalid
+    fn _verify_digest(&mut self, digest_str: &str, consume: bool) -> Result<bool, DigestError> {
+        let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            return Err(DigestError::Error("Invalid digest header formatting (':' not found)".into()));
+        }
+        let algorithm = parts[0].to_ascii_lowercase();
+        let expected_digest = parts[1].trim_ascii().as_bytes();
+
+        use data_encoding::{BASE32, HEXLOWER_PERMISSIVE};
+        let expected_digest = match BASE32.decode(expected_digest) {
+            Ok(bytes) => bytes,
+            // Hex digests are non-standard, but are created by some libraries such as warcprox
+            Err(_) => match HEXLOWER_PERMISSIVE.decode(expected_digest) {
+                Ok(bytes) => bytes,
+                Err(_) => return Err(DigestError::Error("Invalid digest encoding".into())),
+            },
+        };
+
+        if !consume && !self.frozen {
+            self.freeze()
+        }
+
+        let hash_fn = |payload| {
+            match algorithm.as_str() {
+                "md5" => {
+                    use md5::Md5;
+                    let mut hasher = Md5::new();
+                    hasher.update(payload);
+                    Ok(hasher.finalize().to_vec())
+                },
+                "sha1" => {
+                    use sha1::Sha1;
+                    let mut hasher = Sha1::new();
+                    hasher.update(payload);
+                    Ok(hasher.finalize().to_vec())
+                },
+                "sha256" => {
+                    use sha2::Sha256;
+                    let mut hasher = Sha256::new();
+                    hasher.update(payload);
+                    Ok(hasher.finalize().to_vec())
+                },
+                "sha512" => {
+                    use sha2::Sha512;
+                    let mut hasher = Sha512::new();
+                    hasher.update(payload);
+                    Ok(hasher.finalize().to_vec())
+                },
+                _ => Err(DigestError::Unsupported(format!("Unsupported hash algorithm: {}", algorithm)))
+            }
+        };
+
+        // TODO: Read content
+        // cdef string block
+        // while True:
+        //     block = self._reader.read(4096)
+        // if block.empty():
+        // break
+        //     h.update(block)
+        //
+        // if not consume:
+        //     self._reader.stream.seek(0)
+
+        hash_fn(&self.content).map(|d| d == expected_digest)
+    }
 }
+
 //
 // impl Default for WarcRecord {
 //     fn default() -> Self {
 //         Self::new()
 //     }
-// }
-//
-// /// Digest type for verification
-// #[derive(Debug, Clone, Copy)]
-// pub enum DigestType {
-//     /// Block digest (entire record content)
-//     Block,
-//     /// Payload digest (HTTP body only)
-//     Payload,
 // }
 //
 //
