@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
+use std::fmt;
+use std::rc::Rc;
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::WINDOWS_1252;
 use md5::Digest;
@@ -21,7 +24,7 @@ use uuid::Uuid;
 
 
 /// WARC record type enum
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WarcRecordType {
     WarcInfo = 2,
     Response = 4,
@@ -33,6 +36,7 @@ pub enum WarcRecordType {
     Continuation = 256,
     Unknown = 512,
     AnyType = 65535,
+    #[default]
     NoType = 0,
 }
 
@@ -160,14 +164,15 @@ impl From<&str> for CaseInsensitiveKey {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Default, Debug, Eq, PartialEq, Clone)]
 pub enum HeaderEncoding {
+    #[default]
     Unicode,
     Latin1
 }
 
 /// Dict-like type representing a WARC or HTTP header block.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct HeaderMap {
     encoding: HeaderEncoding,
     status_line: Vec<u8>,
@@ -450,24 +455,34 @@ impl HeaderMap {
 /// A WARC record.
 ///
 /// WARC records are cloneable, but cloning will "freeze" the WARC record.
-#[derive(Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct WarcRecord {
     record_type: WarcRecordType,
     headers: HeaderMap,
+    content_length: usize,
     is_http: bool,
     http_parsed: bool,
     http_charset: Option<String>,
     http_headers: Option<HeaderMap>,
-    content_length: usize,
-    content: Vec<u8>,
+    reader: Option<Rc<RefCell<dyn io::BufRead>>>,
     stream_pos: usize,
+    content: Vec<u8>,
     stale: bool,
     frozen: bool,
 }
 
-impl Default for WarcRecord {
-    fn default() -> Self {
-        Self::new()
+impl<'a> fmt::Debug for WarcRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut dbg = f.debug_struct("WarcRecord");
+        let mut fields = dbg.field("record_type", &self.record_type)
+            .field("headers", &self.headers)
+            .field("content_length", &self.content_length)
+            .field("is_http", &self.is_http);
+        if self.is_http {
+            fields = fields.field("http_charset", &self.http_charset)
+                .field("http_headers", &self.http_headers)
+        }
+        fields.finish_non_exhaustive()
     }
 }
 
@@ -482,8 +497,9 @@ impl WarcRecord {
             http_charset: None,
             http_headers: None,
             content_length: 0,
-            content: Vec::new(),
+            reader: None,
             stream_pos: 0,
+            content: Vec::new(),
             stale: false,
             frozen: false,
         }
@@ -502,6 +518,21 @@ impl WarcRecord {
     pub fn set_record_type(&mut self, record_type: WarcRecordType) {
         self.record_type = record_type;
         self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
+    }
+
+    pub fn set_reader(&mut self, reader: Rc<RefCell<dyn io::BufRead>>) {
+        self.reader = Some(reader);
+    }
+
+    /// Set WARC body.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - Body as bytes
+    pub fn set_bytes_content(&mut self, content: Vec<u8>) {
+        self.content_length = content.len();
+        self.reader = Some(Rc::new(RefCell::new(io::BufReader::new(io::Cursor::new(content)))));
+        self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
     }
 
     /// Record ID (same as `headers['WARC-Record-ID']`).
@@ -572,9 +603,9 @@ impl WarcRecord {
     }
 
     /// Get the record content as a byte slice.
-    pub fn content(&self) -> &[u8] {
-        &self.content
-    }
+    // pub fn content(&self) -> &[u8] {
+    //     &self.content
+    // }
 
     /// WARC record start offset in the original (uncompressed) stream.
     pub fn stream_pos(&self) -> usize {
@@ -629,18 +660,6 @@ impl WarcRecord {
         self.content_length = content_length;
     }
 
-    /// Set WARC body.
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - Body as bytes
-    pub fn set_content(&mut self, content: Vec<u8>) {
-        self.content_length = content.len();
-        self.content = content;
-        self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
-        self.stale = false;
-    }
-
     /// Parse a header block from a buffered reader.
     ///
     /// Helper function for parsing WARC or HTTP header blocks.
@@ -655,10 +674,10 @@ impl WarcRecord {
     /// # Returns
     ///
     /// Number of bytes read from `reader`
-    pub fn parse_header_block<R: io::BufRead>(&self,
-                                              reader: &mut R,
-                                              target: &mut HeaderMap,
-                                              has_status_line: bool) -> Result<usize, io::Error> {
+    pub fn parse_header_block<R: io::BufRead + ?Sized>(&self,
+                                                       reader: &mut R,
+                                                       target: &mut HeaderMap,
+                                                       has_status_line: bool) -> Result<usize, io::Error> {
         let mut bytes_consumed = 0;
         let mut line = Vec::new();
         let mut expect_first_line = has_status_line;
@@ -719,28 +738,27 @@ impl WarcRecord {
             return Ok(());
         }
 
-        let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
-        let mut cursor = io::Cursor::new(&self.content);
-        let bytes_consumed = self.parse_header_block(&mut cursor, &mut http_headers, true)?;
+        if let Some(reader) = &self.reader {
+            let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
+            let bytes_consumed = self.parse_header_block(&mut *reader.borrow_mut(), &mut http_headers, true)?;
 
-        // Parse charset if present
-        if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
-            let charset_key = "charset=";
-            if let Some(charset_pos) = content_type.find(charset_key) {
-                let charset_start = charset_pos + charset_key.len();
-                self.http_charset = content_type[charset_start..]
-                    .split(';')
-                    .next()
-                    .map(|c| c.trim_ascii().to_owned());
+            // Parse charset if present
+            if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
+                let charset_key = "charset=";
+                if let Some(charset_pos) = content_type.find(charset_key) {
+                    let charset_start = charset_pos + charset_key.len();
+                    self.http_charset = content_type[charset_start..]
+                        .split(';')
+                        .next()
+                        .map(|c| c.trim_ascii().to_owned());
+                }
             }
+
+            // Update content to skip HTTP headers
+            self.content_length = self.content_length - bytes_consumed;
+            self.http_headers = Some(http_headers);
+            self.http_parsed = true;
         }
-
-        // Update content to skip HTTP headers
-        self.content = self.content[bytes_consumed..].to_vec();
-        self.content_length = self.content.len();
-        self.http_headers = Some(http_headers);
-        self.http_parsed = true;
-
         Ok(())
     }
 
@@ -753,6 +771,14 @@ impl WarcRecord {
     ///
     /// Freezing a record will advance the underlying raw stream.
     pub fn freeze(&mut self) {
+        if let Some(reader) = self.reader.take() {
+            let mut reader = reader.borrow_mut();
+            use io::Read;
+            let mut reader_limited = (&mut *reader).take(self.content_length as u64);
+            let mut buf = Vec::with_capacity(self.content_length);
+            let _ = reader_limited.read_to_end(&mut buf);
+            self.reader = Some(Rc::new(RefCell::new(io::Cursor::new(buf))));
+        }
         self.frozen = true;
     }
 
