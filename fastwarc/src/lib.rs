@@ -814,23 +814,26 @@ impl WarcRecord {
     /// at the time of calling `freeze()`.
     ///
     /// Freezing a record will advance the underlying raw stream.
-    pub fn freeze(&mut self) {
+    pub fn freeze(&mut self) -> Result<(), io::Error> {
         if self.frozen {
-            return;
+            return Ok(());
         }
         if let Some(reader) = self.reader.take() {
-            let mut reader = reader.borrow_mut();
             let mut buf = Vec::with_capacity(self.content_length);
-            let _ = reader.read_to_end(&mut buf);
+            let mut reader = reader.borrow_mut();
+            self.content_length = reader.read_to_end(&mut buf)?;
             self.reader = Some(Rc::new(RefCell::new(io::Cursor::new(buf))));
+            self.frozen = true;
+            Ok(())
+        } else {
+            Err(io::Error::other("No reader set"))
         }
-        self.frozen = true;
     }
 
     /// Write WARC record onto a stream.
     ///
-    /// The default block size is 16384 bytes, and SHA-1 checksums are calculated for the
-    /// block and payload data. Use `write_with_checksum` for more control.
+    /// The default block size is 16384 bytes and no record checksums are calculated.
+    /// Use `write_block_size` or `write_checksum_block_size` for more control.
     ///
     /// # Arguments
     ///
@@ -839,8 +842,41 @@ impl WarcRecord {
     /// # Returns
     ///
     /// Number of bytes written
-    pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.write_checksum_size(writer, true, 16384)
+    pub fn write<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize> {
+        self.write_checksum_block_size(writer, false, 16384)
+    }
+
+    /// Write WARC record onto a stream with a given block size.
+    ///
+    /// By default, no record checksums are calculated. Use `write_block_size` or
+    /// `write_checksum_block_size` for more control.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Output stream
+    /// * `block_size` - Block size for writing the record body
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written
+    pub fn write_block_size<W: io::Write>(&mut self, writer: &mut W, block_size: usize) -> io::Result<usize> {
+        self.write_checksum_block_size(writer, false, block_size)
+    }
+
+    /// Write WARC record onto a stream and calculate SHA-1 record checksums.
+    ///
+    /// The default block size is 16384 bytes, and SHA-1 checksums are calculated for the
+    /// block and payload data (if available). Use `write_checksum_block_size` for more control.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Output stream
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written
+    pub fn write_checksum<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize> {
+        self.write_checksum_block_size(writer, true, 16384)
     }
 
     /// Write WARC record onto a stream.
@@ -854,8 +890,48 @@ impl WarcRecord {
     /// # Returns
     ///
     /// Number of bytes written
-    pub fn write_checksum_size<W: io::Write>(&self, writer: &mut W, checksum_data: bool, chunk_size: usize) -> io::Result<usize> {
+    pub fn write_checksum_block_size<W: io::Write>(&mut self, writer: &mut W, checksum_data: bool, chunk_size: usize) -> io::Result<usize> {
+
         let mut bytes_written = 0;
+
+        if checksum_data {
+            self.freeze()?;
+            let reader = self.reader.as_ref().unwrap();
+
+            use sha1::Sha1;
+            use data_encoding::BASE32;
+            let mut block_digest = Sha1::new();
+
+            if self.http_parsed && let Some(h) = &self.http_headers {
+                let mut buf = Vec::with_capacity(512);
+                h.write(&mut buf)?;
+
+                let mut payload_digest = Sha1::new();
+                Digest::update(&mut block_digest, &buf);
+                Digest::update(&mut payload_digest, &buf);
+                self.headers.set_bytes(
+                    b"WARC-Payload-Digest", BASE32.encode(&payload_digest.finalize()).as_bytes());
+            }
+
+            loop {
+                let mut buf = [0u8; 4096];
+                let n = reader.borrow_mut().read(&mut buf)?;
+                if n == 0 {
+                    break;
+                }
+                Digest::update(&mut block_digest, buf);
+            }
+            self.headers.set_bytes(
+                b"WARC-Block-Digest", BASE32.encode(&block_digest.finalize()).as_bytes());
+            reader.borrow_mut().rewind()?;
+        }
+
+        let Some(reader) = &self.reader else {
+            return Err(io::Error::other("No reader set"));
+        };
+
+        // Ensure Content-Length is correct
+        self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
 
         // Write WARC headers
         bytes_written += self.headers.write(writer)?;
@@ -876,6 +952,16 @@ impl WarcRecord {
         // Write record separator
         writer.write_all(b"\r\n\r\n")?;
         bytes_written += 4;
+
+        let mut buf = Vec::with_capacity(chunk_size);
+        loop {
+            let n = reader.borrow_mut().read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            writer.write_all(&buf[..n])?;
+            bytes_written += n;
+        }
 
         Ok(bytes_written)
     }
@@ -1000,7 +1086,8 @@ impl WarcRecord {
         };
 
         if !consume && !self.frozen {
-            self.freeze()
+            self.freeze().map_err(|e| DigestError::StreamError(
+                format!("Failed to freeze record: {}", e).into(),))?;
         }
         let mut digest = _get_digest(&algorithm)?;
         let mut buf = [0u8; 4096];
