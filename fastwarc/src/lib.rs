@@ -19,7 +19,8 @@ use std::fmt;
 use std::rc::Rc;
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::WINDOWS_1252;
-use md5::Digest;
+use sha2::digest;
+use digest::{Digest, DynDigest};
 use uuid::Uuid;
 
 
@@ -112,7 +113,8 @@ pub enum DigestError {
     Missing(String),
     Unsupported(String),
     Error(String),
-    NoPayload(String)
+    NoPayload(String),
+    StreamError(String),
 }
 
 /// Case-insensitive string key for headers
@@ -213,8 +215,8 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `status_line` - New status line
-    pub fn set_status_line(&mut self, status_line: impl AsRef<[u8]>) {
-        self.status_line = status_line.as_ref().trim_ascii().to_vec();
+    pub fn set_status_line(&mut self, status_line: &[u8]) {
+        self.status_line = status_line.trim_ascii().to_vec();
     }
 
     /// HTTP status code (unset if header block is not an HTTP header block).
@@ -451,6 +453,8 @@ impl HeaderMap {
     }
 }
 
+pub trait BufReadSeek: io::BufRead + io::Seek {}
+impl<T: io::BufRead + io::Seek + ?Sized> BufReadSeek for T {}
 
 /// A WARC record.
 ///
@@ -464,7 +468,7 @@ pub struct WarcRecord {
     http_parsed: bool,
     http_charset: Option<String>,
     http_headers: Option<HeaderMap>,
-    reader: Option<Rc<RefCell<dyn io::BufRead>>>,
+    reader: Option<Rc<RefCell<dyn BufReadSeek>>>,
     stream_pos: usize,
     content: Vec<u8>,
     stale: bool,
@@ -520,7 +524,7 @@ impl WarcRecord {
         self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
     }
 
-    pub fn set_reader(&mut self, reader: Rc<RefCell<dyn io::BufRead>>) {
+    pub fn set_reader(&mut self, reader: Rc<RefCell<dyn BufReadSeek>>) {
         self.reader = Some(reader);
     }
 
@@ -528,11 +532,51 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `content` - Body as bytes
-    pub fn set_bytes_content(&mut self, content: Vec<u8>) {
-        self.content_length = content.len();
-        self.reader = Some(Rc::new(RefCell::new(io::BufReader::new(io::Cursor::new(content)))));
+    /// * `payload` - Body as bytes
+    pub fn set_bytes_payload(&mut self, payload: Vec<u8>) {
+        self.content_length = payload.len();
+        self.reader = Some(Rc::new(RefCell::new(io::BufReader::new(io::Cursor::new(payload)))));
         self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
+    }
+
+    pub fn parse_warc_headers(&mut self, strict_mode: bool) -> Result<(), io::Error> {
+        let reader = match &self.reader {
+            Some(reader) => Rc::clone(reader),
+            None => return Err(io::Error::other("No reader set")),
+        };
+        let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
+        let mut line = Vec::with_capacity(32);
+        loop {
+            line.clear();
+
+            // Try to find first WARC/* header
+            let n = reader.borrow_mut().read_until(b'\n', &mut line)?;
+            if n == 0 {
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended before WARC header"));
+            }
+            self.stream_pos += n;
+
+            // Trim ASCII whitespace (including CR/LF line endings)
+            let trimmed = line.trim_ascii();
+            if trimmed.is_empty() {
+                // Skip empty lines (non-standard)
+                continue;
+            }
+
+            if matches!(trimmed, b"WARC/1.1" | b"WARC/1.0") || (            // WARC/1.x header
+                trimmed.starts_with(b"WARC/0.") && trimmed.len() <= 9) {    // ClueWeb09/12 legacy
+                self.headers.status_line = trimmed.to_owned();
+                break;
+            } else if strict_mode {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid WARC header"));
+            } else {
+                // Quirks mode, keep trying to find a valid WARC header
+            }
+        }
+
+        self.stream_pos += self._parse_header_block(&mut headers, false)?;
+        self.headers = headers;
+        Ok(())
     }
 
     /// Record ID (same as `headers['WARC-Record-ID']`).
@@ -666,7 +710,6 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `reader` - Input reader
     /// * `target` - Header map to fill
     /// * `has_status_line` - Whether first line is a status line or already a header
     /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
@@ -674,17 +717,19 @@ impl WarcRecord {
     /// # Returns
     ///
     /// Number of bytes read from `reader`
-    pub fn parse_header_block<R: io::BufRead + ?Sized>(&self,
-                                                       reader: &mut R,
-                                                       target: &mut HeaderMap,
-                                                       has_status_line: bool) -> Result<usize, io::Error> {
+    fn _parse_header_block(&mut self, target: &mut HeaderMap, has_status_line: bool) -> Result<usize, io::Error> {
         let mut bytes_consumed = 0;
         let mut line = Vec::new();
         let mut expect_first_line = has_status_line;
 
+        let reader = match &self.reader {
+            Some(reader) => Rc::clone(reader),
+            None => return Err(io::Error::other("No reader set")),
+        };
+
         loop {
             line.clear();
-            let n = reader.read_until(b'\n', &mut line)?;
+            let n = reader.borrow_mut().read_until(b'\n', &mut line)?;
             if n == 0 {
                 break;
             }
@@ -701,15 +746,15 @@ impl WarcRecord {
                 break;
             }
 
-            if matches!(trimmed.first(), Some(b' ' | b'\t')) {
-                target.add_continuation(trimmed);
-                continue;
-            }
-
             // Status line
             if expect_first_line {
                 target.set_status_line(trimmed);
                 expect_first_line = false;
+                continue;
+            }
+
+            if matches!(trimmed.first(), Some(b' ' | b'\t')) {
+                target.add_continuation(trimmed);
                 continue;
             }
 
@@ -738,27 +783,26 @@ impl WarcRecord {
             return Ok(());
         }
 
-        if let Some(reader) = &self.reader {
-            let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
-            let bytes_consumed = self.parse_header_block(&mut *reader.borrow_mut(), &mut http_headers, true)?;
+        let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
+        let bytes_consumed = self._parse_header_block(&mut http_headers, true)?;
 
-            // Parse charset if present
-            if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
-                let charset_key = "charset=";
-                if let Some(charset_pos) = content_type.find(charset_key) {
-                    let charset_start = charset_pos + charset_key.len();
-                    self.http_charset = content_type[charset_start..]
-                        .split(';')
-                        .next()
-                        .map(|c| c.trim_ascii().to_owned());
-                }
+        // Parse charset if present
+        if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
+            let charset_key = "charset=";
+            if let Some(charset_pos) = content_type.find(charset_key) {
+                let charset_start = charset_pos + charset_key.len();
+                self.http_charset = content_type[charset_start..]
+                    .split(';')
+                    .next()
+                    .map(|c| c.trim_ascii().to_owned());
             }
-
-            // Update content to skip HTTP headers
-            self.content_length = self.content_length - bytes_consumed;
-            self.http_headers = Some(http_headers);
-            self.http_parsed = true;
         }
+
+        // Update content to skip HTTP headers
+        self.stream_pos += bytes_consumed;
+        self.content_length -= bytes_consumed;
+        self.http_headers = Some(http_headers);
+        self.http_parsed = true;
         Ok(())
     }
 
@@ -771,18 +815,22 @@ impl WarcRecord {
     ///
     /// Freezing a record will advance the underlying raw stream.
     pub fn freeze(&mut self) {
+        if self.frozen {
+            return;
+        }
         if let Some(reader) = self.reader.take() {
             let mut reader = reader.borrow_mut();
-            use io::Read;
-            let mut reader_limited = (&mut *reader).take(self.content_length as u64);
             let mut buf = Vec::with_capacity(self.content_length);
-            let _ = reader_limited.read_to_end(&mut buf);
+            let _ = reader.read_to_end(&mut buf);
             self.reader = Some(Rc::new(RefCell::new(io::Cursor::new(buf))));
         }
         self.frozen = true;
     }
 
     /// Write WARC record onto a stream.
+    ///
+    /// The default block size is 16384 bytes, and SHA-1 checksums are calculated for the
+    /// block and payload data. Use `write_with_checksum` for more control.
     ///
     /// # Arguments
     ///
@@ -792,6 +840,21 @@ impl WarcRecord {
     ///
     /// Number of bytes written
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<usize> {
+        self.write_checksum_size(writer, true, 16384)
+    }
+
+    /// Write WARC record onto a stream.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Output stream
+    /// * `checksum_data` - Whether to write data checksums
+    /// * `chunk_size` - Chunk size for writing the record body
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written
+    pub fn write_checksum_size<W: io::Write>(&self, writer: &mut W, checksum_data: bool, chunk_size: usize) -> io::Result<usize> {
         let mut bytes_written = 0;
 
         // Write WARC headers
@@ -817,6 +880,51 @@ impl WarcRecord {
         Ok(bytes_written)
     }
 
+
+    // cdef size_t _write_impl(self, in_stream, out_stream, bint write_payload_headers, size_t chunk_size) except -1:
+    //     cdef size_t bytes_written = 0
+    //     cdef bint compress_member_started = False
+    //
+    //     cdef IOStream out_stream_wrapped = wrap_stream(out_stream, 'wb', fsspec_args=False)
+    //     if isinstance(out_stream, CompressingStream):
+    //         bytes_written = (<CompressingStream>out_stream_wrapped).begin_member()
+    //         compress_member_started = True
+    //
+    //     cdef BufferedReader in_reader_wrapped = None
+    //     cdef IOStream in_stream_wrapped = None
+    //     if isinstance(in_stream, BufferedReader):
+    //         in_reader_wrapped = <BufferedReader>in_stream
+    //     else:
+    //         in_stream_wrapped = wrap_stream(in_stream, 'rb', fsspec_args=False)
+    //
+    //     bytes_written += self._headers.write(out_stream_wrapped)
+    //     bytes_written += out_stream_wrapped.write_(b'\r\n', 2)
+    //
+    //     if write_payload_headers and self._http_parsed:
+    //         bytes_written += self._http_headers.write(out_stream_wrapped)
+    //         bytes_written += out_stream_wrapped.write_(b'\r\n', 2)
+    //
+    //     cdef string buffer
+    //     cdef size_t bytes_read = 0
+    //     while True:
+    //         if in_reader_wrapped is not None:
+    //             buffer = in_reader_wrapped.read(chunk_size)
+    //             bytes_read = buffer.size()
+    //         else:
+    //             if buffer.size() < chunk_size:
+    //                 buffer.resize(chunk_size)
+    //             bytes_read = in_stream_wrapped.read_(buffer.data(), chunk_size)
+    //         if bytes_read == 0:
+    //             break
+    //         bytes_written += out_stream_wrapped.write_(buffer.data(), bytes_read)
+    //
+    //     bytes_written += out_stream_wrapped.write_(b'\r\n\r\n', 4)
+    //
+    //     if compress_member_started:
+    //         bytes_written += (<CompressingStream>out_stream_wrapped).end_member()
+    //
+    //     return bytes_written
+
     // TODO: Unchecked conversion AI slop from here on:
 
     /// Verify whether record digest is valid.
@@ -824,7 +932,7 @@ impl WarcRecord {
     /// # Arguments
     ///
     /// * `consume` - Do not create an in-memory copy of the record stream
-    ///               (will fully consume the rest of the record)
+    ///   (will fully consume the rest of the record)
     ///
     /// # Returns
     ///
@@ -836,12 +944,12 @@ impl WarcRecord {
             .and_then(|d| self._verify_digest(&d, consume))
     }
 
-    /// Verify whether record block digest is valid.
+    /// Verify whether the record block digest is valid.
     ///
     /// # Arguments
     ///
     /// * `consume` - Do not create an in-memory copy of the record stream
-    ///               (will fully consume the rest of the record)
+    ///   (will fully consume the rest of the record)
     ///
     /// # Returns
     ///
@@ -857,18 +965,23 @@ impl WarcRecord {
             .and_then(|d| self._verify_digest(&d, consume))
     }
 
-    /// Verify whether record block digest is valid.
+    /// Verify whether the record block digest is valid.
     ///
     /// # Arguments
     ///
     /// * `digest_str` - Digest string from header (e.g., "sha1:BASE32HASH")
     /// * `consume` - Do not create an in-memory copy of the record stream
-    ///               (will fully consume the rest of the record)
+    ///   (will fully consume the rest of the record)
     ///
     /// # Returns
     ///
     /// `true` if digest exists and is valid, None if digest header is missing or invalid
     fn _verify_digest(&mut self, digest_str: &str, consume: bool) -> Result<bool, DigestError> {
+        let reader = match &self.reader {
+            Some(reader) => Rc::clone(reader),
+            None => return Err(DigestError::StreamError("No reader set".into())),
+        };
+
         let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
         if parts.len() != 2 {
             return Err(DigestError::Error("Invalid digest header formatting (':' not found)".into()));
@@ -889,49 +1002,25 @@ impl WarcRecord {
         if !consume && !self.frozen {
             self.freeze()
         }
-
-        let hash_fn = |payload| {
-            match algorithm.as_str() {
-                "md5" => {
-                    use md5::Md5;
-                    let mut hasher = Md5::new();
-                    hasher.update(payload);
-                    Ok(hasher.finalize().to_vec())
-                },
-                "sha1" => {
-                    use sha1::Sha1;
-                    let mut hasher = Sha1::new();
-                    hasher.update(payload);
-                    Ok(hasher.finalize().to_vec())
-                },
-                "sha256" => {
-                    use sha2::Sha256;
-                    let mut hasher = Sha256::new();
-                    hasher.update(payload);
-                    Ok(hasher.finalize().to_vec())
-                },
-                "sha512" => {
-                    use sha2::Sha512;
-                    let mut hasher = Sha512::new();
-                    hasher.update(payload);
-                    Ok(hasher.finalize().to_vec())
-                },
-                _ => Err(DigestError::Unsupported(format!("Unsupported hash algorithm: {}", algorithm)))
+        let mut digest = _get_digest(&algorithm)?;
+        let mut buf = [0u8; 4096];
+        loop {
+            let n = reader
+                .borrow_mut()
+                .read(&mut buf)
+                .map_err(|e| DigestError::StreamError(format!("Failed to read stream: {}", e)))?;
+            if n == 0 {
+                break;
             }
-        };
+            digest.update(&buf[..n]);
+        }
+        if !consume {
+            reader.borrow_mut()
+                .seek(io::SeekFrom::Start(self.stream_pos as u64))
+                .map_err(|e| DigestError::StreamError(format!("Failed to seek stream: {}", e)))?;
+        }
 
-        // TODO: Read content
-        // cdef string block
-        // while True:
-        //     block = self._reader.read(4096)
-        // if block.empty():
-        // break
-        //     h.update(block)
-        //
-        // if not consume:
-        //     self._reader.stream.seek(0)
-
-        hash_fn(&self.content).map(|d| d == expected_digest)
+        Ok(digest.finalize().to_vec() == expected_digest)
     }
 }
 
@@ -1138,3 +1227,28 @@ impl WarcRecord {
 // pub fn is_concurrent(record: &WarcRecord) -> bool {
 //     record.headers().contains_key("WARC-Concurrent-To")
 // }
+
+
+
+fn _get_digest(algorithm: &str) -> Result<Box<dyn DynDigest>, DigestError> {
+    match algorithm.to_ascii_lowercase().as_str() {
+        "md5" => {
+            use md5::Md5;
+            Ok(Box::new(Md5::new()))
+        },
+        "sha1" => {
+            use sha1::Sha1;
+            Ok(Box::new(Sha1::new()))
+        },
+        "sha256" => {
+            use sha2::Sha256;
+            Ok(Box::new(Sha256::new()))
+        },
+        "sha512" => {
+            use sha2::Sha512;
+            Ok(Box::new(Sha512::new()))
+        },
+        _ => Err(DigestError::Unsupported(format!(
+            "Unsupported hash algorithm: {}", algorithm)))
+    }
+}
