@@ -574,7 +574,26 @@ impl WarcRecord {
             .set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
     }
 
-    pub fn parse_warc_headers(&mut self, strict_mode: bool) -> Result<(), io::Error> {
+    /// Start parsing the WARC record header block. Requires a stream to be set.
+    ///
+    /// The parser will skip over any number of empty lines before the next valid
+    /// `WARC/*` header line. Any other content that is not a valid WARC header
+    /// start will return an error of type [`io::ErrorKind::InvalidData`].
+    pub fn parse_warc_headers(&mut self) -> Result<(), io::Error> {
+        self.parse_warc_headers_quirks(false)
+    }
+
+    /// Start parsing the WARC record header block. Requires a stream to be set.
+    ///
+    /// The parser will skip over any number of empty lines before the next valid
+    /// `WARC/*` header line. If `quirks_mode == true`, any other invalid lines
+    /// encountered before the next header start will be skipped as well.
+    /// Otherwise, an error of type [`io::ErrorKind::InvalidData`] is returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `quirks_mode` - Whether to skip non-empty lines before header start
+    pub fn parse_warc_headers_quirks(&mut self, quirks_mode: bool) -> Result<(), io::Error> {
         let reader = match &self.reader {
             Some(reader) => Rc::clone(reader),
             None => {
@@ -607,7 +626,7 @@ impl WarcRecord {
             {
                 self.headers.status_line = trimmed.to_owned();
                 break;
-            } else if strict_mode {
+            } else if !quirks_mode {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid WARC header"));
             } else {
                 // Quirks mode, keep trying to find a valid WARC header
