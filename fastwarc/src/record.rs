@@ -205,9 +205,24 @@ impl HeaderMap {
         self.encoding.clone()
     }
 
+    /// Decode a header value as either Unicode or Latin1.
+    /// Decoding is lossy. Invalid characters are replaced.
+    ///
+    /// # Arguments
+    ///
+    /// * `byte_str` - Byte sequence to decode
+    fn _decode(&self, byte_str: &[u8]) -> String {
+        match &self.encoding {
+            HeaderEncoding::Unicode => String::from_utf8_lossy(byte_str).to_string(),
+            HeaderEncoding::Latin1 => WINDOWS_1252
+                .decode(byte_str, DecoderTrap::Ignore)
+                .unwrap_or_else(|_| String::new()),
+        }
+    }
+
     /// Get the header status line.
-    pub fn status_line(&self) -> Result<String, std::string::FromUtf8Error> {
-        String::from_utf8(self.status_line.clone())
+    pub fn status_line(&self) -> String {
+        self._decode(&self.status_line)
     }
 
     /// Get the raw status line as bytes.
@@ -221,7 +236,9 @@ impl HeaderMap {
     ///
     /// * `status_line` - New status line
     pub fn set_status_line(&mut self, status_line: &[u8]) {
-        self.status_line = status_line.trim_ascii().to_vec();
+        let mut status_line_sanitized = Vec::with_capacity(status_line.len());
+        status_line_sanitized.extend(_sanitize_header_value(status_line, true));
+        self.status_line = status_line_sanitized;
     }
 
     /// HTTP status code (unset if header block is not an HTTP header block).
@@ -232,16 +249,7 @@ impl HeaderMap {
         let mut parts = self.status_line.splitn(3, |&b| b == b' ');
         // Skip HTTP/
         parts.next()?;
-        String::from_utf8_lossy(parts.next()?).parse::<u16>().ok()
-    }
-
-    fn decode(&self, byte_str: &[u8]) -> String {
-        match &self.encoding {
-            HeaderEncoding::Unicode => String::from_utf8_lossy(byte_str).to_string(),
-            HeaderEncoding::Latin1 => WINDOWS_1252
-                .decode(byte_str, DecoderTrap::Ignore)
-                .unwrap_or_else(|_| String::new()),
-        }
+        self._decode(parts.next()?).parse::<u16>().ok()
     }
 
     /// HTTP reason phrase.
@@ -254,7 +262,7 @@ impl HeaderMap {
         // Skip HTTP/ and status code
         parts.next()?;
         parts.next()?;
-        Some(self.decode(parts.next()?))
+        Some(self._decode(parts.next()?))
     }
 
     /// Get value for a (case-insensitive) header key a string.
@@ -264,7 +272,7 @@ impl HeaderMap {
     ///
     /// * `key` - Header key
     pub fn get(&self, key: &str) -> Option<String> {
-        Some(self.decode(&self.get_bytes(key.as_bytes())?))
+        Some(self._decode(&self.get_bytes(key.as_bytes())?))
     }
 
     /// Get value for a (case-insensitive) header key as bytes.
@@ -328,13 +336,15 @@ impl HeaderMap {
     /// * `key` - Header key as bytes
     /// * `value` - Header value as bytes
     pub fn set_bytes(&mut self, key: &[u8], value: &[u8]) {
-        let key_lower = key.to_ascii_lowercase();
+        let mut key_lower = Vec::with_capacity(key.len());
+        key_lower.extend(_sanitize_header_value(&key.to_ascii_lowercase(), true));
+
         let mut found = false;
         self.headers.retain_mut(|h| {
             if h.0.to_ascii_lowercase() != key_lower {
                 true
             } else if !found {
-                *h = (key.trim_ascii().to_vec(), value.trim_ascii().to_vec());
+                *h = (_sanitize_header_value(key, true), _sanitize_header_value(value, false));
                 found = true;
                 true
             } else {
@@ -343,7 +353,7 @@ impl HeaderMap {
         });
         if !found {
             self.headers
-                .push((key.trim_ascii().to_vec(), value.trim_ascii().to_vec()));
+                .push((_sanitize_header_value(key, true), _sanitize_header_value(value, false)));
         }
     }
 
@@ -375,32 +385,42 @@ impl HeaderMap {
     /// * `value` - Header value as bytes
     pub fn append_bytes(&mut self, key: &[u8], value: &[u8]) {
         self.headers
+            .push((_sanitize_header_value(key, true), _sanitize_header_value(value, false)));
+    }
+
+    /// Internal function for appending a header without sanitization
+    /// (assumes data is already sanitized). Still trims leading and trailing white space.
+    fn _append_bytes_no_sanitize(&mut self, key: &[u8], value: &[u8]) {
+        self.headers
             .push((key.trim_ascii().to_vec(), value.trim_ascii().to_vec()));
     }
 
     /// Internal helper for adding a continuation line to the last-appended header.
+    /// No value sanitization is performed, but white space is trimmed.
     fn _add_continuation_bytes(&mut self, value: &[u8]) {
+        let trimmed = value.trim_ascii();
         if let Some(last) = self.headers.last_mut() {
+            last.1.reserve(trimmed.len() + 1);
             last.1.push(b' ');
-            last.1.extend_from_slice(value.trim_ascii());
+            last.1.extend_from_slice(trimmed);
         } else {
-            self.headers.push((Vec::new(), value.trim_ascii().to_vec()));
+            self.headers.push((Vec::new(), trimmed.to_vec()));
         }
     }
 
     /// Iterator of keys and values.
     pub fn items(&self) -> impl Iterator<Item = (String, String)> + use<'_> {
-        self.headers.iter().map(|(k, v)| (self.decode(k), self.decode(v)))
+        self.headers.iter().map(|(k, v)| (self._decode(k), self._decode(v)))
     }
 
     /// Iterator of header keys.
     pub fn keys(&self) -> impl Iterator<Item = String> + use<'_> {
-        self.headers.iter().map(|(k, _)| self.decode(k))
+        self.headers.iter().map(|(k, _)| self._decode(k))
     }
 
     /// Iterator of header values.
     pub fn values(&self) -> impl Iterator<Item = String> + use<'_> {
-        self.headers.iter().map(|(_, v)| self.decode(v))
+        self.headers.iter().map(|(_, v)| self._decode(v))
     }
 
     /// Headers as a series of String tuples.
@@ -465,6 +485,10 @@ impl HeaderMap {
             writer.write_all(b"\r\n")?;
             bytes_written += 2;
         }
+        // Header end
+        writer.write_all(b"\r\n")?;
+        bytes_written += 2;
+
         Ok(bytes_written)
     }
 }
@@ -491,7 +515,6 @@ pub struct WarcRecord {
     http_headers: Option<HeaderMap>,
     reader: Option<Rc<RefCell<dyn BufReadSeek>>>,
     stream_pos: usize,
-    content: Vec<u8>,
     frozen: bool,
 }
 
@@ -540,7 +563,6 @@ impl WarcRecord {
             content_length: 0,
             reader: None,
             stream_pos: 0,
-            content: Vec::new(),
             frozen: false,
         }
     }
@@ -763,16 +785,17 @@ impl WarcRecord {
         self.headers.clear();
         self.headers.set_status_line(b"WARC/1.1");
         self.headers
-            .append_bytes(b"WARC-Type", self.record_type.as_str().as_bytes());
+            ._append_bytes_no_sanitize(b"WARC-Type", self.record_type.as_str().as_bytes());
 
         let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        self.headers.append_bytes(b"WARC-Date", date.as_bytes());
+        self.headers._append_bytes_no_sanitize(b"WARC-Date", date.as_bytes());
 
         let record_id = format!("<{}>", String::from_utf8_lossy(&urn));
-        self.headers.append_bytes(b"WARC-Record-ID", record_id.as_bytes());
+        self.headers
+            ._append_bytes_no_sanitize(b"WARC-Record-ID", record_id.as_bytes());
 
         self.headers
-            .append_bytes(b"Content-Length", content_length.to_string().as_bytes());
+            ._append_bytes_no_sanitize(b"Content-Length", content_length.to_string().as_bytes());
         self.content_length = content_length;
     }
 
@@ -834,7 +857,7 @@ impl WarcRecord {
                 } else {
                     b""
                 };
-                target.append_bytes(&trimmed[..colon_pos], value);
+                target._append_bytes_no_sanitize(&trimmed[..colon_pos], value);
             } else {
                 // Invalid header, try to preserve it
                 target._add_continuation_bytes(trimmed);
@@ -1014,7 +1037,6 @@ impl WarcRecord {
 
         // Write WARC headers
         bytes_written += self.headers.write(writer)?;
-        writer.write_all(b"\r\n")?;
         bytes_written += 2;
 
         // Write HTTP headers if parsed
@@ -1022,18 +1044,9 @@ impl WarcRecord {
             && let Some(ref http_headers) = self.http_headers
         {
             bytes_written += http_headers.write(writer)?;
-            writer.write_all(b"\r\n")?;
-            bytes_written += 2;
         }
 
         // Write content
-        writer.write_all(&self.content)?;
-        bytes_written += self.content.len();
-
-        // Write record separator
-        writer.write_all(b"\r\n\r\n")?;
-        bytes_written += 4;
-
         let mut buf = Vec::with_capacity(chunk_size);
         loop {
             let n = reader.borrow_mut().read(&mut buf)?;
@@ -1043,6 +1056,10 @@ impl WarcRecord {
             writer.write_all(&buf[..n])?;
             bytes_written += n;
         }
+
+        // Write record separator
+        writer.write_all(b"\r\n\r\n")?;
+        bytes_written += 4;
 
         Ok(bytes_written)
     }
@@ -1140,6 +1157,10 @@ impl WarcRecord {
     }
 }
 
+// ===========================================================
+// Helper functions
+// ===========================================================
+
 /// Internal helper for constructing a digest instance.
 fn _get_digest(algorithm: &str) -> Result<Box<dyn DynDigest>, DigestError> {
     match algorithm.to_ascii_lowercase().as_str() {
@@ -1161,4 +1182,16 @@ fn _get_digest(algorithm: &str) -> Result<Box<dyn DynDigest>, DigestError> {
         }
         _ => Err(DigestError::Unsupported(format!("Unsupported hash algorithm: {}", algorithm))),
     }
+}
+
+/// Internal helper for trimming leading and trailing white space and
+/// removing internal CR and LF characters. Also strips `':'` if `is_key == true`.
+fn _sanitize_header_value(value: &[u8], is_key: bool) -> Vec<u8> {
+    let mut value_sanitized = Vec::with_capacity(value.len());
+    value_sanitized.extend(value.trim_ascii().iter().flat_map(|b| match b {
+        b'\r' | b'\n' => Some(b' '),
+        b':' if is_key => None,
+        other => Some(*other),
+    }));
+    value_sanitized
 }
