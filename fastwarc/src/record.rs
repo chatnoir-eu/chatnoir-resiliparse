@@ -492,7 +492,6 @@ pub struct WarcRecord {
     reader: Option<Rc<RefCell<dyn BufReadSeek>>>,
     stream_pos: usize,
     content: Vec<u8>,
-    stale: bool,
     frozen: bool,
 }
 
@@ -524,6 +523,12 @@ impl fmt::Debug for WarcRecord {
 
 impl WarcRecord {
     /// Create a new empty WARC record.
+    ///
+    /// The new WARC record will have an empty [`HeaderMap`] and no payload.
+    /// Before use, a [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
+    /// existing payload will fail. Default headers can be initialized with
+    /// [`Self::init_headers()`].
     pub fn new() -> Self {
         WarcRecord {
             record_type: WarcRecordType::Unknown,
@@ -536,7 +541,6 @@ impl WarcRecord {
             reader: None,
             stream_pos: 0,
             content: Vec::new(),
-            stale: false,
             frozen: false,
         }
     }
@@ -556,13 +560,26 @@ impl WarcRecord {
         self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
     }
 
+    /// Attach a buffered reader to this [`WarcRecord`] instance.
+    /// A reader instance is essential for parsing records from a WARC stream.
+    ///
+    /// A [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
+    /// existing payload will fail.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Shared pointer to a buffered reader instance
     pub fn set_reader(&mut self, reader: Rc<RefCell<dyn BufReadSeek>>) {
         self.reader = Some(reader);
     }
 
     /// Set the WARC payload as bytes.
-    ///
     /// This will replace the current reader instance with a byte buffer stream.
+    ///
+    /// A [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
+    /// existing payload will fail.
     ///
     /// # Arguments
     ///
@@ -717,11 +734,6 @@ impl WarcRecord {
     /// Whether the record has been frozen.
     pub fn is_frozen(&self) -> bool {
         self.frozen
-    }
-
-    /// Whether the record is stale.
-    pub fn is_stale(&self) -> bool {
-        self.stale
     }
 
     /// Initialize mandatory headers in a fresh WARC record instance.
