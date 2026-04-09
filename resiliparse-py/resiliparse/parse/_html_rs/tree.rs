@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::exception::*;
+use crate::node::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
 use resiliparse::parse::html::tree as tree_impl;
-use crate::exception::*;
-use crate::node::*;
-
 
 #[pyclass(module = "resiliparse.parse._html_rs")]
 pub struct HTMLTree {
-    tree: tree_impl::HTMLTree
+    tree: tree_impl::HTMLTree,
 }
 
 #[pymethods]
@@ -30,7 +29,7 @@ impl HTMLTree {
     pub fn parse(document: &str) -> PyResult<Self> {
         match tree_impl::HTMLTree::parse(document) {
             Ok(t) => Ok(Self { tree: t }),
-            _ => Err(HTMLParserException::new_err("Failed to parse HTML document."))
+            _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
         }
     }
 
@@ -40,21 +39,21 @@ impl HTMLTree {
     pub fn parse_from_bytes<'py>(document: &Bound<'py, PyBytes>, encoding: &str, errors: &str) -> PyResult<Self> {
         match tree_impl::HTMLTree::try_from(document.as_bytes()) {
             Ok(t) => Ok(Self { tree: t }),
-            _ => Err(HTMLParserException::new_err("Failed to parse HTML document."))
+            _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
         }
     }
 
     pub fn create_element<'py>(slf: PyRef<'py, Self>, tag_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
             || Err(DOMException::new_err("No document node.")),
-            |d| DocumentNode::create_element(d.borrow_mut(), tag_name)
+            |d| DocumentNode::create_element(d.borrow_mut(), tag_name),
         )
     }
 
     pub fn create_text_node<'py>(slf: PyRef<'py, Self>, text: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
             || Err(DOMException::new_err("No document node.")),
-            |d| DocumentNode::create_text_node(d.borrow_mut(), text)
+            |d| DocumentNode::create_text_node(d.borrow_mut(), text),
         )
     }
 
@@ -79,9 +78,8 @@ impl HTMLTree {
     }
 
     pub fn __str__(slf: PyRef<'_, Self>) -> String {
-        slf.tree.document().map_or_else(
-            || "<Invalid Document>".to_owned(),
-            |d| format!("{}", d)
-        )
+        slf.tree
+            .document()
+            .map_or_else(|| "<Invalid Document>".to_owned(), |d| format!("{}", d))
     }
 }

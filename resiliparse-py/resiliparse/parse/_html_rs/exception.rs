@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use pyo3::exceptions::*;
 use pyo3::create_exception;
+use pyo3::exceptions::*;
 
 create_exception!(resiliparse.parse._html_rs.exception, DOMException, PyException);
 create_exception!(resiliparse.parse._html_rs.exception, HTMLParserException, DOMException);

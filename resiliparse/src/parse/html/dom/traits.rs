@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //! Node type traits (abstract).
 //!
 //! Abstract DOM node type interfaces.
 
+use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
+use crate::parse::html::dom::coll::*;
+use crate::parse::html::dom::iter::*;
+use crate::parse::html::dom::*;
+use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
+use parking_lot::ReentrantMutexGuard;
 use std::cmp::max;
 use std::fmt::{Debug, Display};
 use std::ops::Add;
 use std::ptr;
 use std::ptr::addr_of;
-use parking_lot::{ReentrantMutexGuard};
-use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
-use crate::parse::html::dom::*;
-use crate::parse::html::dom::coll::*;
-use crate::parse::html::dom::iter::*;
-use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
-
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum NodeType {
@@ -43,111 +41,139 @@ pub enum NodeType {
     Document = 0x09,
     DocumentType = 0x0A,
     DocumentFragment = 0x0B,
-    Notation = 0x0C,    // legacy
+    Notation = 0x0C, // legacy
 }
 
 pub(crate) trait NodeInterfaceBaseImpl {
-    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self where Self: Sized;
+    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self
+    where
+        Self: Sized;
     fn tree_(&self) -> Arc<HTMLDocument>;
     fn node_ptr_(&self) -> ReentrantMutexGuard<'_, *mut lxb_dom_node_t>;
     fn reset_node_ptr_(&mut self);
 
     #[inline(always)]
-    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t { unsafe {
-        (*(*self.node_ptr_())).owner_document
-    }}
+    unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
+        unsafe { (*(*self.node_ptr_())).owner_document }
+    }
 
-    unsafe fn iter_raw(&self) -> NodeIteratorRaw { unsafe {
-        NodeIteratorRaw::new(*self.node_ptr_())
-    }}
+    unsafe fn iter_raw(&self) -> NodeIteratorRaw {
+        unsafe { NodeIteratorRaw::new(*self.node_ptr_()) }
+    }
 
-    unsafe fn node_name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_node_name)
-    }}
+    unsafe fn node_name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_node_name) }
+    }
 
     /// Node text value.
-    unsafe fn node_value_unchecked(&self) -> Option<&str> { unsafe {
-        use crate::third_party::lexbor::lxb_dom_node_type_t::*;
-        match (*(*self.node_ptr_())).type_ {
-            LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi),
-            LXB_DOM_NODE_TYPE_TEXT | LXB_DOM_NODE_TYPE_CDATA_SECTION |
-            LXB_DOM_NODE_TYPE_COMMENT | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION =>
-                str_from_lxb_str_t(addr_of!((*(*(self.node_ptr_()) as *const lxb_dom_character_data_t)).data)),
-            _ => None
-        }
-    }}
-
-    unsafe fn can_have_children_unchecked(&self) -> bool { unsafe {
-        matches!((*(*self.node_ptr_())).type_,
-            lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
-                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
-                | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
-        )
-    }}
-
-    unsafe fn insert_before_unchecked<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef>) -> Option<NodeRef<'a>> { unsafe {
-        if let Some(c) = child {
-            if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() ||  node.contains(&c) {
-                return None;
+    unsafe fn node_value_unchecked(&self) -> Option<&str> {
+        unsafe {
+            use crate::third_party::lexbor::lxb_dom_node_type_t::*;
+            match (*(*self.node_ptr_())).type_ {
+                LXB_DOM_NODE_TYPE_ATTRIBUTE => str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi),
+                LXB_DOM_NODE_TYPE_TEXT
+                | LXB_DOM_NODE_TYPE_CDATA_SECTION
+                | LXB_DOM_NODE_TYPE_COMMENT
+                | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => {
+                    str_from_lxb_str_t(addr_of!((*(*(self.node_ptr_()) as *const lxb_dom_character_data_t)).data))
+                }
+                _ => None,
             }
-            if node == &c {
-                return Some(node.clone());
+        }
+    }
+
+    unsafe fn can_have_children_unchecked(&self) -> bool {
+        unsafe {
+            matches!(
+                (*(*self.node_ptr_())).type_,
+                lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
+                    | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT
+                    | lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT
+            )
+        }
+    }
+
+    unsafe fn insert_before_unchecked<'a>(
+        &mut self,
+        node: &NodeRef<'a>,
+        child: Option<NodeRef>,
+    ) -> Option<NodeRef<'a>> {
+        unsafe {
+            if let Some(c) = child {
+                if *c.parent_node()?.node_ptr_() != *self.node_ptr_()
+                    || !self.can_have_children_unchecked()
+                    || node.contains(&c)
+                {
+                    return None;
+                }
+                if node == &c {
+                    return Some(node.clone());
+                }
+                // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
+                if let NodeRef::DocumentFragment(d) = node {
+                    d.child_nodes().iter().for_each(|c2| {
+                        lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
+                    });
+                    // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
+                    (*(*d.node_ptr_())).first_child = ptr::null_mut();
+                    (*(*d.node_ptr_())).last_child = ptr::null_mut();
+                } else {
+                    lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
+                }
+                Some(node.clone())
+            } else {
+                self.append_child_unchecked(node)
+            }
+        }
+    }
+
+    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+        unsafe {
+            if !self.can_have_children_unchecked() {
+                return None;
             }
             // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
             if let NodeRef::DocumentFragment(d) = node {
-                d.child_nodes().iter().for_each(|c2| {
-                    lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
+                d.child_nodes().iter().for_each(|c| {
+                    lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
                 });
                 // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
                 (*(*d.node_ptr_())).first_child = ptr::null_mut();
                 (*(*d.node_ptr_())).last_child = ptr::null_mut();
             } else {
-                lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
+                lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
             }
             Some(node.clone())
-        } else {
-            self.append_child_unchecked(node)
         }
-    }}
+    }
 
-    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
-        if !self.can_have_children_unchecked() {
-            return None;
+    unsafe fn replace_child_unchecked<'a>(
+        &mut self,
+        new_child: &NodeRef<'a>,
+        old_child: &NodeRef<'a>,
+    ) -> Option<NodeRef<'a>> {
+        unsafe {
+            if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
+                return None;
+            }
+            if new_child == old_child {
+                return Some(old_child.clone());
+            }
+            self.insert_before_unchecked(new_child, Some(old_child.clone()))?;
+            self.remove_child_unchecked(old_child)
         }
-        // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-        if let NodeRef::DocumentFragment(d) = node {
-            d.child_nodes().iter().for_each(|c| {
-                lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
-            });
-            // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-            (*(*d.node_ptr_())).first_child = ptr::null_mut();
-            (*(*d.node_ptr_())).last_child = ptr::null_mut();
-        } else {
-            lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
-        }
-        Some(node.clone())
-    }}
+    }
 
-    unsafe fn replace_child_unchecked<'a>(&mut self, new_child: &NodeRef<'a>, old_child: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
-        if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
-            return None;
+    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+        unsafe {
+            if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
+                return None;
+            }
+            lxb_dom_node_remove(*node.node_ptr_());
+            Some(node.clone())
         }
-        if new_child == old_child {
-            return Some(old_child.clone());
-        }
-        self.insert_before_unchecked(new_child, Some(old_child.clone()))?;
-        self.remove_child_unchecked(old_child)
-    }}
-
-    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> { unsafe {
-        if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
-            return None;
-        }
-        lxb_dom_node_remove(*node.node_ptr_());
-        Some(node.clone())
-    }}
+    }
 }
-
 
 /// Base DOM node interface.
 #[allow(private_bounds)]
@@ -167,7 +193,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
             LXB_DOM_NODE_TYPE_DOCUMENT_TYPE => Some(NodeType::DocumentType),
             LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT => Some(NodeType::DocumentFragment),
             LXB_DOM_NODE_TYPE_NOTATION => Some(NodeType::Notation),
-            _ => None
+            _ => None,
         }
     }
 
@@ -191,7 +217,9 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn set_node_value(&mut self, value: &str) {
         check_node!(self);
-        unsafe { lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len()); }
+        unsafe {
+            lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len());
+        }
     }
 
     /// Text contents of this DOM node and its children.
@@ -245,11 +273,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         if *self.node_ptr_() == *node.node_ptr_() {
             return true;
         }
-        unsafe {
-            self.iter_raw()
-                .find(|&n| n == *node.node_ptr_())
-                .is_some()
-        }
+        unsafe { self.iter_raw().find(|&n| n == *node.node_ptr_()).is_some() }
     }
 
     /// List of child nodes.
@@ -317,11 +341,17 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.remove_child_unchecked(node) }
     }
 
-    fn iter(&self) -> NodeIterator<'_> where Self: Sized {
+    fn iter(&self) -> NodeIterator<'_>
+    where
+        Self: Sized,
+    {
         NodeIterator::new(self.as_noderef())
     }
 
-    fn iter_elements(&self) -> ElementIterator<'_> where Self: Sized {
+    fn iter_elements(&self) -> ElementIterator<'_>
+    where
+        Self: Sized,
+    {
         ElementIterator::new(self)
     }
 
@@ -329,11 +359,12 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         if self.node_ptr_().is_null() {
             return;
         }
-        unsafe { lxb_dom_node_destroy_deep(*self.node_ptr_()); }
+        unsafe {
+            lxb_dom_node_destroy_deep(*self.node_ptr_());
+        }
         self.reset_node_ptr_();
     }
 }
-
 
 /// DocumentType node.
 pub trait DocumentType: ChildNode {
@@ -365,7 +396,11 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError>;
     fn create_cdata_section(&mut self, data: &str) -> Result<CdataSectionNode, DOMError>;
     fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError>;
-    fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError>;
+    fn create_processing_instruction(
+        &mut self,
+        target: &str,
+        data: &str,
+    ) -> Result<ProcessingInstructionNode, DOMError>;
     fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError>;
 }
 
@@ -373,24 +408,19 @@ pub trait DocumentFragment: DocumentOrShadowRoot + ParentNode + NonElementParent
 
 /// ParentNode mixin trait.
 pub trait ParentNode: NodeInterface {
-
     /// List of child element nodes.
     fn children(&self) -> HTMLCollection;
 
     /// First element child of this DOM node.
     fn first_element_child(&self) -> Option<ElementNode> {
         check_node!(self);
-        unsafe {
-            next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).first_child)
-        }
+        unsafe { next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).first_child) }
     }
 
     /// Last element child element of this DOM node.
     fn last_element_child(&self) -> Option<ElementNode> {
         check_node!(self);
-        unsafe {
-            previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).last_child)
-        }
+        unsafe { previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).last_child) }
     }
 
     fn child_element_count(&self) -> usize {
@@ -426,20 +456,28 @@ pub trait ParentNode: NodeInterface {
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::with_capacity(1);
-        sel_list.match_elements(&self.as_noderef(), |e, _, ctx| {
-            ctx.push(e);
-            TraverseAction::Stop
-        }, &mut result);
+        sel_list.match_elements(
+            &self.as_noderef(),
+            |e, _, ctx| {
+                ctx.push(e);
+                TraverseAction::Stop
+            },
+            &mut result,
+        );
         Ok(result.pop())
     }
 
     fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
         let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
         let mut result = Vec::<ElementNode>::new();
-        sel_list.match_elements(&self.as_noderef(), |e, _, ctx| {
-            ctx.push(e);
-            TraverseAction::Ok
-        }, &mut result);
+        sel_list.match_elements(
+            &self.as_noderef(),
+            |e, _, ctx| {
+                ctx.push(e);
+                TraverseAction::Ok
+            },
+            &mut result,
+        );
         Ok(ElementNodeList::from(result))
     }
 }
@@ -449,7 +487,7 @@ pub trait NonElementParentNode: NodeInterface {
     fn get_element_by_id(&self, id: &str) -> Option<ElementNode> {
         unsafe { get_element_by_id(&self.as_noderef(), id, false) }
     }
-    
+
     fn get_element_by_id_case(&self, id: &str, case_insensitive: bool) -> Option<ElementNode> {
         unsafe { get_element_by_id(&self.as_noderef(), id, case_insensitive) }
     }
@@ -482,7 +520,9 @@ pub trait ChildNode: NodeInterface {
 
     fn remove(&mut self) {
         check_node!(self);
-        unsafe { lxb_dom_node_remove(*self.node_ptr_()); }
+        unsafe {
+            lxb_dom_node_remove(*self.node_ptr_());
+        }
     }
 }
 
@@ -491,17 +531,13 @@ pub trait NonDocumentTypeChildNode: NodeInterface {
     /// Previous sibling element node.
     fn previous_element_sibling(&self) -> Option<ElementNode> {
         check_node!(self);
-        unsafe {
-            previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).prev)
-        }
+        unsafe { previous_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).prev) }
     }
 
     /// Next sibling element node.
     fn next_element_sibling(&self) -> Option<ElementNode> {
         check_node!(self);
-        unsafe {
-            next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).next)
-        }
+        unsafe { next_element_unchecked(&self.tree_(), (*(*self.node_ptr_())).next) }
     }
 }
 

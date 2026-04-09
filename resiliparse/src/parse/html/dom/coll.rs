@@ -24,12 +24,11 @@ use crate::parse::html::css::CSSParserError;
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{Element, ParentNode};
 
-
 #[derive(Clone)]
 pub(crate) struct NodeListClosure<T: Clone> {
     n: Node,
     d: Option<Box<[String]>>,
-    f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>
+    f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
 }
 
 pub struct NodeListGeneric<T: Clone> {
@@ -39,17 +38,23 @@ pub struct NodeListGeneric<T: Clone> {
 
 impl<T: Clone> Default for NodeListGeneric<T> {
     fn default() -> Self {
-        NodeListGeneric { live: None, items: Vec::default() }
+        NodeListGeneric {
+            live: None,
+            items: Vec::default(),
+        }
     }
 }
 
-impl<T: Clone> From<&[T]> for NodeListGeneric<T>  {
+impl<T: Clone> From<&[T]> for NodeListGeneric<T> {
     fn from(items: &[T]) -> Self {
-        Self { live: None, items: Vec::from(items) }
+        Self {
+            live: None,
+            items: Vec::from(items),
+        }
     }
 }
 
-impl<T: Clone> From<Vec<T>> for NodeListGeneric<T>  {
+impl<T: Clone> From<Vec<T>> for NodeListGeneric<T> {
     fn from(items: Vec<T>) -> Self {
         Self { live: None, items }
     }
@@ -71,11 +76,18 @@ impl<'a, T: Clone> NodeListGeneric<T> {
         self.iter().count()
     }
 
-    pub(crate) fn new_live(node: &NodeRef, user_data: Option<Box<[String]>>,
-                           f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>) -> Self {
+    pub(crate) fn new_live(
+        node: &NodeRef,
+        user_data: Option<Box<[String]>>,
+        f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
+    ) -> Self {
         Self {
-            live: Some(NodeListClosure { n: node.as_node(), d: user_data, f }),
-            items: Vec::default()
+            live: Some(NodeListClosure {
+                n: node.as_node(),
+                d: user_data,
+                f,
+            }),
+            items: Vec::default(),
         }
     }
 
@@ -105,7 +117,7 @@ impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
                 f.write_str(", ")?;
             }
             Debug::fmt(&n, f)?;
-        };
+        }
         write!(f, "]")
     }
 }
@@ -116,7 +128,6 @@ impl<T: Clone + Display> Display for NodeListGeneric<T> {
     }
 }
 
-
 pub type NodeList = NodeListGeneric<Node>;
 pub type ElementNodeList = NodeListGeneric<ElementNode>;
 pub type HTMLCollection = ElementNodeList;
@@ -125,26 +136,20 @@ pub type NamedNodeMap = NodeListGeneric<AttrNode>;
 impl ElementNodeList {
     pub fn named_item(&self, name: &str) -> Option<ElementNode> {
         self.iter()
-            .find(|e| {
-                e.id()
-                    .filter(|i| i == name).is_some() || e.attribute("name")
-                    .filter(|n| n == name).is_some()
-            })
+            .find(|e| e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some())
     }
 
     pub fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
         let mut coll = Vec::default();
-        self.iter().for_each(|e| {
-            coll.append(&mut e.get_elements_by_tag_name(qualified_name).iter().collect())
-        });
+        self.iter()
+            .for_each(|e| coll.append(&mut e.get_elements_by_tag_name(qualified_name).iter().collect()));
         HTMLCollection::from(coll)
     }
 
     pub fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         let mut coll = Vec::default();
-        self.iter().for_each(|e| {
-            coll.append(&mut e.get_elements_by_class_name(class_names).iter().collect())
-        });
+        self.iter()
+            .for_each(|e| coll.append(&mut e.get_elements_by_class_name(class_names).iter().collect()));
         HTMLCollection::from(coll)
     }
 
@@ -156,17 +161,22 @@ impl ElementNodeList {
     pub fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(&mut e.get_elements_by_attr_case(qualified_name, value, case_insensitive).iter().collect())
+            coll.append(
+                &mut e
+                    .get_elements_by_attr_case(qualified_name, value, case_insensitive)
+                    .iter()
+                    .collect(),
+            )
         });
         HTMLCollection::from(coll)
     }
 
-     pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         for item in self.iter() {
             match item.query_selector(selectors) {
                 Ok(Some(e)) => return Ok(Some(e)),
                 Ok(None) => continue,
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         Ok(None)
@@ -177,7 +187,7 @@ impl ElementNodeList {
         for item in self.iter() {
             match item.query_selector_all(selectors) {
                 Ok(e) => coll.append(&mut e.iter().collect()),
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         Ok(ElementNodeList::from(coll))
@@ -188,7 +198,7 @@ impl ElementNodeList {
             match item.matches(selectors) {
                 Ok(true) => return Ok(true),
                 Ok(false) => continue,
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         Ok(false)
@@ -197,13 +207,13 @@ impl ElementNodeList {
 
 // ---------------------------------------- DOMTokenList impl --------------------------------------
 
-
 pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + PartialEq {
     fn value(&self) -> String;
 
     fn values(&self) -> Vec<String> {
         let mut h = HashSet::new();
-        self.value().split_ascii_whitespace()
+        self.value()
+            .split_ascii_whitespace()
             .filter(|&v| h.insert(v))
             .map(String::from)
             .collect()
@@ -228,7 +238,6 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 }
 
-
 pub trait DOMTokenListMutInterface: DOMTokenListInterface {
     fn set_value(&mut self, value: &str);
 
@@ -244,26 +253,30 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
     }
 
     fn remove(&mut self, tokens: &[&str]) {
-        self.set_value(&self
-            .iter()
-            .filter(|t: &String| !tokens.contains(&t.as_str()))
-            .collect::<Vec<_>>()
-            .join(" ")
+        self.set_value(
+            &self
+                .iter()
+                .filter(|t: &String| !tokens.contains(&t.as_str()))
+                .collect::<Vec<_>>()
+                .join(" "),
         );
     }
 
     fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
         let mut repl = false;
-        self.set_value(&self
-            .iter()
-            .map(|t: String| {
-                if t == old_token {
-                    repl = true;
-                    new_token.to_owned()
-                } else { t }
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
+        self.set_value(
+            &self
+                .iter()
+                .map(|t: String| {
+                    if t == old_token {
+                        repl = true;
+                        new_token.to_owned()
+                    } else {
+                        t
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
         );
         repl
     }
@@ -298,7 +311,7 @@ macro_rules! dom_token_list_impl {
             }
         }
 
-        impl IntoIterator for $Self  {
+        impl IntoIterator for $Self {
             type Item = String;
             type IntoIter = vec::IntoIter<String>;
 
@@ -325,7 +338,7 @@ macro_rules! dom_token_list_impl {
                         f.write_str(", ")?;
                     }
                     f.write_str(&format!("{:?}", s))?;
-                };
+                }
                 write!(f, "]")
             }
         }
@@ -335,7 +348,7 @@ macro_rules! dom_token_list_impl {
                 Debug::fmt(self, f)
             }
         }
-    }
+    };
 }
 
 #[derive(PartialEq)]
@@ -351,10 +364,9 @@ impl<'a> DOMTokenList<'a> {
 
 dom_token_list_impl!(DOMTokenList<'_>);
 
-
 #[derive(PartialEq)]
 pub struct DOMTokenListMut<'a> {
-    element: &'a mut ElementNode
+    element: &'a mut ElementNode,
 }
 
 impl<'a> DOMTokenListMut<'a> {
@@ -371,11 +383,9 @@ impl DOMTokenListMutInterface for DOMTokenListMut<'_> {
 
 dom_token_list_impl!(DOMTokenListMut<'_>);
 
-
-
 #[derive(PartialEq)]
 pub struct DOMTokenListOwned {
-    element: ElementNode
+    element: ElementNode,
 }
 
 impl DOMTokenListOwned {

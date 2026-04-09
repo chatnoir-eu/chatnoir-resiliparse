@@ -16,13 +16,12 @@
 //!
 //! Tools for iterating DOM (sub) trees.
 
-use std::ptr;
-use parking_lot::ReentrantMutex;
-use crate::parse::html::dom::wrap_any_raw_node;
 use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
+use crate::parse::html::dom::wrap_any_raw_node;
 use crate::third_party::lexbor::*;
-
+use parking_lot::ReentrantMutex;
+use std::ptr;
 
 pub(crate) struct NodeIteratorRaw {
     root: ReentrantMutex<*mut lxb_dom_node_t>,
@@ -32,12 +31,11 @@ pub(crate) struct NodeIteratorRaw {
 unsafe impl Send for NodeIteratorRaw {}
 unsafe impl Sync for NodeIteratorRaw {}
 
-
 impl NodeIteratorRaw {
     pub(crate) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
         Self {
             root: ReentrantMutex::new(root),
-            next_node: ReentrantMutex::new(root)
+            next_node: ReentrantMutex::new(root),
         }
     }
 }
@@ -87,44 +85,51 @@ macro_rules! impl_iterator_for {
 
 pub struct NodeIterator<'a> {
     root: NodeRef<'a>,
-    iterator_raw: NodeIteratorRaw
+    iterator_raw: NodeIteratorRaw,
 }
 
 impl<'a> NodeIterator<'a> {
     pub(crate) fn new(root: NodeRef<'a>) -> Self {
         let ptr = *root.node_ptr_();
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(ptr) } }
+        Self {
+            root,
+            iterator_raw: unsafe { NodeIteratorRaw::new(ptr) },
+        }
     }
 }
 
 impl_iterator_for!(NodeIterator<'_>);
 
-
 pub struct NodeIteratorOwned {
     root: Node,
-    iterator_raw: NodeIteratorRaw
+    iterator_raw: NodeIteratorRaw,
 }
 
 impl NodeIteratorOwned {
     pub(crate) fn new(root: Node) -> Self {
         let ptr = root.node_ptr_().clone();
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(ptr) } }
+        Self {
+            root,
+            iterator_raw: unsafe { NodeIteratorRaw::new(ptr) },
+        }
     }
 }
 
 impl_iterator_for!(NodeIteratorOwned);
 
-
 // --------------------------------------- ElementIterator -----------------------------------------
 
 pub struct ElementIterator<'a> {
     root: &'a dyn NodeInterface,
-    iterator_raw: NodeIteratorRaw
+    iterator_raw: NodeIteratorRaw,
 }
 
 impl<'a> ElementIterator<'a> {
     pub(crate) fn new(root: &'a dyn NodeInterface) -> Self {
-        Self { root, iterator_raw: unsafe { NodeIteratorRaw::new(*root.node_ptr_()) } }
+        Self {
+            root,
+            iterator_raw: unsafe { NodeIteratorRaw::new(*root.node_ptr_()) },
+        }
     }
 }
 
@@ -135,7 +140,7 @@ impl Iterator for ElementIterator<'_> {
         let tree = &self.root.tree_();
         while let Some(next) = unsafe { self.iterator_raw.next()?.as_ref() } {
             if next.type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
-                continue
+                continue;
             }
             return Some(ElementNode::new(&tree, self.iterator_raw.next()?));
         }

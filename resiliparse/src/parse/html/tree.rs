@@ -14,24 +14,23 @@
 
 //! HTML parser and DOM tree handle.
 
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
-use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
-use std::ptr;
-use std::ptr::addr_of_mut;
-use std::sync::Arc;
-use std::str::FromStr;
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
-
+use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
+use std::ptr;
+use std::ptr::addr_of_mut;
+use std::str::FromStr;
+use std::sync::Arc;
 
 /// HTML parser error.
 #[derive(Debug)]
 pub struct HTMLParserError {
-    msg: String
+    msg: String,
 }
 
 impl Display for HTMLParserError {
@@ -42,11 +41,10 @@ impl Display for HTMLParserError {
 
 impl Error for HTMLParserError {}
 
-
 /// CSS parsing error.
 #[derive(Debug)]
 pub struct CSSParserError {
-    msg: String
+    msg: String,
 }
 
 impl Display for CSSParserError {
@@ -57,10 +55,9 @@ impl Display for CSSParserError {
 
 impl Error for CSSParserError {}
 
-
 /// HTML DOM tree handle.
 pub struct HTMLTree {
-    doc: Arc<HTMLDocument>
+    doc: Arc<HTMLDocument>,
 }
 
 impl HTMLTree {
@@ -73,16 +70,22 @@ impl HTMLTree {
         unsafe {
             doc_ptr = lxb_html_document_create();
             if doc_ptr.is_null() {
-                return Err(HTMLParserError { msg: "Failed to allocate memory.".to_owned() });
+                return Err(HTMLParserError {
+                    msg: "Failed to allocate memory.".to_owned(),
+                });
             }
             let status = lxb_html_document_parse(doc_ptr, html.as_ptr(), html.len());
             if status != LXB_STATUS_OK {
                 lxb_html_document_destroy(doc_ptr);
-                return Err(HTMLParserError { msg: format!("Failed to parse document (Error {}).", status) });
+                return Err(HTMLParserError {
+                    msg: format!("Failed to parse document (Error {}).", status),
+                });
             }
         }
 
-        Ok(HTMLTree { doc: Arc::new(HTMLDocument::new(doc_ptr)) })
+        Ok(HTMLTree {
+            doc: Arc::new(HTMLDocument::new(doc_ptr)),
+        })
     }
 }
 
@@ -183,16 +186,14 @@ impl HTMLTree {
     }
 }
 
-
 /// Internal heap-allocated and reference-counted HTMLTree.
 #[derive(Debug)]
 pub(crate) struct HTMLDocument {
-    html_document: ReentrantMutex<*mut lxb_html_document_t>
+    html_document: ReentrantMutex<*mut lxb_html_document_t>,
 }
 
 unsafe impl Send for HTMLDocument {}
 unsafe impl Sync for HTMLDocument {}
-
 
 impl HTMLDocument {
     pub(crate) fn doc_ptr(&self) -> ReentrantMutexGuard<'_, *mut lxb_html_document_t> {
@@ -200,7 +201,9 @@ impl HTMLDocument {
     }
 
     pub(crate) fn new(doc: *mut lxb_html_document_t) -> Self {
-        HTMLDocument { html_document: ReentrantMutex::new(doc) }
+        HTMLDocument {
+            html_document: ReentrantMutex::new(doc),
+        }
     }
 }
 

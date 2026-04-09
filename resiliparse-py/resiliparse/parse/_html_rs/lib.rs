@@ -19,7 +19,6 @@ mod tree;
 
 use pyo3::prelude::*;
 
-
 macro_rules! init_mod_path {
     ($name: literal, $m: ident) => {
         // https://github.com/PyO3/pyo3/issues/759#issuecomment-2282197848
@@ -30,7 +29,6 @@ macro_rules! init_mod_path {
         })
     };
 }
-
 
 #[pymodule]
 pub mod _html_rs {

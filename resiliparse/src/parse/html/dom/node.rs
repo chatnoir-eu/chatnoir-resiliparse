@@ -16,24 +16,22 @@
 //!
 //! Concrete node type implementations.
 
-use std::fmt::{Debug, Display, Formatter};
-use std::ops::{Deref, DerefMut};
-use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
-use std::ptr;
-use std::ptr::addr_of_mut;
-use std::sync::Arc;
 use crate::parse::html::css::*;
-use crate::parse::html::dom::*;
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::traits::*;
+use crate::parse::html::dom::*;
 use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
 use crate::parse::html::serialize::{node_format_visible_text, node_serialize_html};
+use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::{Deref, DerefMut};
+use std::ptr;
+use std::ptr::addr_of_mut;
+use std::sync::Arc;
 
 // Re-export NodeType publicly
 pub use crate::parse::html::dom::traits::NodeType;
-
-
 
 // ----------------------------------------- Node Base Enum ----------------------------------------
 
@@ -78,7 +76,6 @@ pub enum NodeRefMut<'a> {
     DocumentFragment(&'a mut DocumentFragmentNode),
     Notation(&'a mut NotationNode), // legacy
 }
-
 
 macro_rules! unwrap_node {
     ($node: ident) => {
@@ -177,7 +174,6 @@ impl IntoIterator for Node {
     }
 }
 
-
 // --------------------------------------- Node Type Macros ----------------------------------------
 
 macro_rules! check_node {
@@ -185,19 +181,20 @@ macro_rules! check_node {
         if $node.node_ptr_().is_null() {
             return Default::default();
         }
-    }
+    };
 }
 pub(crate) use check_node;
 
 macro_rules! check_nodes {
-    ($node1: expr, $node2: expr) => {
+    ($node1: expr, $node2: expr) => {{
+        if !Arc::ptr_eq(&$node1.tree_(), &$node2.tree_())
+            || (*$node1.node_ptr_()).is_null()
+            || (*$node2.node_ptr_()).is_null()
+            || *$node1.node_ptr_() == *$node2.node_ptr_()
         {
-            if !Arc::ptr_eq(&$node1.tree_(), &$node2.tree_()) ||
-               (*$node1.node_ptr_()).is_null() || (*$node2.node_ptr_()).is_null() || *$node1.node_ptr_() == *$node2.node_ptr_() {
-                return Default::default();
-            }
+            return Default::default();
         }
-    }
+    }};
 }
 pub(crate) use check_nodes;
 
@@ -216,7 +213,10 @@ macro_rules! define_node_type {
                 if !node.is_null() {
                     unsafe { (*node).ref_count += 1 };
                 }
-                Self { tree: tree.clone(), node: ReentrantMutex::new(node) }
+                Self {
+                    tree: tree.clone(),
+                    node: ReentrantMutex::new(node),
+                }
             }
 
             #[inline(always)]
@@ -327,7 +327,7 @@ macro_rules! define_node_type {
             fn from(value: Node) -> $Self {
                 match value {
                     Node::$EnumType(d) => d,
-                    _ => panic!("Illegal DOM Node type coercion.")
+                    _ => panic!("Illegal DOM Node type coercion."),
                 }
             }
         }
@@ -381,28 +381,26 @@ macro_rules! define_node_type {
                 f.write_str(&node_serialize_html(*self.node_ptr_()))
             }
         }
-    }
+    };
 }
 
 // --------------------------------------- DocumentType impl ---------------------------------------
 
-
 define_node_type!(DocumentTypeNode, DocumentType);
-
 
 //noinspection DuplicatedCode
 impl DocumentType for DocumentTypeNode {
-    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_name_noi)
-    }}
+    unsafe fn name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_name_noi) }
+    }
 
-    unsafe fn public_id_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi)
-    }}
+    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi) }
+    }
 
-    unsafe fn system_id_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi)
-    }}
+    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi) }
+    }
 
     #[inline]
     fn name(&self) -> Option<String> {
@@ -425,19 +423,16 @@ impl DocumentType for DocumentTypeNode {
 
 impl ChildNode for DocumentTypeNode {}
 
-
 // ----------------------------------------- Document impl -----------------------------------------
 
-
 define_node_type!(DocumentNode, Document);
-
 
 impl Document for DocumentNode {
     fn doctype(&self) -> Option<DocumentTypeNode> {
         check_node!(self);
         unsafe {
             let doctype = self.doc_ptr_unchecked().as_ref()?.doctype;
-            Some(DocumentTypeNode::new(&self.tree_(),doctype.cast()))
+            Some(DocumentTypeNode::new(&self.tree_(), doctype.cast()))
         }
     }
 
@@ -447,15 +442,15 @@ impl Document for DocumentNode {
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
         check_node!(self);
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| {
-            unsafe { get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
+            get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0])
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
         check_node!(self);
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| {
-            unsafe { get_elements_by_class_name(n, &cls.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
+            get_elements_by_class_name(n, &cls.unwrap_unchecked()[0])
         })
     }
 
@@ -466,18 +461,14 @@ impl Document for DocumentNode {
 
     fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
         check_node!(self);
-        let user_data = Box::new([
-            name.to_owned(),
-            value.to_owned(),
-            case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| {
-            unsafe {
-                get_elements_by_attr(
-                    &n.as_noderef(),
-                    &attr.unwrap_unchecked()[0],
-                    &attr.unwrap_unchecked()[1],
-                    &attr.unwrap_unchecked()[2] == "true")
-            }
+        let user_data = Box::new([name.to_owned(), value.to_owned(), case_insensitive.to_string()]);
+        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
+            get_elements_by_attr(
+                &n.as_noderef(),
+                &attr.unwrap_unchecked()[0],
+                &attr.unwrap_unchecked()[1],
+                &attr.unwrap_unchecked()[2] == "true",
+            )
         })
     }
 
@@ -485,7 +476,9 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_element_unchecked(&self, local_name) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
@@ -493,7 +486,9 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_document_fragment_unchecked(&self) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
@@ -501,7 +496,9 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_text_node_unchecked(&self, data) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
@@ -509,7 +506,9 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_cdata_section_unchecked(&self, data) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
@@ -517,15 +516,23 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_comment_unchecked(&self, data) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
-    fn create_processing_instruction(&mut self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError> {
+    fn create_processing_instruction(
+        &mut self,
+        target: &str,
+        data: &str,
+    ) -> Result<ProcessingInstructionNode, DOMError> {
         if !self.node_ptr_().is_null() {
             unsafe { create_processing_instruction_unchecked(&self, target, data) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 
@@ -533,7 +540,9 @@ impl Document for DocumentNode {
         if !self.node_ptr_().is_null() {
             unsafe { create_attribute_unchecked(&self, local_name) }
         } else {
-            Err(DOMError { msg: "Invalid document.".to_owned()} )
+            Err(DOMError {
+                msg: "Invalid document.".to_owned(),
+            })
         }
     }
 }
@@ -557,8 +566,6 @@ impl ParentNode for DocumentNode {
 }
 
 impl NonElementParentNode for DocumentNode {}
-
-
 
 // ------------------------------------- DocumentFragment impl -------------------------------------
 
@@ -586,60 +593,63 @@ impl ParentNode for DocumentFragmentNode {
 
 impl NonElementParentNode for DocumentFragmentNode {}
 
-
 // ------------------------------------------ Element impl -----------------------------------------
-
 
 define_node_type!(ElementNode, Element);
 
 impl Element for ElementNode {
     /// DOM element tag or node name.
-    unsafe fn tag_name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_tag_name)
-    }}
+    unsafe fn tag_name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_tag_name) }
+    }
 
-    unsafe fn local_name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_local_name)
-    }}
+    unsafe fn local_name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_local_name) }
+    }
 
-    unsafe fn id_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_id_noi)
-    }}
+    unsafe fn id_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_id_noi) }
+    }
 
     #[inline]
-    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
-        self.attribute_unchecked("name")
-    }}
+    unsafe fn name_unchecked(&self) -> Option<&str> {
+        unsafe { self.attribute_unchecked("name") }
+    }
 
-    unsafe fn class_name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_class_noi)
-    }}
+    unsafe fn class_name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_element_class_noi) }
+    }
 
-    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> { unsafe {
-        let mut size = 0;
-        let name = lxb_dom_element_get_attribute(
-            self.node_ptr_().cast(),
-            qualified_name.as_ptr().cast(),
-            qualified_name.len(),
-            addr_of_mut!(size));
-        if name.is_null() {
-            None
-        } else {
-            str_from_lxb_char_t(name, size)
-        }
-    }}
-
-    unsafe fn attribute_names_unchecked(&self) -> Vec<&str> { unsafe {
-        let mut attr =  lxb_dom_element_first_attribute_noi(self.node_ptr_().cast());
-        let mut name_vec = Vec::new();
-        while !attr.is_null() {
-            if let Some(qname) = str_from_lxb_str_cb(attr, lxb_dom_attr_qualified_name) {
-                name_vec.push(qname);
+    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str> {
+        unsafe {
+            let mut size = 0;
+            let name = lxb_dom_element_get_attribute(
+                self.node_ptr_().cast(),
+                qualified_name.as_ptr().cast(),
+                qualified_name.len(),
+                addr_of_mut!(size),
+            );
+            if name.is_null() {
+                None
+            } else {
+                str_from_lxb_char_t(name, size)
             }
-            attr = lxb_dom_element_next_attribute_noi(attr);
         }
-        name_vec
-    }}
+    }
+
+    unsafe fn attribute_names_unchecked(&self) -> Vec<&str> {
+        unsafe {
+            let mut attr = lxb_dom_element_first_attribute_noi(self.node_ptr_().cast());
+            let mut name_vec = Vec::new();
+            while !attr.is_null() {
+                if let Some(qname) = str_from_lxb_str_cb(attr, lxb_dom_attr_qualified_name) {
+                    name_vec.push(qname);
+                }
+                attr = lxb_dom_element_next_attribute_noi(attr);
+            }
+            name_vec
+        }
+    }
 
     /// DOM element tag or node name.
     #[inline]
@@ -702,8 +712,7 @@ impl Element for ElementNode {
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode> {
         check_node!(self);
         let attr = unsafe {
-            lxb_dom_element_attr_by_name(
-                self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len())
+            lxb_dom_element_attr_by_name(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len())
         };
         if attr.is_null() {
             return None;
@@ -713,7 +722,12 @@ impl Element for ElementNode {
 
     fn attribute_names(&self) -> Vec<String> {
         check_node!(self);
-        unsafe { self.attribute_names_unchecked().into_iter().map(|s| s.to_owned()).collect() }
+        unsafe {
+            self.attribute_names_unchecked()
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect()
+        }
     }
 
     fn attributes(&self) -> NamedNodeMap {
@@ -734,9 +748,13 @@ impl Element for ElementNode {
     fn set_attribute(&mut self, qualified_name: &str, value: &str) {
         check_node!(self);
         unsafe {
-             lxb_dom_element_set_attribute(self.node_ptr_().cast(),
-                                           qualified_name.as_ptr(), qualified_name.len(),
-                                           value.as_ptr(), value.len());
+            lxb_dom_element_set_attribute(
+                self.node_ptr_().cast(),
+                qualified_name.as_ptr(),
+                qualified_name.len(),
+                value.as_ptr(),
+                value.len(),
+            );
         }
     }
 
@@ -750,15 +768,14 @@ impl Element for ElementNode {
     fn remove_attribute(&mut self, qualified_name: &str) {
         check_node!(self);
         unsafe {
-             lxb_dom_element_remove_attribute(
-                 self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len());
+            lxb_dom_element_remove_attribute(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len());
         }
     }
 
     fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool {
         let on = match force {
             Some(f) => f,
-            None => !self.has_attribute(qualified_name)
+            None => !self.has_attribute(qualified_name),
         };
         if on {
             self.set_attribute(qualified_name, &self.attribute(qualified_name).unwrap_or_default());
@@ -771,8 +788,7 @@ impl Element for ElementNode {
 
     fn has_attribute(&self, qualified_name: &str) -> bool {
         check_node!(self);
-        unsafe { lxb_dom_element_has_attribute(self.node_ptr_().cast(),
-                                               qualified_name.as_ptr(), qualified_name.len()) }
+        unsafe { lxb_dom_element_has_attribute(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
@@ -792,12 +808,11 @@ impl Element for ElementNode {
         // }
         // Ok(None)
 
-        let matches = self.owner_document().map_or_else(
-            || Ok(Vec::new()),
-            |d| Ok(d.query_selector_all(selectors)?.values())
-        )?;
+        let matches = self
+            .owner_document()
+            .map_or_else(|| Ok(Vec::new()), |d| Ok(d.query_selector_all(selectors)?.values()))?;
         if matches.is_empty() {
-            return Ok(None)
+            return Ok(None);
         }
         let mut e = Some(self.clone());
         while let Some(e_inner) = e {
@@ -810,21 +825,19 @@ impl Element for ElementNode {
     }
 
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        self.owner_document().map_or(
-            Ok(false),
-            |d| Ok(d.query_selector_all(selectors)?.into_iter().any(|e| e == *self))
-        )
+        self.owner_document()
+            .map_or(Ok(false), |d| Ok(d.query_selector_all(selectors)?.into_iter().any(|e| e == *self)))
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| {
-            unsafe { get_elements_by_tag_name(&n, &qn.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
+            get_elements_by_tag_name(&n, &qn.unwrap_unchecked()[0])
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| {
-            unsafe { get_elements_by_class_name(&n, &cls.unwrap_unchecked()[0]) }
+        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
+            get_elements_by_class_name(&n, &cls.unwrap_unchecked()[0])
         })
     }
 
@@ -833,18 +846,14 @@ impl Element for ElementNode {
     }
 
     fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
-        let user_data = Box::new([
-            name.to_owned(),
-            value.to_owned(),
-            case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| {
-            unsafe {
-                get_elements_by_attr(
-                    &n.as_noderef(),
-                    &attr.unwrap_unchecked()[0],
-                    &attr.unwrap_unchecked()[1],
-                    &attr.unwrap_unchecked()[2] == "true")
-            }
+        let user_data = Box::new([name.to_owned(), value.to_owned(), case_insensitive.to_string()]);
+        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
+            get_elements_by_attr(
+                &n.as_noderef(),
+                &attr.unwrap_unchecked()[0],
+                &attr.unwrap_unchecked()[1],
+                &attr.unwrap_unchecked()[2] == "true",
+            )
         })
     }
 
@@ -860,7 +869,7 @@ impl Element for ElementNode {
             while !next.is_null() {
                 lxb_html_serialize_tree_str(next, html_str);
                 next = lxb_dom_node_next_noi(next);
-            };
+            }
             let s = str_from_lxb_str_t(html_str).unwrap_or_default().to_owned();
             lexbor_str_destroy(html_str, self.doc_ptr_unchecked().as_ref().unwrap().text, true);
             s
@@ -869,7 +878,9 @@ impl Element for ElementNode {
 
     fn set_inner_html(&mut self, html: &str) {
         check_node!(self);
-        unsafe { lxb_html_element_inner_html_set(self.node_ptr_().cast(), html.as_ptr(), html.len()); }
+        unsafe {
+            lxb_html_element_inner_html_set(self.node_ptr_().cast(), html.as_ptr(), html.len());
+        }
     }
 
     fn outer_html(&self) -> String {
@@ -937,27 +948,24 @@ impl ParentNode for ElementNode {
 
 impl ChildNode for ElementNode {}
 
-
 impl NonDocumentTypeChildNode for ElementNode {}
 
-
 // ------------------------------------------- Attr impl -------------------------------------------
-
 
 define_node_type!(AttrNode, Attribute);
 
 impl Attr for AttrNode {
-    unsafe fn name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_qualified_name)
-    }}
+    unsafe fn name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_qualified_name) }
+    }
 
-    unsafe fn local_name_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_local_name_noi)
-    }}
+    unsafe fn local_name_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_local_name_noi) }
+    }
 
-    unsafe fn value_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi)
-    }}
+    unsafe fn value_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_attr_value_noi) }
+    }
 
     #[inline]
     fn local_name(&self) -> Option<String> {
@@ -979,7 +987,9 @@ impl Attr for AttrNode {
 
     fn set_value(&mut self, value: &str) {
         check_node!(self);
-        unsafe { lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len()); }
+        unsafe {
+            lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len());
+        }
     }
 
     fn owner_element(&self) -> Option<ElementNode> {
@@ -994,9 +1004,7 @@ impl Attr for AttrNode {
     }
 }
 
-
 // -------------------------------------------- Text impl ------------------------------------------
-
 
 define_node_type!(TextNode, Text);
 
@@ -1007,7 +1015,6 @@ impl CharacterData for TextNode {}
 impl ChildNode for TextNode {}
 
 impl NonDocumentTypeChildNode for TextNode {}
-
 
 // ---------------------------------------- CdataSection impl --------------------------------------
 
@@ -1021,19 +1028,14 @@ impl ChildNode for CdataSectionNode {}
 
 impl NonDocumentTypeChildNode for CdataSectionNode {}
 
-
 // ----------------------------------- ProcessingInstruction impl ----------------------------------
-
 
 define_node_type!(ProcessingInstructionNode, ProcessingInstruction);
 
 impl ProcessingInstruction for ProcessingInstructionNode {
     fn target(&self) -> Option<String> {
         check_node!(self);
-        unsafe {
-            Some(str_from_lxb_str_cb(*self.node_ptr_(),
-                                     lxb_dom_processing_instruction_target_noi)?.to_owned())
-        }
+        unsafe { Some(str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_processing_instruction_target_noi)?.to_owned()) }
     }
 }
 
@@ -1043,9 +1045,7 @@ impl ChildNode for ProcessingInstructionNode {}
 
 impl NonDocumentTypeChildNode for ProcessingInstructionNode {}
 
-
 // ------------------------------------------ Comment impl -----------------------------------------
-
 
 define_node_type!(CommentNode, Comment);
 
@@ -1057,21 +1057,19 @@ impl ChildNode for CommentNode {}
 
 impl NonDocumentTypeChildNode for CommentNode {}
 
-
 // ------------------------------------------ Notation impl -----------------------------------------
-
 
 define_node_type!(NotationNode, Notation);
 
 //noinspection DuplicatedCode
 impl Notation for NotationNode {
-    unsafe fn public_id_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi)
-    }}
+    unsafe fn public_id_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_public_id_noi) }
+    }
 
-    unsafe fn system_id_unchecked(&self) -> Option<&str> { unsafe {
-        str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi)
-    }}
+    unsafe fn system_id_unchecked(&self) -> Option<&str> {
+        unsafe { str_from_lxb_str_cb(*self.node_ptr_(), lxb_dom_document_type_system_id_noi) }
+    }
 
     #[inline]
     fn public_id(&self) -> Option<String> {

@@ -19,7 +19,6 @@ use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::tree::HTMLTree;
 
-
 const HTML: &str = r#"<!doctype html>
     <html lang="en">
     <head>
@@ -38,7 +37,8 @@ const HTML: &str = r#"<!doctype html>
 const HTML_NO_HEAD: &str = "<!doctype html><body><span></span></body>";
 const HTML_NO_BODY: &str = "<!doctype html><head><title>Title</title></head>";
 const HTML_NO_TITLE: &str = "<!doctype html><head></head></body>";
-const HTML_NO_TITLE_SVG: &str = "<!doctype html><svg xmlns=\"http://www.w3.org/2000/svg\"><title>SVG Title</title></svg>";
+const HTML_NO_TITLE_SVG: &str =
+    "<!doctype html><svg xmlns=\"http://www.w3.org/2000/svg\"><title>SVG Title</title></svg>";
 const HTML_UNCLOSED_TITLE: &str = "<!doctype html><html><head><title>Test--></head><body>foo</body></html>";
 const HTML_UNCLOSED_HEAD: &str = "<!doctype html><head><title>Title</title><span></span>";
 
@@ -121,7 +121,15 @@ fn test_selection() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
     tree.document().unwrap().get_element_by_id("foo").unwrap();
-    assert_eq!(tree.document().unwrap().get_element_by_id("foo").unwrap().node_name().unwrap(), "MAIN");
+    assert_eq!(
+        tree.document()
+            .unwrap()
+            .get_element_by_id("foo")
+            .unwrap()
+            .node_name()
+            .unwrap(),
+        "MAIN"
+    );
 
     let meta = tree.head().unwrap().get_elements_by_tag_name("meta");
     assert_eq!(meta.len(), 1);
@@ -140,7 +148,12 @@ fn test_selection() {
     // CSS match
     assert!(tree.document().unwrap().query_selector("#bar, abc").unwrap().is_none());
 
-    let match_css = tree.document().unwrap().query_selector("body > main p:last-child").unwrap().unwrap();
+    let match_css = tree
+        .document()
+        .unwrap()
+        .query_selector("body > main p:last-child")
+        .unwrap()
+        .unwrap();
     assert_eq!(match_css.tag_name().unwrap(), "P");
 
     let match_css_all = tree.body().unwrap().query_selector_all("main *").unwrap();
@@ -153,24 +166,58 @@ fn test_selection() {
     // Check whether element would be matched
     assert!(tree.body().unwrap().matches("body").unwrap());
     assert!(tree.body().unwrap().matches("html > body").unwrap());
-    assert!(tree.body().unwrap().first_element_child().unwrap().matches("#foo").unwrap());
-    assert!(tree.body().unwrap().first_element_child().unwrap().matches("main").unwrap());
+    assert!(
+        tree.body()
+            .unwrap()
+            .first_element_child()
+            .unwrap()
+            .matches("#foo")
+            .unwrap()
+    );
+    assert!(
+        tree.body()
+            .unwrap()
+            .first_element_child()
+            .unwrap()
+            .matches("main")
+            .unwrap()
+    );
     assert!(!tree.body().unwrap().matches(".barbaz").unwrap());
-    assert!(!tree.body().unwrap().first_element_child().unwrap().matches("div").unwrap());
+    assert!(
+        !tree
+            .body()
+            .unwrap()
+            .first_element_child()
+            .unwrap()
+            .matches("div")
+            .unwrap()
+    );
 
     // Find the closest matching ancestor (or self)
     assert_eq!(tree.body().unwrap().closest("body").unwrap().unwrap(), tree.body().unwrap());
     assert!(tree.body().unwrap().closest("htmlx").unwrap().is_none());
     assert_eq!(
-        tree.document().unwrap().query_selector(".bar.baz").unwrap().unwrap().closest("[id]").unwrap().unwrap(),
-        tree.document().unwrap().query_selector("p#b").unwrap().unwrap());
+        tree.document()
+            .unwrap()
+            .query_selector(".bar.baz")
+            .unwrap()
+            .unwrap()
+            .closest("[id]")
+            .unwrap()
+            .unwrap(),
+        tree.document().unwrap().query_selector("p#b").unwrap().unwrap()
+    );
     assert_eq!(
         tree.body().unwrap().closest("html").unwrap().unwrap(),
-        tree.document().unwrap().first_element_child().unwrap());
+        tree.document().unwrap().first_element_child().unwrap()
+    );
 
     let child = tree.body().unwrap().query_selector(".bar").unwrap().unwrap();
     assert_eq!(child.closest("p").unwrap().unwrap(), tree.body().unwrap().query_selector("#a").unwrap().unwrap());
-    assert_eq!(child.closest("main").unwrap().unwrap(), tree.body().unwrap().query_selector("#foo").unwrap().unwrap());
+    assert_eq!(
+        child.closest("main").unwrap().unwrap(),
+        tree.body().unwrap().query_selector("#foo").unwrap().unwrap()
+    );
 
     // Invalid CSS selectors
     assert!(tree.body().unwrap().query_selector("#a < abc").is_err());
@@ -195,7 +242,8 @@ fn test_static_collection() {
 
     // Collection match forwarding
     let coll = tree.body().unwrap().query_selector_all("p").unwrap();
-    coll.elements_by_class_name("bar").iter()
+    coll.elements_by_class_name("bar")
+        .iter()
         .zip(coll.query_selector_all(".bar").unwrap().iter())
         .for_each(|(a, b)| assert_eq!(a, b));
     assert_eq!(coll.elements_by_attr("href", "https://example.com").len(), 1);
@@ -229,7 +277,7 @@ fn test_dynamic_collection() {
     tree.document().unwrap().get_element_by_id("a").unwrap().remove();
     assert_eq!(coll1.len(), 1);
     assert_eq!(coll2.len(), 1);
-    assert_eq!(coll3.len(), 2);     // CSS match collection are static
+    assert_eq!(coll3.len(), 2); // CSS match collection are static
 }
 
 #[test]
@@ -283,11 +331,19 @@ fn test_attributes() {
     let mut element = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
 
     // List attribute nodes and names
-    assert_eq!(element.attributes().iter().zip(element.attribute_names().iter()).map(|(a1, a2)| {
-        assert_eq!(a1.name().unwrap(), *a2);
-        assert_eq!(a1.value(), element.attribute(a1.name().unwrap().as_str()));
-        assert!(a1.value().is_some());
-    }).count(), 2);
+    assert_eq!(
+        element
+            .attributes()
+            .iter()
+            .zip(element.attribute_names().iter())
+            .map(|(a1, a2)| {
+                assert_eq!(a1.name().unwrap(), *a2);
+                assert_eq!(a1.value(), element.attribute(a1.name().unwrap().as_str()));
+                assert!(a1.value().is_some());
+            })
+            .count(),
+        2
+    );
 
     // Get and set ID
     assert!(element.attribute("id").is_none());
@@ -320,14 +376,17 @@ fn test_attributes() {
     assert_eq!(attr.child_nodes().len(), 0);
 
     // Cannot append children to attributes
-    assert!(attr.append_child(
-        &tree.document().unwrap().create_element("foo").unwrap().as_noderef()).is_none());
+    assert!(
+        attr.append_child(&tree.document().unwrap().create_element("foo").unwrap().as_noderef())
+            .is_none()
+    );
     assert_eq!(attr.child_nodes().len(), 0);
 }
 
 #[test]
 fn test_empty_attribute() {
-    let tree = HTMLTree::from_str(r#"<div>
+    let tree = HTMLTree::from_str(
+        r#"<div>
         <input type="checkbox" checked>
         <div class="foo"></div>
         <div class></div>
@@ -336,7 +395,9 @@ fn test_empty_attribute() {
         <div id></div>
         <div id=""></div>
         <div foo></div>
-        <div foo=""></div>"#).unwrap();
+        <div foo=""></div>"#,
+    )
+    .unwrap();
 
     let input_element = tree.body().unwrap().query_selector("input").unwrap().unwrap();
 
@@ -357,7 +418,7 @@ fn test_empty_attribute() {
     assert!(!tree.document().unwrap().get_element_by_id("foo").is_none());
     assert!(tree.document().unwrap().get_element_by_id("foox").is_none());
     assert_eq!(tree.body().unwrap().get_elements_by_class_name("foo").len(), 1);
-    assert_eq!(tree.body().unwrap().get_elements_by_class_name("").len(), 0);     // This shouldn't match anything);
+    assert_eq!(tree.body().unwrap().get_elements_by_class_name("").len(), 0); // This shouldn't match anything);
     assert_eq!(tree.body().unwrap().get_elements_by_attr("class", "foo").len(), 1);
     assert_eq!(tree.body().unwrap().get_elements_by_attr("class", "").len(), 2);
     assert_eq!(tree.body().unwrap().get_elements_by_attr("id", "").len(), 2);
@@ -369,31 +430,64 @@ fn test_serialization() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
     assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().outer_text(), "Hello world!");
-    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().outer_html(), r#"<p id="a">Hello <span class="bar">world</span>!</p>"#);
+    assert_eq!(
+        tree.document().unwrap().get_element_by_id("a").unwrap().outer_html(),
+        r#"<p id="a">Hello <span class="bar">world</span>!</p>"#
+    );
 
     assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().inner_text(), "Hello world!");
-    assert_eq!(tree.document().unwrap().get_element_by_id("a").unwrap().inner_html(), r#"Hello <span class="bar">world</span>!"#);
+    assert_eq!(
+        tree.document().unwrap().get_element_by_id("a").unwrap().inner_html(),
+        r#"Hello <span class="bar">world</span>!"#
+    );
 
-    assert_eq!(tree.head().unwrap().query_selector("title").unwrap().unwrap().to_string(), "<title>Example page</title>");
+    assert_eq!(
+        tree.head()
+            .unwrap()
+            .query_selector("title")
+            .unwrap()
+            .unwrap()
+            .to_string(),
+        "<title>Example page</title>"
+    );
 
     assert_eq!(format!("{:?}", tree.head().unwrap()), "<head>");
     assert_eq!(format!("{:?}", tree.head().unwrap().query_selector("title").unwrap().unwrap()), "<title>");
     assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 
-    let text = tree.body().unwrap().query_selector("#b").unwrap().unwrap().first_child().unwrap();
+    let text = tree
+        .body()
+        .unwrap()
+        .query_selector("#b")
+        .unwrap()
+        .unwrap()
+        .first_child()
+        .unwrap();
     match text {
         Node::Text(t) => assert_eq!(t.node_value().unwrap(), "Hello "),
-        _ => assert!(false, "Node is not a text node.")
+        _ => assert!(false, "Node is not a text node."),
     }
 
-    let inputs = HTMLTree::from_str(r#"
+    let inputs = HTMLTree::from_str(
+        r#"
         <input id="a" type="checkbox" checked>
         <input id="b" type="checkbox" checked="">
         <input id="c" type="checkbox" checked="checked">
-        "#).unwrap();
-    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("a").unwrap()), r#"<input id="a" type="checkbox" checked>"#);
-    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("b").unwrap()), r#"<input id="b" type="checkbox" checked="">"#);
-    assert_eq!(format!("{:?}", inputs.document().unwrap().get_element_by_id("c").unwrap()), r#"<input id="c" type="checkbox" checked="checked">"#);
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        format!("{:?}", inputs.document().unwrap().get_element_by_id("a").unwrap()),
+        r#"<input id="a" type="checkbox" checked>"#
+    );
+    assert_eq!(
+        format!("{:?}", inputs.document().unwrap().get_element_by_id("b").unwrap()),
+        r#"<input id="b" type="checkbox" checked="">"#
+    );
+    assert_eq!(
+        format!("{:?}", inputs.document().unwrap().get_element_by_id("c").unwrap()),
+        r#"<input id="c" type="checkbox" checked="checked">"#
+    );
 
     assert_eq!(format!("{:?}", tree.body().unwrap().query_selector("main").unwrap().unwrap()), r#"<main id="foo">"#);
 }
@@ -406,29 +500,28 @@ fn test_traversal() {
     let node_names = root.iter().map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
     assert_eq!(node_names, ["P", "#text", "SPAN", "#text", "#text"]);
 
-    let tag_names = root.iter().flat_map(|n| {
-        if let Node::Element(e) = n { e.tag_name() } else { None }
-    }).collect::<Vec<String>>();
+    let tag_names = root
+        .iter()
+        .flat_map(|n| if let Node::Element(e) = n { e.tag_name() } else { None })
+        .collect::<Vec<String>>();
     assert_eq!(tag_names, ["P", "SPAN"]);
 
     let child_nodes = tree.document().unwrap().get_element_by_id("foo").unwrap().child_nodes();
-    let child_node_names = child_nodes.iter()
-        .map(|n| n.node_name().unwrap()).collect::<Vec<String>>();
+    let child_node_names = child_nodes
+        .iter()
+        .map(|n| n.node_name().unwrap())
+        .collect::<Vec<String>>();
     assert_eq!(child_node_names, ["#text", "P", "#text", "P", "#text"]);
 
-    child_nodes.iter().for_each(|n| {
-        match n {
-            Node::Text(n) => assert_eq!(n.node_name().unwrap(), "#text"),
-            Node::Element(n) => assert_eq!(n.node_name().unwrap(), "P"),
-            _ => assert!(false, "Invalid node type")
-        }
+    child_nodes.iter().for_each(|n| match n {
+        Node::Text(n) => assert_eq!(n.node_name().unwrap(), "#text"),
+        Node::Element(n) => assert_eq!(n.node_name().unwrap(), "P"),
+        _ => assert!(false, "Invalid node type"),
     });
 }
 
 #[test]
-fn test_callback_traversal() {
-
-}
+fn test_callback_traversal() {}
 
 #[test]
 fn test_children() {
@@ -459,7 +552,15 @@ fn test_children() {
 
     assert_eq!(element.next_element_sibling().unwrap().tag_name().unwrap(), "P");
     assert!(element.next_element_sibling().unwrap().next_sibling().is_some());
-    assert!(element.next_element_sibling().unwrap().next_sibling().unwrap().next_sibling().is_none());
+    assert!(
+        element
+            .next_element_sibling()
+            .unwrap()
+            .next_sibling()
+            .unwrap()
+            .next_sibling()
+            .is_none()
+    );
     assert!(element.next_element_sibling().unwrap().next_element_sibling().is_none());
 }
 
@@ -481,16 +582,40 @@ fn test_siblings() {
     assert_eq!(e_prev.tag_name().unwrap(), "SPAN");
     assert_eq!(e_prev.class_name().unwrap(), "bar");
 
-    let element1 = tree.document().unwrap().get_element_by_id("foo").unwrap().first_element_child().unwrap();
+    let element1 = tree
+        .document()
+        .unwrap()
+        .get_element_by_id("foo")
+        .unwrap()
+        .first_element_child()
+        .unwrap();
     assert_eq!(element1.id().unwrap(), "a");
-    assert_eq!(TextNode::from(element1.next_sibling().unwrap()).node_value().unwrap().trim(), "");
+    assert_eq!(
+        TextNode::from(element1.next_sibling().unwrap())
+            .node_value()
+            .unwrap()
+            .trim(),
+        ""
+    );
     assert_eq!(element1.next_element_sibling().unwrap().text_content().unwrap(), "Hello DOM!");
     assert!(element1.previous_sibling().unwrap().previous_sibling().is_none());
     assert!(element1.previous_element_sibling().is_none());
 
-    let element2 = tree.document().unwrap().get_element_by_id("foo").unwrap().last_element_child().unwrap();
+    let element2 = tree
+        .document()
+        .unwrap()
+        .get_element_by_id("foo")
+        .unwrap()
+        .last_element_child()
+        .unwrap();
     assert_eq!(element2.id().unwrap(), "b");
-    assert_eq!(TextNode::from(element2.previous_sibling().unwrap()).node_value().unwrap().trim(), "");
+    assert_eq!(
+        TextNode::from(element2.previous_sibling().unwrap())
+            .node_value()
+            .unwrap()
+            .trim(),
+        ""
+    );
     assert_eq!(element2.previous_element_sibling().unwrap().text_content().unwrap(), "Hello world!");
     assert!(element2.next_sibling().unwrap().next_sibling().is_none());
     assert!(element2.next_element_sibling().is_none());
@@ -519,9 +644,11 @@ fn create_nodes() {
 
     let cdata = doc.create_cdata_section("Foo <bar> <baz> </bar>").unwrap();
     assert_eq!(cdata.node_value().unwrap(), "Foo <bar> <baz> </bar>");
-    assert_eq!(cdata.to_string(), "");  // Not supported for HTML documents
+    assert_eq!(cdata.to_string(), ""); // Not supported for HTML documents
 
-    let proc = doc.create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"").unwrap();
+    let proc = doc
+        .create_processing_instruction("xml", "version=\"1.0\" foo=\"bar\"")
+        .unwrap();
     assert_eq!(proc.target().unwrap(), "xml");
     assert_eq!(proc.node_value().unwrap(), "version=\"1.0\" foo=\"bar\"");
     assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\">");
@@ -537,7 +664,10 @@ fn create_nodes() {
     assert_eq!(attr.node_value().unwrap(), "foobar");
 
     element.set_attribute("abc", "def");
-    assert_eq!(element.to_string(), r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##);
+    assert_eq!(
+        element.to_string(),
+        r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##
+    );
 
     // Appending a DocumentFragment moves the child nodes into the document.
     doc.first_element_child().unwrap().append_child(&frag.as_noderef());
@@ -547,7 +677,7 @@ fn create_nodes() {
 
 #[test]
 fn node_reference_counting() {
-    let tree =  HTMLTree::from_str(HTML).unwrap();
+    let tree = HTMLTree::from_str(HTML).unwrap();
     let doc = tree.document().unwrap();
 
     // Keep grandchild reference

@@ -12,46 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //! Internal Lexbor helpers.
 
-use std::slice;
-use std::ptr::{addr_of, addr_of_mut};
 use crate::third_party::lexbor::*;
-
+use std::ptr::{addr_of, addr_of_mut};
+use std::slice;
 
 // ----------------------------------------- Lexbor Helpers ----------------------------------------
 
-
-pub unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> Option<&'a str> { unsafe {
-    if !cdata.is_null() {
-        Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size)))
-    } else {
-        None
+pub unsafe fn str_from_lxb_char_t<'a>(cdata: *const lxb_char_t, size: usize) -> Option<&'a str> {
+    unsafe {
+        if !cdata.is_null() {
+            Some(std::str::from_utf8_unchecked(slice::from_raw_parts(cdata, size)))
+        } else {
+            None
+        }
     }
-}}
+}
 
 #[inline]
-pub unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> Option<&'a str> { unsafe {
-    str_from_lxb_char_t((*s).data, (*s).length)
-}}
+pub unsafe fn str_from_lxb_str_t<'a>(s: *const lexbor_str_t) -> Option<&'a str> {
+    unsafe { str_from_lxb_char_t((*s).data, (*s).length) }
+}
 
 #[inline]
-pub unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> Option<&'a str> { unsafe {
-    let cdata = node as *const lxb_dom_character_data_t;
-    str_from_lxb_str_t(addr_of!((*cdata).data))
-}}
+pub unsafe fn str_from_dom_node<'a>(node: *const lxb_dom_node_t) -> Option<&'a str> {
+    unsafe {
+        let cdata = node as *const lxb_dom_character_data_t;
+        str_from_lxb_str_t(addr_of!((*cdata).data))
+    }
+}
 
 pub unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
-    node: *mut Node, lxb_fn: unsafe extern "C" fn(*mut Fn, *mut usize) -> *const lxb_char_t) -> Option<&'a str> { unsafe {
-    if node.is_null() {
-        return None;
+    node: *mut Node,
+    lxb_fn: unsafe extern "C" fn(*mut Fn, *mut usize) -> *const lxb_char_t,
+) -> Option<&'a str> {
+    unsafe {
+        if node.is_null() {
+            return None;
+        }
+        let mut size = 0;
+        let name = lxb_fn(node.cast(), addr_of_mut!(size));
+        if name.is_null() {
+            None
+        } else {
+            str_from_lxb_char_t(name, size)
+        }
     }
-    let mut size = 0;
-    let name = lxb_fn(node.cast(), addr_of_mut!(size));
-    if name.is_null() {
-        None
-    } else {
-        str_from_lxb_char_t(name, size)
-    }
-}}
+}
