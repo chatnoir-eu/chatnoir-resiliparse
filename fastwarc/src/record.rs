@@ -265,8 +265,11 @@ impl HeaderMap {
         Some(self._decode(parts.next()?))
     }
 
-    /// Get value for a (case-insensitive) header key a string.
-    /// Duplicate headers are returned as a single value joined with `","`.
+    /// Get value for a (case-insensitive) header key.
+    /// If the header is present multiple times, only the first occurrence is returned.
+    /// Use [`Self::get_multiple()`] if you want all values.
+    ///
+    /// Returns `None` if the header is not present.
     ///
     /// # Arguments
     ///
@@ -275,31 +278,57 @@ impl HeaderMap {
         Some(self._decode(&self.get_bytes(key.as_bytes())?))
     }
 
-    /// Get value for a (case-insensitive) header key as bytes.
-    /// Duplicate headers are returned as a single value joined with `","`.
+    /// Get all values for a (case-insensitive) header key.
+    /// Returns a vector of all values for the given key. Can return more than
+    /// one element if the header is present multiple times.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Header key
+    pub fn get_multiple(&self, key: &[u8]) -> Vec<String> {
+        self.headers
+            .iter()
+            .filter(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| self._decode(v.as_slice()))
+            .collect()
+    }
+
+    /// Get byte value for a (case-insensitive) header key.
+    /// If the header is present multiple times, only the first occurrence is returned.
+    /// Use [`Self::get_bytes_multiple()`] if you want all values.
+    ///
+    /// Returns `None` if the header is not present.
     ///
     /// # Arguments
     ///
     /// * `key` - Header key
     pub fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>> {
-        let values: Vec<&[u8]> = self
-            .headers
+        self.headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v.to_owned())
+    }
+
+    /// Get all byte values for a (case-insensitive) header key.
+    /// Returns a vector of all values for the given key. Can return more than
+    /// one element if the header is present multiple times.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Header key as bytes
+    pub fn get_bytes_multiple(&self, key: &[u8]) -> Vec<Vec<u8>> {
+        self.headers
             .iter()
             .filter(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| v.as_slice())
-            .collect();
-        if !values.is_empty() {
-            Some(values.as_slice().join(b",".as_slice()))
-        } else {
-            None
-        }
+            .map(|(_, v)| v.to_vec())
+            .collect()
     }
 
     /// Check if a (case-insensitive) header key exists.
     ///
     /// # Arguments
     ///
-    /// * `key` - Header key
+    /// * `key` - Header key as bytes
     pub fn contains_key(&self, key: &str) -> bool {
         let key_bytes = key.as_bytes();
         self.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(key_bytes))
