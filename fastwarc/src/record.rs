@@ -438,26 +438,33 @@ impl HeaderMap {
     }
 
     /// Iterator of keys and values.
-    pub fn items(&self) -> impl Iterator<Item = (String, String)> + use<'_> {
+    pub fn items(&self) -> impl Iterator<Item = (String, String)> {
         self.headers.iter().map(|(k, v)| (self._decode(k), self._decode(v)))
     }
 
+    /// Zero-copy iterator of keys and values as bytes.
+    pub fn items_bytes(&self) -> impl Iterator<Item = &(Vec<u8>, Vec<u8>)> {
+        self.headers.iter()
+    }
+
     /// Iterator of header keys.
-    pub fn keys(&self) -> impl Iterator<Item = String> + use<'_> {
+    pub fn keys(&self) -> impl Iterator<Item = String> {
         self.headers.iter().map(|(k, _)| self._decode(k))
     }
 
+    /// Zero-copy iterator of header keys as bytes.
+    pub fn keys_bytes(&self) -> impl Iterator<Item = &Vec<u8>> {
+        self.headers.iter().map(|(k, _)| k)
+    }
+
     /// Iterator of header values.
-    pub fn values(&self) -> impl Iterator<Item = String> + use<'_> {
+    pub fn values(&self) -> impl Iterator<Item = String> {
         self.headers.iter().map(|(_, v)| self._decode(v))
     }
 
-    /// Headers as a series of String tuples.
-    ///
-    /// Duplicate headers will be preserved.
-    /// This is a convenience wrapper around `HeaderMap::items().collect()`.
-    pub fn to_tuples(&self) -> Vec<(String, String)> {
-        self.items().collect()
+    /// Zero-copy iterator of header values as bytes.
+    pub fn values_bytes(&self) -> impl Iterator<Item = &Vec<u8>> {
+        self.headers.iter().map(|(_, v)| v)
     }
 
     /// Return the headers as a [`HashMap`] of Unicode strings.
