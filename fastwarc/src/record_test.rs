@@ -27,7 +27,7 @@ mod header_map_tests {
     }
 
     #[test]
-    fn test_set_and_get_header() {
+    fn test_set_get_remove_header() {
         let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
         headers.set("Content-Type", "text/plain");
         assert_eq!(headers.get("Content-Type").as_deref(), Some("text/plain"));
@@ -51,6 +51,41 @@ mod header_map_tests {
 
         // Header does not exist
         assert_eq!(headers.get("Missing-Header"), None);
+
+        // Remove (case-insensitive)
+        headers.remove("CONTENT-TYPE");
+        assert_eq!(headers.get("Content-Type"), None);
+        assert_eq!(headers.len(), 1);
+    }
+
+    #[test]
+    fn test_duplicate_header() {
+        let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+        assert_eq!(headers.len(), 0);
+        assert_eq!(headers.get_multiple("Content-Type"), Vec::<&str>::new());
+
+        // Set
+        headers.set("Content-Type", "text/plain");
+        assert_eq!(headers.get("Content-Type").as_deref(), Some("text/plain"));
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.get_multiple("Content-Type"), vec!["text/plain"]);
+
+        // Set again
+        headers.set("Content-Type", "text/html");
+        assert_eq!(headers.get("Content-Type").as_deref(), Some("text/html"));
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.get_multiple("Content-Type"), vec!["text/html"]);
+
+        // Append duplicate
+        headers.append("Content-Type", "text/plain");
+        assert_eq!(headers.get("Content-Type").as_deref(), Some("text/html"));
+        assert_eq!(headers.len(), 2);
+        assert_eq!(headers.get_multiple("Content-Type"), vec!["text/html", "text/plain"]);
+
+        // Remove (case-insensitive)
+        headers.remove("CONTENT-TYPE");
+        assert_eq!(headers.get("Content-Type"), None);
+        assert_eq!(headers.len(), 0);
     }
 
     #[test]
@@ -73,14 +108,6 @@ mod header_map_tests {
 
         let utf8_value = "abcäöü";
         let latin1_bytes = WINDOWS_1252.encode(utf8_value, EncoderTrap::Ignore).unwrap_or_default();
-        let utf8_value_repl = String::from_utf8_lossy(latin1_bytes.as_slice());
-        let utf8_value_latin_dec = WINDOWS_1252
-            .decode(utf8_value.as_bytes(), DecoderTrap::Ignore)
-            .unwrap_or_default();
-        let invalid_utf8 = b"abc\xFF\xFEdef";
-        let invalid_utf8_latin_dec = WINDOWS_1252
-            .decode(invalid_utf8.as_slice(), DecoderTrap::Ignore)
-            .unwrap_or_default();
 
         // Test Unicode encoding
         headers_unicode.set("X-Utf8", utf8_value);
@@ -92,23 +119,38 @@ mod header_map_tests {
         assert_eq!(headers_latin1.get("X-Latin1").as_deref(), Some(utf8_value));
         assert_eq!(headers_latin1.get_bytes(b"X-Latin1").as_deref(), Some(latin1_bytes.as_slice()));
 
-        // Test UTF-8 decoding of Latin bytes
+        // Incorrect decodings
+        let latin_value_utf8_dec_lossy = "abc���";
+        let utf8_value_latin_dec = "abcÃ¤Ã¶Ã¼";
+
+        // Test incorrect UTF-8 decoding of Latin bytes (irreversible)
         headers_unicode.set_bytes(b"X-Latin1-Utf8", latin1_bytes.as_slice());
-        assert_eq!(headers_unicode.get("X-Latin1-Utf8").as_deref(), Some(utf8_value_repl.as_ref()));
+        assert_eq!(headers_unicode.get("X-Latin1-Utf8").as_deref(), Some(latin_value_utf8_dec_lossy));
         assert_eq!(headers_unicode.get_bytes(b"X-Latin1-Utf8").as_deref(), Some(latin1_bytes.as_slice()));
 
-        // Test Latin1 decoding of UTF-8 bytes
+        // Test incorrect Latin1 decoding of UTF-8 bytes (reversible)
         headers_latin1.set_bytes(b"X-Utf8-Latin1", utf8_value.as_bytes());
-        assert_eq!(headers_latin1.get("X-Utf8-Latin1").as_deref(), Some(utf8_value_latin_dec.as_ref()));
+        assert_eq!(headers_latin1.get("X-Utf8-Latin1").as_deref(), Some(utf8_value_latin_dec));
         assert_eq!(headers_latin1.get_bytes(b"X-Utf8-Latin1").as_deref(), Some(utf8_value.as_bytes()));
+
+        // Invalid UTF-8 sequence
+        let invalid_utf8 = b"abc\xff\xfedef";
+        let invalid_utf8_dec_lossy = "abc��def";
+        let invalid_utf8_latin_dec = "abcÿþdef";
 
         // Test UTF-8 decoding with invalid UTF-8 sequence
         headers_unicode.set_bytes(b"X-Invalid", invalid_utf8);
-        assert_eq!(headers_unicode.get("X-Invalid").as_deref(), Some(String::from_utf8_lossy(invalid_utf8).as_ref()));
+        // Bytes should be the same
+        assert_eq!(headers_unicode.get_bytes(b"X-Invalid").as_deref(), Some(invalid_utf8.as_ref()));
+        // Decoding is lossy
+        assert_eq!(headers_unicode.get("X-Invalid").as_deref(), Some(invalid_utf8_dec_lossy));
 
         // Test Latin decoding with invalid UTF-8 sequence
         headers_latin1.set_bytes(b"X-Invalid", invalid_utf8);
-        assert_eq!(headers_latin1.get("X-Invalid").as_deref(), Some(invalid_utf8_latin_dec.as_str()));
+        // Bytes should be the same
+        assert_eq!(headers_latin1.get_bytes(b"X-Invalid").as_deref(), Some(invalid_utf8.as_ref()));
+        // Decodes to strange characters
+        assert_eq!(headers_latin1.get("X-Invalid").as_deref(), Some(invalid_utf8_latin_dec));
     }
 
     // #[test]
