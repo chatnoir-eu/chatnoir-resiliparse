@@ -17,6 +17,7 @@ use super::*;
 #[cfg(test)]
 mod header_map_tests {
     use super::*;
+    use std::io;
 
     #[test]
     fn test_new_empty_header_map() {
@@ -153,71 +154,25 @@ mod header_map_tests {
         assert_eq!(headers_latin1.get("X-Invalid").as_deref(), Some(invalid_utf8_latin_dec));
     }
 
-    // #[test]
-    // fn test_unset_header() {
-    //     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-    //     headers.set("Content-Type", "text/html");
-    //     headers.set("Content.as_deref()-Length", "1234");
-    //     assert_eq!(headers.len(), 2);
-    //
-    //     headers.unset("Content-Type");
-    //     assert_eq!(headers.get("Content-Type"), None);
-    //     assert_eq!(headers.len(), 1);
-    //     assert_eq!(headers.get("Content-Length"), Some("1234"));
-    // }
-    //
-    // #[test]
-    // fn test_append_header() {
-    //     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-    //     headers.set("Set-Cookie", "cookie1=value1");
-    //     headers.append("Set-Cookie", "cookie2=value2");
-    //
-    //     let values: Vec<&str> = headers.get_all("Set-Cookie").collect();
-    //     assert_eq!(values.len(), 2);
-    //     assert_eq!(values[0], "cookie1=value1");
-    //     assert_eq!(values[1], "cookie2=value2");
-    // }
-    //
-    // #[test]
-    // fn test_replace_header() {
-    //     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-    //     headers.set("Content-Type", "text/html");
-    //     assert_eq!(headers.get("Content-Type"), Some("text/html"));
-    //
-    //     headers.set("Content-Type", "application/json");
-    //     assert_eq!(headers.get("Content-Type"), Some("application/json"));
-    //     assert_eq!(headers.len(), 1);
-    // }
-    //
-    // #[test]
-    // fn test_multiple_headers_same_name() {
-    //     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-    //     headers.append("Accept", "text/html");
-    //     headers.append("Accept", "application/json");
-    //     headers.append("Accept", "text/plain");
-    //
-    //     let values: Vec<&str> = headers.get_all("Accept").collect();
-    //     assert_eq!(values.len(), 3);
-    //     assert_eq!(values[0], "text/html");
-    //     assert_eq!(values[1], "application/json");
-    //     assert_eq!(values[2], "text/plain");
-    // }
-    //
-    // #[test]
-    // fn test_parse_warc_headers() {
-    //     let warc_data = b"WARC/1.0\r\n\
-    //                      WARC-Type: response\r\n\
-    //                      WARC-Record-ID: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n\
-    //                      Content-Length: 1234\r\n\
-    //                      \r\n";
-    //
-    //     let mut cursor = Cursor::new(warc_data);
-    //     let headers = HeaderMap::from_warc_reader(&mut cursor).unwrap();
-    //
-    //     assert_eq!(headers.get("WARC-Type"), Some("response"));
-    //     assert_eq!(headers.get("WARC-Record-ID"), Some("<urn:uuid:12345678-1234-1234-1234-123456789abc>"));
-    //     assert_eq!(headers.get("Content-Length"), Some("1234"));
-    // }
+    #[test]
+    fn test_parse_warc_headers() {
+        let warc_data = b"WARC/1.0\r\n\
+                         WARC-Type: response\r\n\
+                         WARC-Record-ID: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n\
+                         Content-Length: 1234\r\n\
+                         \r\n";
+
+        let cursor = Rc::new(RefCell::new(io::Cursor::new(warc_data)));
+        let mut record = WarcRecord::new();
+        record.set_reader(cursor);
+        record.parse_warc_headers().unwrap();
+
+        let headers = record.headers();
+        assert_eq!(headers.get("WARC-Type").as_deref(), Some("response"));
+        assert_eq!(headers.get("WARC-Record-ID").as_deref(), Some("<urn:uuid:12345678-1234-1234-1234-123456789abc>"));
+        assert_eq!(headers.get("Content-Length").as_deref(), Some("1234"));
+    }
+
     //
     // #[test]
     // fn test_parse_http_headers() {
