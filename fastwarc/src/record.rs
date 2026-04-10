@@ -504,22 +504,18 @@ impl HeaderMap {
         let mut bytes_written = 0usize;
         if !self.status_line.is_empty() {
             writer.write_all(&self.status_line)?;
-            bytes_written += self.status_line.len();
             writer.write_all(b"\r\n")?;
-            bytes_written += 2;
+            bytes_written += self.status_line.len() + 2;
         }
         for (key, value) in &self.headers {
             if !key.is_empty() {
                 writer.write_all(key)?;
-                bytes_written += key.len();
                 writer.write_all(b": ")?;
-                bytes_written += 2;
+                bytes_written += key.len() + 2;
             }
-            // TODO: Sanitise newlines
             writer.write_all(value)?;
-            bytes_written += value.len();
             writer.write_all(b"\r\n")?;
-            bytes_written += 2;
+            bytes_written += value.len() + 2;
         }
         // Header end
         writer.write_all(b"\r\n")?;
