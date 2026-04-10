@@ -286,10 +286,10 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get(&self, key: &str) -> Option<Cow<'_, str>> {
+    pub fn get(&self, key: impl AsRef<str>) -> Option<Cow<'_, str>> {
         self.headers
             .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case(key.as_bytes()))
+            .find(|(k, _)| k.eq_ignore_ascii_case(key.as_ref().as_bytes()))
             .map(|(_, v)| self._decode(v.as_slice()))
     }
 
@@ -300,10 +300,10 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get_multiple(&self, key: &[u8]) -> Vec<Cow<'_, str>> {
+    pub fn get_multiple(&self, key: impl AsRef<str>) -> Vec<Cow<'_, str>> {
         self.headers
             .iter()
-            .filter(|(k, _)| k.eq_ignore_ascii_case(key))
+            .filter(|(k, _)| k.eq_ignore_ascii_case(key.as_ref().as_bytes()))
             .map(|(_, v)| self._decode(v.as_slice()))
             .collect()
     }
@@ -454,6 +454,18 @@ impl HeaderMap {
         } else {
             self.headers.push((Vec::new(), trimmed.to_vec()));
         }
+    }
+
+    /// Remove a header if it exists.
+    pub fn remove(&mut self, key: impl AsRef<str>) {
+        let key = self._encode(key.as_ref());
+        self.remove_bytes(key.as_ref());
+    }
+
+    /// Remove a header if it exists.
+    pub fn remove_bytes(&mut self, key: &[u8]) {
+        let key = _sanitize_header_value(key, true);
+        self.headers.retain(|(k, _)| !k.eq_ignore_ascii_case(key.as_slice()));
     }
 
     /// Iterator of keys and values.
