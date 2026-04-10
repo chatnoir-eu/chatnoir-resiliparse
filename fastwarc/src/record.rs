@@ -14,8 +14,9 @@
 
 use digest::{Digest, DynDigest};
 use encoding::all::WINDOWS_1252;
-use encoding::{DecoderTrap, Encoding};
+use encoding::{DecoderTrap, EncoderTrap, Encoding};
 use sha2::digest;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -205,23 +206,34 @@ impl HeaderMap {
         self.encoding.clone()
     }
 
+    /// Encode a header value as either UTF-8 or Latin1.
+    /// Decoding is lossy. Invalid characters are replaced.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Byte sequence to decode
+    fn _encode<'a>(&self, s: &'a str) -> Cow<'a, [u8]> {
+        match &self.encoding {
+            HeaderEncoding::Unicode => Cow::Borrowed(s.as_bytes()),
+            HeaderEncoding::Latin1 => Cow::Owned(WINDOWS_1252.encode(s, EncoderTrap::Ignore).unwrap_or_default()),
+        }
+    }
+
     /// Decode a header value as either Unicode or Latin1.
     /// Decoding is lossy. Invalid characters are replaced.
     ///
     /// # Arguments
     ///
-    /// * `byte_str` - Byte sequence to decode
-    fn _decode(&self, byte_str: &[u8]) -> String {
+    /// * `b` - Byte sequence to decode
+    fn _decode<'a>(&self, b: &'a [u8]) -> Cow<'a, str> {
         match &self.encoding {
-            HeaderEncoding::Unicode => String::from_utf8_lossy(byte_str).to_string(),
-            HeaderEncoding::Latin1 => WINDOWS_1252
-                .decode(byte_str, DecoderTrap::Ignore)
-                .unwrap_or_else(|_| String::new()),
+            HeaderEncoding::Unicode => String::from_utf8_lossy(b),
+            HeaderEncoding::Latin1 => Cow::Owned(WINDOWS_1252.decode(b, DecoderTrap::Ignore).unwrap_or_default()),
         }
     }
 
     /// Get the header status line.
-    pub fn status_line(&self) -> String {
+    pub fn status_line(&self) -> Cow<'_, str> {
         self._decode(&self.status_line)
     }
 
@@ -254,7 +266,7 @@ impl HeaderMap {
 
     /// HTTP reason phrase.
     /// Returns None if the header block is not an HTTP header block or no reason phrase was given.
-    pub fn reason_phrase(&self) -> Option<String> {
+    pub fn reason_phrase(&self) -> Option<Cow<'_, str>> {
         if !self.status_line.starts_with(b"HTTP/") {
             return None;
         }
@@ -274,8 +286,11 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get(&self, key: &str) -> Option<String> {
-        Some(self._decode(&self.get_bytes(key.as_bytes())?))
+    pub fn get(&self, key: &str) -> Option<Cow<'_, str>> {
+        self.headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key.as_bytes()))
+            .map(|(_, v)| self._decode(v.as_slice()))
     }
 
     /// Get all values for a (case-insensitive) header key.
@@ -285,7 +300,7 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get_multiple(&self, key: &[u8]) -> Vec<String> {
+    pub fn get_multiple(&self, key: &[u8]) -> Vec<Cow<'_, str>> {
         self.headers
             .iter()
             .filter(|(k, _)| k.eq_ignore_ascii_case(key))
@@ -302,11 +317,11 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn get_bytes(&self, key: &[u8]) -> Option<Cow<'_, [u8]>> {
         self.headers
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| v.to_owned())
+            .map(|(_, v)| Cow::Borrowed(v.as_slice()))
     }
 
     /// Get all byte values for a (case-insensitive) header key.
@@ -316,11 +331,11 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key as bytes
-    pub fn get_bytes_multiple(&self, key: &[u8]) -> Vec<Vec<u8>> {
+    pub fn get_bytes_multiple(&self, key: &[u8]) -> Vec<Cow<'_, [u8]>> {
         self.headers
             .iter()
             .filter(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| v.to_vec())
+            .map(|(_, v)| Cow::Borrowed(v.as_slice()))
             .collect()
     }
 
@@ -350,7 +365,9 @@ impl HeaderMap {
     /// * `key` - Header key
     /// * `value` - Header value
     pub fn set(&mut self, key: impl AsRef<str>, value: impl AsRef<str>) {
-        self.set_bytes(key.as_ref().as_bytes(), value.as_ref().as_bytes());
+        let key = self._encode(key.as_ref());
+        let value = self._encode(value.as_ref());
+        self.set_bytes(key.as_ref(), value.as_ref());
     }
 
     /// Insert a new header and overwrite any existing header(s) if the key already exists.
@@ -400,7 +417,9 @@ impl HeaderMap {
     /// * `key` - Header key
     /// * `value` - Header value
     pub fn append(&mut self, key: impl AsRef<str>, value: impl AsRef<str>) {
-        self.append_bytes(key.as_ref().as_bytes(), value.as_ref().as_bytes());
+        let key = self._encode(key.as_ref());
+        let value = self._encode(value.as_ref());
+        self.append_bytes(key.as_ref(), value.as_ref());
     }
 
     /// Append a header.
@@ -438,7 +457,7 @@ impl HeaderMap {
     }
 
     /// Iterator of keys and values.
-    pub fn items(&self) -> impl Iterator<Item = (String, String)> {
+    pub fn items(&self) -> impl Iterator<Item = (Cow<'_, str>, Cow<'_, str>)> {
         self.headers.iter().map(|(k, v)| (self._decode(k), self._decode(v)))
     }
 
@@ -448,7 +467,7 @@ impl HeaderMap {
     }
 
     /// Iterator of header keys.
-    pub fn keys(&self) -> impl Iterator<Item = String> {
+    pub fn keys(&self) -> impl Iterator<Item = Cow<'_, str>> {
         self.headers.iter().map(|(k, _)| self._decode(k))
     }
 
@@ -458,7 +477,7 @@ impl HeaderMap {
     }
 
     /// Iterator of header values.
-    pub fn values(&self) -> impl Iterator<Item = String> {
+    pub fn values(&self) -> impl Iterator<Item = Cow<'_, str>> {
         self.headers.iter().map(|(_, v)| self._decode(v))
     }
 
@@ -478,7 +497,7 @@ impl HeaderMap {
                     v_.push(',');
                     v_.push_str(&v);
                 })
-                .or_insert(v);
+                .or_insert(v.to_string());
         });
         map
     }
@@ -550,7 +569,7 @@ pub struct WarcRecord {
     frozen: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DigestError {
     Missing(String),
     Unsupported(String),
@@ -710,7 +729,7 @@ impl WarcRecord {
     }
 
     /// Record ID (same as [`Self::headers().get("WARC-Record-ID")`](HeaderMap::get)
-    pub fn record_id(&self) -> Option<String> {
+    pub fn record_id(&self) -> Option<Cow<'_, str>> {
         self.headers.get("WARC-Record-ID")
     }
 
@@ -1107,10 +1126,12 @@ impl WarcRecord {
     /// * `consume` - Do not create an in-memory copy of the record stream
     ///   (will consume the rest of the record)
     pub fn verify_block_digest(&mut self, consume: bool) -> Result<bool, DigestError> {
-        self.headers
+        let digest = self
+            .headers
             .get("WARC-Block-Digest")
-            .ok_or_else(|| DigestError::Missing("Missing WARC-Block-Digest header".into()))
-            .and_then(|d| self._verify_digest(&d, consume))
+            .ok_or_else(|| DigestError::Missing("Missing WARC-Block-Digest header".into()))?
+            .to_string();
+        self._verify_digest(&digest, consume)
     }
 
     /// Verify whether the record's `WARC-Payload-Digest` is valid.
@@ -1128,10 +1149,12 @@ impl WarcRecord {
             return Err(DigestError::NoPayload("HTTP payload not parsed or missing".into()));
         }
 
-        self.headers
+        let digest = self
+            .headers
             .get("WARC-Payload-Digest")
-            .ok_or_else(|| DigestError::Missing("Missing WARC-Payload-Digest header".into()))
-            .and_then(|d| self._verify_digest(&d, consume))
+            .ok_or_else(|| DigestError::Missing("Missing WARC-Payload-Digest header".into()))?
+            .to_string();
+        self._verify_digest(&digest, consume)
     }
 
     /// Internal helper for verifying digests.
@@ -1227,3 +1250,11 @@ fn _sanitize_header_value(value: &[u8], is_key: bool) -> Vec<u8> {
     }));
     value_sanitized
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "record_test.rs"]
+mod record_test;
