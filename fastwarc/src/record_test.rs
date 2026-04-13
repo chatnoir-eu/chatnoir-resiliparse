@@ -156,40 +156,105 @@ mod header_map_tests {
 
     #[test]
     fn test_parse_warc_headers() {
-        let warc_data = b"WARC/1.0\r\n\
+        let record_data1 = "WARC/1.1\r\n\
+                         WARC-Type: request\r\n\
+                         WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
+                         Content-Length: 3\r\n\
+                         \r\n\
+                         ABC\r\n\r\n";
+        let record_data2 = "WARC/1.1\r\n\
                          WARC-Type: response\r\n\
-                         WARC-Record-ID: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n\
-                         Content-Length: 1234\r\n\
-                         \r\n";
+                         WARC-Record-ID: <urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>\r\n\
+                         Content-Length: 6\r\n\
+                         \r\n\
+                         DEFGHI\r\n\r\n";
+        let warc_data = format!("{}{}", record_data1, record_data2).as_bytes().to_vec();
+
+        let cursor = Rc::new(RefCell::new(io::Cursor::new(warc_data)));
+        let mut record = WarcRecord::new();
+
+        assert_eq!(record.content_length(), 0);
+        assert_eq!(record.record_id(), None);
+        assert_eq!(record.record_type(), WarcRecordType::NoType);
+
+        // Parse first record
+        record.set_reader(cursor);
+        record.parse_warc_headers().unwrap();
+        assert_eq!(record.stream_pos(), 0);
+        assert_eq!(record.content_length(), 3);
+        assert_eq!(record.record_type(), WarcRecordType::Request);
+
+        let headers = record.headers();
+        assert_eq!(headers.status_line().as_deref(), Some("WARC/1.1"));
+        assert!(!record.is_http());
+        assert_eq!(headers.get("WARC-Type").as_deref(), Some("request"));
+        assert_eq!(headers.get_bytes(b"WARC-Type").as_deref(), Some(b"request".as_slice()));
+        assert_eq!(record.record_id().as_deref(), Some("<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>"));
+        assert_eq!(headers.get("WARC-Record-ID").as_deref(), Some("<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>"));
+        assert_eq!(headers.get_bytes(b"WARC-Record-ID").as_deref(),
+                   Some(b"<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>".as_slice()));
+        assert_eq!(headers.get("Content-Length").as_deref(), Some("3"));
+        assert_eq!(headers.get_bytes(b"Content-Length").as_deref(), Some(b"3".as_slice()));
+
+        // TODO
+        // let mut buf = Vec::new();
+        // record.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
+        // assert_eq!(buf, "ABC".as_bytes());
+
+        // Parse second record
+        // record.parse_warc_headers().unwrap();
+        // assert_eq!(record.stream_pos(), record_data1.len());
+        // assert_eq!(record.content_length(), 3);
+        // assert_eq!(record.record_type(), WarcRecordType::Request);
+    }
+
+    #[test]
+    fn test_parse_http_headers() {
+        let http_payload = "Hello World";
+        let http_data = format!("HTTP/1.1 200 OK\r\n\
+                              Content-Type: text/plain; charset=utf-8\r\n\
+                              Content-Length: {}\r\n\
+                              Server: Apache/2.4\r\n\
+                              \r\n\
+                              {}", http_payload.len(), http_payload);
+
+        let warc_data = format!(
+            "WARC/1.1\r\n\
+                WARC-Type: response\r\n\
+                WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
+                Content-Type: application/http; msgtype=response\r\n\
+                Content-Length: {} \r\n\
+                \r\n\
+                {}", http_data.len(), http_data)
+        .as_bytes()
+        .to_vec();
 
         let cursor = Rc::new(RefCell::new(io::Cursor::new(warc_data)));
         let mut record = WarcRecord::new();
         record.set_reader(cursor);
         record.parse_warc_headers().unwrap();
 
-        let headers = record.headers();
-        assert_eq!(headers.get("WARC-Type").as_deref(), Some("response"));
-        assert_eq!(headers.get("WARC-Record-ID").as_deref(), Some("<urn:uuid:12345678-1234-1234-1234-123456789abc>"));
-        assert_eq!(headers.get("Content-Length").as_deref(), Some("1234"));
+        let warc_headers = record.headers();
+        assert_eq!(warc_headers.status_line().as_deref(), Some("WARC/1.1"));
+        assert!(record.is_http());
+        assert!(!record.is_http_parsed());
+        assert!(record.http_headers().is_none());
+
+        record.parse_http().unwrap();
+        assert!(record.is_http_parsed());
+        let http_headers = record.http_headers().unwrap();
+        assert_eq!(http_headers.status_line().as_deref(), Some("HTTP/1.1 200 OK"));
+        assert_eq!(http_headers.status_code(), Some(200));
+        assert_eq!(http_headers.reason_phrase().as_deref(), Some("OK"));
+        assert_eq!(http_headers.get("Content-Type").as_deref(), Some("text/plain; charset=utf-8"));
+        assert_eq!(record.http_charset(), Some("utf-8"));
+        assert_eq!(record.http_content_type().as_deref(), Some("text/plain"));
+
+        let mut buf = Vec::new();
+        record.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, http_payload.as_bytes());
     }
 
-    //
-    // #[test]
-    // fn test_parse_http_headers() {
-    //     let http_data = b"HTTP/1.1 200 OK\r\n\
-    //                      Content-Type: text/html\r\n\
-    //                      Content-Length: 5678\r\n\
-    //                      Server: Apache/2.4\r\n\
-    //                      \r\n";
-    //
-    //     let mut cursor = Cursor::new(http_data);
-    //     let headers = HeaderMap::from_http_reader(&mut cursor).unwrap();
-    //
-    //     assert_eq!(headers.get("Content-Type"), Some("text/html"));
-    //     assert_eq!(headers.get("Content-Length"), Some("5678"));
-    //     assert_eq!(headers.get("Server"), Some("Apache/2.4"));
-    // }
-    //
     // #[test]
     // fn test_parse_headers_with_continuation_lines() {
     //     let http_data = b"HTTP/1.1 200 OK\r\n\

@@ -87,22 +87,30 @@ impl TryFrom<u16> for WarcRecordType {
     }
 }
 
+impl TryFrom<&[u8]> for WarcRecordType {
+    type Error = &'static str;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value.to_ascii_lowercase().as_slice() {
+            b"warcinfo" => Ok(WarcRecordType::WarcInfo),
+            b"response" => Ok(WarcRecordType::Response),
+            b"resource" => Ok(WarcRecordType::Resource),
+            b"request" => Ok(WarcRecordType::Request),
+            b"metadata" => Ok(WarcRecordType::Metadata),
+            b"revisit" => Ok(WarcRecordType::Revisit),
+            b"conversion" => Ok(WarcRecordType::Conversion),
+            b"continuation" => Ok(WarcRecordType::Continuation),
+            b"unknown" => Ok(WarcRecordType::Unknown),
+            _ => Err("Invalid enum value."),
+        }
+    }
+}
+
 impl TryFrom<&str> for WarcRecordType {
     type Error = &'static str;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_str() {
-            "warcinfo" => Ok(WarcRecordType::WarcInfo),
-            "response" => Ok(WarcRecordType::Response),
-            "resource" => Ok(WarcRecordType::Resource),
-            "request" => Ok(WarcRecordType::Request),
-            "metadata" => Ok(WarcRecordType::Metadata),
-            "revisit" => Ok(WarcRecordType::Revisit),
-            "conversion" => Ok(WarcRecordType::Conversion),
-            "continuation" => Ok(WarcRecordType::Continuation),
-            "unknown" => Ok(WarcRecordType::Unknown),
-            _ => Err("Invalid enum value."),
-        }
+        TryFrom::try_from(value.as_bytes())
     }
 }
 
@@ -183,7 +191,7 @@ pub enum HeaderEncoding {
 #[derive(Default, Debug, Clone)]
 pub struct HeaderMap {
     encoding: HeaderEncoding,
-    status_line: Vec<u8>,
+    status_line: Option<Vec<u8>>,
     headers: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
@@ -196,7 +204,7 @@ impl HeaderMap {
     pub fn new(encoding: HeaderEncoding) -> Self {
         HeaderMap {
             encoding,
-            status_line: Vec::new(),
+            status_line: None,
             headers: Vec::new(),
         }
     }
@@ -233,13 +241,13 @@ impl HeaderMap {
     }
 
     /// Get the header status line.
-    pub fn status_line(&self) -> Cow<'_, str> {
-        self._decode(&self.status_line)
+    pub fn status_line(&self) -> Option<Cow<'_, str>> {
+        self.status_line.as_deref().map(|s| self._decode(s))
     }
 
     /// Get the raw status line as bytes.
-    pub fn status_line_bytes(&self) -> &[u8] {
-        &self.status_line
+    pub fn status_line_bytes(&self) -> Option<&[u8]> {
+        self.status_line.as_deref()
     }
 
     /// Set status line contents.
@@ -250,15 +258,18 @@ impl HeaderMap {
     pub fn set_status_line(&mut self, status_line: &[u8]) {
         let mut status_line_sanitized = Vec::with_capacity(status_line.len());
         status_line_sanitized.extend(_sanitize_header_value(status_line, true));
-        self.status_line = status_line_sanitized;
+        self.status_line = Some(status_line_sanitized);
     }
 
     /// HTTP status code (unset if header block is not an HTTP header block).
     pub fn status_code(&self) -> Option<u16> {
-        if !self.status_line.starts_with(b"HTTP/") {
+        let Some(s) = &self.status_line else {
+            return None;
+        };
+        if !s.starts_with(b"HTTP/") {
             return None;
         }
-        let mut parts = self.status_line.splitn(3, |&b| b == b' ');
+        let mut parts = s.splitn(3, |&b| b == b' ');
         // Skip HTTP/
         parts.next()?;
         self._decode(parts.next()?).parse::<u16>().ok()
@@ -267,10 +278,13 @@ impl HeaderMap {
     /// HTTP reason phrase.
     /// Returns None if the header block is not an HTTP header block or no reason phrase was given.
     pub fn reason_phrase(&self) -> Option<Cow<'_, str>> {
-        if !self.status_line.starts_with(b"HTTP/") {
+        let Some(s) = &self.status_line else {
+            return None;
+        };
+        if !s.starts_with(b"HTTP/") {
             return None;
         }
-        let mut parts = self.status_line.splitn(3, |&b| b == b' ');
+        let mut parts = s.splitn(3, |&b| b == b' ');
         // Skip HTTP/ and status code
         parts.next()?;
         parts.next()?;
@@ -527,16 +541,18 @@ impl HeaderMap {
     /// Clear all headers and the status line.
     pub fn clear(&mut self) {
         self.headers.clear();
-        self.status_line.clear();
+        self.status_line = None;
     }
 
     /// Write the header block onto a stream.
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut bytes_written = 0usize;
-        if !self.status_line.is_empty() {
-            writer.write_all(&self.status_line)?;
+        if let Some(s) = &self.status_line
+            && !s.is_empty()
+        {
+            writer.write_all(s)?;
             writer.write_all(b"\r\n")?;
-            bytes_written += self.status_line.len() + 2;
+            bytes_written += s.len() + 2;
         }
         for (key, value) in &self.headers {
             if !key.is_empty() {
@@ -617,7 +633,7 @@ impl WarcRecord {
     /// [`Self::init_headers()`].
     pub fn new() -> Self {
         WarcRecord {
-            record_type: WarcRecordType::Unknown,
+            record_type: WarcRecordType::NoType,
             headers: HeaderMap::new(HeaderEncoding::Unicode),
             is_http: false,
             http_parsed: false,
@@ -657,6 +673,11 @@ impl WarcRecord {
     /// * `reader` - Shared pointer to a buffered reader instance
     pub fn set_reader(&mut self, reader: Rc<RefCell<dyn BufReadSeek>>) {
         self.reader = Some(reader);
+    }
+
+    /// Get a mutable reference to the attached buffered reader.
+    pub fn reader_mut(&self) -> Option<core::cell::RefMut<'_, dyn BufReadSeek>> {
+        Some(self.reader.as_ref()?.borrow_mut())
     }
 
     /// Set the WARC payload as bytes.
@@ -702,6 +723,7 @@ impl WarcRecord {
                 return Err(io::Error::other("No reader set"));
             }
         };
+        self.stream_pos = reader.borrow_mut().stream_position()? as usize;
         let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
         let mut line = Vec::with_capacity(32);
         loop {
@@ -712,12 +734,12 @@ impl WarcRecord {
             if n == 0 {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended before WARC header"));
             }
-            self.stream_pos += n;
 
             // Trim ASCII whitespace (including CR/LF line endings)
             let trimmed = line.trim_ascii();
             if trimmed.is_empty() {
                 // Skip empty lines (non-standard)
+                self.stream_pos = reader.borrow_mut().stream_position()? as usize;
                 continue;
             }
 
@@ -726,7 +748,7 @@ impl WarcRecord {
                 // ClueWeb09/12 legacy
                 || (trimmed.starts_with(b"WARC/0.") && trimmed.len() <= 9)
             {
-                self.headers.status_line = trimmed.to_owned();
+                headers.status_line = Some(trimmed.to_owned());
                 break;
             } else if !quirks_mode {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid WARC header"));
@@ -735,8 +757,26 @@ impl WarcRecord {
             }
         }
 
-        self.stream_pos += self._parse_header_block(&mut headers, false)?;
+        self._parse_header_block(&mut headers, false)?;
         self.headers = headers;
+
+        let mut parse_count = 0;
+        for (k, v) in self.headers.items_bytes() {
+            if k == b"WARC-Type" {
+                self.record_type = WarcRecordType::try_from(v.as_slice()).unwrap_or(WarcRecordType::Unknown);
+                parse_count += 1;
+            } else if k == b"Content-Type" {
+                self.is_http = v == b"application/http" || v.starts_with(b"application/http;");
+                parse_count += 1;
+            } else if k == b"Content-Length" {
+                self.content_length = str::from_utf8(v).unwrap_or_default().parse().unwrap_or(0);
+                parse_count += 1;
+            }
+            if parse_count == 3 {
+                break;
+            }
+        }
+
         Ok(())
     }
 
@@ -954,7 +994,6 @@ impl WarcRecord {
         }
 
         // Update content to skip HTTP headers
-        self.stream_pos += bytes_consumed;
         self.content_length -= bytes_consumed;
         self.http_headers = Some(http_headers);
         self.http_parsed = true;
