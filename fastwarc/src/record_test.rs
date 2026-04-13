@@ -14,6 +14,7 @@
 
 use super::*;
 use std::io;
+use std::io::SeekFrom;
 
 #[test]
 fn test_new_empty_header_map() {
