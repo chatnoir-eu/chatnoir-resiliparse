@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::stream_io::{BufReadSeek, LimitedBufReadSeek};
 use digest::{Digest, DynDigest};
 use encoding::all::WINDOWS_1252;
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
@@ -22,6 +23,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io;
+use std::io::{BufRead, Read, Seek};
 use std::rc::Rc;
 use uuid::Uuid;
 
@@ -576,10 +578,6 @@ impl HeaderMap {
 // WARC record
 // ===========================================================
 
-// TODO: Move this to stream_io
-pub trait BufReadSeek: io::BufRead + io::Seek {}
-impl<T: io::BufRead + io::Seek + ?Sized> BufReadSeek for T {}
-
 /// A WARC record.
 ///
 /// WARC records are cloneable, but cloning will "freeze" the WARC record.
@@ -592,7 +590,7 @@ pub struct WarcRecord {
     http_parsed: bool,
     http_charset: Option<String>,
     http_headers: Option<HeaderMap>,
-    reader: Option<Rc<RefCell<dyn BufReadSeek>>>,
+    reader: Option<LimitedBufReadSeek>,
     stream_pos: usize,
     frozen: bool,
 }
@@ -627,7 +625,7 @@ impl WarcRecord {
     /// Create a new empty WARC record.
     ///
     /// The new WARC record will have an empty [`HeaderMap`] and no payload.
-    /// Before use, a [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// Before use, a [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
     /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
     /// existing payload will fail. Default headers can be initialized with
     /// [`Self::init_headers()`].
@@ -646,6 +644,22 @@ impl WarcRecord {
         }
     }
 
+    /// Create a new WARC record instance from an input stream.
+    ///
+    /// The new instance is fully initialized with all headers present.
+    /// This is the same as constructing a new empty record instance with [`Self::new()`]
+    /// and then calling [`Self::attach_reader()`] and [`Self::parse_warc_headers()`].
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Buffered reader instance
+    pub fn from_stream(reader: Rc<RefCell<dyn BufReadSeek>>) -> Result<Self, io::Error> {
+        let mut record = WarcRecord::new();
+        record.attach_reader(reader);
+        record.parse_warc_headers()?;
+        Ok(record)
+    }
+
     /// Record type (same as `headers['WARC-Type']`).
     pub fn record_type(&self) -> WarcRecordType {
         self.record_type
@@ -662,37 +676,37 @@ impl WarcRecord {
     }
 
     /// Attach a buffered reader to this [`WarcRecord`] instance.
-    /// A reader instance is essential for parsing records from a WARC stream.
     ///
-    /// A [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// A reader instance is essential for parsing records from a WARC stream.
+    /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
     /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
     /// existing payload will fail.
     ///
     /// # Arguments
     ///
     /// * `reader` - Shared pointer to a buffered reader instance
-    pub fn set_reader(&mut self, reader: Rc<RefCell<dyn BufReadSeek>>) {
-        self.reader = Some(reader);
+    pub fn attach_reader(&mut self, reader: Rc<RefCell<dyn BufReadSeek>>) {
+        self.reader = Some(LimitedBufReadSeek::new(reader, None));
     }
 
-    /// Get a mutable reference to the attached buffered reader.
-    pub fn reader_mut(&self) -> Option<core::cell::RefMut<'_, dyn BufReadSeek>> {
-        Some(self.reader.as_ref()?.borrow_mut())
+    /// Get reference to the attached buffered reader.
+    pub fn reader(&mut self) -> Option<&mut LimitedBufReadSeek> {
+        self.reader.as_mut()
     }
 
     /// Set the WARC payload as bytes.
     /// This will replace the current reader instance with a byte buffer stream.
     ///
-    /// A [`WarcRecord`] must be initialized with either [`Self::set_reader()`]
+    /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
     /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on a
     /// existing payload will fail.
     ///
     /// # Arguments
     ///
     /// * `payload` - Body as bytes
-    pub fn set_bytes_payload(&mut self, payload: Vec<u8>) {
+    pub fn set_bytes_payload(&mut self, payload: &[u8]) {
         self.content_length = payload.len();
-        self.reader = Some(Rc::new(RefCell::new(io::BufReader::new(io::Cursor::new(payload)))));
+        self.reader = Some(LimitedBufReadSeek::from_bytes(payload));
         self.headers
             .set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
     }
@@ -702,6 +716,9 @@ impl WarcRecord {
     /// The parser will skip over any number of empty lines before the next valid
     /// `WARC/*` header line. Any other content that is not a valid WARC header
     /// start will return an error of type [`io::ErrorKind::InvalidData`].
+    ///
+    /// Parsing the WARC headers will automatically limit the attached reader to the
+    /// remaining `Content-Length` bytes. The original reader instance remains unaffected.
     pub fn parse_warc_headers(&mut self) -> Result<(), io::Error> {
         self.parse_warc_headers_quirks(false)
     }
@@ -713,24 +730,22 @@ impl WarcRecord {
     /// encountered before the next header start will be skipped as well.
     /// Otherwise, an error of type [`io::ErrorKind::InvalidData`] is returned.
     ///
+    /// Parsing the WARC headers will automatically limit the attached reader to the
+    /// remaining `Content-Length` bytes. The original reader instance remains unaffected.
+    ///
     /// # Arguments
     ///
     /// * `quirks_mode` - Whether to skip non-empty lines before header start
     pub fn parse_warc_headers_quirks(&mut self, quirks_mode: bool) -> Result<(), io::Error> {
-        let reader = match &self.reader {
-            Some(reader) => Rc::clone(reader),
-            None => {
-                return Err(io::Error::other("No reader set"));
-            }
-        };
-        self.stream_pos = reader.borrow_mut().stream_position()? as usize;
+        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
         let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
         let mut line = Vec::with_capacity(32);
         loop {
             line.clear();
 
             // Try to find first WARC/* header
-            let n = reader.borrow_mut().read_until(b'\n', &mut line)?;
+            self.stream_pos = reader.real_stream_position()? as usize;
+            let n = reader.read_until(b'\n', &mut line)?;
             if n == 0 {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended before WARC header"));
             }
@@ -739,7 +754,6 @@ impl WarcRecord {
             let trimmed = line.trim_ascii();
             if trimmed.is_empty() {
                 // Skip empty lines (non-standard)
-                self.stream_pos = reader.borrow_mut().stream_position()? as usize;
                 continue;
             }
 
@@ -777,6 +791,10 @@ impl WarcRecord {
             }
         }
 
+        // // Replace reader with limited version
+        // let limited_reader = LimitedBufReadSeek::new(self.reader.clone().unwrap(), self.content_length);
+        // self.reader = Some(Rc::new(RefCell::new(limited_reader)));
+        self.reader.as_mut().unwrap().set_limit(self.content_length);
         Ok(())
     }
 
@@ -914,17 +932,11 @@ impl WarcRecord {
         let mut bytes_consumed = 0;
         let mut line = Vec::new();
         let mut expect_first_line = has_status_line;
-
-        let reader = match &self.reader {
-            Some(reader) => Rc::clone(reader),
-            None => {
-                return Err(io::Error::other("No reader set"));
-            }
-        };
+        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
 
         loop {
             line.clear();
-            let n = reader.borrow_mut().read_until(b'\n', &mut line)?;
+            let n = reader.read_until(b'\n', &mut line)?;
             if n == 0 {
                 break;
             }
@@ -1012,16 +1024,12 @@ impl WarcRecord {
         if self.frozen {
             return Ok(());
         }
-        if let Some(reader) = self.reader.take() {
-            let mut buf = Vec::with_capacity(self.content_length);
-            let mut reader = reader.borrow_mut();
-            self.content_length = reader.read_to_end(&mut buf)?;
-            self.reader = Some(Rc::new(RefCell::new(io::Cursor::new(buf))));
-            self.frozen = true;
-            Ok(())
-        } else {
-            Err(io::Error::other("No reader set"))
-        }
+        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
+        let mut buf = Vec::with_capacity(self.content_length);
+        self.content_length = reader.read_to_end(&mut buf)?;
+        self.reader = Some(LimitedBufReadSeek::from_bytes(buf.as_slice()));
+        self.frozen = true;
+        Ok(())
     }
 
     /// Write WARC record onto a stream.
@@ -1095,7 +1103,7 @@ impl WarcRecord {
 
         if checksum_data {
             self.freeze()?;
-            let reader = self.reader.as_ref().unwrap();
+            let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
 
             use data_encoding::BASE32;
             use sha1::Sha1;
@@ -1116,7 +1124,7 @@ impl WarcRecord {
 
             loop {
                 let mut buf = [0u8; 4096];
-                let n = reader.borrow_mut().read(&mut buf)?;
+                let n = reader.read(&mut buf)?;
                 if n == 0 {
                     break;
                 }
@@ -1124,12 +1132,10 @@ impl WarcRecord {
             }
             self.headers
                 .set_bytes(b"WARC-Block-Digest", BASE32.encode(&block_digest.finalize()).as_bytes());
-            reader.borrow_mut().rewind()?;
+            reader.rewind()?;
         }
 
-        let Some(reader) = &self.reader else {
-            return Err(io::Error::other("No reader set"));
-        };
+        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
 
         // Ensure Content-Length is correct
         self.headers
@@ -1151,7 +1157,7 @@ impl WarcRecord {
         // Write content
         let mut buf = Vec::with_capacity(chunk_size);
         loop {
-            let n = reader.borrow_mut().read(&mut buf)?;
+            let n = reader.read(&mut buf)?;
             if n == 0 {
                 break;
             }
@@ -1210,13 +1216,6 @@ impl WarcRecord {
 
     /// Internal helper for verifying digests.
     fn _verify_digest(&mut self, digest_str: &str, consume: bool) -> Result<bool, DigestError> {
-        let reader = match &self.reader {
-            Some(reader) => Rc::clone(reader),
-            None => {
-                return Err(DigestError::StreamError("No reader set".into()));
-            }
-        };
-
         let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
         if parts.len() != 2 {
             return Err(DigestError::FormatError("Invalid digest header formatting (':' not found)".into()));
@@ -1240,11 +1239,16 @@ impl WarcRecord {
             self.freeze()
                 .map_err(|e| DigestError::StreamError(format!("Failed to freeze record: {}", e)))?;
         }
+
+        let reader = self
+            .reader
+            .as_mut()
+            .ok_or_else(|| DigestError::StreamError("No reader set".into()))?;
+
         let mut digest = _get_digest(&algorithm)?;
         let mut buf = [0u8; 4096];
         loop {
             let n = reader
-                .borrow_mut()
                 .read(&mut buf)
                 .map_err(|e| DigestError::StreamError(format!("Failed to read stream: {}", e)))?;
             if n == 0 {
@@ -1254,7 +1258,6 @@ impl WarcRecord {
         }
         if !consume {
             reader
-                .borrow_mut()
                 .seek(io::SeekFrom::Start(self.stream_pos as u64))
                 .map_err(|e| DigestError::StreamError(format!("Failed to seek stream: {}", e)))?;
         }

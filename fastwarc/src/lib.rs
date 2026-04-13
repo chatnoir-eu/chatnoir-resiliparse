@@ -13,6 +13,7 @@
 // limitations under the License.
 
 pub mod record;
+pub mod stream_io;
 
 // TODO: Unchecked conversion AI slop from here on:
 //
