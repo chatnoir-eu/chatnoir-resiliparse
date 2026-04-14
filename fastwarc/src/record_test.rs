@@ -166,7 +166,7 @@ fn test_parse_warc_headers() {
                          DEFGHI\r\n\r\n";
     let warc_data = format!("{}{}", record_data1, record_data2).as_bytes().to_vec();
 
-    let reader = Rc::new(RefCell::new(io::Cursor::new(warc_data)));
+    let reader = Box::new(io::Cursor::new(warc_data));
     let mut record1 = WarcRecord::new();
 
     assert_eq!(record1.content_length(), 0);
@@ -174,7 +174,7 @@ fn test_parse_warc_headers() {
     assert_eq!(record1.record_type(), WarcRecordType::NoType);
 
     // Parse first record (construct manually)
-    record1.attach_reader(reader.clone());
+    record1.attach_reader(reader);
     record1.parse_warc_headers().unwrap();
     assert_eq!(record1.stream_pos(), 0);
     assert_eq!(record1.content_length(), 3);
@@ -195,18 +195,18 @@ fn test_parse_warc_headers() {
     assert_eq!(headers.get_bytes(b"Content-Length").as_deref(), Some(b"3".as_slice()));
 
     let mut buf = Vec::new();
-    record1.reader().unwrap().read_to_end(&mut buf).unwrap();
+    record1.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
     assert_eq!(buf, "ABC".as_bytes());
-
     // Parse second record (construct directly from stream)
-    let mut record2 = WarcRecord::from_stream(reader.clone()).unwrap();
+    let reader = record1.detach_reader().unwrap();
+    let mut record2 = WarcRecord::from_reader(reader).unwrap();
 
     assert_eq!(record2.stream_pos(), record_data1.len());
     assert_eq!(record2.content_length(), 6);
     assert_eq!(record2.record_type(), WarcRecordType::Response);
 
     buf.clear();
-    record2.reader().unwrap().read_to_end(&mut buf).unwrap();
+    record2.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
     assert_eq!(buf, "DEFGHI".as_bytes());
 }
 
@@ -238,7 +238,7 @@ fn test_parse_http_headers() {
     .as_bytes()
     .to_vec();
 
-    let reader = Rc::new(RefCell::new(io::Cursor::new(warc_data)));
+    let reader = Box::new(io::Cursor::new(warc_data));
     let mut record = WarcRecord::new();
     record.attach_reader(reader);
     record.parse_warc_headers().unwrap();
@@ -260,7 +260,7 @@ fn test_parse_http_headers() {
     assert_eq!(record.http_content_type().as_deref(), Some("text/plain"));
 
     let mut buf = Vec::new();
-    record.reader().unwrap().read_to_end(&mut buf).unwrap();
+    record.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
     assert_eq!(buf, http_payload.as_bytes());
 }
 
