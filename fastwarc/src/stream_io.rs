@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::io;
 use std::rc::Rc;
 
@@ -47,6 +47,7 @@ impl LimitedBufReadSeek {
             buf: Vec::default(),
         }
     }
+
     /// Create a new limited reader from a byte buffer.
     pub fn from_bytes(payload: &[u8]) -> Self {
         let cursor = Rc::new(RefCell::new(io::BufReader::new(io::Cursor::new(payload.to_vec()))));
@@ -96,8 +97,7 @@ impl io::BufRead for LimitedBufReadSeek {
 
     fn consume(&mut self, amount: usize) {
         let amount = std::cmp::min(amount, self.limit - self.pos);
-        let mut reader = self.reader.borrow_mut();
-        reader.consume(amount);
+        self.reader.borrow_mut().consume(amount);
         self.pos += amount;
     }
 }
