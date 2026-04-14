@@ -6,6 +6,9 @@ publish.workspace = true
 authors.workspace = true
 documentation.workspace = true
 description = "A high-performance WARC parsing library for Python written in C++/Cython."
+readme = "README.md"
+repository.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["lib"]

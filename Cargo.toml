@@ -9,10 +9,13 @@ members = [
 [workspace.package]
 version = "0.16.0"
 edition = "2024"
-publish = false
+publish = true
 description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
 authors = ["Janek Bevendorff"]
 documentation = "https://resiliparse.chatnoir.eu/"
+readme = "README.md"
+repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse/"
+license = "Apache-2.0"
 
 [workspace.dependencies]
 bindgen = "0.72.1"
