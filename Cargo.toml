@@ -17,3 +17,4 @@ documentation = "https://resiliparse.chatnoir.eu/"
 [workspace.dependencies]
 bindgen = "0.72.1"
 pyo3 = "0.26.0"
+pretty_assertions = "1.4.1"

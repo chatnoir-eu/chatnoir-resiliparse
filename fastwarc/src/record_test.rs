@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use super::*;
+use pretty_assertions::assert_eq;
 use std::io;
 
 #[test]
@@ -87,7 +88,7 @@ fn test_duplicate_header() {
 
 #[test]
 fn test_header_case_insensitive() {
-    let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+    let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
     headers.set("Content-Type", "text/html");
     assert!(headers.keys().any(|k| k == "Content-Type"));
     assert_eq!(headers.get("CONTENT-TYPE").as_deref(), Some("text/html"));
@@ -96,6 +97,82 @@ fn test_header_case_insensitive() {
 
     headers.set("CONTENT-TYPE", "text/html");
     assert!(headers.keys().any(|k| k == "CONTENT-TYPE"));
+}
+
+#[test]
+fn test_iterate_headers() {
+    let tuples = [
+        ("Content-Type", "text/html"),
+        ("Content-Length", "1234"),
+        ("Set-Cookie", "cookie1=value1"),
+        ("Set-Cookie", "cookie2=value2"),
+    ];
+
+    let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+    headers.set(tuples[0].0, tuples[0].1);
+    headers.set(tuples[1].0, tuples[1].1);
+    headers.append(tuples[2].0, tuples[2].1);
+    headers.append(tuples[3].0, tuples[3].1);
+
+    let mut count = 0;
+    for (key, value) in headers.items() {
+        assert_eq!(key, tuples[count].0);
+        assert_eq!(value, tuples[count].1);
+        count += 1;
+    }
+    assert_eq!(count, 4);
+
+    count = 0;
+    for key in headers.keys() {
+        assert_eq!(key, tuples[count].0);
+        count += 1;
+    }
+    assert_eq!(count, 4);
+
+    count = 0;
+    for value in headers.values() {
+        assert_eq!(value, tuples[count].1);
+        count += 1;
+    }
+    assert_eq!(count, 4);
+}
+
+#[test]
+fn test_header_sanitization() {
+    let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
+    headers.set("Content-Type:", "text/html; charset=utf-8");
+    headers.set("Foo:bar", "bar:baz");
+    headers.set("new\r\nline", "new\t\nline");
+
+    assert_eq!(headers.get("Content-Type").as_deref(), Some("text/html; charset=utf-8"));
+    assert_eq!(headers.get("Foobar").as_deref(), Some("bar:baz"));
+    assert_eq!(headers.get("new  line").as_deref(), Some("new\t line"));
+}
+
+#[test]
+fn test_parse_headers_with_continuation_lines() -> io::Result<()> {
+    let http_data = b"HTTP/1.1 200 OK\r\n\
+                              Content-Length: 123\r\n\
+                              Content-Encoding     :     gzip    \r\n\
+                              Content-Type: text/html;\r\n  charset=utf-8\r\n\
+                              Invalid-Header-Ignored\r\n\
+                              Accept: text/html,\r\n\tapplication/json,\r\n\ttext/plain\r\n\
+                              \r\n";
+
+    let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+    let mut reader = io::Cursor::new(http_data);
+    headers.parse(&mut reader, true)?;
+
+    assert_eq!(headers.get("Content-Length").as_deref(), Some("123"));
+    assert_eq!(headers.get("Content-Encoding").as_deref(), Some("gzip"));
+    assert_eq!(headers.get("Content-Type").as_deref(), Some("text/html; charset=utf-8"));
+    assert_eq!(headers.get("Accept").as_deref(), Some("text/html, application/json, text/plain"));
+
+    assert!(!headers.keys().any(|k| k == "Invalid-Header-Ignored"));
+    assert!(!headers.contains_key("Invalid-Header-Ignored"));
+    assert!(!headers.values().any(|k| k == "Invalid-Header-Ignored"));
+
+    Ok(())
 }
 
 #[test]
@@ -184,6 +261,7 @@ fn test_parse_warc_headers() -> io::Result<()> {
 
     let headers = record1.headers();
     assert_eq!(headers.status_line().as_deref(), Some("WARC/1.1"));
+    assert_eq!(headers.status_line_bytes(), Some(b"WARC/1.1".as_slice()));
     assert!(!record1.is_http());
     assert_eq!(headers.get("WARC-Type").as_deref(), Some("request"));
     assert_eq!(headers.get_bytes(b"WARC-Type").as_deref(), Some(b"request".as_slice()));
@@ -198,7 +276,7 @@ fn test_parse_warc_headers() -> io::Result<()> {
 
     let mut buf = Vec::new();
     record1.reader_mut().unwrap().read_to_end(&mut buf)?;
-    assert_eq!(buf, "ABC".as_bytes());
+    assert_eq!(String::from_utf8_lossy(&buf), "ABC");
 
     // Parse second record (construct directly from stream)
     let reader = record1.detach_reader().unwrap();
@@ -210,7 +288,7 @@ fn test_parse_warc_headers() -> io::Result<()> {
 
     buf.clear();
     record2.reader_mut().unwrap().read_to_end(&mut buf)?;
-    assert_eq!(buf, "DEFGHI".as_bytes());
+    assert_eq!(String::from_utf8_lossy(&buf), "DEFGHI");
 
     Ok(())
 }
@@ -266,118 +344,29 @@ fn test_parse_http_headers() -> io::Result<()> {
 
     let mut buf = Vec::new();
     record.reader_mut().unwrap().read_to_end(&mut buf)?;
-    assert_eq!(buf, http_payload.as_bytes());
+    assert_eq!(String::from_utf8_lossy(&buf), http_payload);
 
     Ok(())
 }
 
-// #[test]
-// fn test_parse_headers_with_continuation_lines() {
-//     let http_data = b"HTTP/1.1 200 OK\r\n\
-//                      Content-Type: text/html;\r\n\
-//                       charset=utf-8\r\n\
-//                      Accept: text/html,\r\n\
-//                       application/json,\r\n\
-//                       text/plain\r\n\
-//                      \r\n";
-//
-//     let mut cursor = Cursor::new(http_data);
-//     let headers = HeaderMap::from_http_reader(&mut cursor).unwrap();
-//
-//     assert_eq!(headers.get("Content-Type"), Some("text/html; charset=utf-8"));
-//     assert_eq!(headers.get("Accept"), Some("text/html, application/json, text/plain"));
-// }
-//
-// #[test]
-// fn test_write_warc_headers() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.set("WARC-Type", "response");
-//     headers.set("WARC-Record-ID", "<urn:uuid:12345678-1234-1234-1234-123456789abc>");
-//     headers.set("Content-Length", "1234");
-//
-//     let mut buffer = Vec::new();
-//     headers.write_warc(&mut buffer).unwrap();
-//
-//     let output = String::from_utf8(buffer).unwrap();
-//     assert!(output.contains("WARC/1.0\r\n"));
-//     assert!(output.contains("WARC-Type: response\r\n"));
-//     assert!(output.contains("WARC-Record-ID: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n"));
-//     assert!(output.contains("Content-Length: 1234\r\n"));
-//     assert!(output.ends_with("\r\n"));
-// }
-//
-// #[test]
-// fn test_write_http_headers() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.set("Content-Type", "text/html");
-//     headers.set("Content-Length", "5678");
-//     headers.set("Server", "Apache/2.4");
-//
-//     let mut buffer = Vec::new();
-//     headers.write_http(&mut buffer, "HTTP/1.1 200 OK").unwrap();
-//
-//     let output = String::from_utf8(buffer).unwrap();
-//     assert!(output.starts_with("HTTP/1.1 200 OK\r\n"));
-//     assert!(output.contains("Content-Type: text/html\r\n"));
-//     assert!(output.contains("Content-Length: 5678\r\n"));
-//     assert!(output.contains("Server: Apache/2.4\r\n"));
-//     assert!(output.ends_with("\r\n"));
-// }
-//
-// #[test]
-// fn test_get_all_values() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.append("Cache-Control", "no-cache");
-//     headers.append("Cache-Control", "no-store");
-//     headers.set("Content-Type", "text/html");
-//
-//     let cache_values: Vec<&str> = headers.get_all("Cache-Control").collect();
-//     assert_eq!(cache_values.len(), 2);
-//
-//     let type_values: Vec<&str> = headers.get_all("Content-Type").collect();
-//     assert_eq!(type_values.len(), 1);
-//
-//     let missing_values: Vec<&str> = headers.get_all("Missing-Header").collect();
-//     assert_eq!(missing_values.len(), 0);
-// }
-//
-// #[test]
-// fn test_contains_header() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.set("Content-Type", "text/html");
-//
-//     assert!(headers.contains("Content-Type"));
-//     assert!(headers.contains("content-type"));
-//     assert!(headers.contains("CONTENT-TYPE"));
-//     assert!(!headers.contains("Content-Length"));
-// }
-//
-// #[test]
-// fn test_iterate_headers() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.set("Content-Type", "text/html");
-//     headers.set("Content-Length", "1234");
-//     headers.append("Set-Cookie", "cookie1=value1");
-//     headers.append("Set-Cookie", "cookie2=value2");
-//
-//     let mut count = 0;
-//     for (name, value) in headers.iter() {
-//         count += 1;
-//         assert!(!name.is_empty());
-//         assert!(!value.is_empty());
-//     }
-//     assert_eq!(count, 4);
-// }
-//
-// #[test]
-// fn test_clear_headers() {
-//     let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-//     headers.set("Content-Type", "text/html");
-//     headers.set("Content-Length", "1234");
-//     assert_eq!(headers.len(), 2);
-//
-//     headers.clear();
-//     assert_eq!(headers.len(), 0);
-//     assert!(headers.is_empty());
-//     assert_eq!(headers.get("Content-Type"), None);
-// }
+#[test]
+fn test_write_headers() -> io::Result<()> {
+    let http_data = "HTTP/1.1 200 OK\r\n\
+                              Content-Length: 123\r\n\
+                              Content-Encoding: gzip\r\n\
+                              Content-Type: text/html; charset=utf-8\r\n\
+                              \r\n";
+
+    let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+    headers.set_status_line("HTTP/1.1 200 OK");
+    headers.set("Content-Length", "456");
+    headers.set("Content-Encoding", "gzip");
+    headers.set("Content-Type", "text/html; charset=utf-8");
+    headers.set("Content-Length", "123");
+
+    let mut buf = Vec::with_capacity(http_data.len());
+    headers.write(&mut buf)?;
+    assert_eq!(String::from_utf8_lossy(&buf), http_data);
+
+    Ok(())
+}
