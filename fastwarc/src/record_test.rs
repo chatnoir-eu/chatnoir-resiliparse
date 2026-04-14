@@ -79,6 +79,7 @@ fn test_duplicate_header() {
     assert_eq!(headers.get("Content-Type").as_deref(), Some("text/html"));
     assert_eq!(headers.len(), 2);
     assert_eq!(headers.get_multiple("Content-Type"), vec!["text/html", "text/plain"]);
+    assert_eq!(headers.get_bytes_multiple(b"Content-Type"), vec![b"text/html".as_slice(), b"text/plain".as_slice()]);
 
     // Remove (case-insensitive)
     headers.remove("CONTENT-TYPE");
@@ -115,23 +116,27 @@ fn test_iterate_headers() {
     headers.append(tuples[3].0, tuples[3].1);
 
     let mut count = 0;
-    for (key, value) in headers.items() {
-        assert_eq!(key, tuples[count].0);
-        assert_eq!(value, tuples[count].1);
+    for ((k, v), (kb, vb)) in headers.items().zip(headers.items_bytes()) {
+        assert_eq!(k, tuples[count].0);
+        assert_eq!(kb, tuples[count].0.as_bytes());
+        assert_eq!(v, tuples[count].1);
+        assert_eq!(vb, tuples[count].1.as_bytes());
         count += 1;
     }
     assert_eq!(count, 4);
 
     count = 0;
-    for key in headers.keys() {
-        assert_eq!(key, tuples[count].0);
+    for (k, kb) in headers.keys().zip(headers.keys_bytes()) {
+        assert_eq!(k, tuples[count].0);
+        assert_eq!(kb, tuples[count].0.as_bytes());
         count += 1;
     }
     assert_eq!(count, 4);
 
     count = 0;
-    for value in headers.values() {
-        assert_eq!(value, tuples[count].1);
+    for (v, vb) in headers.values().zip(headers.values_bytes()) {
+        assert_eq!(v, tuples[count].1);
+        assert_eq!(vb, tuples[count].1.as_bytes());
         count += 1;
     }
     assert_eq!(count, 4);
