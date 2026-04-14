@@ -402,11 +402,11 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key
-    pub fn get_bytes(&self, key: &[u8]) -> Option<Cow<'_, [u8]>> {
+    pub fn get_bytes(&self, key: &[u8]) -> Option<&[u8]> {
         self.headers
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| Cow::Borrowed(v.as_slice()))
+            .map(|(_, v)| v.as_slice())
     }
 
     /// Get all byte values for a (case-insensitive) header key.
@@ -416,11 +416,11 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `key` - Header key as bytes
-    pub fn get_bytes_multiple(&self, key: &[u8]) -> Vec<Cow<'_, [u8]>> {
+    pub fn get_bytes_multiple(&self, key: &[u8]) -> Vec<&[u8]> {
         self.headers
             .iter()
             .filter(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| Cow::Borrowed(v.as_slice()))
+            .map(|(_, v)| v.as_slice())
             .collect()
     }
 
