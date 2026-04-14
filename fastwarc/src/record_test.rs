@@ -99,7 +99,7 @@ fn test_header_case_insensitive() {
 }
 
 #[test]
-fn test_new_empty_header_encoding() {
+fn test_new_empty_header_encoding() -> io::Result<()> {
     let mut headers_unicode = HeaderMap::new(HeaderEncoding::Unicode);
     let mut headers_latin1 = HeaderMap::new(HeaderEncoding::Latin1);
 
@@ -148,22 +148,24 @@ fn test_new_empty_header_encoding() {
     assert_eq!(headers_latin1.get_bytes(b"X-Invalid").as_deref(), Some(invalid_utf8.as_ref()));
     // Decodes to strange characters
     assert_eq!(headers_latin1.get("X-Invalid").as_deref(), Some(invalid_utf8_latin_dec));
+
+    Ok(())
 }
 
 #[test]
-fn test_parse_warc_headers() {
+fn test_parse_warc_headers() -> io::Result<()> {
     let record_data1 = "WARC/1.1\r\n\
-                         WARC-Type: request\r\n\
-                         WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
-                         Content-Length: 3\r\n\
-                         \r\n\
-                         ABC\r\n\r\n";
+                             WARC-Type: request\r\n\
+                             WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
+                             Content-Length: 3\r\n\
+                             \r\n\
+                             ABC\r\n\r\n";
     let record_data2 = "WARC/1.1\r\n\
-                         WARC-Type: response\r\n\
-                         WARC-Record-ID: <urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>\r\n\
-                         Content-Length: 6\r\n\
-                         \r\n\
-                         DEFGHI\r\n\r\n";
+                             WARC-Type: response\r\n\
+                             WARC-Record-ID: <urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>\r\n\
+                             Content-Length: 6\r\n\
+                             \r\n\
+                             DEFGHI\r\n\r\n";
     let warc_data = format!("{}{}", record_data1, record_data2).as_bytes().to_vec();
 
     let reader = Box::new(io::Cursor::new(warc_data));
@@ -175,7 +177,7 @@ fn test_parse_warc_headers() {
 
     // Parse first record (construct manually)
     record1.attach_reader(reader);
-    record1.parse_warc_headers().unwrap();
+    record1.parse_warc_headers()?;
     assert_eq!(record1.stream_pos(), 0);
     assert_eq!(record1.content_length(), 3);
     assert_eq!(record1.record_type(), WarcRecordType::Request);
@@ -195,43 +197,46 @@ fn test_parse_warc_headers() {
     assert_eq!(headers.get_bytes(b"Content-Length").as_deref(), Some(b"3".as_slice()));
 
     let mut buf = Vec::new();
-    record1.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
+    record1.reader_mut().unwrap().read_to_end(&mut buf)?;
     assert_eq!(buf, "ABC".as_bytes());
+
     // Parse second record (construct directly from stream)
     let reader = record1.detach_reader().unwrap();
-    let mut record2 = WarcRecord::from_reader(reader).unwrap();
+    let mut record2 = WarcRecord::from_reader(reader)?;
 
     assert_eq!(record2.stream_pos(), record_data1.len());
     assert_eq!(record2.content_length(), 6);
     assert_eq!(record2.record_type(), WarcRecordType::Response);
 
     buf.clear();
-    record2.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
+    record2.reader_mut().unwrap().read_to_end(&mut buf)?;
     assert_eq!(buf, "DEFGHI".as_bytes());
+
+    Ok(())
 }
 
 #[test]
-fn test_parse_http_headers() {
+fn test_parse_http_headers() -> io::Result<()> {
     let http_payload = "Hello World";
     let http_data = format!(
         "HTTP/1.1 200 OK\r\n\
-                              Content-Type: text/plain; charset=utf-8\r\n\
-                              Content-Length: {}\r\n\
-                              Server: Apache/2.4\r\n\
-                              \r\n\
-                              {}",
+            Content-Type: text/plain; charset=utf-8\r\n\
+            Content-Length: {}\r\n\
+            Server: Apache/2.4\r\n\
+            \r\n\
+            {}",
         http_payload.len(),
         http_payload
     );
 
     let warc_data = format!(
         "WARC/1.1\r\n\
-                WARC-Type: response\r\n\
-                WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
-                Content-Type: application/http; msgtype=response\r\n\
-                Content-Length: {} \r\n\
-                \r\n\
-                {}",
+            WARC-Type: response\r\n\
+            WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
+            Content-Type: application/http; msgtype=response\r\n\
+            Content-Length: {} \r\n\
+            \r\n\
+            {}",
         http_data.len(),
         http_data
     )
@@ -241,7 +246,7 @@ fn test_parse_http_headers() {
     let reader = Box::new(io::Cursor::new(warc_data));
     let mut record = WarcRecord::new();
     record.attach_reader(reader);
-    record.parse_warc_headers().unwrap();
+    record.parse_warc_headers()?;
 
     let warc_headers = record.headers();
     assert_eq!(warc_headers.status_line().as_deref(), Some("WARC/1.1"));
@@ -249,7 +254,7 @@ fn test_parse_http_headers() {
     assert!(!record.is_http_parsed());
     assert!(record.http_headers().is_none());
 
-    record.parse_http().unwrap();
+    record.parse_http()?;
     assert!(record.is_http_parsed());
     let http_headers = record.http_headers().unwrap();
     assert_eq!(http_headers.status_line().as_deref(), Some("HTTP/1.1 200 OK"));
@@ -260,8 +265,10 @@ fn test_parse_http_headers() {
     assert_eq!(record.http_content_type().as_deref(), Some("text/plain"));
 
     let mut buf = Vec::new();
-    record.reader_mut().unwrap().read_to_end(&mut buf).unwrap();
+    record.reader_mut().unwrap().read_to_end(&mut buf)?;
     assert_eq!(buf, http_payload.as_bytes());
+
+    Ok(())
 }
 
 // #[test]
