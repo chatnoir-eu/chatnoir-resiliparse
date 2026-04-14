@@ -662,7 +662,7 @@ impl WarcRecord {
         Ok(record)
     }
 
-    /// Create a new WARC record instance from a byte buffer.
+    /// Create a new frozen WARC record instance from a byte buffer.
     /// The new instance is fully initialized with all headers present.
     ///
     /// # Arguments
@@ -670,7 +670,8 @@ impl WarcRecord {
     /// * `payload` - Body as bytes
     pub fn from_bytes(payload: Vec<u8>) -> Result<Self, io::Error> {
         let reader = Box::new(io::BufReader::new(io::Cursor::new(payload)));
-        let record = WarcRecord::from_reader(reader)?;
+        let mut record = WarcRecord::from_reader(reader)?;
+        record.frozen = true;
         Ok(record)
     }
 
@@ -688,10 +689,13 @@ impl WarcRecord {
     /// * `reader` - Shared pointer to a buffered reader instance
     pub fn attach_reader(&mut self, reader: Box<dyn BufReadSeek>) {
         self.reader = Some(LimitedBufReadSeek::new(reader, None));
+        self.frozen = false;
     }
 
     /// Set the WARC payload as bytes.
-    /// This will replace the current reader instance with a byte buffer stream.
+    ///
+    /// Replaces the currently attached reader instance with a byte buffer reader
+    /// and marks the record as frozen.
     ///
     /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
     /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on an
@@ -706,6 +710,7 @@ impl WarcRecord {
         self.reader = Some(LimitedBufReadSeek::new(reader, Some(self.content_length)));
         self.headers
             .set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
+        self.frozen = true;
     }
 
     /// Detach an attached buffered reader and hand ownership back to the caller.
@@ -714,6 +719,7 @@ impl WarcRecord {
     ///
     /// Reader instance or `None`
     pub fn detach_reader(&mut self) -> Option<Box<dyn BufReadSeek>> {
+        self.frozen = false;
         if self.reader_original.is_some() {
             self.reader_original.take()
         } else if self.reader.is_some() {
@@ -743,7 +749,8 @@ impl WarcRecord {
         self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
     }
 
-    /// "Freeze" a record by baking in the remaining payload stream contents.
+    /// "Freeze" a record by baking in the remaining payload stream contents and return
+    /// ownership of the attached reader instance.
     ///
     /// Freezing a record makes the [`WarcRecord`] instance copyable and reusable by decoupling
     /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
@@ -752,8 +759,10 @@ impl WarcRecord {
     ///
     /// Freezing a record will advance the attached stream.
     ///
-    /// It is safe to call this function multiple times (no-op), but subsequent calls
-    /// will not return a reader instance.
+    /// It is safe to call this function multiple times, which is a no-op. However, subsequent
+    /// calls will not return a previous reader instance anymore. A frozen instance created with
+    /// [`Self::from_bytes()`] or with [`Self::set_bytes_payload()`] has no previous reader and
+    /// will always return `None`.
     pub fn freeze(&mut self) -> Result<Option<Box<dyn BufReadSeek>>, io::Error> {
         if self.frozen {
             return Ok(self.reader_original.take());
