@@ -715,10 +715,9 @@ impl WarcRecord {
     /// Reader instance or `None`
     pub fn detach_reader(&mut self) -> Option<Box<dyn BufReadSeek>> {
         if self.reader_original.is_some() {
-            return self.reader_original.take();
-        }
-        if let Some(r) = &mut self.reader {
-            Some(r.replace_reader(Box::new(io::empty())))
+            self.reader_original.take()
+        } else if self.reader.is_some() {
+            Some(self.reader.take().unwrap().reader)
         } else {
             None
         }

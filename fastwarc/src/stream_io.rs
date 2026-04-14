@@ -30,9 +30,9 @@ impl<T: io::BufRead + io::Seek + Any + ?Sized> BufReadSeek for T {}
 /// A limited seekable buffered reader.
 /// Wraps an existing [`BufReadSeek`] reader, terminating when `limit` is reached.
 pub struct LimitedBufReadSeek {
-    reader: Box<dyn BufReadSeek>,
-    limit: usize,
-    pos: usize,
+    pub(crate) reader: Box<dyn BufReadSeek>,
+    pub(crate) limit: usize,
+    pub(crate) pos: usize,
 }
 
 impl LimitedBufReadSeek {
