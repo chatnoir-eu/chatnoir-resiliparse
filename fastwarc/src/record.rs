@@ -240,6 +240,68 @@ impl HeaderMap {
         }
     }
 
+    /// Parse a WARC or HTTP header block from a stream and populate the header map.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Buffered reader
+    /// * `has_status_line` - Whether the first line is a status line or already a header
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes read from the reader or IO error
+    pub fn parse(&mut self, reader: &mut impl BufReadSeek, has_status_line: bool) -> Result<usize, io::Error> {
+        let mut bytes_consumed = 0;
+        let mut line = Vec::with_capacity(64);
+        let mut expect_first_line = has_status_line;
+
+        loop {
+            line.clear();
+            let n = reader.read_until(b'\n', &mut line)?;
+            if n == 0 {
+                break;
+            }
+            bytes_consumed += n;
+
+            // Trim (CR)LF line endings
+            let trimmed = line
+                .strip_suffix(b"\r\n")
+                .or_else(|| line.strip_suffix(b"\n"))
+                .unwrap_or(&line);
+
+            // End of header
+            if trimmed.is_empty() {
+                break;
+            }
+
+            // Status line
+            if expect_first_line {
+                self.set_status_line_bytes(trimmed);
+                expect_first_line = false;
+                continue;
+            }
+
+            if matches!(trimmed.first(), Some(b' ' | b'\t')) {
+                self._add_continuation_bytes(trimmed);
+                continue;
+            }
+
+            // Parse header line
+            if let Some(colon_pos) = trimmed.iter().position(|&c| c == b':') {
+                let value = if colon_pos + 1 < trimmed.len() {
+                    &trimmed[colon_pos + 1..]
+                } else {
+                    b""
+                };
+                self._append_bytes_no_sanitize(&trimmed[..colon_pos], value);
+            } else {
+                // Invalid header, discard
+            }
+        }
+
+        Ok(bytes_consumed)
+    }
+
     /// Get the header status line.
     pub fn status_line(&self) -> Option<Cow<'_, str>> {
         self.status_line.as_deref().map(|s| self._decode(s))
@@ -255,7 +317,16 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `status_line` - New status line
-    pub fn set_status_line(&mut self, status_line: &[u8]) {
+    pub fn set_status_line(&mut self, status_line: impl AsRef<str>) {
+        self.set_status_line_bytes(self._encode(status_line.as_ref()).as_ref());
+    }
+
+    /// Set status line contents.
+    ///
+    /// # Arguments
+    ///
+    /// * `status_line` - New status line
+    pub fn set_status_line_bytes(&mut self, status_line: &[u8]) {
         let mut status_line_sanitized = Vec::with_capacity(status_line.len());
         status_line_sanitized.extend(_sanitize_header_value(status_line, true));
         self.status_line = Some(status_line_sanitized);
@@ -357,10 +428,21 @@ impl HeaderMap {
     ///
     /// # Arguments
     ///
+    /// * `key` - Header key
+    pub fn contains_key(&self, key: impl AsRef<str>) -> bool {
+        let key_bytes = self._encode(key.as_ref());
+        self.headers
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case(key_bytes.as_ref()))
+    }
+
+    /// Check if a (case-insensitive) header key exists.
+    ///
+    /// # Arguments
+    ///
     /// * `key` - Header key as bytes
-    pub fn contains_key(&self, key: &str) -> bool {
-        let key_bytes = key.as_bytes();
-        self.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(key_bytes))
+    pub fn contains_key_bytes(&self, key: &[u8]) -> bool {
+        self.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(key))
     }
 
     /// Insert a new header and overwrite any existing header(s) if the key already exists.
@@ -792,9 +874,14 @@ impl WarcRecord {
     /// `WARC/*` header line. Any other content that is not a valid WARC header
     /// start will return an error of type [`io::ErrorKind::InvalidData`].
     ///
-    /// Parsing the WARC headers will automatically limit the attached reader to the
-    /// remaining `Content-Length` bytes. The original reader instance remains unaffected.
-    pub fn parse_warc_headers(&mut self) -> Result<(), io::Error> {
+    /// Parsing the WARC headers automatically limits the attached reader to the
+    /// remaining `Content-Length` bytes. Detaching the reader will restore its
+    /// original EOF limit.
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes read.
+    pub fn parse_warc_headers(&mut self) -> Result<usize, io::Error> {
         self.parse_warc_headers_quirks(false)
     }
 
@@ -805,16 +892,23 @@ impl WarcRecord {
     /// encountered before the next header start will be skipped as well.
     /// Otherwise, an error of type [`io::ErrorKind::InvalidData`] is returned.
     ///
-    /// Parsing the WARC headers will automatically limit the attached reader to the
-    /// remaining `Content-Length` bytes. The original reader instance remains unaffected.
+    /// Parsing the WARC headers automatically limits the attached reader to the
+    /// remaining `Content-Length` bytes. Detaching the reader will restore its
+    /// original EOF limit.
     ///
     /// # Arguments
     ///
     /// * `quirks_mode` - Whether to skip non-empty lines before header start
-    pub fn parse_warc_headers_quirks(&mut self, quirks_mode: bool) -> Result<(), io::Error> {
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes read.
+    pub fn parse_warc_headers_quirks(&mut self, quirks_mode: bool) -> Result<usize, io::Error> {
         let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
-        let mut headers = HeaderMap::new(HeaderEncoding::Unicode);
-        let mut line = Vec::with_capacity(32);
+        let mut bytes_read = 0usize;
+        let mut line = Vec::with_capacity(256);
+        self.headers.clear();
+
         loop {
             line.clear();
 
@@ -824,6 +918,7 @@ impl WarcRecord {
             if n == 0 {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended before WARC header"));
             }
+            bytes_read += n;
 
             // Trim ASCII whitespace (including CR/LF line endings)
             let trimmed = line.trim_ascii();
@@ -837,7 +932,7 @@ impl WarcRecord {
                 // ClueWeb09/12 legacy
                 || (trimmed.starts_with(b"WARC/0.") && trimmed.len() <= 9)
             {
-                headers.status_line = Some(trimmed.to_owned());
+                self.headers.status_line = Some(trimmed.to_owned());
                 break;
             } else if !quirks_mode {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid WARC header"));
@@ -846,8 +941,7 @@ impl WarcRecord {
             }
         }
 
-        self._parse_header_block(&mut headers, false)?;
-        self.headers = headers;
+        bytes_read += self.headers.parse(reader, false)?;
 
         let mut parse_count = 0;
         for (k, v) in self.headers.items_bytes() {
@@ -866,11 +960,8 @@ impl WarcRecord {
             }
         }
 
-        // // Replace reader with limited version
-        // let limited_reader = LimitedBufReadSeek::new(self.reader.clone().unwrap(), self.content_length);
-        // self.reader = Some(Rc::new(RefCell::new(limited_reader)));
-        self.reader.as_mut().unwrap().set_limit(self.content_length);
-        Ok(())
+        reader.set_limit(self.content_length);
+        Ok(bytes_read)
     }
 
     /// Record ID (same as [`Self::headers().get("WARC-Record-ID")`](HeaderMap::get)
@@ -979,7 +1070,7 @@ impl WarcRecord {
         };
 
         self.headers.clear();
-        self.headers.set_status_line(b"WARC/1.1");
+        self.headers.set_status_line_bytes(b"WARC/1.1");
         self.headers
             ._append_bytes_no_sanitize(b"WARC-Type", self.record_type.as_str().as_bytes());
 
@@ -995,68 +1086,6 @@ impl WarcRecord {
         self.content_length = content_length;
     }
 
-    /// Internal helper for parsing a header block from a buffered reader.
-    ///
-    /// Can be used to parse both WARC and HTTP header blocks.
-    ///
-    /// # Arguments
-    ///
-    /// * `target` - Header map to fill
-    /// * `has_status_line` - Whether the first line is a status line or already a header
-    fn _parse_header_block(&mut self, target: &mut HeaderMap, has_status_line: bool) -> Result<usize, io::Error> {
-        let mut bytes_consumed = 0;
-        let mut line = Vec::new();
-        let mut expect_first_line = has_status_line;
-        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
-
-        loop {
-            line.clear();
-            let n = reader.read_until(b'\n', &mut line)?;
-            if n == 0 {
-                break;
-            }
-            bytes_consumed += n;
-
-            // Trim (CR)LF line endings
-            let trimmed = line
-                .strip_suffix(b"\r\n")
-                .or_else(|| line.strip_suffix(b"\n"))
-                .unwrap_or(&line);
-
-            // End of header
-            if trimmed.is_empty() {
-                break;
-            }
-
-            // Status line
-            if expect_first_line {
-                target.set_status_line(trimmed);
-                expect_first_line = false;
-                continue;
-            }
-
-            if matches!(trimmed.first(), Some(b' ' | b'\t')) {
-                target._add_continuation_bytes(trimmed);
-                continue;
-            }
-
-            // Parse header line
-            if let Some(colon_pos) = trimmed.iter().position(|&c| c == b':') {
-                let value = if colon_pos + 1 < trimmed.len() {
-                    &trimmed[colon_pos + 1..]
-                } else {
-                    b""
-                };
-                target._append_bytes_no_sanitize(&trimmed[..colon_pos], value);
-            } else {
-                // Invalid header, try to preserve it
-                target._add_continuation_bytes(trimmed);
-            }
-        }
-
-        Ok(bytes_consumed)
-    }
-
     /// Parse HTTP headers and advance content reader.
     ///
     /// It is safe to call this method multiple times, even if the record is not an HTTP record.
@@ -1066,7 +1095,8 @@ impl WarcRecord {
         }
 
         let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
-        let bytes_consumed = self._parse_header_block(&mut http_headers, true)?;
+        let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
+        let bytes_consumed = http_headers.parse(reader, true)?;
 
         // Parse charset if present
         if let Some(content_type) = http_headers.get("content-type").map(|c| c.to_ascii_lowercase()) {
