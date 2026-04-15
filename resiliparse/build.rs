@@ -12,17 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::env;
 use std::env::consts;
-use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 extern crate bindgen;
 
-fn main() {
+fn get_vcpkg_dir() -> PathBuf {
     let arch = consts::ARCH.replace("x86_64", "x64").replace("aarch64", "arm64");
     let os = consts::OS.replace("macos", "osx");
-    let mut vcpkg_dir = PathBuf::from(format!("../vcpkg_installed/{}-{}", arch, os));
-    vcpkg_dir = fs::canonicalize(vcpkg_dir.clone()).unwrap_or(vcpkg_dir);
+    let triplet = env::var("VCPKG_DEFAULT_TRIPLET").unwrap_or_else(|_| format!("{}-{}", arch, os));
+    let install_root = format!("{}/vcpkg_installed", env::var("OUT_DIR").unwrap_or_else(|_| ".".to_string()));
+    let out = Command::new("vcpkg")
+        .args([
+            "install",
+            "--triplet",
+            &triplet,
+            "--x-install-root",
+            install_root.as_str(),
+        ])
+        .output()
+        .expect("Failed to run vcpkg.");
+    if !out.status.success() {
+        panic!("Failed to install vcpkg dependencies:\n{}", String::from_utf8_lossy(&out.stdout));
+    }
+    PathBuf::from(install_root).join(triplet)
+}
+
+fn main() {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap_or_else(|_| ".".to_string()));
+    let vcpkg_dir = get_vcpkg_dir();
 
     println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.to_str().unwrap());
     println!("cargo:rustc-link-lib=lexbor");
@@ -38,6 +58,6 @@ fn main() {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Error generating Lexbor binding")
-        .write_to_file(PathBuf::from("src").join("third_party").join("lexbor.rs"))
+        .write_to_file(PathBuf::from(out_dir).join("lexbor.rs"))
         .unwrap();
 }

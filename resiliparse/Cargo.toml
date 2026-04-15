@@ -15,3 +15,4 @@ parking_lot = "0.12.5"
 
 [build-dependencies]
 bindgen.workspace = true
+vcpkg = "0.2"

@@ -17,4 +17,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
-pub(crate) mod lexbor;
+pub(crate) mod lexbor {
+    include!(concat!(env!("OUT_DIR"), "/lexbor.rs"));
+}
