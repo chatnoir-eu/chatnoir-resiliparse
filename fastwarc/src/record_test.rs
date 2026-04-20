@@ -375,3 +375,65 @@ fn test_write_headers() -> io::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_archive_iterator() -> io::Result<()> {
+    let record_data1 = "WARC/1.1\r\n\
+                             WARC-Type: request\r\n\
+                             WARC-Record-ID: <urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>\r\n\
+                             Content-Length: 3\r\n\
+                             \r\n\
+                             ABC\r\n\r\n";
+    let record_data2 = "WARC/1.1\r\n\
+                             WARC-Type: response\r\n\
+                             WARC-Record-ID: <urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>\r\n\
+                             Content-Length: 6\r\n\
+                             \r\n\
+                             DEFGHI\r\n\r\n";
+    let warc_data = format!("{}{}", record_data1, record_data2).as_bytes().to_vec();
+
+    let reader = io::Cursor::new(warc_data);
+
+    // Manual iteration
+    let mut record1 = WarcRecord::from_reader(reader.clone())?;
+    assert_eq!(record1.stream_pos(), 0);
+    assert_eq!(record1.record_id().unwrap(), "<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>");
+    let mut record2 = record1.next().unwrap()?;
+    assert_eq!(record2.record_id().unwrap(), "<urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>");
+    assert_eq!(record2.stream_pos(), record_data1.len());
+    assert!(record2.next().is_none());
+
+    // ArchiveIterator (without reading payload -> consumed automatically)
+    let mut it = ArchiveIterator::new(reader.clone());
+    let record1 = it.next().unwrap()?;
+    assert_eq!(record1.borrow().record_id().unwrap(), "<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>");
+    assert_eq!(record1.borrow().stream_pos(), 0);
+    let record2 = it.next().unwrap()?;
+    assert_eq!(record2.borrow().record_id().unwrap(), "<urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>");
+    assert_eq!(record2.borrow().stream_pos(), record_data1.len());
+    assert!(it.next().is_none());
+
+    // Explicit loop (with reading payload)
+    let mut i = 0;
+    let mut buf = Vec::with_capacity(9);
+    for r in ArchiveIterator::new(reader.clone()) {
+        let r = r?;
+        if i == 0 {
+            assert_eq!(r.borrow().record_id().unwrap(), "<urn:uuid:259bd4e8-b820-4a11-b14b-8f25e573f071>");
+            assert_eq!(r.borrow().stream_pos(), 0);
+            r.borrow_mut().reader_mut().unwrap().read_to_end(&mut buf)?;
+        } else {
+            assert_eq!(r.borrow().record_id().unwrap(), "<urn:uuid:e480bf84-e412-461e-9e24-9081daa79945>");
+            assert_eq!(r.borrow().stream_pos(), record_data1.len());
+            r.borrow_mut().reader_mut().unwrap().read_to_end(&mut buf)?;
+        }
+        i += 1;
+    }
+    assert_eq!(i, 2);
+    assert_eq!(buf, b"ABCDEFGHI");
+
+    // Trait-derived iterator methods
+    assert_eq!(ArchiveIterator::new(reader).count(), 2);
+
+    Ok(())
+}

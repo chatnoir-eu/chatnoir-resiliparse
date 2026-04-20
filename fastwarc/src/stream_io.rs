@@ -70,7 +70,7 @@ impl LimitedBufReadSeek {
 impl io::Read for LimitedBufReadSeek {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let l = buf.len();
-        let buf_limited = &mut buf[..std::cmp::min(l, self.limit - self.pos)];
+        let buf_limited = &mut buf[..l.min(self.limit - self.pos)];
         let n = self.reader.read(buf_limited)?;
         self.pos += n;
         Ok(n)
@@ -80,7 +80,7 @@ impl io::Read for LimitedBufReadSeek {
 impl io::BufRead for LimitedBufReadSeek {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         let buf = self.reader.fill_buf()?;
-        let buf_limited = &buf[..std::cmp::min(buf.len(), self.limit - self.pos)];
+        let buf_limited = &buf[..buf.len().min(self.limit - self.pos)];
         Ok(buf_limited)
 
         // Old implementation with Rc<RefCell<dyn BufReadSeek>>
@@ -91,7 +91,7 @@ impl io::BufRead for LimitedBufReadSeek {
         // which is difficult to do when WarcRecord::freeze() is called internally.
         // let mut reader = self.reader.borrow_mut();
         // let buf = reader.fill_buf()?;
-        // let buf_limited = &buf[..std::cmp::min(buf.len(), self.limit - self.pos)];
+        // let buf_limited = &buf[..buf.len().min(self.limit - self.pos)];
         // self.buf.clear();
         // self.buf.reserve(buf_limited.len());
         // self.buf.extend_from_slice(buf_limited);
@@ -99,7 +99,7 @@ impl io::BufRead for LimitedBufReadSeek {
     }
 
     fn consume(&mut self, amount: usize) {
-        let amount = std::cmp::min(amount, self.limit - self.pos);
+        let amount = amount.min(self.limit - self.pos);
         self.reader.consume(amount);
         self.pos += amount;
     }

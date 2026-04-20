@@ -18,11 +18,13 @@ use encoding::all::WINDOWS_1252;
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
 use sha2::digest;
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io;
 use std::io::{BufRead, Read, Seek};
+use std::rc::Rc;
 use uuid::Uuid;
 
 // ===========================================================
@@ -729,19 +731,43 @@ impl WarcRecord {
     /// Create a new WARC record instance from a buffered reader.
     /// The new instance is fully initialized with all headers present.
     ///
-    /// Takes ownership of the reader instance until either [`Self::detach_reader()`]
-    /// or [`Self::freeze()`] are called. This is the same as constructing a
-    /// new empty record instance with [`Self::new()`] and then calling
-    /// [`Self::attach_reader()`] and [`Self::parse_warc_headers()`].
+    /// Takes ownership of the reader instance until [`Self::detach_reader()`] is called.
+    /// This is the same as constructing a new empty record instance with [`Self::new()`]
+    /// and then calling [`Self::attach_reader()`] and [`Self::parse_warc_headers()`].
     ///
     /// # Arguments
     ///
     /// * `reader` - Buffered reader instance
-    pub fn from_reader(reader: Box<dyn BufReadSeek>) -> Result<Self, io::Error> {
+    ///
+    /// # Returns
+    ///
+    /// WARC record parsed from the stream.
+    pub fn from_reader(reader: impl BufReadSeek) -> Result<Self, io::Error> {
+        match Self::_from_reader_internal(reader)? {
+            Some(record) => Ok(record),
+            None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No WARC record found")),
+        }
+    }
+
+    /// Internal helper: Create a new WARC record instance from a buffered reader.
+    /// The new instance is fully initialized with all headers present.
+    ///
+    /// Wraps `Self` into an `Option` to indicate `EOF` (for use in iterators).
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Buffered reader instance
+    ///
+    /// # Returns
+    ///
+    /// `OK(Some(record))` if record found. `OK(None)` if regular EOF reached. `Err` otherwise.
+    fn _from_reader_internal(reader: impl BufReadSeek) -> Result<Option<Self>, io::Error> {
         let mut record = WarcRecord::new();
-        record.attach_reader(reader);
-        record.parse_warc_headers()?;
-        Ok(record)
+        record.attach_reader(Box::new(reader));
+        if record.parse_warc_headers()? == 0 {
+            return Ok(None);
+        }
+        Ok(Some(record))
     }
 
     /// Create a new frozen WARC record instance from a byte buffer.
@@ -759,12 +785,11 @@ impl WarcRecord {
 
     /// Attach a buffered reader to this [`WarcRecord`] instance.
     ///
-    /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
-    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on an
-    /// existing payload will fail.
+    /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`] or
+    /// [`Self::set_bytes_payload()`]. Otherwise, operations relying on an existing
+    /// payload will fail.
     ///
-    /// Takes ownership of the reader instance until either [`Self::detach_reader()`]
-    /// or [`Self::freeze()`] are called.
+    /// Takes ownership of the reader instance until [`Self::detach_reader()`] is called.
     ///
     /// # Arguments
     ///
@@ -776,26 +801,38 @@ impl WarcRecord {
 
     /// Set the WARC payload as bytes.
     ///
-    /// Replaces the currently attached reader instance with a byte buffer reader
-    /// and marks the record as frozen.
+    /// Replaces the currently attached reader instance with a byte buffer reader and marks
+    /// the record as frozen (see [`Self::freeze()`]).
     ///
     /// A [`WarcRecord`] must be initialized with either [`Self::attach_reader()`]
-    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on an
-    /// existing payload will fail.
+    /// or [`Self::set_bytes_payload()`]. Otherwise, operations relying on an existing
+    /// payload will fail.
+    ///
+    /// If a (non-frozen) reader is already attached when this is called, the original reader
+    /// instance is retained and can still be detached later with [`Self::detach_reader()`].
     ///
     /// # Arguments
     ///
     /// * `payload` - Body as bytes
     pub fn set_bytes_payload(&mut self, payload: Vec<u8>) {
         self.content_length = payload.len();
-        let reader = Box::new(io::BufReader::new(io::Cursor::new(payload)));
-        self.reader = Some(LimitedBufReadSeek::new(reader, Some(self.content_length)));
+        let bytes_reader = Box::new(io::BufReader::new(io::Cursor::new(payload)));
+        if !self.frozen
+            && let Some(r) = &mut self.reader
+        {
+            self.reader_original = Some(r.replace_reader(bytes_reader));
+        } else {
+            self.reader = Some(LimitedBufReadSeek::new(bytes_reader, Some(self.content_length)));
+        }
         self.headers
             .set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
         self.frozen = true;
     }
 
     /// Detach an attached buffered reader and hand ownership back to the caller.
+    ///
+    /// Returns `None` if the reader is already detached or if the [`WarcRecord`] instance
+    /// was initialized with [`Self::from_bytes()`].
     ///
     /// # Returns
     ///
@@ -831,31 +868,16 @@ impl WarcRecord {
         self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
     }
 
-    /// "Freeze" a record by baking in the remaining payload stream contents and return
-    /// ownership of the attached reader instance.
+    /// "Freeze" a record by baking in the remaining payload stream contents.
     ///
-    /// Freezing a record makes the [`WarcRecord`] instance copyable and reusable by decoupling
-    /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
-    /// frozen record maintains an internal buffer the size of the remaining payload stream contents
-    /// at the time of calling [`Self::freeze()`].
+    /// Freezing a record advances the attached reader and replaces the stream with a byte buffer
+    /// the size of the remaining payload contents at the time of calling [`Self::freeze()`]. The
+    /// original reader instance is retained and can still be obtained with [`Self::detach_reader()`].
+    /// A frozen [`WarcRecord`] instance is copyable and reusable, since it is decoupled from
+    /// the attached WARC input stream.
     ///
-    /// Freezing a record will advance the attached stream.
-    ///
-    /// It is safe to call this function multiple times, which is a no-op. However, subsequent
-    /// calls will not return a previous reader instance anymore. A frozen instance created with
-    /// [`Self::from_bytes()`] or with [`Self::set_bytes_payload()`] has no previous reader and
-    /// will always return `None`.
-    pub fn freeze(&mut self) -> Result<Option<Box<dyn BufReadSeek>>, io::Error> {
-        if self.frozen {
-            return Ok(self.reader_original.take());
-        }
-        self._freeze_internal()?;
-        Ok(self.reader_original.take())
-    }
-
-    /// Internal [`Self::freeze()`] implementation.
-    /// Stores the original reader in `self.reader_original` instead of returning ownership.
-    fn _freeze_internal(&mut self) -> Result<(), io::Error> {
+    /// It is safe to call this function multiple times, which is a no-op.
+    pub fn freeze(&mut self) -> Result<(), io::Error> {
         if self.frozen {
             return Ok(());
         }
@@ -866,6 +888,51 @@ impl WarcRecord {
         self.reader_original = Some(reader.replace_reader(new_reader));
         self.frozen = true;
         Ok(())
+    }
+
+    /// Consume the remaining bytes of the WARC record payload without allocating
+    /// an additional buffer. Consumes at most `Content-Length` bytes and does nothing if
+    /// the WARC headers have not been parsed.
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes consumed.
+    pub fn consume(&mut self) -> Result<usize, io::Error> {
+        self.consume_n(self.content_length)
+    }
+
+    /// Consume up to `n` bytes of the WARC record payload without allocating
+    /// an additional buffer. Consumes at most `Content-Length` bytes and does nothing if
+    /// the WARC headers have not been parsed.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - Maximum number of bytes to consume
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes consumed.
+    pub fn consume_n(&mut self, mut n: usize) -> Result<usize, io::Error> {
+        let mut n_consumed = 0usize;
+        if n > 0
+            && let Some(r) = &mut self.reader
+        {
+            let pos = r.stream_position()? as usize;
+            if pos >= self.content_length {
+                return Ok(0);
+            }
+            n = n.min(self.content_length - pos);
+            while n > n_consumed {
+                let buf = r.fill_buf()?;
+                if buf.is_empty() {
+                    break;
+                }
+                let c = buf.len().min(n - n_consumed);
+                r.consume(c);
+                n_consumed += c;
+            }
+        }
+        Ok(n_consumed)
     }
 
     /// Start parsing the WARC record header block. Requires a stream to be set.
@@ -880,7 +947,7 @@ impl WarcRecord {
     ///
     /// # Returns
     ///
-    /// Number of bytes read.
+    /// Number of bytes read (zero if EOF reached).
     pub fn parse_warc_headers(&mut self) -> Result<usize, io::Error> {
         self.parse_warc_headers_quirks(false)
     }
@@ -902,13 +969,14 @@ impl WarcRecord {
     ///
     /// # Returns
     ///
-    /// Number of bytes read.
+    /// Number of bytes read (zero if EOF reached).
     pub fn parse_warc_headers_quirks(&mut self, quirks_mode: bool) -> Result<usize, io::Error> {
         let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
         let mut bytes_read = 0usize;
         let mut line = Vec::with_capacity(256);
         self.headers.clear();
 
+        let mut is_first_line = true;
         loop {
             line.clear();
 
@@ -916,16 +984,23 @@ impl WarcRecord {
             self.stream_pos = reader.real_stream_position()? as usize;
             let n = reader.read_until(b'\n', &mut line)?;
             if n == 0 {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended before WARC header"));
+                return if is_first_line {
+                    // Indicate regular EOF Ok(0) if this is the first iteration.
+                    Ok(0)
+                } else {
+                    // Otherwise indicate unexpected EOF if bytes have been read before EOF occurred.
+                    Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended while reading WARC header"))
+                };
             }
             bytes_read += n;
 
             // Trim ASCII whitespace (including CR/LF line endings)
             let trimmed = line.trim_ascii();
             if trimmed.is_empty() {
-                // Skip empty lines (non-standard)
+                // Skip empty lines
                 continue;
             }
+            is_first_line = false;
 
             // WARC/1.x header
             if matches!(trimmed, b"WARC/1.1" | b"WARC/1.0")
@@ -1186,7 +1261,7 @@ impl WarcRecord {
         let mut bytes_written = 0usize;
 
         if checksum_data {
-            self._freeze_internal()?;
+            self.freeze()?;
             let reader = self.reader.as_mut().ok_or_else(|| io::Error::other("No reader set"))?;
 
             use data_encoding::BASE32;
@@ -1320,7 +1395,7 @@ impl WarcRecord {
         };
 
         if !consume && !self.frozen {
-            self._freeze_internal()
+            self.freeze()
                 .map_err(|e| DigestError::StreamError(format!("Failed to freeze record: {}", e)))?;
         }
 
@@ -1347,6 +1422,70 @@ impl WarcRecord {
         }
 
         Ok(digest.finalize().to_vec() == expected_digest)
+    }
+}
+
+// ===========================================================
+// Archive iterator
+// ===========================================================
+
+impl Iterator for WarcRecord {
+    type Item = Result<Self, io::Error>;
+
+    /// Read the next record from the attached stream. Detaches the reader from the
+    /// current record instance.
+    ///
+    /// # Returns
+    ///
+    /// Next [`WarcRecord`] instance from the stream or `None`.
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.content_length > 0
+            && let Err(e) = self.consume()
+        {
+            return Some(Err(e));
+        }
+        let reader = self.detach_reader()?;
+        Self::_from_reader_internal(reader).transpose()
+    }
+}
+
+/// Convenience wrapper for iterating [`WarcRecord`] instances from a stream.
+///
+/// Using the record iterator is roughly equivalent to creating an initial record instance
+/// with [`WarcRecord::from_reader()`] and then retrieving each new record by calling
+/// [`WarcRecord::next()`] on the previous record. The main difference is that this iterator
+/// returns shared mutable references to allow iteration over multiple records using a single
+/// iterator instance. This enables the usage within loops and allows applying map functions
+/// to multiple records in a row.
+pub struct ArchiveIterator {
+    cur: Rc<RefCell<WarcRecord>>,
+}
+
+impl ArchiveIterator {
+    /// Create a new WARC record iterator from a buffered WARC stream reader.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` buffered reader instance to attach to records
+    pub fn new(reader: impl BufReadSeek) -> Self {
+        let empty = Rc::new(RefCell::new(WarcRecord::new()));
+        empty.borrow_mut().attach_reader(Box::new(reader));
+        Self { cur: empty }
+    }
+}
+
+impl Iterator for ArchiveIterator {
+    type Item = Result<Rc<RefCell<WarcRecord>>, io::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.cur.borrow_mut().next()?;
+        match next {
+            Ok(n) => {
+                self.cur.replace(n);
+                Some(Ok(self.cur.clone()))
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }
 
