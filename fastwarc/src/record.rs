@@ -742,7 +742,7 @@ impl WarcRecord {
     /// # Returns
     ///
     /// WARC record parsed from the stream.
-    pub fn from_reader(reader: impl BufReadSeek) -> Result<Self, io::Error> {
+    pub fn from_reader(reader: Box<dyn BufReadSeek>) -> Result<Self, io::Error> {
         match Self::_from_reader_internal(reader)? {
             Some(record) => Ok(record),
             None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No WARC record found")),
@@ -761,9 +761,9 @@ impl WarcRecord {
     /// # Returns
     ///
     /// `OK(Some(record))` if record found. `OK(None)` if regular EOF reached. `Err` otherwise.
-    fn _from_reader_internal(reader: impl BufReadSeek) -> Result<Option<Self>, io::Error> {
+    fn _from_reader_internal(reader: Box<dyn BufReadSeek>) -> Result<Option<Self>, io::Error> {
         let mut record = WarcRecord::new();
-        record.attach_reader(Box::new(reader));
+        record.attach_reader(reader);
         if record.parse_warc_headers()? == 0 {
             return Ok(None);
         }
@@ -985,10 +985,10 @@ impl WarcRecord {
             let n = reader.read_until(b'\n', &mut line)?;
             if n == 0 {
                 return if is_first_line {
-                    // Indicate regular EOF Ok(0) if this is the first iteration.
+                    // Indicate regular EOF with Ok(0) if this is before the first line.
                     Ok(0)
                 } else {
-                    // Otherwise indicate unexpected EOF if bytes have been read before EOF occurred.
+                    // Otherwise indicate unexpected EOF if header lines have already been read.
                     Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Stream ended while reading WARC header"))
                 };
             }
@@ -1467,9 +1467,9 @@ impl ArchiveIterator {
     /// # Arguments
     ///
     /// * `reader` buffered reader instance to attach to records
-    pub fn new(reader: impl BufReadSeek) -> Self {
+    pub fn new(reader: Box<dyn BufReadSeek>) -> Self {
         let empty = Rc::new(RefCell::new(WarcRecord::new()));
-        empty.borrow_mut().attach_reader(Box::new(reader));
+        empty.borrow_mut().attach_reader(reader);
         Self { cur: empty }
     }
 }

@@ -392,7 +392,7 @@ fn test_archive_iterator() -> io::Result<()> {
                              DEFGHI\r\n\r\n";
     let warc_data = format!("{}{}", record_data1, record_data2).as_bytes().to_vec();
 
-    let reader = io::Cursor::new(warc_data);
+    let reader = Box::new(io::Cursor::new(warc_data));
 
     // Manual iteration
     let mut record1 = WarcRecord::from_reader(reader.clone())?;

@@ -82,20 +82,6 @@ impl io::BufRead for LimitedBufReadSeek {
         let buf = self.reader.fill_buf()?;
         let buf_limited = &buf[..buf.len().min(self.limit - self.pos)];
         Ok(buf_limited)
-
-        // Old implementation with Rc<RefCell<dyn BufReadSeek>>
-        // xTODO: Find a way to avoid copying the buffer without unsafe lifetime erasure.
-        // The problem here is RefCell, but without it, we get issues with mutability
-        // in WarcRecord::reader(). Another way would be to get rid of Rc entirely, but then
-        // we need to take ownership of the reader and hand it back afterwards,
-        // which is difficult to do when WarcRecord::freeze() is called internally.
-        // let mut reader = self.reader.borrow_mut();
-        // let buf = reader.fill_buf()?;
-        // let buf_limited = &buf[..buf.len().min(self.limit - self.pos)];
-        // self.buf.clear();
-        // self.buf.reserve(buf_limited.len());
-        // self.buf.extend_from_slice(buf_limited);
-        // Ok(self.buf.as_slice())
     }
 
     fn consume(&mut self, amount: usize) {
