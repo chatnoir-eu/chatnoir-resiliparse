@@ -279,6 +279,14 @@ fn test_parse_warc_headers() -> io::Result<()> {
     assert_eq!(headers.get("Content-Length").as_deref(), Some("3"));
     assert_eq!(headers.get_bytes(b"Content-Length"), Some(b"3".as_slice()));
 
+    // Change headers
+    let headers = record1.headers_mut();
+    headers.set_status_line("WARC/1.0");
+    assert_eq!(headers.status_line().as_deref(), Some("WARC/1.0"));
+    headers.set("X-Foo", "Bar");
+    assert_eq!(headers.get("X-Foo").as_deref(), Some("Bar"));
+
+    // Read payload
     let mut buf = Vec::new();
     record1.reader_mut().unwrap().read_to_end(&mut buf)?;
     assert_eq!(String::from_utf8_lossy(&buf), "ABC");
