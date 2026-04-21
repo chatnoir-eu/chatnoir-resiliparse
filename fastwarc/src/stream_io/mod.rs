@@ -17,40 +17,51 @@ use std::io;
 use std::mem;
 
 // ===========================================================
+// Submodules
+// ===========================================================
+
+pub mod gzip;
+
+// ===========================================================
 // Global trait definitions
 // ===========================================================
 
-pub trait ReadSeek: io::BufRead + io::Seek + Any {}
-impl<T: io::BufRead + io::Seek + Any + ?Sized> ReadSeek for T {}
-
-pub trait ReadWriteSeek: ReadSeek + io::Write {}
-impl<T: ReadSeek + io::Write> ReadWriteSeek for T {}
+pub trait ReadSeek: io::Read + io::Seek + Any {}
+impl<T: io::Read + io::Seek + Any + ?Sized> ReadSeek for T {}
 
 pub trait BufReadSeek: io::BufRead + io::Seek + Any {}
 impl<T: io::BufRead + io::Seek + Any + ?Sized> BufReadSeek for T {}
 
 // ===========================================================
-// Compressing stream
+// Compressing / decompressing stream
 // ===========================================================
 
-/// Trait for [`io::Read`] stream implementations for reading compressed data.
-pub trait CompressingStreamRo: ReadSeek + Sized {
+/// Trait for [`io::Read`] stream implementations reading from
+/// compressed input streams.
+pub trait DecompressingStream: ReadSeek + Sized {
     type Input: ReadSeek;
 
-    /// Create a new [`CompressingStream`] on a given input stream.
+    /// Create a new [`DecompressingStream`] on a given input stream.
     ///
     /// # Arguments
     ///
-    /// * `input_stream` - input (inner) stream to read from/write to
+    /// * `input_stream` - input (inner) stream to read from
     fn new(input_stream: Self::Input) -> Self;
 }
 
-/// Trait for [`io::Read`] / [`io::Write`] stream implementations that
-/// decompress / compress their data.
-pub trait CompressingStream: CompressingStreamRo + ReadWriteSeek
-where
-    Self::Input: ReadWriteSeek,
-{
+/// Trait for [`io::Write`] stream implementations that write compressed data
+/// onto an output stream.
+pub trait CompressingStream: io::Write + Sized {
+    type Output: io::Write;
+
+    /// Create a new [`CompressingStream`] on a given output stream.
+    ///
+    /// # Arguments
+    ///
+    /// * `output_stream` - input (inner) stream to read from
+    fn new(output_stream: Self::Output) -> Self;
+
+
     /// Begin a compression member / frame (if not already started).
     /// The behavior is implementation-specific and may do nothing.
     ///
