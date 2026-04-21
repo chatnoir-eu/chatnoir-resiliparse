@@ -21,6 +21,7 @@ encoding = "0.2.33"
 md-5 = "0.11.0"
 sha1 = "0.11.0"
 sha2 = "0.11.0"
+zlib-rs = "0.6.3"
 
 [dev-dependencies]
 pretty_assertions.workspace = true

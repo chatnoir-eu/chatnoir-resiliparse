@@ -17,11 +17,60 @@ use std::io;
 use std::mem;
 
 // ===========================================================
-// BufReadSeek trait definition
+// Global trait definitions
 // ===========================================================
+
+pub trait ReadSeek: io::BufRead + io::Seek + Any {}
+impl<T: io::BufRead + io::Seek + Any + ?Sized> ReadSeek for T {}
+
+pub trait ReadWriteSeek: ReadSeek + io::Write {}
+impl<T: ReadSeek + io::Write> ReadWriteSeek for T {}
 
 pub trait BufReadSeek: io::BufRead + io::Seek + Any {}
 impl<T: io::BufRead + io::Seek + Any + ?Sized> BufReadSeek for T {}
+
+// ===========================================================
+// Compressing stream
+// ===========================================================
+
+/// Trait for [`io::Read`] stream implementations for reading compressed data.
+pub trait CompressingStreamRo: ReadSeek + Sized {
+    type Input: ReadSeek;
+
+    /// Create a new [`CompressingStream`] on a given input stream.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_stream` - input (inner) stream to read from/write to
+    fn new(input_stream: Self::Input) -> Self;
+}
+
+/// Trait for [`io::Read`] / [`io::Write`] stream implementations that
+/// decompress / compress their data.
+pub trait CompressingStream: CompressingStreamRo + ReadWriteSeek
+where
+    Self::Input: ReadWriteSeek,
+{
+    /// Begin a compression member / frame (if not already started).
+    /// The behavior is implementation-specific and may do nothing.
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the stream.
+    fn begin_member(&mut self) -> io::Result<usize> {
+        Ok(0)
+    }
+
+    /// End a compression member / frame (if one has been started).
+    /// The behavior is implementation-specific and may do nothing.
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the stream.
+    fn end_member(&mut self) -> io::Result<usize> {
+        Ok(0)
+    }
+}
 
 // ===========================================================
 // Limited buffered reader
@@ -117,5 +166,5 @@ impl io::Seek for LimitedBufReadSeek {
 // ===========================================================
 
 #[cfg(test)]
-#[path = "stream_io_test.rs"]
-mod stream_io_test;
+#[path = "mod_test.rs"]
+mod mod_test;
