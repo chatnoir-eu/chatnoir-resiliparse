@@ -38,16 +38,7 @@ impl<T: io::BufRead + io::Seek + Any + ?Sized> BufReadSeek for T {}
 
 /// Trait for [`io::Read`] stream implementations reading from
 /// compressed input streams.
-pub trait DecompressingStream: ReadSeek + Sized {
-    type Input: ReadSeek;
-
-    /// Create a new [`DecompressingStream`] on a given input stream.
-    ///
-    /// # Arguments
-    ///
-    /// * `input_stream` - input (inner) stream to read from
-    fn new(input_stream: Self::Input) -> Self;
-}
+pub trait DecompressingStream: ReadSeek + Sized {}
 
 /// Trait for [`io::Write`] stream implementations that write compressed data
 /// onto an output stream.
@@ -60,7 +51,6 @@ pub trait CompressingStream: io::Write + Sized {
     ///
     /// * `output_stream` - input (inner) stream to read from
     fn new(output_stream: Self::Output) -> Self;
-
 
     /// Begin a compression member / frame (if not already started).
     /// The behavior is implementation-specific and may do nothing.
