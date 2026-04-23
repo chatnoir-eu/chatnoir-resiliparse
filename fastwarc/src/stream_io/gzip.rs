@@ -17,117 +17,83 @@ use std::io;
 use std::io::{BufRead, BufReader};
 use zlib_rs::{Inflate, InflateFlush};
 
-/// Reader for Gzip-compressed streams (supports Zlib and DEFLATE formats as well).
+/// Reader for Gzip-compressed streams.
 pub struct GzipReader<T> {
     inner: BufReader<T>,
     deflate: Inflate,
     buf: Vec<u8>,
     buf_pos: usize,
     buf_len: usize,
-    zlib_header: bool,
     window_bits: u8,
-}
-
-///
-#[derive(Default)]
-pub enum GzipHeaderType {
-    #[default]
-    Gzip,
-    Zlib,
-    Raw,
+    decomp_ratio: f32,
 }
 
 impl<T: ReadSeek> GzipReader<T> {
-    /// Create a new [`DecompressingStream`] on a given input stream.
+    /// Create a new Gzip reader with parameters with a given buffer capacity.
     ///
-    /// Default buffer size: 8192 bytes.
+    /// Allocates an internal buffer holding chunks of the uncompressed inner
+    /// stream. A second, larger buffer is allocated for the decompressed data.
+    /// Initially, the decompressed buffer will be twice the size of the
+    /// uncompressed buffer, but its size can change based on demand.
     ///
-    /// # Arguments
-    ///
-    /// * `input_stream` - input (inner) stream to read from
-    pub fn new(input_stream: T) -> Self {
-        Self::new_with_params(input_stream, 8192, GzipHeaderType::Gzip, 15)
+    /// The default buffer size is 4096 bytes. For custom buffer sizes, use
+    /// [`Self::with_capacity()`].
+    pub fn new(inner: T) -> Self {
+        Self::with_capacity(4096, inner)
     }
 
-    /// Create a new Gzip reader with parameters.
+    /// Create a new Gzip reader with parameters with a given buffer capacity.
+    ///
+    /// Allocates an internal buffer holding chunks of the uncompressed inner
+    /// stream. A second, larger buffer is allocated for the decompressed data.
+    /// Initially, the decompressed buffer will be twice the size of the
+    /// uncompressed buffer, but its size can change based on demand.
     ///
     /// # Arguments
     ///
-    /// * `input_stream` - input (inner) stream to read from
-    /// * `buffer_size` - size of the decompression buffer (another buffer half the size for the
-    ///   uncompressed input data will be created as well)
-    /// * `header_type` - whether to write a gzip, zlib, or no header (raw)
-    /// * `window_bits` - base-two logarithm of the window size (max: 15)
-    pub fn new_with_params(
-        input_stream: T,
-        buffer_size: usize,
-        header_type: GzipHeaderType,
-        mut window_bits: u8,
-    ) -> Self {
-        if matches!(header_type, GzipHeaderType::Gzip) {
-            // Window sizes above 16 enable gzip header and checksum (standard behaviour in
-            // zlib, but undocumented in zlib-rs).
-            window_bits += 16;
-        }
-        let zlib_header = !matches!(header_type, GzipHeaderType::Raw);
+    /// * `inner` - input (inner) stream to read from
+    pub fn with_capacity(capacity: usize, inner: T) -> Self {
+        // Window bits above 15 (MAX_WBITS) enable gzip header decoding:
+        // - +16 enables gzip header decoding only,
+        // - +32 enables gzip/zlib header autodetection (we don't use this here).
+        // This is standard behaviour in zlib, but so far undocumented in zlib-rs.
+        let window_bits = 15 + 16;
+        let decomp_ratio = 2.0;
         Self {
-            inner: BufReader::with_capacity(buffer_size / 2, input_stream),
-            deflate: Inflate::new(zlib_header, window_bits),
-            buf: vec![0; buffer_size],
+            inner: BufReader::with_capacity(capacity, inner),
+            deflate: Inflate::new(true, window_bits),
+            buf: vec![0; capacity * decomp_ratio as usize],
             buf_pos: 0,
             buf_len: 0,
-            zlib_header,
             window_bits,
+            decomp_ratio,
         }
     }
 
-    fn _decompress_buf(&mut self) -> io::Result<()> {
-        let mut total_out;
-        let mut total_in;
-        self.buf_pos = 0;
-        self.buf_len = 0;
+    /// Dynamically update the output buffer size using a moving average of the
+    /// output to input size.
+    ///
+    /// TODO: Benchmark the parameters!
+    ///
+    /// # Arguments
+    ///
+    /// * `buf_len` - length of the uncompressed input buffer
+    /// * `consumed` - number of bytes consumed from the input buffer
+    /// * `produced` - number of bytes produced on the output buffer
+    fn _update_buf_size(&mut self, read_len: usize, consumed: usize, produced: usize) {
+        self.decomp_ratio = 0.9 * self.decomp_ratio + 0.1 * (produced as f32 / consumed as f32);
+        let target_buf_size = ((read_len as f32 * self.decomp_ratio).ceil() as usize)
+            .clamp(2 * self.inner.capacity(), 1 << 16)
+            .max(self.buf_len)
+            .next_power_of_two();
 
-        loop {
-            total_out = self.deflate.total_out();
-            total_in = self.deflate.total_in();
-
-            let in_buf = self.inner.fill_buf()?;
-            if in_buf.is_empty() {
-                // EOF
-                break;
-            }
-
-            match self
-                .deflate
-                .decompress(in_buf, &mut self.buf[self.buf_len..], InflateFlush::NoFlush)
-            {
-                Err(e) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("Gzip decompression error: {}", e.as_str()),
-                    ));
-                }
-                Ok(status) => {
-                    let consumed = self.deflate.total_in() - total_in;
-                    let produced = self.deflate.total_out() - total_out;
-                    self.inner.consume(consumed as usize);
-                    self.buf_len += produced as usize;
-                    match status {
-                        zlib_rs::Status::StreamEnd => {
-                            self.deflate = Inflate::new(self.zlib_header, self.window_bits);
-                        }
-                        _ if consumed > 0 && produced == 0 => {
-                            // Need more data
-                            continue;
-                        }
-                        _ => {}
-                    };
-                    break;
-                }
-            }
+        if target_buf_size > self.buf.len() {
+            // println!("Increasing output buffer to {}", target_buf_size);
+            self.buf.resize(target_buf_size, 0);
+        } else if target_buf_size * 2 < self.buf.len() {
+            // println!("Shrinking output buffer to {}", target_buf_size);
+            self.buf.truncate(target_buf_size);
         }
-
-        Ok(())
     }
 }
 
@@ -153,10 +119,55 @@ impl<T: ReadSeek> io::Seek for GzipReader<T> {
 
 impl<T: ReadSeek> BufRead for GzipReader<T> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        if self.buf_pos >= self.buf_len {
-            self._decompress_buf()?;
+        if self.buf_pos < self.buf_len {
+            return Ok(&self.buf[self.buf_pos..self.buf_len]);
         }
-        Ok(&self.buf[self.buf_pos..self.buf_len])
+
+        self.buf_pos = 0;
+        self.buf_len = 0;
+        let mut total_out;
+        let mut total_in;
+
+        loop {
+            total_out = self.deflate.total_out() as usize;
+            total_in = self.deflate.total_in() as usize;
+
+            let in_buf = self.inner.fill_buf()?;
+            let in_buf_len = in_buf.len();
+            if in_buf_len == 0 {
+                // EOF
+                break;
+            }
+
+            let status = self
+                .deflate
+                .decompress(in_buf, &mut self.buf[self.buf_len..], InflateFlush::NoFlush)
+                .map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("Gzip decompression error: {}", e.as_str()))
+                })?;
+
+            let consumed = self.deflate.total_in() as usize - total_in;
+            let produced = self.deflate.total_out() as usize - total_out;
+            self.inner.consume(consumed);
+            self.buf_len += produced;
+
+            let stream_end = matches!(status, zlib_rs::Status::StreamEnd);
+            if stream_end {
+                self.deflate = Inflate::new(true, self.window_bits);
+            }
+
+            if consumed > 0 && produced == 0 {
+                // Need more data
+                continue;
+            } else if !stream_end && consumed > 0 {
+                // Adjust output buffer size if needed (only if not stream end, which may be an outlier)
+                self._update_buf_size(in_buf_len, consumed, produced);
+            }
+
+            break;
+        }
+
+        Ok(&self.buf[..self.buf_len])
     }
 
     fn consume(&mut self, amount: usize) {
