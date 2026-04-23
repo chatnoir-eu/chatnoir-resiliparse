@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::stream_io::ReadSeek;
+use crate::stream_io::{DecompressingStream, ReadSeek};
 use std::io;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use zlib_rs::{Inflate, InflateFlush};
 
 /// Reader for Gzip-compressed streams.
 pub struct GzipReader<T> {
     inner: BufReader<T>,
     deflate: Inflate,
+    stream_pos: usize,
     buf: Vec<u8>,
     buf_pos: usize,
     buf_len: usize,
@@ -62,6 +63,7 @@ impl<T: ReadSeek> GzipReader<T> {
         Self {
             inner: BufReader::with_capacity(capacity, inner),
             deflate: Inflate::new(true, window_bits),
+            stream_pos: 0,
             buf: vec![0; capacity * decomp_ratio as usize],
             buf_pos: 0,
             buf_len: 0,
@@ -107,12 +109,34 @@ impl<T: ReadSeek> io::Read for GzipReader<T> {
     }
 }
 
-impl<T: ReadSeek> io::Seek for GzipReader<T> {
-    fn seek(&mut self, _: io::SeekFrom) -> io::Result<u64> {
-        Err(io::Error::new(io::ErrorKind::Unsupported, "Seek not supported on compressed streams"))
+impl<T: ReadSeek> Seek for GzipReader<T> {
+    /// Seek to an offset, in bytes, in the decompressed output stream.
+    ///
+    /// Seeking in a compressed stream is not efficient with O(n) complexity,
+    /// and backwards seeking and seeking from the end are not supported.
+    ///
+    /// # Arguments
+    ///
+    /// `pos` - seek position
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        super::_forward_seek(self, pos)
     }
 
+    /// Returns the current seek position from the start of the decompressed output stream.
     fn stream_position(&mut self) -> io::Result<u64> {
+        Ok(self.stream_pos as u64)
+    }
+}
+
+impl<T: ReadSeek> DecompressingStream for GzipReader<T> {
+    fn inner_seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.deflate = Inflate::new(true, self.window_bits);
+        self.buf_pos = 0;
+        self.buf_len = 0;
+        self.inner.seek(pos)
+    }
+
+    fn inner_stream_position(&mut self) -> io::Result<u64> {
         self.inner.stream_position()
     }
 }
@@ -171,7 +195,9 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
     }
 
     fn consume(&mut self, amount: usize) {
+        let old_buf_os = self.buf_pos;
         self.buf_pos = self.buf.len().min(self.buf_pos + amount);
+        self.stream_pos += self.buf_pos - old_buf_os;
     }
 }
 

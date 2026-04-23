@@ -14,6 +14,7 @@
 
 use std::any::Any;
 use std::io;
+use std::io::Seek;
 use std::mem;
 
 // ===========================================================
@@ -38,7 +39,19 @@ impl<T: io::BufRead + io::Seek + Any + ?Sized> BufReadSeek for T {}
 
 /// Trait for [`io::Read`] stream implementations reading from
 /// compressed input streams.
-pub trait DecompressingStream: ReadSeek + Sized {}
+pub trait DecompressingStream: ReadSeek + Sized {
+    /// Seek to an offset, in bytes, in the compressed inner stream.
+    /// The semantics are the same as [`io::Seek::seek()`].
+    ///
+    /// Seeking on the inner stream may reset the state of the decompressor.
+    /// It is up to the user to seek valid positions from which decompression
+    /// can be resumed.
+    fn inner_seek(&mut self, pos: io::SeekFrom) -> io::Result<u64>;
+
+    /// Returns the current seek position from the start of the compressed inner stream.
+    /// The semantics are the same as [`io::Seek::stream_position()`].
+    fn inner_stream_position(&mut self) -> io::Result<u64>;
+}
 
 /// Trait for [`io::Write`] stream implementations that write compressed data
 /// onto an output stream.
@@ -160,6 +173,40 @@ impl io::Seek for LimitedBufReadSeek {
         self.pos = new_pos as usize;
         Ok(self.pos as u64)
     }
+}
+
+// ===========================================================
+// Helper functions
+// ===========================================================
+
+/// Internal helper that implements forward seek in compressed streams.
+///
+/// For this to work, `reader.stream_position()` must report an accurate
+/// position after calling `reader.consume()`.
+fn _forward_seek(reader: &mut impl BufReadSeek, pos: io::SeekFrom) -> io::Result<u64> {
+    let diff = match pos {
+        io::SeekFrom::Start(p) => -(reader.stream_position()? as i128) + p as i128,
+        io::SeekFrom::Current(p) => p as i128,
+        io::SeekFrom::End(_) => {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, "Seeking from end not supported"));
+        }
+    };
+    if diff < 0 {
+        return Err(io::Error::new(io::ErrorKind::Unsupported, "Backward seeking not supported"));
+    }
+
+    let mut remaining =
+        usize::try_from(diff).map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Seek out of range"))?;
+
+    while remaining > 0 {
+        let n = reader.fill_buf()?.len().min(remaining);
+        if n == 0 {
+            break;
+        }
+        reader.consume(n);
+        remaining -= n;
+    }
+    reader.stream_position()
 }
 
 // ===========================================================
