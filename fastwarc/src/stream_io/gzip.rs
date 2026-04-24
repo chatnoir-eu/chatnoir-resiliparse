@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::stream_io::{DecompressingStream, ReadSeek};
+use crate::stream_io::{CompressingStream, DecompressingStream, ReadSeek};
 use std::io;
-use std::io::{BufRead, BufReader, Seek, SeekFrom};
-use zlib_rs::{Inflate, InflateFlush};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
+use zlib_rs::{Deflate, DeflateFlush, Inflate, InflateFlush};
+
+// ===========================================================
+// GzipReader
+// ===========================================================
 
 /// Reader for Gzip-compressed streams.
-pub struct GzipReader<T> {
+pub struct GzipReader<T: ReadSeek> {
     inner: BufReader<T>,
     deflate: Inflate,
     stream_pos: u64,
@@ -31,7 +35,7 @@ pub struct GzipReader<T> {
 }
 
 impl<T: ReadSeek> GzipReader<T> {
-    /// Create a new Gzip reader with parameters with a given buffer capacity.
+    /// Create a new [`GzipReader`].
     ///
     /// Allocates an internal buffer holding chunks of the uncompressed inner
     /// stream. A second, larger buffer is allocated for the decompressed data.
@@ -44,7 +48,7 @@ impl<T: ReadSeek> GzipReader<T> {
         Self::with_capacity(4096, inner)
     }
 
-    /// Create a new Gzip reader with parameters with a given buffer capacity.
+    /// Create a new [`GzipReader`] with a given buffer capacity.
     ///
     /// Allocates an internal buffer holding chunks of the uncompressed inner
     /// stream. A second, larger buffer is allocated for the decompressed data.
@@ -207,6 +211,154 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
         let old_buf_os = self.buf_pos;
         self.buf_pos = self.buf.len().min(self.buf_pos + amount);
         self.stream_pos += (self.buf_pos - old_buf_os) as u64;
+    }
+}
+
+// ===========================================================
+// GzipWriter
+// ===========================================================
+
+pub struct GzipWriter<T: Write> {
+    inner: T,
+    deflate: Deflate,
+    buf: Vec<u8>,
+    buf_pos: usize,
+    level: i32,
+    window_bits: u8,
+}
+
+impl<T: Write> GzipWriter<T> {
+    /// Create a new [`GzipWriter`].
+    ///
+    /// Maintains a small write buffer to temporarily store compressed data before flushing them
+    /// to the underlying stream. The default buffer size is 8192 bytes. Use [`Self::with_capacity()`]
+    /// for custom buffer sizes.
+    ///
+    /// The default compression level is 9 (best). Use [`Self::with_capacity_comp_level()`]
+    /// for custom compression levels.
+    ///
+    /// # Arguments
+    ///
+    /// * `inner` - inner stream to write compressed output to
+    pub fn new(inner: T) -> Self {
+        Self::with_capacity(8192, inner)
+    }
+
+    /// Create a new [`GzipWriter`] a custom write buffer size.
+    ///
+    /// Maintains a small write buffer to temporarily store compressed data before flushing them
+    /// to the underlying stream.
+    ///
+    /// The default compression level is 9 (best). Use [`Self::with_capacity_comp_level()`] for custom
+    /// compression levels.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - write buffer size
+    /// * `inner` - inner stream to write compressed output to
+    pub fn with_capacity(capacity: usize, inner: T) -> Self {
+        Self::with_capacity_comp_level(capacity, inner, 9)
+    }
+
+    /// Create a new [`GzipWriter`] with a custom write buffer size and compression level.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - write buffer size
+    /// * `inner` - inner stream to write compressed output to
+    /// * `level` - compression level (1-9)
+    pub fn with_capacity_comp_level(capacity: usize, inner: T, level: i32) -> Self {
+        let window_bits = 15 + 16;
+        Self {
+            inner,
+            deflate: Deflate::new(level, true, window_bits),
+            buf: vec![0; capacity],
+            buf_pos: 0,
+            level,
+            window_bits,
+        }
+    }
+
+    /// Internal write implementation with configurable flush mode.
+    fn _write(&mut self, buf: &[u8], flush: DeflateFlush) -> io::Result<usize> {
+        let mut consumed = 0usize;
+
+        loop {
+            let total_in = self.deflate.total_in();
+            let total_out = self.deflate.total_out();
+
+            let status = self
+                .deflate
+                .compress(&buf[consumed..], &mut self.buf[self.buf_pos..], flush)
+                .map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("Gzip compression error: {}", e.as_str()))
+                })?;
+
+            let in_delta = (self.deflate.total_in() - total_in) as usize;
+            let out_delta = (self.deflate.total_out() - total_out) as usize;
+
+            consumed += in_delta;
+            self.buf_pos += out_delta;
+            let stream_end = matches!(status, zlib_rs::Status::StreamEnd);
+
+            // Write buffer stream if full or stream end
+            if self.buf_pos == self.buf.len() || stream_end {
+                self.inner.write_all(&self.buf[..self.buf_pos])?;
+                self.buf_pos = 0;
+            }
+
+            // Break if all bytes consumed or stream end
+            if stream_end {
+                self.deflate = Deflate::new(self.level, true, self.window_bits);
+                break;
+            } else if consumed == buf.len() && !matches!(flush, DeflateFlush::Finish) {
+                break;
+            } else if in_delta == 0 && out_delta == 0 {
+                return Err(io::Error::new(io::ErrorKind::WriteZero, "Deflate made no progress"));
+            }
+        }
+
+        Ok(consumed)
+    }
+
+    /// Change the compression level for the next stream member.
+    /// Flushes the current member and resets the compressor state.
+    ///
+    /// # Arguments
+    ///
+    /// * `level` - new compression level (1-9)
+    pub fn set_level(&mut self, level: i32) -> io::Result<usize> {
+        self.level = level;
+        let bytes_written = self.finish()?;
+        Ok(bytes_written)
+    }
+}
+
+impl<T: Write> CompressingStream for GzipWriter<T> {
+    fn finish(&mut self) -> io::Result<usize> {
+        let bytes_written = self._write(&[], DeflateFlush::Finish)?;
+        Ok(bytes_written)
+    }
+}
+
+impl<T: Write> Write for GzipWriter<T> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self._write(buf, DeflateFlush::NoFlush)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.buf_pos > 0 {
+            self.inner.write_all(&self.buf[..self.buf_pos])?;
+            self.buf_pos = 0;
+        }
+        self.inner.flush()
+    }
+}
+
+impl<T: Write> Drop for GzipWriter<T> {
+    fn drop(&mut self) {
+        self.finish().ok();
+        self.flush().ok();
     }
 }
 

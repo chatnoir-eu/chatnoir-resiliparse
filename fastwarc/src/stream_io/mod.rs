@@ -14,7 +14,6 @@
 
 use std::any::Any;
 use std::io;
-use std::io::Seek;
 use std::mem;
 
 // ===========================================================
@@ -48,11 +47,11 @@ pub trait DecompressingStream: ReadSeek + Sized {
     /// can be resumed.
     fn inner_seek(&mut self, pos: io::SeekFrom) -> io::Result<u64>;
 
-    /// Returns the current seek position from the start of the compressed inner stream.
+    /// Return the current seek position from the start of the compressed inner stream.
     /// The semantics are the same as [`io::Seek::stream_position()`].
     fn inner_stream_position(&mut self) -> io::Result<u64>;
 
-    /// Returns the start position, in bytes, of the current member / frame
+    /// Return the start position, in bytes, of the current member / frame
     /// in the inner stream. If the compression format does not support
     /// multi-member streams, this is always the beginning of the stream.
     ///
@@ -67,13 +66,22 @@ pub trait DecompressingStream: ReadSeek + Sized {
 /// Trait for [`io::Write`] stream implementations that write compressed data
 /// onto an output stream.
 pub trait CompressingStream: io::Write + Sized {
-    /// End a compression member / frame and flush stream contents.
+    /// Finish a compression member / frame and reset the compressor state.
+    ///
+    /// If the compressor supports multi-member streams, the writer can be
+    /// used again after this to start a new member / frame. Otherwise, writing
+    /// further bytes may yield an error.
+    ///
+    /// Does not necessarily flush buffer contents to the inner stream.
+    /// Users should call [`io::Write::flush()`] afterward to ensure that
+    /// all pending data is safely written.
+    ///
     /// The behavior is implementation-specific and may do nothing.
     ///
     /// # Returns
     ///
     /// Number of bytes written to the stream.
-    fn flush_member(&mut self) -> io::Result<usize> {
+    fn finish(&mut self) -> io::Result<usize> {
         Ok(0)
     }
 }
