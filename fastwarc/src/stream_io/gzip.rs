@@ -78,6 +78,13 @@ impl<T: ReadSeek> GzipReader<T> {
         }
     }
 
+    /// Unwraps this [`GzipReader`], returning the underlying reader.
+    ///
+    /// Note that any leftover data in the internal buffer is lost.
+    pub fn into_inner(self) -> T {
+        self.inner.into_inner()
+    }
+
     /// Dynamically update the output buffer size using a moving average of the
     /// output to input size.
     ///
@@ -217,7 +224,7 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
 // ===========================================================
 
 pub struct GzipWriter<T: Write> {
-    inner: T,
+    inner: Option<T>,
     deflate: Deflate,
     buf: Vec<u8>,
     buf_pos: usize,
@@ -268,7 +275,7 @@ impl<T: Write> GzipWriter<T> {
     pub fn with_capacity_comp_level(capacity: usize, inner: T, level: i32) -> Self {
         let window_bits = 15 + 16;
         Self {
-            inner,
+            inner: Some(inner),
             deflate: Deflate::new(level, true, window_bits),
             buf: vec![0; capacity],
             buf_pos: 0,
@@ -277,9 +284,19 @@ impl<T: Write> GzipWriter<T> {
         }
     }
 
+    /// Unwraps this [`GzipWriter`], returning the underlying writer.
+    ///
+    /// Writes out buffer contents before returning the inner reader.
+    pub fn into_inner(mut self) -> io::Result<T> {
+        self.finish()?;
+        self.flush()?;
+        Ok(self.inner.take().unwrap())
+    }
+
     /// Internal write implementation with configurable flush mode.
     fn _write(&mut self, buf: &[u8], flush: DeflateFlush) -> io::Result<usize> {
         let mut consumed = 0usize;
+        let inner = self.inner.as_mut().unwrap();
 
         loop {
             let total_in = self.deflate.total_in();
@@ -301,7 +318,7 @@ impl<T: Write> GzipWriter<T> {
 
             // Write buffer stream if full or stream end
             if self.buf_pos == self.buf.len() || stream_end {
-                self.inner.write_all(&self.buf[..self.buf_pos])?;
+                inner.write_all(&self.buf[..self.buf_pos])?;
                 self.buf_pos = 0;
             }
 
@@ -345,18 +362,21 @@ impl<T: Write> Write for GzipWriter<T> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        let inner = self.inner.as_mut().unwrap();
         if self.buf_pos > 0 {
-            self.inner.write_all(&self.buf[..self.buf_pos])?;
+            inner.write_all(&self.buf[..self.buf_pos])?;
             self.buf_pos = 0;
         }
-        self.inner.flush()
+        inner.flush()
     }
 }
 
 impl<T: Write> Drop for GzipWriter<T> {
     fn drop(&mut self) {
-        self.finish().ok();
-        self.flush().ok();
+        if self.inner.is_some() {
+            self.finish().ok();
+            self.flush().ok();
+        }
     }
 }
 
