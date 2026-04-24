@@ -337,15 +337,14 @@ impl<T: Write> GzipWriter<T> {
     }
 
     /// Change the compression level for the next stream member.
-    /// Flushes the current member and resets the compressor state.
+    ///
+    /// Has no effect until [`Self::finish()`] is called.
     ///
     /// # Arguments
     ///
     /// * `level` - new compression level (1-9)
-    pub fn set_level(&mut self, level: i32) -> io::Result<usize> {
+    pub fn set_level(&mut self, level: i32) {
         self.level = level;
-        let bytes_written = self.finish()?;
-        Ok(bytes_written)
     }
 }
 
