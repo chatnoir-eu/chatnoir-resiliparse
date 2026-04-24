@@ -307,12 +307,12 @@ impl<T: Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `buf` - bytes to write
+    /// * `buf` - bytes to compress
     /// * `flush` - Deflate flush options
     ///
     /// # Returns
     ///
-    /// Number of bytes written.
+    /// Number of bytes consumed from `buf`.
     pub fn write_with_flush_opt(&mut self, buf: &[u8], flush: DeflateFlush) -> io::Result<usize> {
         let mut consumed = 0usize;
         let inner = self.inner.as_mut().unwrap();
