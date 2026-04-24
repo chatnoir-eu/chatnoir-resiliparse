@@ -293,8 +293,27 @@ impl<T: Write> GzipWriter<T> {
         Ok(self.inner.take().unwrap())
     }
 
-    /// Internal write implementation with configurable flush mode.
-    fn _write(&mut self, buf: &[u8], flush: DeflateFlush) -> io::Result<usize> {
+    /// Write compressed bytes with explicit Deflate flush options.
+    ///
+    /// Changing the default flush options can mess with the compression ratios
+    /// and internal buffer states. In almost all cases, you should rather use
+    /// [`Self::write()`], unless you know what you are doing.
+    ///
+    /// Using [`DeflateFlush::Finish`] with an empty input buffer is equivalent to
+    /// calling [`Self::finish()`]. Using [`DeflateFlush::NoFlush`] is the same as
+    /// simply calling [`Self::write()`].
+    ///
+    /// Does not call [`Self::flush()`].
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - bytes to write
+    /// * `flush` - Deflate flush options
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written.
+    pub fn write_with_flush_opt(&mut self, buf: &[u8], flush: DeflateFlush) -> io::Result<usize> {
         let mut consumed = 0usize;
         let inner = self.inner.as_mut().unwrap();
 
@@ -350,14 +369,14 @@ impl<T: Write> GzipWriter<T> {
 
 impl<T: Write> CompressingStream for GzipWriter<T> {
     fn finish(&mut self) -> io::Result<usize> {
-        let bytes_written = self._write(&[], DeflateFlush::Finish)?;
+        let bytes_written = self.write_with_flush_opt(&[], DeflateFlush::Finish)?;
         Ok(bytes_written)
     }
 }
 
 impl<T: Write> Write for GzipWriter<T> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self._write(buf, DeflateFlush::NoFlush)
+        self.write_with_flush_opt(buf, DeflateFlush::NoFlush)
     }
 
     fn flush(&mut self) -> io::Result<()> {
