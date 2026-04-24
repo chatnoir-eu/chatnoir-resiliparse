@@ -161,19 +161,18 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
 
         self.buf_pos = 0;
         self.buf_len = 0;
-        let mut total_out;
-        let mut total_in;
 
         loop {
-            total_out = self.deflate.total_out();
-            total_in = self.deflate.total_in();
+            let total_out = self.deflate.total_out();
+            let total_in = self.deflate.total_in();
+
+            // New member
+            if total_in == 0 {
+                self.member_pos = self.inner.stream_position()?;
+            }
 
             let in_buf = self.inner.fill_buf()?;
             let in_buf_len = in_buf.len();
-            if in_buf_len == 0 {
-                // EOF
-                break;
-            }
 
             let status = self
                 .deflate
@@ -182,26 +181,25 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
                     io::Error::new(io::ErrorKind::InvalidData, format!("Gzip decompression error: {}", e.as_str()))
                 })?;
 
-            let consumed = self.deflate.total_in() - total_in;
-            let produced = self.deflate.total_out() - total_out;
-            self.inner.consume(consumed as usize);
-            self.buf_len += produced as usize;
+            let in_delta = self.deflate.total_in() - total_in;
+            let out_delta = self.deflate.total_out() - total_out;
+            self.inner.consume(in_delta as usize);
+            self.buf_len += out_delta as usize;
 
-            let stream_end = matches!(status, zlib_rs::Status::StreamEnd);
-            if stream_end {
+            if matches!(status, zlib_rs::Status::StreamEnd) {
                 self.deflate = Inflate::new(true, self.window_bits);
-                self.member_pos = self.inner.stream_position()?;
+                break;
             }
 
-            if consumed > 0 && produced == 0 {
-                // Need more data
-                continue;
-            } else if !stream_end && consumed > 0 {
-                // Adjust output buffer size if needed (only if not stream end, which may be an outlier)
-                self._update_buf_size(in_buf_len, consumed as usize, produced as usize);
+            if in_delta > 0 {
+                // Adjust output buffer size if needed
+                self._update_buf_size(in_buf_len, in_delta as usize, out_delta as usize);
             }
 
-            break;
+            // Buffer full or no progress
+            if self.buf_len == self.buf.len() || (in_delta == 0 && out_delta == 0) {
+                break;
+            }
         }
 
         Ok(&self.buf[..self.buf_len])
