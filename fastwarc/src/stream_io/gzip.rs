@@ -21,7 +21,8 @@ use zlib_rs::{Inflate, InflateFlush};
 pub struct GzipReader<T> {
     inner: BufReader<T>,
     deflate: Inflate,
-    stream_pos: usize,
+    stream_pos: u64,
+    member_pos: u64,
     buf: Vec<u8>,
     buf_pos: usize,
     buf_len: usize,
@@ -64,6 +65,7 @@ impl<T: ReadSeek> GzipReader<T> {
             inner: BufReader::with_capacity(capacity, inner),
             deflate: Inflate::new(true, window_bits),
             stream_pos: 0,
+            member_pos: 0,
             buf: vec![0; capacity * decomp_ratio as usize],
             buf_pos: 0,
             buf_len: 0,
@@ -124,7 +126,7 @@ impl<T: ReadSeek> Seek for GzipReader<T> {
 
     /// Returns the current seek position from the start of the decompressed output stream.
     fn stream_position(&mut self) -> io::Result<u64> {
-        Ok(self.stream_pos as u64)
+        Ok(self.stream_pos)
     }
 }
 
@@ -133,11 +135,17 @@ impl<T: ReadSeek> DecompressingStream for GzipReader<T> {
         self.deflate = Inflate::new(true, self.window_bits);
         self.buf_pos = 0;
         self.buf_len = 0;
-        self.inner.seek(pos)
+        let new_pos = self.inner.seek(pos)?;
+        self.member_pos = new_pos;
+        Ok(new_pos)
     }
 
     fn inner_stream_position(&mut self) -> io::Result<u64> {
         self.inner.stream_position()
+    }
+
+    fn member_start_position(&mut self) -> io::Result<u64> {
+        Ok(self.member_pos)
     }
 }
 
@@ -153,8 +161,8 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
         let mut total_in;
 
         loop {
-            total_out = self.deflate.total_out() as usize;
-            total_in = self.deflate.total_in() as usize;
+            total_out = self.deflate.total_out();
+            total_in = self.deflate.total_in();
 
             let in_buf = self.inner.fill_buf()?;
             let in_buf_len = in_buf.len();
@@ -170,14 +178,15 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
                     io::Error::new(io::ErrorKind::InvalidData, format!("Gzip decompression error: {}", e.as_str()))
                 })?;
 
-            let consumed = self.deflate.total_in() as usize - total_in;
-            let produced = self.deflate.total_out() as usize - total_out;
-            self.inner.consume(consumed);
-            self.buf_len += produced;
+            let consumed = self.deflate.total_in() - total_in;
+            let produced = self.deflate.total_out() - total_out;
+            self.inner.consume(consumed as usize);
+            self.buf_len += produced as usize;
 
             let stream_end = matches!(status, zlib_rs::Status::StreamEnd);
             if stream_end {
                 self.deflate = Inflate::new(true, self.window_bits);
+                self.member_pos = self.inner.stream_position()?;
             }
 
             if consumed > 0 && produced == 0 {
@@ -185,7 +194,7 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
                 continue;
             } else if !stream_end && consumed > 0 {
                 // Adjust output buffer size if needed (only if not stream end, which may be an outlier)
-                self._update_buf_size(in_buf_len, consumed, produced);
+                self._update_buf_size(in_buf_len, consumed as usize, produced as usize);
             }
 
             break;
@@ -197,7 +206,7 @@ impl<T: ReadSeek> BufRead for GzipReader<T> {
     fn consume(&mut self, amount: usize) {
         let old_buf_os = self.buf_pos;
         self.buf_pos = self.buf.len().min(self.buf_pos + amount);
-        self.stream_pos += self.buf_pos - old_buf_os;
+        self.stream_pos += (self.buf_pos - old_buf_os) as u64;
     }
 }
 

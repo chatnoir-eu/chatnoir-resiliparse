@@ -51,37 +51,29 @@ pub trait DecompressingStream: ReadSeek + Sized {
     /// Returns the current seek position from the start of the compressed inner stream.
     /// The semantics are the same as [`io::Seek::stream_position()`].
     fn inner_stream_position(&mut self) -> io::Result<u64>;
+
+    /// Returns the start position, in bytes, of the current member / frame
+    /// in the inner stream. If the compression format does not support
+    /// multi-member streams, this is always the beginning of the stream.
+    ///
+    /// # Returns
+    ///
+    /// Position, in bytes, of the current member
+    fn member_start_position(&mut self) -> io::Result<u64> {
+        Ok(0)
+    }
 }
 
 /// Trait for [`io::Write`] stream implementations that write compressed data
 /// onto an output stream.
 pub trait CompressingStream: io::Write + Sized {
-    type Output: io::Write;
-
-    /// Create a new [`CompressingStream`] on a given output stream.
-    ///
-    /// # Arguments
-    ///
-    /// * `output_stream` - input (inner) stream to read from
-    fn new(output_stream: Self::Output) -> Self;
-
-    /// Begin a compression member / frame (if not already started).
+    /// End a compression member / frame and flush stream contents.
     /// The behavior is implementation-specific and may do nothing.
     ///
     /// # Returns
     ///
     /// Number of bytes written to the stream.
-    fn begin_member(&mut self) -> io::Result<usize> {
-        Ok(0)
-    }
-
-    /// End a compression member / frame (if one has been started).
-    /// The behavior is implementation-specific and may do nothing.
-    ///
-    /// # Returns
-    ///
-    /// Number of bytes written to the stream.
-    fn end_member(&mut self) -> io::Result<usize> {
+    fn flush_member(&mut self) -> io::Result<usize> {
         Ok(0)
     }
 }
