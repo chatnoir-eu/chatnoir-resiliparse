@@ -1,0 +1,143 @@
+// WARC record data model for the fastwarc-grpc service.
+//
+// These messages mirror the public API of the `fastwarc` Rust crate
+// (fastwarc-rs). The mapping is designed to be lossless: header blocks are
+// carried as ordered byte pairs (headers are multimaps with duplicate keys,
+// and header values are not guaranteed to be valid UTF-8) together with the
+// verbatim raw header block bytes.
+
+syntax = "proto3";
+
+package fastwarc.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// HeaderEncoding identifies the character encoding of a decoded header block,
+// matching `fastwarc::warc::header::HeaderEncoding`.
+enum HeaderEncoding {
+  // HEADER_ENCODING_UNSPECIFIED is the zero value and must not be set by
+  // servers; clients must treat it as an encoding detection failure.
+  HEADER_ENCODING_UNSPECIFIED = 0;
+  // HEADER_ENCODING_UNICODE marks UTF-8 header blocks (WARC headers).
+  HEADER_ENCODING_UNICODE = 1;
+  // HEADER_ENCODING_LATIN1 marks Latin-1/Windows-1252 header blocks (HTTP
+  // headers embedded in WARC records).
+  HEADER_ENCODING_LATIN1 = 2;
+}
+
+// WarcRecordType enumerates the WARC 1.1 record types, matching
+// `fastwarc::warc::record::WarcRecordType`. The numeric values follow the
+// proto3 zero-value convention rather than the crate's bitmask values; the
+// original bitmask value is recoverable from the WARC-Type header carried in
+// the record's header block.
+enum WarcRecordType {
+  // WARC_RECORD_TYPE_UNSPECIFIED maps to the crate's `NoType` variant.
+  WARC_RECORD_TYPE_UNSPECIFIED = 0;
+  // WARC_RECORD_TYPE_WARCINFO is a `warcinfo` record.
+  WARC_RECORD_TYPE_WARCINFO = 1;
+  // WARC_RECORD_TYPE_RESPONSE is a `response` record.
+  WARC_RECORD_TYPE_RESPONSE = 2;
+  // WARC_RECORD_TYPE_RESOURCE is a `resource` record.
+  WARC_RECORD_TYPE_RESOURCE = 3;
+  // WARC_RECORD_TYPE_REQUEST is a `request` record.
+  WARC_RECORD_TYPE_REQUEST = 4;
+  // WARC_RECORD_TYPE_METADATA is a `metadata` record.
+  WARC_RECORD_TYPE_METADATA = 5;
+  // WARC_RECORD_TYPE_REVISIT is a `revisit` record.
+  WARC_RECORD_TYPE_REVISIT = 6;
+  // WARC_RECORD_TYPE_CONVERSION is a `conversion` record.
+  WARC_RECORD_TYPE_CONVERSION = 7;
+  // WARC_RECORD_TYPE_CONTINUATION is a `continuation` record.
+  WARC_RECORD_TYPE_CONTINUATION = 8;
+  // WARC_RECORD_TYPE_UNKNOWN is a record with an unrecognized WARC-Type.
+  WARC_RECORD_TYPE_UNKNOWN = 9;
+}
+
+// HeaderField is a single header entry as raw bytes. Bytes are used instead
+// of strings because WARC and HTTP header values are not guaranteed to be
+// valid UTF-8; decoding them as strings would lose data.
+message HeaderField {
+  // name is the header name as raw bytes, preserved in its original case.
+  bytes name = 1;
+  // value is the header value as raw bytes, exactly as parsed.
+  bytes value = 2;
+}
+
+// HeaderBlock is a complete, lossless representation of a WARC or HTTP header
+// block, matching `fastwarc::warc::header::HeaderMap`. Duplicate header names
+// are preserved through field ordering and repetition.
+message HeaderBlock {
+  // status_line is the raw status/request line (HTTP header blocks only).
+  // Absent for WARC header blocks and HTTP blocks without a status line.
+  optional bytes status_line = 1;
+  // fields holds every header entry in original order, duplicates included.
+  repeated HeaderField fields = 2;
+  // encoding is the character encoding the parser assigned to the block.
+  HeaderEncoding encoding = 3;
+  // raw_block is the verbatim header block as it appeared in the source
+  // stream when the header map was not modified during parsing, which is
+  // always the case for server-side parsing. It is the authoritative
+  // byte-exact copy; `fields` is its parsed view.
+  bytes raw_block = 4;
+}
+
+// DigestStatus reports the outcome of verifying a WARC block or payload
+// digest against the digest declared in the record headers.
+enum DigestStatus {
+  // DIGEST_STATUS_UNSPECIFIED indicates verification was not requested.
+  DIGEST_STATUS_UNSPECIFIED = 0;
+  // DIGEST_STATUS_NOT_PRESENT indicates the record declares no such digest.
+  DIGEST_STATUS_NOT_PRESENT = 1;
+  // DIGEST_STATUS_VALID indicates the computed digest matches the header.
+  DIGEST_STATUS_VALID = 2;
+  // DIGEST_STATUS_MISMATCH indicates the computed digest differs.
+  DIGEST_STATUS_MISMATCH = 3;
+  // DIGEST_STATUS_UNSUPPORTED_ALGORITHM indicates the declared algorithm is
+  // not one of md5, sha1, sha256, or sha512.
+  DIGEST_STATUS_UNSUPPORTED_ALGORITHM = 4;
+  // DIGEST_STATUS_FORMAT_ERROR indicates the digest header is malformed.
+  DIGEST_STATUS_FORMAT_ERROR = 5;
+  // DIGEST_STATUS_ERROR indicates verification failed for another reason;
+  // the accompanying detail string carries the parser's error message.
+  DIGEST_STATUS_ERROR = 6;
+}
+
+// RecordMetadata carries every piece of per-record state exposed by
+// `fastwarc::warc::record::WarcRecord` except the payload bytes, which are
+// streamed separately.
+message RecordMetadata {
+  // record_index is the zero-based position of the record in the parse
+  // stream, letting clients correlate chunked response messages.
+  uint64 record_index = 1;
+  // record_type is the parsed WARC record type.
+  WarcRecordType record_type = 2;
+  // warc_headers is the lossless WARC header block of the record.
+  HeaderBlock warc_headers = 3;
+  // content_length is the payload length in bytes as declared by the record
+  // after any configured HTTP parsing and payload decoding.
+  uint64 content_length = 4;
+  // stream_pos is the byte offset of the record start in the (uncompressed)
+  // source stream.
+  uint64 stream_pos = 5;
+  // is_http indicates the record content was detected as an HTTP message
+  // (Content-Type: application/http).
+  bool is_http = 6;
+  // http_parsed indicates the embedded HTTP message was actually parsed,
+  // which happens only when requested in the parse configuration.
+  bool http_parsed = 7;
+  // http_headers is the lossless embedded HTTP header block, present only
+  // when http_parsed is true.
+  optional HeaderBlock http_headers = 8;
+  // http_content_type is the embedded HTTP Content-Type without parameters,
+  // present only when http_parsed is true and the header exists.
+  optional string http_content_type = 9;
+  // http_charset is the charset parameter of the embedded HTTP Content-Type,
+  // present only when it was declared.
+  optional string http_charset = 10;
+  // record_id is the WARC-Record-ID header value, present when declared.
+  // The authoritative copy remains in warc_headers.
+  optional string record_id = 11;
+  // record_date is the parsed WARC-Date header value, present when declared
+  // and parseable. The raw string remains in warc_headers.
+  optional google.protobuf.Timestamp record_date = 12;
+}
