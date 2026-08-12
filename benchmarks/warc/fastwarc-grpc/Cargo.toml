@@ -1,0 +1,17 @@
+[package]
+name = "fastwarc-grpc-profile"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "profile"
+path = "src/main.rs"
+
+[dependencies]
+fastwarc-grpc = { path = "../../../fastwarc-grpc" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = "0.14"
