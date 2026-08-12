@@ -48,6 +48,32 @@ jobs:
       - name: Run tests
         run: cargo test --verbose --color always --package fastwarc
 
+  # fastwarc-grpc needs protoc for stub generation, so it builds in its own job.
+  build-fastwarc-grpc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Cargo
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-grpc-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Build
+        run: cargo build --verbose --color always --package fastwarc-grpc
+
+      - name: Run tests
+        run: cargo test --verbose --color always --package fastwarc-grpc
+
   build-wheels:
     runs-on: ${{ matrix.os }}
     strategy:
