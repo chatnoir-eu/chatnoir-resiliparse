@@ -1,0 +1,10 @@
+# Optional standalone stub generation for the fastwarc.v1 contracts.
+#
+# Canonical path is build.rs (tonic-prost-build). Use `buf generate` when
+# protoc-gen-prost and protoc-gen-tonic are installed locally.
+version: v2
+plugins:
+  - local: protoc-gen-prost
+    out: gen
+  - local: protoc-gen-tonic
+    out: gen

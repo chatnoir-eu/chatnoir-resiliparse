@@ -1,0 +1,246 @@
+// WarcService streams WARC archives through the `fastwarc` parser.
+//
+// The service is binary-only gRPC (no JSON transcoding). Parsing is exposed
+// as a single bidirectional streaming RPC so archives of arbitrary size can
+// be uploaded, parsed, and returned with bounded memory on both sides.
+
+syntax = "proto3";
+
+package fastwarc.v1;
+
+import "fastwarc/v1/warc.proto";
+
+// AutoDecode controls automatic decoding of HTTP transfer and content
+// encodings, matching `fastwarc::warc::record::AutoDecode`.
+enum AutoDecode {
+  // AUTO_DECODE_UNSPECIFIED leaves payload bytes untouched, matching the
+  // crate's `AutoDecode::None` default.
+  AUTO_DECODE_UNSPECIFIED = 0;
+  // AUTO_DECODE_TRANSFER_ENCODING decodes transfer encodings only (chunked).
+  AUTO_DECODE_TRANSFER_ENCODING = 1;
+  // AUTO_DECODE_CONTENT_ENCODING decodes content encodings only (gzip,
+  // deflate, brotli, zstd).
+  AUTO_DECODE_CONTENT_ENCODING = 2;
+  // AUTO_DECODE_ALL decodes both transfer and content encodings.
+  AUTO_DECODE_ALL = 3;
+}
+
+// BuiltinFilter names the built-in ArchiveIterator filter predicates from
+// the FastWARC Python/Rust APIs that can be expressed without a callback.
+// Arbitrary `func_filter` callables cannot be remoted over gRPC; use these
+// instead, or filter on the client from the streamed metadata.
+enum BuiltinFilter {
+  // BUILTIN_FILTER_UNSPECIFIED must not be set; it is ignored if present.
+  BUILTIN_FILTER_UNSPECIFIED = 0;
+  // BUILTIN_FILTER_IS_HTTP keeps records whose content is an HTTP message.
+  BUILTIN_FILTER_IS_HTTP = 1;
+  // BUILTIN_FILTER_IS_CONCURRENT keeps records that declare WARC-Concurrent-To.
+  BUILTIN_FILTER_IS_CONCURRENT = 2;
+  // BUILTIN_FILTER_HAS_BLOCK_DIGEST keeps records that declare WARC-Block-Digest.
+  BUILTIN_FILTER_HAS_BLOCK_DIGEST = 3;
+  // BUILTIN_FILTER_HAS_PAYLOAD_DIGEST keeps records that declare
+  // WARC-Payload-Digest.
+  BUILTIN_FILTER_HAS_PAYLOAD_DIGEST = 4;
+  // BUILTIN_FILTER_IS_WARC_10 keeps WARC/1.0 records.
+  BUILTIN_FILTER_IS_WARC_10 = 5;
+  // BUILTIN_FILTER_IS_WARC_11 keeps WARC/1.1 records.
+  BUILTIN_FILTER_IS_WARC_11 = 6;
+}
+
+// WarcService parses streamed WARC archive data into structured records.
+service WarcService {
+  // ParseWarc accepts a WARC archive as a stream of byte chunks and streams
+  // back every parsed record. The first request message must carry the
+  // parse configuration; subsequent messages carry archive bytes, which may
+  // be uncompressed or gzip-, zstd-, or lz4-compressed (detected from magic
+  // bytes when stream_detect is enabled). Responses are ordered per record:
+  // one record_start message, zero or more payload chunks, one record_end
+  // message. A failure to parse an already-framed record's HTTP headers
+  // yields a recoverable record_error and parsing continues. A failure to
+  // frame the next WARC record (invalid header / lost stream) yields a
+  // non-recoverable record_error and ends the response stream.
+  rpc ParseWarc(stream ParseWarcRequest) returns (stream ParseWarcResponse);
+
+  // ParseArchive parses a complete WARC archive carried in a single request
+  // message and returns every kept record in a single response: the unary
+  // convenience for single records and small archives that fit within the
+  // gRPC message size limits (4 MiB by default on most implementations).
+  // Parsing semantics, filters, and the error model are identical to
+  // ParseWarc; records and record-level errors are returned in stream
+  // order, and a non-recoverable framing error ends the record list with
+  // the records parsed up to that point intact. For larger archives or
+  // incremental consumption, use ParseWarc.
+  rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
+}
+
+// ParseWarcConfig configures a ParseWarc stream. It covers the parse and
+// filter knobs of Python's `ArchiveIterator` / Rust's
+// `ArchiveIteratorOptions` that make sense on a remote stream, plus
+// streaming-specific chunk sizing. It is intentionally not a 1:1 mirror:
+// `inplace`, `fsspec_args`, and arbitrary `func_filter` callables are out of
+// scope (see BuiltinFilter for the remoted predicates).
+message ParseWarcConfig {
+  // parse_http enables parsing of HTTP messages embedded in records whose
+  // content type is application/http. Defaults to false (proto3 zero value),
+  // unlike Python/Rust ArchiveIterator which default to true. Set true for
+  // Python-parity HTTP header extraction; the service still verifies block
+  // digests before HTTP parsing when verify_digests is set.
+  bool parse_http = 1;
+  // decode_http_payload selects automatic decoding of HTTP transfer and
+  // content encodings. Requires parse_http to take effect. When decoding is
+  // enabled, streamed payload bytes are the decoded view, not the raw
+  // on-wire transfer/content-encoded bytes.
+  AutoDecode decode_http_payload = 2;
+  // verify_digests enables verification of WARC-Block-Digest and
+  // WARC-Payload-Digest headers; results are reported in record_end.
+  // Unlike Python/Rust ArchiveIterator (which skip records with missing or
+  // invalid block digests), this service always emits the record and reports
+  // DigestStatus so clients can decide.
+  bool verify_digests = 3;
+  // quirks_mode relaxes header parsing for non-conforming archives such as
+  // ClueWeb captures.
+  bool quirks_mode = 4;
+  // max_header_len caps the accepted WARC and HTTP header block length in
+  // bytes. Zero selects the parser default of 32 KiB.
+  uint32 max_header_len = 5;
+  // payload_chunk_size is the maximum number of payload bytes per streamed
+  // payload_chunk message. Zero selects the server default of 64 KiB.
+  uint32 payload_chunk_size = 6;
+  // record_types restricts which WARC record types are returned. Empty means
+  // all types, matching Python's `record_types=any_type` default. Values are
+  // OR-combined.
+  repeated WarcRecordType record_types = 7;
+  // min_content_length skips records whose Content-Length is below this
+  // value. Unset means no minimum.
+  optional uint64 min_content_length = 8;
+  // max_content_length skips records whose Content-Length is above this
+  // value. Unset means no maximum.
+  optional uint64 max_content_length = 9;
+  // stream_detect enables magic-byte compression autodetection (gzip, zstd,
+  // lz4). Unset defaults to true, matching Python/Rust. Set false to disable.
+  optional bool stream_detect = 10;
+  // input_buffer_size is the BufReader capacity in front of the parser.
+  // Zero selects the server default of 64 KiB (Python `buffer_size`).
+  uint32 input_buffer_size = 11;
+  // filters applies built-in predicates (AND-combined) after record_types
+  // and content-length bounds. Arbitrary Python callables cannot be remoted;
+  // clients that need custom logic should filter on streamed metadata.
+  repeated BuiltinFilter filters = 12;
+}
+
+// ParseWarcRequest is one message of the client stream. The first message on
+// a stream must set config; every later message must set chunk.
+message ParseWarcRequest {
+  // kind selects the message payload: the stream configuration or archive
+  // data bytes.
+  oneof kind {
+    // config configures the stream and must appear exactly once, first.
+    ParseWarcConfig config = 1;
+    // chunk is a slice of the source archive, compressed or not. Chunks are
+    // concatenated in stream order and fed to the parser incrementally.
+    bytes chunk = 2;
+  }
+}
+
+// RecordStart opens the response sequence for one successfully parsed record
+// and carries all of its metadata.
+message RecordStart {
+  // metadata holds every per-record property of the parsed record; payload
+  // bytes follow as payload_chunk messages.
+  RecordMetadata metadata = 1;
+}
+
+// PayloadChunk carries one slice of a record's payload bytes.
+message PayloadChunk {
+  // record_index matches RecordMetadata.record_index of the owning record.
+  uint64 record_index = 1;
+  // offset is the byte offset of this chunk within the record payload.
+  uint64 offset = 2;
+  // data holds up to the configured payload_chunk_size bytes.
+  bytes data = 3;
+}
+
+// RecordEnd closes the response sequence for one record and reports digest
+// verification results.
+message RecordEnd {
+  // record_index matches RecordMetadata.record_index of the owning record.
+  uint64 record_index = 1;
+  // payload_length is the total number of payload bytes streamed for this
+  // record, for client-side reassembly checks.
+  uint64 payload_length = 2;
+  // block_digest_status reports WARC-Block-Digest verification.
+  DigestStatus block_digest_status = 3;
+  // payload_digest_status reports WARC-Payload-Digest verification.
+  DigestStatus payload_digest_status = 4;
+  // digest_detail carries the parser's error message when either digest
+  // status indicates a verification problem.
+  optional string digest_detail = 5;
+}
+
+// RecordError reports a record that could not be parsed.
+message RecordError {
+  // stream_pos is the byte offset in the source stream at which the failed
+  // record began. Zero when the iterator does not expose a position.
+  uint64 stream_pos = 1;
+  // recoverable indicates parsing resumed after the error. A non-recoverable
+  // error is the last message of the response stream (the WARC framing
+  // stream is no longer usable).
+  bool recoverable = 2;
+  // message is the parser's error description.
+  string message = 3;
+}
+
+// ParseArchiveRequest carries a complete WARC archive and its parse
+// configuration.
+message ParseArchiveRequest {
+  // config configures parsing exactly as for ParseWarc; payload_chunk_size
+  // has no effect because payloads are returned whole.
+  ParseWarcConfig config = 1;
+  // archive is the complete source archive: plain, gzip, zstd, or lz4.
+  bytes archive = 2;
+}
+
+// ParsedRecord is one kept record of a unary parse: the metadata of a
+// record_start message, the reassembled payload, and the digest results of
+// a record_end message.
+message ParsedRecord {
+  // metadata holds every per-record property of the parsed record.
+  RecordMetadata metadata = 1;
+  // payload is the complete record payload after any configured HTTP header
+  // stripping and payload decoding.
+  bytes payload = 2;
+  // block_digest_status reports WARC-Block-Digest verification.
+  DigestStatus block_digest_status = 3;
+  // payload_digest_status reports WARC-Payload-Digest verification.
+  DigestStatus payload_digest_status = 4;
+  // digest_detail carries the parser's error message when either digest
+  // status indicates a verification problem.
+  optional string digest_detail = 5;
+}
+
+// ParseArchiveResponse carries every kept record and every record-level
+// error of a unary parse, each in stream order.
+message ParseArchiveResponse {
+  // records holds the kept records in archive order.
+  repeated ParsedRecord records = 1;
+  // errors holds the record-level parse errors, recoverable or not. A
+  // non-recoverable error is always last and means the rest of the archive
+  // was not parsed.
+  repeated RecordError errors = 2;
+}
+
+// ParseWarcResponse is one message of the server stream: either the next
+// message of a record sequence or a per-record error.
+message ParseWarcResponse {
+  // kind selects the response payload.
+  oneof kind {
+    // record_start opens a record sequence and carries its metadata.
+    RecordStart record_start = 1;
+    // payload_chunk carries one slice of the current record's payload.
+    PayloadChunk payload_chunk = 2;
+    // record_end closes the current record sequence.
+    RecordEnd record_end = 3;
+    // record_error reports a record that failed to parse.
+    RecordError record_error = 4;
+  }
+}
