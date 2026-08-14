@@ -16,18 +16,26 @@ Usage documentation with worked client examples lives in the crate docs:
 
 - `fastwarc.v1.WarcService/ParseWarc` (bidirectional streaming): send one
   `config` message, then raw archive bytes (`chunk`): plain, gzip, zstd, or
-  lz4 (auto-detected when `stream_detect` is enabled, the default). Receive
-  per kept record: `record_start` (full metadata, lossless header blocks),
-  `payload_chunk`* (offset-tagged), `record_end` (payload length, digest
-  verification results). HTTP-header failures on a framed record yield a
-  recoverable `record_error`; WARC framing failures end the stream
-  (non-recoverable).
+  lz4 (auto-detected when `stream_detect` is enabled, the default). Set
+  `archive_path` on the config to have the server open a local file instead
+  of uploading chunks (rejected with `PERMISSION_DENIED` unless the server
+  was started with `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1`, since it grants
+  clients read access to the server's filesystem). Receive per kept record: `record_start` (full
+  metadata, lossless header blocks), `payload_chunk`* (offset-tagged),
+  `record_end` (payload length, digest verification results). HTTP-header
+  failures on a framed record yield a recoverable `record_error`; WARC
+  framing failures end the stream (non-recoverable).
 - `fastwarc.v1.WarcService/ParseArchive` (unary): the whole archive in one
   request, every kept record (metadata, whole payload, digest statuses) in
   one response, for single records and small archives within the gRPC
-  message size limits (4 MiB by default). Same parse pipeline, filters, and
-  error model as the stream; a framing error returns the records parsed so
-  far plus one non-recoverable error.
+  message size limits (this server accepts 16 MiB; many clients default to
+  4 MiB). Same parse pipeline, filters, and error model as the stream; a
+  framing error returns the records parsed so far plus one non-recoverable
+  error.
+- `include_payload` / `include_headers` default to true. Set false to skip
+  payload bytes and/or lossless header blocks. `response_batch_size` packs
+  that many protocol events into one `batch` message (zero = one event per
+  message; batches flush as they fill).
 - Filters matching Python `ArchiveIterator`: `record_types`,
   `min_content_length`, `max_content_length`, and `BuiltinFilter` predicates.
 - `grpc.health.v1.Health` for load-balancer probes.
@@ -71,7 +79,8 @@ dependency.
 FASTWARC_GRPC_ADDR="[::]:50051" cargo run -p fastwarc-grpc
 ```
 
-The server shuts down gracefully on SIGINT or SIGTERM.
+`FASTWARC_GRPC_ADDR` also accepts `unix:///path.sock` or an absolute
+filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
 
 An example client streams a local archive and prints a per-record summary:
 

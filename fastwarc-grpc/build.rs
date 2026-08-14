@@ -25,6 +25,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_prost_build::configure()
         .build_server(true)
         .build_client(true)
+        // Generate `bytes::Bytes` for the bulk-data fields so archive chunks
+        // decode zero-copy out of the HTTP/2 receive buffer instead of being
+        // copied into a fresh `Vec<u8>` per message.
+        .bytes(".fastwarc.v1.ParseWarcRequest.chunk")
+        .bytes(".fastwarc.v1.ParseArchiveRequest.archive")
+        .bytes(".fastwarc.v1.PayloadChunk.data")
         .file_descriptor_set_path(std::path::PathBuf::from(std::env::var("OUT_DIR")?).join("descriptor.bin"))
         .compile_protos(&protos, &[proto_root])?;
     Ok(())

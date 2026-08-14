@@ -21,11 +21,13 @@
 //! parsed from an in-memory cursor and the emitted messages are folded into
 //! a single response.
 
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, Read, Seek, SeekFrom};
 
+use fastwarc::stream_io::bufread::RawReaderAdapter;
 use fastwarc::stream_io::traits::IntoWarcReader;
 use fastwarc::warc::iter::{ArchiveIterator, ArchiveIteratorOptions};
 use fastwarc::warc::record::WarcRecord;
+use prost::bytes::{Buf, Bytes, BytesMut};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
@@ -39,10 +41,24 @@ const DEFAULT_MAX_HEADER_LEN: usize = 32 << 10;
 const DEFAULT_PAYLOAD_CHUNK_SIZE: usize = 64 << 10;
 /// Default buffer capacity of the byte stream fed into the parser.
 const DEFAULT_INPUT_BUFFER_SIZE: usize = 64 << 10;
-/// Bound of the request-chunk channel into the parser thread.
-const CHUNK_CHANNEL_BOUND: usize = 8;
+/// Cap unread archive bytes queued into the parser thread. Slot count
+/// follows `input_buffer_size`.
+const CHUNK_CHANNEL_BYTES: usize = 32 * 1024 * 1024;
+const CHUNK_CHANNEL_BOUND_MAX: usize = 256;
+
+fn chunk_channel_bound(input_buffer_size: u32) -> usize {
+    let hint = if input_buffer_size == 0 {
+        DEFAULT_INPUT_BUFFER_SIZE
+    } else {
+        input_buffer_size as usize
+    };
+    (CHUNK_CHANNEL_BYTES / hint.max(1)).clamp(2, CHUNK_CHANNEL_BOUND_MAX)
+}
+
 /// Bound of the response channel back to the client.
-const RESPONSE_CHANNEL_BOUND: usize = 32;
+const RESPONSE_CHANNEL_BOUND: usize = 1024;
+/// Flush a batch before it approaches the gRPC message-size cap.
+const MAX_BATCH_BYTES: usize = 2 << 20;
 
 type ResponseSender = mpsc::Sender<Result<pb::ParseWarcResponse, Status>>;
 
@@ -51,7 +67,34 @@ type ResponseSender = mpsc::Sender<Result<pb::ParseWarcResponse, Status>>;
 type EmitFn<'a> = &'a mut dyn FnMut(pb::ParseWarcResponse) -> bool;
 
 /// The `fastwarc.v1.WarcService` gRPC service (stateless).
-pub struct WarcParser;
+///
+/// By default `ParseWarcConfig.archive_path` is rejected with
+/// `PermissionDenied`: letting remote clients name server-side files is a
+/// separate security domain from parsing bytes the client supplied, so it
+/// must be an explicit operator decision (see [`WarcParser::with_local_files`]).
+#[derive(Default)]
+pub struct WarcParser {
+    allow_local_files: bool,
+}
+
+impl WarcParser {
+    /// A parser that only parses client-supplied bytes; `archive_path`
+    /// requests are rejected with `PermissionDenied`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A parser that additionally allows `ParseWarcConfig.archive_path` to
+    /// open files on the server's filesystem. Only enable this when every
+    /// client is trusted with read access to the server's files.
+    #[must_use]
+    pub fn with_local_files() -> Self {
+        Self {
+            allow_local_files: true,
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl pb::warc_service_server::WarcService for WarcParser {
@@ -78,8 +121,13 @@ impl pb::warc_service_server::WarcService for WarcParser {
             }
             Err(e) => return Err(e),
         };
+        if !config.archive_path.is_empty() && !self.allow_local_files {
+            return Err(Status::permission_denied(
+                "archive_path is disabled on this server; stream the archive as chunks instead",
+            ));
+        }
 
-        let (chunk_tx, chunk_rx) = mpsc::channel::<Vec<u8>>(CHUNK_CHANNEL_BOUND);
+        let (chunk_tx, chunk_rx) = mpsc::channel::<Bytes>(chunk_channel_bound(config.input_buffer_size));
         let (resp_tx, resp_rx) = mpsc::channel(RESPONSE_CHANNEL_BOUND);
         let forwarder_tx = resp_tx.clone();
         let panic_tx = resp_tx.clone();
@@ -206,6 +254,11 @@ fn fold_response(
             }
         }
         Some(pb::parse_warc_response::Kind::RecordError(error)) => errors.push(error),
+        Some(pb::parse_warc_response::Kind::Batch(batch)) => {
+            for item in batch.items {
+                fold_response(item, open, records, errors);
+            }
+        }
         None => {}
     }
 }
@@ -224,15 +277,105 @@ fn record_error(stream_pos: u64, recoverable: bool, message: String) -> pb::Pars
 
 /// Blocking parse entry point for the streaming RPC: reads archive bytes
 /// from `chunk_rx` and emits protocol messages on `resp_tx`.
-fn run_parser(chunk_rx: mpsc::Receiver<Vec<u8>>, resp_tx: &ResponseSender, config: &pb::ParseWarcConfig) {
+fn run_parser(chunk_rx: mpsc::Receiver<Bytes>, resp_tx: &ResponseSender, config: &pb::ParseWarcConfig) {
     let input_buffer_size = if config.input_buffer_size == 0 {
         DEFAULT_INPUT_BUFFER_SIZE
     } else {
         config.input_buffer_size as usize
     };
-    let reader = io::BufReader::with_capacity(input_buffer_size, ChannelReader::new(chunk_rx));
-    let mut emit = |resp: pb::ParseWarcResponse| resp_tx.blocking_send(Ok(resp)).is_ok();
-    parse_into(reader, config, &mut emit);
+    let mut emitter = BatchEmitter::new(resp_tx, convert::response_batch_size(config));
+    let mut emit = |resp: pb::ParseWarcResponse| emitter.emit(resp);
+    if config.archive_path.is_empty() {
+        // ChannelReader is BufRead over the received chunks themselves, so
+        // the parser scans and skips archive bytes in place; wrapping it in
+        // a BufReader would memcpy the whole stream a second time.
+        parse_into(RawReaderAdapter::new(ChannelReader::new(chunk_rx)), config, &mut emit);
+    } else {
+        match std::fs::File::open(&config.archive_path) {
+            Ok(file) => {
+                let reader = io::BufReader::with_capacity(input_buffer_size, file);
+                parse_into(reader, config, &mut emit);
+            }
+            Err(e) => {
+                emit(record_error(0, false, format!("failed to open archive_path {}: {e}", config.archive_path)));
+            }
+        }
+    }
+    emitter.flush();
+}
+
+/// Packs protocol events into gRPC messages and `try_send`s them so the
+/// parser thread is not parked on HTTP/2 drain. Falls back to
+/// `blocking_send` only when the response channel is actually full.
+struct BatchEmitter<'a> {
+    tx: &'a ResponseSender,
+    batch: Vec<pb::ParseWarcResponse>,
+    batch_size: usize,
+    batch_bytes: usize,
+}
+
+impl BatchEmitter<'_> {
+    fn new(tx: &ResponseSender, batch_size: usize) -> BatchEmitter<'_> {
+        BatchEmitter {
+            tx,
+            batch: Vec::with_capacity(batch_size),
+            batch_size,
+            batch_bytes: 0,
+        }
+    }
+
+    fn emit(&mut self, resp: pb::ParseWarcResponse) -> bool {
+        if self.batch_size <= 1 {
+            return send_response(self.tx, resp);
+        }
+        let add = event_wire_bytes(&resp);
+        if !self.batch.is_empty() && self.batch_bytes + add > MAX_BATCH_BYTES && !self.flush() {
+            return false;
+        }
+        self.batch_bytes += add;
+        self.batch.push(resp);
+        if self.batch.len() >= self.batch_size || self.batch_bytes >= MAX_BATCH_BYTES {
+            self.flush()
+        } else {
+            true
+        }
+    }
+
+    fn flush(&mut self) -> bool {
+        if self.batch.is_empty() {
+            return true;
+        }
+        self.batch_bytes = 0;
+        let items = std::mem::take(&mut self.batch);
+        let msg = if items.len() == 1 {
+            items.into_iter().next().expect("checked non-empty")
+        } else {
+            response(pb::parse_warc_response::Kind::Batch(pb::RecordBatch { items }))
+        };
+        send_response(self.tx, msg)
+    }
+}
+
+/// Cheap size estimate for batch flushing; protobuf tags add a little more.
+fn event_wire_bytes(resp: &pb::ParseWarcResponse) -> usize {
+    match resp.kind.as_ref() {
+        Some(pb::parse_warc_response::Kind::PayloadChunk(chunk)) => chunk.data.len().saturating_add(64),
+        Some(pb::parse_warc_response::Kind::RecordStart(start)) => start
+            .metadata
+            .as_ref()
+            .and_then(|m| m.warc_headers.as_ref())
+            .map_or(128, |h| h.raw_block.len().saturating_add(256)),
+        Some(pb::parse_warc_response::Kind::Batch(batch)) => batch.items.iter().map(event_wire_bytes).sum(),
+        _ => 64,
+    }
+}
+
+fn send_response(tx: &ResponseSender, msg: pb::ParseWarcResponse) -> bool {
+    match tx.try_send(Ok(msg)) {
+        Ok(()) => true,
+        Err(mpsc::error::TrySendError::Full(m)) => tx.blocking_send(m).is_ok(),
+        Err(mpsc::error::TrySendError::Closed(_)) => false,
+    }
 }
 
 /// Core parse loop shared by both RPCs: `record_start` / `payload_chunk`* /
@@ -267,7 +410,9 @@ fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConfig, emit: E
         verify_digests: false,
         quirks_mode: config.quirks_mode,
         max_header_len,
-        inplace: false,
+        // Reuse the iterator buffer when payload is not copied and the record
+        // does not need to be frozen for digest verification.
+        inplace: !convert::include_payload(config) && !config.verify_digests,
     };
     let iterator = ArchiveIterator::with_options(reader, options);
 
@@ -354,20 +499,24 @@ fn process_record(
         (pb::DigestStatus::Unspecified, None)
     };
 
-    let metadata = convert::record_metadata(&record, record_index);
+    let metadata = convert::record_metadata(&record, record_index, convert::include_headers(config));
     if !emit(response(pb::parse_warc_response::Kind::RecordStart(pb::RecordStart {
         metadata: Some(metadata),
     }))) {
         return ProcessOutcome::Stop;
     }
 
-    let payload_length = match stream_payload(&mut record, record_index, chunk_size, emit) {
-        Ok(len) => len,
-        Err(e) => {
-            let stream_pos = record.stream_pos();
-            let _ = emit(record_error(stream_pos, false, format!("failed to read record payload: {e}")));
-            return ProcessOutcome::Stop;
+    let payload_length = if convert::include_payload(config) {
+        match stream_payload(&mut record, record_index, chunk_size, emit) {
+            Ok(len) => len,
+            Err(e) => {
+                let stream_pos = record.stream_pos();
+                let _ = emit(record_error(stream_pos, false, format!("failed to read record payload: {e}")));
+                return ProcessOutcome::Stop;
+            }
         }
+    } else {
+        record.content_length()
     };
 
     let details: Vec<String> = [block_detail, payload_detail].into_iter().flatten().collect();
@@ -390,47 +539,58 @@ fn process_record(
 }
 
 /// Emit remaining payload as `payload_chunk` messages; return total bytes.
+///
+/// Chunks are copied straight out of the record reader's `fill_buf` window
+/// into exact-size `Bytes` (single copy, no scratch buffer), so a chunk may
+/// be shorter than `chunk_size` when it ends at an input buffer boundary.
 fn stream_payload(record: &mut WarcRecord, record_index: u64, chunk_size: usize, emit: EmitFn<'_>) -> io::Result<u64> {
     let Some(reader) = record.reader_mut() else {
         return Ok(0);
     };
-    let mut buf = vec![0u8; chunk_size];
     let mut offset = 0u64;
     loop {
-        match reader.read(&mut buf) {
-            Ok(0) => return Ok(offset),
-            Ok(n) => {
-                if !emit(response(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk {
-                    record_index,
-                    offset,
-                    data: buf[..n].to_vec(),
-                }))) {
-                    return Err(io::Error::new(io::ErrorKind::BrokenPipe, "consumer gone"));
-                }
-                offset += n as u64;
-            }
-            Err(e) => return Err(e),
+        let window = reader.fill_buf()?;
+        if window.is_empty() {
+            return Ok(offset);
         }
+        let n = window.len().min(chunk_size);
+        let data = Bytes::copy_from_slice(&window[..n]);
+        reader.consume(n);
+        if !emit(response(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk {
+            record_index,
+            offset,
+            data,
+        }))) {
+            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "consumer gone"));
+        }
+        offset += n as u64;
     }
 }
 
-/// `Read` + `Seek` over streamed request chunks.
+/// `BufRead` + `Seek` over streamed request chunks.
 ///
-/// Blocks until the next chunk or EOF. Only current-position seeks succeed;
-/// the parser only queries position during linear reads. Digest verification
-/// freezes the record into an in-memory `Cursor` before seeking, so identity
-/// seeks on this adapter are sufficient for the linear parse path.
+/// `fill_buf` hands the parser a window into the received `Bytes` chunk
+/// itself, so header scans and payload skips run in place with no
+/// intermediate copy. Blocks until the next chunk or EOF. Only
+/// current-position seeks succeed; the parser only queries position during
+/// linear reads. Digest verification freezes the record into an in-memory
+/// `Cursor` before seeking, so identity seeks on this adapter are
+/// sufficient for the linear parse path.
 struct ChannelReader {
-    rx: mpsc::Receiver<Vec<u8>>,
-    current: Option<(Vec<u8>, usize)>,
+    rx: mpsc::Receiver<Bytes>,
+    current: Bytes,
     pos: u64,
 }
 
+/// Compression autodetection reads the first four bytes from one `fill_buf`
+/// window; coalesce the stream head until it can satisfy that.
+const MAGIC_LEN: usize = 4;
+
 impl ChannelReader {
-    fn new(rx: mpsc::Receiver<Vec<u8>>) -> Self {
+    fn new(rx: mpsc::Receiver<Bytes>) -> Self {
         Self {
             rx,
-            current: None,
+            current: Bytes::new(),
             pos: 0,
         }
     }
@@ -438,26 +598,40 @@ impl ChannelReader {
 
 impl Read for ChannelReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() {
-            return Ok(0);
-        }
-        loop {
-            if let Some((chunk, consumed)) = &mut self.current {
-                if *consumed < chunk.len() {
-                    let n = (chunk.len() - *consumed).min(buf.len());
-                    buf[..n].copy_from_slice(&chunk[*consumed..*consumed + n]);
-                    *consumed += n;
-                    self.pos += n as u64;
-                    return Ok(n);
-                }
-                self.current = None;
-            }
+        let src = self.fill_buf()?;
+        let n = src.len().min(buf.len());
+        buf[..n].copy_from_slice(&src[..n]);
+        self.consume(n);
+        Ok(n)
+    }
+}
+
+impl BufRead for ChannelReader {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        while self.current.is_empty() {
             match self.rx.blocking_recv() {
                 Some(chunk) if chunk.is_empty() => {}
-                Some(chunk) => self.current = Some((chunk, 0)),
-                None => return Ok(0),
+                Some(chunk) => self.current = chunk,
+                None => return Ok(&[]),
             }
         }
+        if self.pos == 0 && self.current.len() < MAGIC_LEN {
+            let mut head = BytesMut::from(&self.current[..]);
+            while head.len() < MAGIC_LEN {
+                match self.rx.blocking_recv() {
+                    Some(chunk) => head.extend_from_slice(&chunk),
+                    None => break,
+                }
+            }
+            self.current = head.freeze();
+        }
+        Ok(&self.current)
+    }
+
+    fn consume(&mut self, amt: usize) {
+        let n = amt.min(self.current.len());
+        self.current.advance(n);
+        self.pos += n as u64;
     }
 }
 

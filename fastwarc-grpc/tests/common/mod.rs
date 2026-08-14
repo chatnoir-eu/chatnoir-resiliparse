@@ -59,8 +59,10 @@ pub async fn start_warc_server() -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(WarcServiceServer::new(WarcParser))
+        fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
+            .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(
+                WarcParser::with_local_files(),
+            )))
             .serve_with_incoming(TcpListenerStream::new(listener))
             .await
             .unwrap();
@@ -75,7 +77,7 @@ pub fn warc_requests(data: &[u8], chunk_size: usize, config: &pb::ParseWarcConfi
         kind: Some(pb::parse_warc_request::Kind::Config(config.clone())),
     }];
     requests.extend(data.chunks(chunk_size).map(|chunk| pb::ParseWarcRequest {
-        kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec())),
+        kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec().into())),
     }));
     requests
 }
@@ -84,7 +86,13 @@ pub fn warc_requests(data: &[u8], chunk_size: usize, config: &pb::ParseWarcConfi
 /// response messages. Panics on transport-level errors.
 pub async fn collect_warc(file: &str, chunk_size: usize, config: &pb::ParseWarcConfig) -> Vec<pb::ParseWarcResponse> {
     let addr = start_warc_server().await;
-    let mut client = WarcServiceClient::connect(format!("http://{addr}")).await.unwrap();
+    let mut client = WarcServiceClient::new(
+        fastwarc_grpc::transport::connect(format!("http://{addr}"))
+            .await
+            .unwrap(),
+    )
+    .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
+    .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
     let data = std::fs::read(data_path(file)).unwrap();
     let requests = warc_requests(&data, chunk_size, config);
     let mut stream = client
@@ -141,52 +149,69 @@ pub enum RecordOutcome {
 /// protocol invariants: record sequences nest properly, record indexes are
 /// sequential, chunk offsets are contiguous from zero, and
 /// `record_end.payload_length` matches the streamed chunk bytes.
+///
+/// `batch` messages are flattened first so batched and unbatched streams
+/// share the same assertions.
 pub fn group_responses(responses: &[pb::ParseWarcResponse]) -> Vec<RecordOutcome> {
     let mut outcomes = Vec::new();
     // (metadata, payload bytes) of the currently open record.
     let mut open: Option<(pb::RecordMetadata, Vec<u8>)> = None;
-    for resp in responses {
-        match resp.kind.as_ref().unwrap() {
-            pb::parse_warc_response::Kind::RecordStart(start) => {
-                let metadata = start.metadata.clone().unwrap();
-                assert!(open.is_none(), "record_start while record still open");
-                assert_eq!(
-                    metadata.record_index,
-                    u64::try_from(outcomes.len()).unwrap(),
-                    "non-sequential record_index"
-                );
-                open = Some((metadata, Vec::new()));
-            }
-            pb::parse_warc_response::Kind::PayloadChunk(chunk) => {
-                let (metadata, payload) = open.as_mut().expect("payload_chunk outside of record");
-                assert_eq!(chunk.record_index, metadata.record_index);
-                assert_eq!(chunk.offset, u64::try_from(payload.len()).unwrap(), "non-contiguous payload chunk offset");
-                payload.extend_from_slice(&chunk.data);
-            }
-            pb::parse_warc_response::Kind::RecordEnd(end) => {
-                let (metadata, payload) = open.take().expect("record_end outside of record");
-                assert_eq!(end.record_index, metadata.record_index);
-                assert_eq!(
-                    end.payload_length,
-                    u64::try_from(payload.len()).unwrap(),
-                    "payload_length does not match streamed bytes"
-                );
-                outcomes.push(RecordOutcome::Record {
-                    metadata: Box::new(metadata),
-                    payload,
-                    end: end.clone(),
-                });
-            }
-            pb::parse_warc_response::Kind::RecordError(e) => {
-                if let Some((metadata, _)) = open.take() {
-                    panic!("record_error in the middle of record {}: {}", metadata.record_index, e.message);
-                }
-                outcomes.push(RecordOutcome::Error(e.clone()));
-            }
+    for_each_event(responses, |resp| match resp.kind.as_ref().unwrap() {
+        pb::parse_warc_response::Kind::RecordStart(start) => {
+            let metadata = start.metadata.clone().unwrap();
+            assert!(open.is_none(), "record_start while record still open");
+            assert_eq!(metadata.record_index, u64::try_from(outcomes.len()).unwrap(), "non-sequential record_index");
+            open = Some((metadata, Vec::new()));
         }
-    }
+        pb::parse_warc_response::Kind::PayloadChunk(chunk) => {
+            let (metadata, payload) = open.as_mut().expect("payload_chunk outside of record");
+            assert_eq!(chunk.record_index, metadata.record_index);
+            assert_eq!(chunk.offset, u64::try_from(payload.len()).unwrap(), "non-contiguous payload chunk offset");
+            payload.extend_from_slice(&chunk.data);
+        }
+        pb::parse_warc_response::Kind::RecordEnd(end) => {
+            let (metadata, payload) = open.take().expect("record_end outside of record");
+            assert_eq!(end.record_index, metadata.record_index);
+            assert_eq!(
+                end.payload_length,
+                u64::try_from(payload.len()).unwrap(),
+                "payload_length does not match streamed bytes"
+            );
+            outcomes.push(RecordOutcome::Record {
+                metadata: Box::new(metadata),
+                payload,
+                end: end.clone(),
+            });
+        }
+        pb::parse_warc_response::Kind::RecordError(e) => {
+            if let Some((metadata, _)) = open.take() {
+                panic!("record_error in the middle of record {}: {}", metadata.record_index, e.message);
+            }
+            outcomes.push(RecordOutcome::Error(e.clone()));
+        }
+        pb::parse_warc_response::Kind::Batch(_) => {
+            panic!("flattening missed a nested batch");
+        }
+    });
     assert!(open.is_none(), "stream ended with an open record");
     outcomes
+}
+
+/// Walk `record_start` / `payload_chunk` / `record_end` / `record_error`
+/// events, flattening `batch` messages in stream order.
+pub fn for_each_event(responses: &[pb::ParseWarcResponse], mut visit: impl FnMut(&pb::ParseWarcResponse)) {
+    fn walk(resp: &pb::ParseWarcResponse, visit: &mut impl FnMut(&pb::ParseWarcResponse)) {
+        if let Some(pb::parse_warc_response::Kind::Batch(batch)) = resp.kind.as_ref() {
+            for item in &batch.items {
+                walk(item, visit);
+            }
+        } else {
+            visit(resp);
+        }
+    }
+    for resp in responses {
+        walk(resp, &mut visit);
+    }
 }
 
 /// Convenience: extract only the successful record outcomes.
@@ -203,5 +228,11 @@ pub fn records_only(outcomes: &[RecordOutcome]) -> Vec<(&pb::RecordMetadata, &[u
 /// Connect a `WarcServiceClient` to a fresh in-process server.
 pub async fn warc_client() -> WarcServiceClient<Channel> {
     let addr = start_warc_server().await;
-    WarcServiceClient::connect(format!("http://{addr}")).await.unwrap()
+    WarcServiceClient::new(
+        fastwarc_grpc::transport::connect(format!("http://{addr}"))
+            .await
+            .unwrap(),
+    )
+    .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
+    .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
 }

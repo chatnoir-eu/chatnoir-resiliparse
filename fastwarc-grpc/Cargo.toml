@@ -21,7 +21,7 @@ tonic-prost = "0.14"
 tonic-health = "0.14"
 tonic-reflection = "0.14"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net"] }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["net"] }
 # Only OffsetDateTime accessors are used; fastwarc's public API exposes the
 # type, so the dependency is unavoidable but needs no extra features.
 time.workspace = true

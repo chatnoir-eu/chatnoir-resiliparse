@@ -26,8 +26,11 @@
   zstd dictionary training are not exposed.
 - Arbitrary `func_filter` callables (Python) cannot be remoted; built-in
   predicates are exposed as `BuiltinFilter`.
-- `inplace` iteration is a local memory optimization and is always off here.
-- `fsspec` path/URL opening is a Python binding concern; clients stream bytes.
+- `inplace` is applied automatically when `include_payload` is false and
+  `verify_digests` is false; it is not a client-facing option.
+- `fsspec` path/URL opening is a Python binding concern. Clients stream
+  `chunk` bytes, or set `archive_path` to a filesystem path the server can
+  open.
 - HTML/DOM parsing (the `resiliparse` crate) is deliberately out of scope to
   keep the project pure Rust with no native dependencies.
 - Authentication/TLS termination is left to deployment (reverse proxy);
@@ -49,12 +52,13 @@ fastwarc-grpc/                  # workspace member (single crate)
     buf.gen.yaml                # optional standalone stub generation
     fastwarc/v1/
       warc.proto                # lossless WARC data model
-      warc_service.proto        # WarcService (bidi streaming ParseWarc)
+      warc_service.proto        # WarcService (ParseWarc + ParseArchive)
   src/
     lib.rs                      # generated-proto module + crate docs
     main.rs                     # server bootstrap
     warc_service.rs             # WarcService impl
     convert.rs                  # crate-type -> proto conversions
+    transport.rs                # HTTP/2 settings for bulk WARC transfer
   tests/                        # in-process integration tests + fixtures
 ```
 
@@ -74,10 +78,13 @@ rpc ParseWarc(stream ParseWarcRequest) returns (stream ParseWarcResponse)
   a remote stream, plus `payload_chunk_size`:
   `parse_http`, `decode_http_payload`, `verify_digests`, `quirks_mode`,
   `max_header_len`, `record_types`, `min_content_length`, `max_content_length`,
-  `stream_detect`, `input_buffer_size`, `filters` (`BuiltinFilter`).
+  `stream_detect`, `input_buffer_size`, `filters` (`BuiltinFilter`),
+  `include_payload`, `include_headers`, `response_batch_size`,
+  `archive_path`.
 - Subsequent messages: raw archive `chunk`s. Chunks are concatenated in
   order and fed through a channel into an `ArchiveIterator` running on a
-  blocking thread. Empty `kind` is rejected.
+  blocking thread. Empty `kind` is rejected. When `archive_path` is set,
+  the server opens that filesystem path and ignores chunks.
 - Responses per kept record, in order: `record_start` (full `RecordMetadata`),
   zero or more `payload_chunk`s, `record_end` (payload length + digest
   verification statuses).
@@ -106,7 +113,8 @@ rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse)
 ```
 
 The unary companion for single records and small archives that fit within
-the gRPC message size limits (4 MiB by default on most implementations):
+the gRPC message size limits (this server accepts 16 MiB; many clients
+default to 4 MiB):
 one request carrying `ParseWarcConfig` + the complete archive bytes, one
 response carrying every kept record (`ParsedRecord`: metadata, whole
 payload, digest statuses) and every record-level error, in stream order.
@@ -175,8 +183,11 @@ Key decisions:
 - **Async shape**: tonic + tokio. `ArchiveIterator` is synchronous and
   CPU/IO-bound, so WARC parsing runs in `tokio::task::spawn_blocking`; the
   request stream feeds bytes through an `mpsc` channel into a
-  `std::io::Read` adapter (`ChannelReader`, wrapped in `BufReader` to
-  satisfy `IntoWarcReader`), and parsed responses flow back through a second
+  `std::io::BufRead` adapter (`ChannelReader`). Chunk fields are generated
+  as `bytes::Bytes`, so a chunk decodes zero-copy out of the HTTP/2 receive
+  buffer, and `ChannelReader::fill_buf` hands the parser windows into those
+  chunks directly: header scans and payload skips run in place, with no
+  intermediate `BufReader` copy. Parsed responses flow back through a second
   `mpsc` wrapped in `tokio_stream::wrappers::ReceiverStream`. A panic in the
   blocking task is mapped to gRPC `Internal` (not silent EOF).
 - **Per-record pipeline**: filter → verify block digest (freezes the record)
@@ -184,6 +195,28 @@ Key decisions:
   `record_start` → stream payload chunks → `record_end`.
 - **Concurrency**: each RPC stream is independent; the service is stateless
   and holds no shared parser state.
+- **HTTP/2 windows**: tonic/h2 default to a 64 KiB flow-control window,
+  which starves a multi-gigabyte archive stream.
+  `transport::{configure_server, configure_endpoint, connect}` raise the
+  connection window to 32 MiB, the stream window to 16 MiB, and the max
+  frame to 1 MiB, with TCP_NODELAY. Adaptive (BDP-probing) windows stay
+  off: they override fixed windows and can stall a stream saturated in
+  both directions. The gRPC message
+  cap is 16 MiB. Both peers must be tuned: HTTP/2 flow control is the
+  minimum of the two. `FASTWARC_HTTP2_CONNECTION_WINDOW` and
+  `FASTWARC_HTTP2_STREAM_WINDOW` override the windows (bytes, minimum
+  65535). The parser chunk queue holds about 32 MiB;
+  `RESPONSE_CHANNEL_BOUND` is 1024.
+- **`include_payload` / `include_headers`**: unset defaults to true (full
+  lossless stream). Set false to skip payload copies and/or lossless header
+  blocks; `record_end.payload_length` then comes from WARC `Content-Length`
+  and the iterator consumes unread payload on the next step. When payload
+  is omitted and digests are off, the parser enables `inplace`.
+- **Response batching**: `response_batch_size` > 1 packs that many protocol
+  events into one `batch` gRPC message. A batch flushes as soon as it fills
+  or reaches 2 MiB. Combined with `try_send` (blocking only when the
+  response channel is actually full), the parser is not parked on every
+  per-record send. Zero sends one event per message.
 - **Error mapping**: recoverable HTTP failures and non-recoverable framing /
   payload failures become `record_error` as above; empty request `kind`, a
   second `config`, and transport-level failures become gRPC statuses.
@@ -211,6 +244,8 @@ Key decisions:
   `verify_block_digest`/`verify_payload_digest` calls.
 - **Protocol tests**: first message must be config; a second config and an
   empty `kind` are rejected (`InvalidArgument`).
+- **Batching**: `response_batch_size=8` flattens to the same records as the
+  unbatched stream.
 - **Unary parity**: `ParseArchive` output must equal the folded `ParseWarc`
   stream for the same input and config (records, payload bytes, digest
   verdicts); missing config is rejected; a framing error returns partial
