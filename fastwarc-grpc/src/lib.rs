@@ -29,10 +29,11 @@
 //! FASTWARC_GRPC_ADDR="[::]:50051" cargo run --release -p fastwarc-grpc
 //! ```
 //!
-//! `FASTWARC_GRPC_ADDR` defaults to `[::]:50051`. The server shuts down gracefully on SIGINT or
-//! SIGTERM. Besides [`WarcService`](proto::fastwarc::v1::warc_service_server::WarcService), it
-//! serves the standard `grpc.health.v1.Health` service for load-balancer probes and gRPC server
-//! reflection (v1), so generic tools can discover the API without local proto files:
+//! `FASTWARC_GRPC_ADDR` defaults to `[::]:50051`. A Unix socket is accepted as `unix:///path.sock`
+//! or as an absolute filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
+//! Besides [`WarcService`](proto::fastwarc::v1::warc_service_server::WarcService), it serves the
+//! standard `grpc.health.v1.Health` service for load-balancer probes and gRPC server reflection
+//! (v1), so generic tools can discover the API without local proto files:
 //!
 //! ```bash
 //! grpcurl -plaintext localhost:50051 describe fastwarc.v1.WarcService
@@ -41,7 +42,8 @@
 //! # Parsing a Small Archive in One Call
 //!
 //! `ParseArchive` is the unary entry point for single records and archives that fit within the
-//! gRPC message size limits (4 MiB by default on most implementations). One request carries the
+//! gRPC message size limits. This server accepts 16 MiB ([`transport::MAX_MESSAGE_SIZE`]); many
+//! clients default to 4 MiB and must raise their decode limit to match. One request carries the
 //! configuration and the complete archive; the response carries every kept record with its
 //! metadata, payload, and digest results.
 //!
@@ -51,11 +53,13 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut client = WarcServiceClient::connect("http://localhost:50051").await?;
+//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50051").await?)
+//!     .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
+//!     .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
 //! let response = client
 //!     .parse_archive(pb::ParseArchiveRequest {
 //!         config: Some(pb::ParseWarcConfig { parse_http: true, ..Default::default() }),
-//!         archive: std::fs::read("warcfile.warc.gz")?,
+//!         archive: std::fs::read("warcfile.warc.gz")?.into(),
 //!     })
 //!     .await?
 //!     .into_inner();
@@ -80,6 +84,9 @@
 //! `ParseWarc` is the bidirectional streaming RPC for archives of arbitrary size. Memory stays
 //! bounded on both sides. The client sends one `config` message first, then any number of `chunk`
 //! messages with raw archive bytes. Chunk boundaries are arbitrary; the server concatenates them.
+//! Set `archive_path` on the config to have the server open a local file instead of uploading
+//! chunks (requires a server built with `WarcParser::with_local_files`, or
+//! `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1` for the bundled binary; otherwise `PermissionDenied`).
 //!
 //! For every kept record the server responds with an ordered sequence: one `record_start`
 //! carrying all metadata, zero or more offset-tagged `payload_chunk` messages, and one
@@ -104,7 +111,7 @@
 //! tokio::spawn(async move {
 //!     for chunk in std::fs::read("warcfile.warc.gz").expect("readable file").chunks(64 << 10) {
 //!         let request = pb::ParseWarcRequest {
-//!             kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec())),
+//!             kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec().into())),
 //!         };
 //!         if tx.send(request).await.is_err() {
 //!             break; // Server closed the stream.
@@ -112,9 +119,17 @@
 //!     }
 //! });
 //!
-//! let mut client = WarcServiceClient::connect("http://localhost:50051").await?;
+//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50051").await?)
+//!     .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
+//!     .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
 //! let mut stream = client.parse_warc(ReceiverStream::new(rx)).await?.into_inner();
 //! while let Some(response) = stream.message().await? {
+//!     handle_response(response);
+//! }
+//! # Ok(())
+//! # }
+//!
+//! fn handle_response(response: pb::ParseWarcResponse) {
 //!     match response.kind {
 //!         Some(pb::parse_warc_response::Kind::RecordStart(start)) => {
 //!             let metadata = start.metadata.unwrap_or_default();
@@ -129,11 +144,14 @@
 //!         Some(pb::parse_warc_response::Kind::RecordError(error)) => {
 //!             eprintln!("record error (recoverable: {}): {}", error.recoverable, error.message);
 //!         }
+//!         Some(pb::parse_warc_response::Kind::Batch(batch)) => {
+//!             for item in batch.items {
+//!                 handle_response(item);
+//!             }
+//!         }
 //!         None => {}
 //!     }
 //! }
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! This example reads the whole file up front for brevity. `examples/parse.rs` shows the
@@ -145,7 +163,8 @@
 //! [`ParseWarcConfig`](proto::fastwarc::v1::ParseWarcConfig) mirrors the parse and filter options
 //! of the local `ArchiveIterator` where they make sense on a remote stream: `parse_http`,
 //! `decode_http_payload`, `verify_digests`, `quirks_mode`, `max_header_len`, `record_types`,
-//! `min_content_length`, `max_content_length`, `stream_detect`, and `input_buffer_size`.
+//! `min_content_length`, `max_content_length`, `stream_detect`, `input_buffer_size`,
+//! `include_payload`, `include_headers`, `response_batch_size`, and `archive_path`.
 //! Filtered-out records are skipped silently, matching local iteration.
 //!
 //! Two differences from the local APIs matter:
@@ -179,7 +198,10 @@
 //! # Embedding the Server
 //!
 //! The service implementation is the [`warc_service::WarcParser`] struct. It is stateless, so it
-//! can be mounted in an existing tonic server alongside other services:
+//! can be mounted in an existing tonic server alongside other services. `WarcParser::new()`
+//! rejects `archive_path` requests with `PermissionDenied`; construct it with
+//! [`warc_service::WarcParser::with_local_files`] to let clients open files on the server
+//! (only when every client is trusted with read access to the server's files):
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_server::WarcServiceServer;
@@ -187,8 +209,8 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! tonic::transport::Server::builder()
-//!     .add_service(WarcServiceServer::new(WarcParser))
+//! fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
+//!     .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(WarcParser::new())))
 //!     .serve("[::1]:50051".parse()?)
 //!     .await?;
 //! # Ok(())
@@ -214,6 +236,7 @@
 #![warn(clippy::pedantic)]
 
 pub mod convert;
+pub mod transport;
 pub mod warc_service;
 
 /// Generated protobuf and gRPC stubs.

@@ -36,10 +36,10 @@ async fn start_full_server() -> std::net::SocketAddr {
         .unwrap();
 
     tokio::spawn(async move {
-        Server::builder()
+        fastwarc_grpc::transport::configure_server(Server::builder())
             .add_service(health_service)
             .add_service(reflection_service)
-            .add_service(WarcServiceServer::new(WarcParser))
+            .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(WarcParser::new())))
             .serve_with_incoming(TcpListenerStream::new(listener))
             .await
             .unwrap();
@@ -49,8 +49,7 @@ async fn start_full_server() -> std::net::SocketAddr {
 
 /// Connect a channel to the test server.
 async fn channel(addr: std::net::SocketAddr) -> Channel {
-    Endpoint::from_shared(format!("http://{addr}"))
-        .unwrap()
+    fastwarc_grpc::transport::configure_endpoint(Endpoint::from_shared(format!("http://{addr}")).unwrap())
         .connect()
         .await
         .unwrap()
@@ -99,4 +98,24 @@ async fn reflection_lists_warc_service() {
         names.contains(&"fastwarc.v1.WarcService"),
         "fastwarc.v1.WarcService missing from reflection listing: {names:?}"
     );
+}
+
+/// `archive_path` is rejected with `PermissionDenied` unless the server was
+/// built with `WarcParser::with_local_files` (this server was not).
+#[tokio::test]
+async fn archive_path_denied_by_default() {
+    use fastwarc_grpc::proto::fastwarc::v1 as pb;
+
+    let addr = start_full_server().await;
+    let mut client = pb::warc_service_client::WarcServiceClient::new(channel(addr).await);
+
+    let config = pb::ParseWarcConfig {
+        archive_path: "/etc/hostname".to_owned(),
+        ..Default::default()
+    };
+    let requests = tokio_stream::iter(vec![pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Config(config)),
+    }]);
+    let status = client.parse_warc(requests).await.unwrap_err();
+    assert_eq!(status.code(), tonic::Code::PermissionDenied);
 }

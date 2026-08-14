@@ -312,7 +312,7 @@ async fn lossless_payload_and_headers() {
 async fn first_message_must_be_config() {
     let mut client = common::warc_client().await;
     let requests = vec![pb::ParseWarcRequest {
-        kind: Some(pb::parse_warc_request::Kind::Chunk(b"WARC/1.0\r\n".to_vec())),
+        kind: Some(pb::parse_warc_request::Kind::Chunk(b"WARC/1.0\r\n".to_vec().into())),
     }];
     let status = client.parse_warc(tokio_stream::iter(requests)).await.unwrap_err();
     assert_eq!(status.code(), tonic::Code::InvalidArgument);
@@ -329,14 +329,14 @@ async fn second_config_rejected() {
             kind: Some(pb::parse_warc_request::Kind::Config(default_config())),
         },
         pb::ParseWarcRequest {
-            kind: Some(pb::parse_warc_request::Kind::Chunk(data[..8 << 10].to_vec())),
+            kind: Some(pb::parse_warc_request::Kind::Chunk(data[..8 << 10].to_vec().into())),
         },
         pb::ParseWarcRequest {
             kind: Some(pb::parse_warc_request::Kind::Config(default_config())),
         },
     ];
     requests.extend(data[8 << 10..].chunks(8 << 10).map(|chunk| pb::ParseWarcRequest {
-        kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec())),
+        kind: Some(pb::parse_warc_request::Kind::Chunk(chunk.to_vec().into())),
     }));
 
     let mut stream = client
@@ -570,7 +570,7 @@ async fn unary_matches_stream() {
         let unary = client
             .parse_archive(pb::ParseArchiveRequest {
                 config: Some(config),
-                archive: std::fs::read(data_path(file)).unwrap(),
+                archive: std::fs::read(data_path(file)).unwrap().into(),
             })
             .await
             .unwrap()
@@ -596,7 +596,7 @@ async fn unary_requires_config() {
     let status = client
         .parse_archive(pb::ParseArchiveRequest {
             config: None,
-            archive: Vec::new(),
+            archive: Vec::new().into(),
         })
         .await
         .unwrap_err();
@@ -610,7 +610,7 @@ async fn unary_empty_archive() {
     let response = client
         .parse_archive(pb::ParseArchiveRequest {
             config: Some(default_config()),
-            archive: Vec::new(),
+            archive: Vec::new().into(),
         })
         .await
         .unwrap()
@@ -627,7 +627,7 @@ async fn unary_reports_framing_error() {
     let response = client
         .parse_archive(pb::ParseArchiveRequest {
             config: Some(default_config()),
-            archive: common::corrupt_archive(),
+            archive: common::corrupt_archive().into(),
         })
         .await
         .unwrap()
@@ -674,4 +674,91 @@ async fn client_cancel_mid_stream() {
     let outcomes = group_responses(&responses);
     assert_eq!(outcomes.len(), 50);
     assert!(outcomes.iter().all(|o| matches!(o, RecordOutcome::Record { .. })));
+}
+
+/// `include_payload=false` / `include_headers=false` still emits one start/end
+/// pair per record, with Content-Length on `record_end` and no payload copies.
+#[tokio::test]
+async fn omit_payload_and_headers_counts_records() {
+    let config = pb::ParseWarcConfig {
+        include_payload: Some(false),
+        include_headers: Some(false),
+        ..Default::default()
+    };
+    let responses = collect_warc("warcfile.warc", 8 << 10, &config).await;
+    let mut starts = 0u64;
+    let mut chunks = 0u64;
+    let mut ends = 0u64;
+    let mut last_len = 0u64;
+    common::for_each_event(&responses, |resp| match resp.kind.as_ref().unwrap() {
+        pb::parse_warc_response::Kind::RecordStart(start) => {
+            let metadata = start.metadata.as_ref().unwrap();
+            assert!(metadata.warc_headers.is_none());
+            assert!(metadata.http_headers.is_none());
+            last_len = metadata.content_length;
+            starts += 1;
+        }
+        pb::parse_warc_response::Kind::PayloadChunk(_) => chunks += 1,
+        pb::parse_warc_response::Kind::RecordEnd(end) => {
+            assert_eq!(end.payload_length, last_len);
+            ends += 1;
+        }
+        pb::parse_warc_response::Kind::RecordError(e) => panic!("unexpected record_error: {}", e.message),
+        pb::parse_warc_response::Kind::Batch(_) => panic!("nested batch after flatten"),
+    });
+    assert_eq!(starts, 50);
+    assert_eq!(ends, 50);
+    assert_eq!(chunks, 0);
+}
+
+/// `archive_path` parses a file on the server without uploading chunks.
+#[tokio::test]
+async fn archive_path_counts_records_without_chunks() {
+    let config = pb::ParseWarcConfig {
+        include_payload: Some(false),
+        include_headers: Some(false),
+        archive_path: data_path("warcfile.warc").to_string_lossy().into_owned(),
+        response_batch_size: 8,
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = vec![pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Config(config)),
+    }];
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.unwrap() {
+        responses.push(resp);
+    }
+    let mut ends = 0u64;
+    common::for_each_event(&responses, |resp| {
+        if matches!(resp.kind.as_ref(), Some(pb::parse_warc_response::Kind::RecordEnd(_))) {
+            ends += 1;
+        }
+    });
+    assert_eq!(ends, 50);
+}
+
+/// Batched responses flatten to the same records as the 1:1 wire.
+#[tokio::test]
+async fn batched_stream_matches_unbatched() {
+    let unbatched = group_responses(&collect_warc("warcfile.warc", 8 << 10, &default_config()).await);
+    let batched_config = pb::ParseWarcConfig {
+        response_batch_size: 8,
+        ..default_config()
+    };
+    let batched_raw = collect_warc("warcfile.warc", 8 << 10, &batched_config).await;
+    assert!(
+        batched_raw
+            .iter()
+            .any(|r| matches!(r.kind, Some(pb::parse_warc_response::Kind::Batch(_)))),
+        "expected at least one batch message"
+    );
+    let batched = group_responses(&batched_raw);
+    assert_eq!(unbatched.len(), batched.len());
+    assert_eq!(unbatched.len(), 50);
 }

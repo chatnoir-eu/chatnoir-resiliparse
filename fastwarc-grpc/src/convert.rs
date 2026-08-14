@@ -142,22 +142,66 @@ pub fn header_block(headers: &HeaderMap) -> pb::HeaderBlock {
     }
 }
 
-/// Build the full `RecordMetadata` for a parsed record.
+/// Whether payload bytes should be streamed. Unset defaults to true.
 #[must_use]
-pub fn record_metadata(record: &WarcRecord, record_index: u64) -> pb::RecordMetadata {
+pub fn include_payload(config: &pb::ParseWarcConfig) -> bool {
+    config.include_payload.unwrap_or(true)
+}
+
+/// Whether lossless header blocks should be filled. Unset defaults to true.
+#[must_use]
+pub fn include_headers(config: &pb::ParseWarcConfig) -> bool {
+    config.include_headers.unwrap_or(true)
+}
+
+/// Number of protocol events packed into one gRPC message. Zero means one
+/// event per message.
+#[must_use]
+pub fn response_batch_size(config: &pb::ParseWarcConfig) -> usize {
+    usize::try_from(config.response_batch_size).unwrap_or(1).max(1)
+}
+
+/// Build the `RecordMetadata` for a parsed record.
+///
+/// When `include_headers` is false, `warc_headers` and `http_headers` are
+/// left unset so a scan that only needs type/length/position skips the
+/// lossless header copy.
+#[must_use]
+pub fn record_metadata(record: &WarcRecord, record_index: u64, include_headers: bool) -> pb::RecordMetadata {
+    let (warc_headers, http_headers) = if include_headers {
+        (Some(header_block(record.headers())), record.http_headers().map(header_block))
+    } else {
+        (None, None)
+    };
     pb::RecordMetadata {
         record_index,
         record_type: warc_record_type(record.record_type()).into(),
-        warc_headers: Some(header_block(record.headers())),
+        warc_headers,
         content_length: record.content_length(),
         stream_pos: record.stream_pos(),
         is_http: record.is_http(),
         http_parsed: record.is_http_parsed(),
-        http_headers: record.http_headers().map(header_block),
-        http_content_type: record.http_content_type(),
-        http_charset: record.http_charset().map(std::borrow::Cow::into_owned),
-        record_id: record.record_id().map(std::borrow::Cow::into_owned),
-        record_date: record.record_date().map(timestamp),
+        http_headers,
+        http_content_type: if include_headers {
+            record.http_content_type()
+        } else {
+            None
+        },
+        http_charset: if include_headers {
+            record.http_charset().map(std::borrow::Cow::into_owned)
+        } else {
+            None
+        },
+        record_id: if include_headers {
+            record.record_id().map(std::borrow::Cow::into_owned)
+        } else {
+            None
+        },
+        record_date: if include_headers {
+            record.record_date().map(timestamp)
+        } else {
+            None
+        },
     }
 }
 
