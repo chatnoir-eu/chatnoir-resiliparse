@@ -58,7 +58,13 @@ fn jobs() -> usize {
 }
 
 /// Feed `config` and, unless `local`, the archive bytes into the request channel.
-fn spawn_feeder(path: String, tx: tokio::sync::mpsc::Sender<pb::ParseWarcRequest>, buf_size: usize, full: bool, local: bool) {
+fn spawn_feeder(
+    path: String,
+    tx: tokio::sync::mpsc::Sender<pb::ParseWarcRequest>,
+    buf_size: usize,
+    full: bool,
+    local: bool,
+) {
     std::thread::spawn(move || {
         let config = pb::ParseWarcConfig {
             parse_http: false,
@@ -125,45 +131,64 @@ async fn connect_client(
         .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE))
 }
 
+/// Shared record/byte counters across all streams, read by the progress printer.
+struct Totals {
+    count: std::sync::atomic::AtomicUsize,
+    bytes: std::sync::atomic::AtomicU64,
+}
+
 /// Drive one ParseWarc stream to completion; returns (records, payload bytes).
 async fn run_stream(
     mut client: WarcServiceClient<Channel>,
     rx: tokio::sync::mpsc::Receiver<pb::ParseWarcRequest>,
-    progress: bool,
+    totals: std::sync::Arc<Totals>,
 ) -> Result<(usize, u64), Box<dyn std::error::Error + Send + Sync>> {
-    let mut stream = client.parse_warc(ReceiverStream::new(rx)).await?.into_inner();
+    use std::sync::atomic::Ordering::Relaxed;
 
-    let start = Instant::now();
-    let mut last_timer = start;
-    let mut last_count = 0usize;
-    let mut last_bytes = 0u64;
+    let mut stream = client.parse_warc(ReceiverStream::new(rx)).await?.into_inner();
     let mut total_count = 0usize;
     let mut total_bytes = 0u64;
-
     while let Some(response) = stream.message().await? {
         visit_ends(&response, |end| {
-            last_count += 1;
-            last_bytes += end.payload_length;
             total_count += 1;
             total_bytes += end.payload_length;
-
-            let elapsed = last_timer.elapsed();
-            if progress && elapsed >= Duration::from_millis(500) {
-                println!(
-                    "{:.0} records/s, {:.1} MiB/s, {:.1} KiB/rec ({} total, {:.1} MiB)",
-                    last_count as f64 / elapsed.as_secs_f64(),
-                    last_bytes as f64 / elapsed.as_secs_f64() / 1024.0 / 1024.0,
-                    last_bytes as f64 / last_count.max(1) as f64 / 1024.0,
-                    total_count,
-                    total_bytes as f64 / 1024.0 / 1024.0
-                );
-                last_count = 0;
-                last_bytes = 0;
-                last_timer = Instant::now();
-            }
+            totals.count.fetch_add(1, Relaxed);
+            totals.bytes.fetch_add(end.payload_length, Relaxed);
         });
     }
     Ok((total_count, total_bytes))
+}
+
+/// Print aggregate throughput every 500 ms until aborted. With multiple
+/// streams the lines cover all of them combined.
+async fn print_progress(totals: std::sync::Arc<Totals>) {
+    use std::sync::atomic::Ordering::Relaxed;
+
+    let mut last_timer = Instant::now();
+    let mut last_count = 0usize;
+    let mut last_bytes = 0u64;
+    loop {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let count = totals.count.load(Relaxed);
+        let bytes = totals.bytes.load(Relaxed);
+        let delta_count = count - last_count;
+        let delta_bytes = bytes - last_bytes;
+        if delta_count == 0 {
+            continue;
+        }
+        let elapsed = last_timer.elapsed();
+        println!(
+            "{:.0} records/s, {:.1} MiB/s, {:.1} KiB/rec ({} total, {:.1} MiB)",
+            delta_count as f64 / elapsed.as_secs_f64(),
+            delta_bytes as f64 / elapsed.as_secs_f64() / 1024.0 / 1024.0,
+            delta_bytes as f64 / delta_count.max(1) as f64 / 1024.0,
+            count,
+            bytes as f64 / 1024.0 / 1024.0
+        );
+        last_timer = Instant::now();
+        last_count = count;
+        last_bytes = bytes;
+    }
 }
 
 #[tokio::main]
@@ -192,7 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let listener = UnixListener::bind(&sock)?;
         tokio::spawn(
             fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
-                .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(WarcParser::with_local_files())))
+                .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(
+                    WarcParser::with_local_files(),
+                )))
                 .serve_with_incoming(UnixListenerStream::new(listener)),
         );
     }
@@ -211,13 +238,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         f64::from(fastwarc_grpc::transport::connection_window()) / 1024.0 / 1024.0
     );
 
+    let totals = std::sync::Arc::new(Totals {
+        count: std::sync::atomic::AtomicUsize::new(0),
+        bytes: std::sync::atomic::AtomicU64::new(0),
+    });
+    let printer = tokio::spawn(print_progress(totals.clone()));
+
     let start = Instant::now();
     let mut handles = Vec::new();
     for _ in 0..jobs {
         let (tx, rx) = tokio::sync::mpsc::channel::<pb::ParseWarcRequest>(request_channel_bound(buf_size));
         spawn_feeder(path.clone(), tx, buf_size, full, local);
         let client = connect_client(remote.as_deref(), &sock).await?;
-        handles.push(tokio::spawn(run_stream(client, rx, jobs == 1)));
+        handles.push(tokio::spawn(run_stream(client, rx, totals.clone())));
     }
     let mut total_count = 0usize;
     let mut total_bytes = 0u64;
@@ -226,6 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_count += count;
         total_bytes += bytes;
     }
+    printer.abort();
 
     let total_elapsed = start.elapsed().as_secs_f64();
     println!(

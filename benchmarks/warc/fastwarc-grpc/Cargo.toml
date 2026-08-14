@@ -16,7 +16,7 @@ path = "src/rawuds.rs"
 
 [dependencies]
 fastwarc-grpc = { path = "../../../fastwarc-grpc" }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = "0.14"
 tower = { version = "0.5", default-features = false, features = ["util"] }
