@@ -14,7 +14,7 @@ verification, no payload or header echo. The server parses in place.
 ./profile WARCFILE.warc                         # parse-only, 64 KiB chunks
 FASTWARC_GRPC_FULL=1 ./profile WARCFILE.warc    # stream payload and headers back
 FASTWARC_GRPC_LOCAL=1 ./profile WARCFILE.warc   # server opens WARCFILE; no upload
-FASTWARC_GRPC_JOBS=8 ./profile WARCFILE.warc    # 8 concurrent streams, aggregate summary
+FASTWARC_GRPC_JOBS=8 ./profile WARCFILE.warc    # 8 concurrent streams; progress lines and summary are aggregate
 ```
 
 `BUFFER_SIZE` is the gRPC input chunk size (default 64 KiB). Throughput is
