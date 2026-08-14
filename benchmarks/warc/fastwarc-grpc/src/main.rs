@@ -237,6 +237,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         f64::from(fastwarc_grpc::transport::stream_window()) / 1024.0 / 1024.0,
         f64::from(fastwarc_grpc::transport::connection_window()) / 1024.0 / 1024.0
     );
+    if jobs > 1 {
+        println!(
+            "{jobs} concurrent streams, each parsing the FULL archive ({jobs}x total work); rates below are the aggregate"
+        );
+    }
 
     let totals = std::sync::Arc::new(Totals {
         count: std::sync::atomic::AtomicUsize::new(0),
@@ -271,6 +276,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_count,
         total_bytes as f64 / 1024.0 / 1024.0
     );
+    if jobs > 1 {
+        let per_stream_bytes = total_bytes as f64 / jobs as f64;
+        println!(
+            "Aggregate over {jobs} streams x {:.1} MiB each; per-stream average {:.1} MiB/s",
+            per_stream_bytes / 1024.0 / 1024.0,
+            per_stream_bytes / total_elapsed / 1024.0 / 1024.0
+        );
+    }
     if remote.is_none() {
         let _ = std::fs::remove_file(&sock);
     }
