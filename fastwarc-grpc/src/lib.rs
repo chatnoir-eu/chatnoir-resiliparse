@@ -26,17 +26,17 @@
 //! Build and run from the repository root. The build requires `protoc` on the PATH.
 //!
 //! ```bash
-//! FASTWARC_GRPC_ADDR="[::]:50051" cargo run --release -p fastwarc-grpc
+//! FASTWARC_GRPC_ADDR="[::]:50061" cargo run --release -p fastwarc-grpc
 //! ```
 //!
-//! `FASTWARC_GRPC_ADDR` defaults to `[::]:50051`. A Unix socket is accepted as `unix:///path.sock`
+//! `FASTWARC_GRPC_ADDR` defaults to `[::]:50061`. A Unix socket is accepted as `unix:///path.sock`
 //! or as an absolute filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
 //! Besides [`WarcService`](proto::fastwarc::v1::warc_service_server::WarcService), it serves the
 //! standard `grpc.health.v1.Health` service for load-balancer probes and gRPC server reflection
 //! (v1), so generic tools can discover the API without local proto files:
 //!
 //! ```bash
-//! grpcurl -plaintext localhost:50051 describe fastwarc.v1.WarcService
+//! grpcurl -plaintext localhost:50061 describe fastwarc.v1.WarcService
 //! ```
 //!
 //! # Parsing a Small Archive in One Call
@@ -53,7 +53,7 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50051").await?)
+//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50061").await?)
 //!     .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
 //!     .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
 //! let response = client
@@ -119,7 +119,7 @@
 //!     }
 //! });
 //!
-//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50051").await?)
+//! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50061").await?)
 //!     .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
 //!     .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
 //! let mut stream = client.parse_warc(ReceiverStream::new(rx)).await?.into_inner();
@@ -211,7 +211,7 @@
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
 //!     .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(WarcParser::new())))
-//!     .serve("[::1]:50051".parse()?)
+//!     .serve("[::1]:50061".parse()?)
 //!     .await?;
 //! # Ok(())
 //! # }
@@ -226,7 +226,7 @@
 //! ```bash
 //! grpcurl -plaintext \
 //!   -d "{\"config\":{}, \"archive\":\"$(base64 -w0 record.warc)\"}" \
-//!   localhost:50051 fastwarc.v1.WarcService/ParseArchive
+//!   localhost:50061 fastwarc.v1.WarcService/ParseArchive
 //! ```
 //!
 //! See `DESIGN.md` for the architecture and the lossless data mapping, and `README.md` for the

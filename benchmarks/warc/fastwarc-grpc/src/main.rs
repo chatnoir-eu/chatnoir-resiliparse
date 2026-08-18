@@ -119,7 +119,7 @@ async fn connect_client(
         fastwarc_grpc::transport::connect(url).await?
     } else {
         let sock_for_client = sock.to_path_buf();
-        fastwarc_grpc::transport::configure_endpoint(tonic::transport::Endpoint::from_static("http://[::]:50051"))
+        fastwarc_grpc::transport::configure_endpoint(tonic::transport::Endpoint::from_static("http://[::]:50061"))
             .connect_with_connector(service_fn(move |_: Uri| {
                 let sock = sock_for_client.clone();
                 async move { Ok::<_, std::io::Error>(TokioIo::new(UnixStream::connect(sock).await?)) }

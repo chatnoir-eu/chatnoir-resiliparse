@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args().nth(1).ok_or("usage: parse <warc-file> [server-url]")?;
     let url = std::env::args()
         .nth(2)
-        .unwrap_or_else(|| "http://localhost:50051".to_owned());
+        .unwrap_or_else(|| "http://localhost:50061".to_owned());
 
     let mut file = std::fs::File::open(&path)?;
     let (tx, rx) = mpsc::channel::<pb::ParseWarcRequest>(4);
