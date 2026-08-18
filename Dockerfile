@@ -7,6 +7,7 @@ RUN set -x \
         git \
         gcc-toolset-14-libasan-devel \
         ninja-build \
+        protobuf-compiler \
         tar \
         unzip \
         zip \
