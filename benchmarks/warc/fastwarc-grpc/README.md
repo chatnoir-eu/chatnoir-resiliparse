@@ -37,9 +37,9 @@ For a remote TCP run, start the server on one host and the profile binary as a
 client on another:
 
 ```bash
-FASTWARC_GRPC_ADDR=0.0.0.0:50051 cargo run -p fastwarc-grpc --release
+FASTWARC_GRPC_ADDR=0.0.0.0:50061 cargo run -p fastwarc-grpc --release
 # add FASTWARC_GRPC_ALLOW_LOCAL_FILES=1 to the server env for FASTWARC_GRPC_LOCAL runs
-FASTWARC_GRPC_URL=http://server:50051 ./profile WARCFILE.warc
+FASTWARC_GRPC_URL=http://server:50061 ./profile WARCFILE.warc
 ```
 
 ## Install Dependencies:

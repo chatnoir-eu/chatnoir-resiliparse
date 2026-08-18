@@ -43,10 +43,10 @@ Usage documentation with worked client examples lives in the crate docs:
   call the service without local copies of the proto files:
 
 ```sh
-grpcurl -plaintext localhost:50051 describe fastwarc.v1.WarcService
+grpcurl -plaintext localhost:50061 describe fastwarc.v1.WarcService
 grpcurl -plaintext \
   -d "{\"config\":{}, \"archive\":\"$(base64 -w0 record.warc)\"}" \
-  localhost:50051 fastwarc.v1.WarcService/ParseArchive
+  localhost:50061 fastwarc.v1.WarcService/ParseArchive
 ```
 
 ### Python parity notes
@@ -76,7 +76,7 @@ dependency.
 ## Run
 
 ```sh
-FASTWARC_GRPC_ADDR="[::]:50051" cargo run -p fastwarc-grpc
+FASTWARC_GRPC_ADDR="[::]:50061" cargo run -p fastwarc-grpc
 ```
 
 `FASTWARC_GRPC_ADDR` also accepts `unix:///path.sock` or an absolute
