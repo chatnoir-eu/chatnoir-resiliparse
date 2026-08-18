@@ -2,7 +2,6 @@
   "dependencies": [
     "lexbor",
     "lz4",
-    "protobuf",
     "re2",
     "uchardet",
     "zlib"
