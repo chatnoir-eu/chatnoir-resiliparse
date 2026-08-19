@@ -128,7 +128,8 @@ message ParseWarcConfig {
   repeated BuiltinFilter filters = 12;
   // include_payload streams payload_chunk messages. Unset defaults to true.
   // Set false to skip payload bytes (the iterator still consumes them);
-  // record_end.payload_length is then the WARC Content-Length.
+  // record_end.payload_length is then the content length FastWARC reports
+  // after applying the configured parse options.
   optional bool include_payload = 13;
   // include_headers fills warc_headers and http_headers losslessly. Unset
   // defaults to true. Set false to omit header blocks when only record_type,

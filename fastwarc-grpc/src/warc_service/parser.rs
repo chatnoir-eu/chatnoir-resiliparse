@@ -22,11 +22,8 @@ use fastwarc::warc::record::WarcRecord;
 use prost::bytes::Bytes;
 
 use crate::convert;
+use crate::defaults::{DEFAULT_MAX_HEADER_LEN, DEFAULT_PAYLOAD_CHUNK_SIZE};
 use crate::proto::fastwarc::v1 as pb;
-
-pub(super) const DEFAULT_MAX_HEADER_LEN: usize = 32 << 10;
-pub(super) const MAX_HEADER_LEN: usize = 2 << 20;
-pub(super) const DEFAULT_PAYLOAD_CHUNK_SIZE: usize = 64 << 10;
 
 type EmitFn<'a> = &'a mut dyn FnMut(pb::ParseWarcResponse) -> bool;
 
@@ -44,7 +41,7 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
     };
     let options = ArchiveIteratorOptions {
         stream_detect: config.stream_detect.unwrap_or(true),
-        // Parse in the filter below so an HTTP error does not end iteration.
+        // Parse in the filter so HTTP and framing errors remain distinct.
         parse_http: false,
         decode_http_payload: convert::auto_decode(config.decode_http_payload),
         verify_digests: config.verify_digests,
@@ -54,7 +51,10 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
     };
     let http_error = RefCell::new(None);
     let iterator = ArchiveIterator::with_options(reader, options).with_filter(|record| {
+        // Match ArchiveIterator's HTTP parsing order while preserving header
+        // failures as recoverable record errors.
         if convert::parse_http(config)
+            && record.is_http()
             && let Err(error) = record.parse_http_with_opts(
                 convert::auto_decode(config.decode_http_payload),
                 max_header_len,

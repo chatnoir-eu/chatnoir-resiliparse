@@ -50,7 +50,7 @@ pub fn direct_options(config: &pb::ParseWarcConfig) -> ArchiveIteratorOptions {
         verify_digests: config.verify_digests,
         quirks_mode: config.quirks_mode,
         max_header_len: if config.max_header_len == 0 {
-            32 << 10
+            fastwarc_grpc::defaults::DEFAULT_MAX_HEADER_LEN
         } else {
             config.max_header_len as usize
         },

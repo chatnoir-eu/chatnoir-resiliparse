@@ -28,14 +28,11 @@ use tonic::{Request, Response, Status, Streaming};
 
 use self::batch::BatchEmitter;
 use self::channel_reader::ChannelReader;
-use self::parser::{MAX_HEADER_LEN, parse_into, record_error};
+use self::parser::{parse_into, record_error};
 use crate::convert;
+use crate::defaults::{DEFAULT_INPUT_BUFFER_SIZE, MAX_HEADER_LEN, MAX_INPUT_BUFFER_SIZE, MAX_PAYLOAD_CHUNK_SIZE};
 use crate::proto::fastwarc::v1 as pb;
-use crate::transport::MAX_MESSAGE_SIZE;
 
-const DEFAULT_INPUT_BUFFER_SIZE: usize = 64 << 10;
-const MAX_INPUT_BUFFER_SIZE: usize = MAX_MESSAGE_SIZE;
-const MAX_PAYLOAD_CHUNK_SIZE: usize = MAX_MESSAGE_SIZE / 2;
 const CHUNK_CHANNEL_BOUND: usize = 8;
 const RESPONSE_CHANNEL_BOUND: usize = 8;
 
@@ -135,6 +132,7 @@ async fn read_config(stream: &mut Streaming<pb::ParseWarcRequest>) -> Result<pb:
 
 fn spawn_parser(input: ParserInput, response_tx: ResponseSender, config: pb::ParseWarcConfig) {
     let error_tx = response_tx.clone();
+    // Convert parser task failures into terminal statuses instead of clean EOF.
     tokio::spawn(async move {
         let joined = tokio::task::spawn_blocking(move || run_parser(input, &response_tx, &config)).await;
         if let Err(error) = joined {
@@ -165,6 +163,7 @@ async fn forward_chunks(
             Ok(Some(pb::ParseWarcRequest {
                 kind: Some(pb::parse_warc_request::Kind::Config(_)),
             })) => {
+                // Already queued parser events may precede this terminal status.
                 let _ = response_tx
                     .send(Err(Status::invalid_argument("`config` may only be set on the first request message")))
                     .await;
