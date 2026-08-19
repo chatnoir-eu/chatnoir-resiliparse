@@ -45,20 +45,20 @@
 //! gRPC message size limits. This server accepts 16 MiB ([`transport::MAX_MESSAGE_SIZE`]); many
 //! clients default to 4 MiB and must raise their decode limit to match. One request carries the
 //! configuration and the complete archive; the response carries every kept record with its
-//! metadata, payload, and digest results.
+//! metadata and payload.
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1 as pb;
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_client::WarcServiceClient;
 //!
-//! # #[tokio::main]
-//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut client = WarcServiceClient::new(fastwarc_grpc::transport::connect("http://localhost:50061").await?)
 //!     .max_decoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE)
 //!     .max_encoding_message_size(fastwarc_grpc::transport::MAX_MESSAGE_SIZE);
 //! let response = client
 //!     .parse_archive(pb::ParseArchiveRequest {
-//!         config: Some(pb::ParseWarcConfig { parse_http: true, ..Default::default() }),
+//!         config: Some(pb::ParseWarcConfig { parse_http: Some(true), ..Default::default() }),
 //!         archive: std::fs::read("warcfile.warc.gz")?.into(),
 //!     })
 //!     .await?
@@ -72,8 +72,8 @@
 //!         record.payload.len()
 //!     );
 //! }
-//! # Ok(())
-//! # }
+//! Ok(())
+//! }
 //! ```
 //!
 //! Compression is autodetected from magic bytes, so the same call works for `.warc`, `.warc.gz`,
@@ -90,19 +90,19 @@
 //!
 //! For every kept record the server responds with an ordered sequence: one `record_start`
 //! carrying all metadata, zero or more offset-tagged `payload_chunk` messages, and one
-//! `record_end` with the total payload length and digest results.
+//! `record_end` with the total payload length.
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1 as pb;
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_client::WarcServiceClient;
 //! use tokio_stream::wrappers::ReceiverStream;
 //!
-//! # #[tokio::main]
-//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let (tx, rx) = tokio::sync::mpsc::channel(4);
 //! tx.send(pb::ParseWarcRequest {
 //!     kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig {
-//!         parse_http: true,
+//!         parse_http: Some(true),
 //!         verify_digests: true,
 //!         ..Default::default()
 //!     })),
@@ -126,24 +126,29 @@
 //! while let Some(response) = stream.message().await? {
 //!     handle_response(response);
 //! }
-//! # Ok(())
-//! # }
+//! Ok(())
+//! }
 //!
 //! fn handle_response(response: pb::ParseWarcResponse) {
 //!     match response.kind {
+//!         // Begin one record and inspect its metadata.
 //!         Some(pb::parse_warc_response::Kind::RecordStart(start)) => {
 //!             let metadata = start.metadata.unwrap_or_default();
-//!             println!("record {} at offset {}", metadata.record_index, metadata.stream_pos);
+//!             println!("record at offset {}", metadata.stream_pos);
 //!         }
+//!         // Consume the next payload segment for the open record.
 //!         Some(pb::parse_warc_response::Kind::PayloadChunk(chunk)) => {
 //!             println!("  {} payload bytes at offset {}", chunk.data.len(), chunk.offset);
 //!         }
+//!         // Finish the open record.
 //!         Some(pb::parse_warc_response::Kind::RecordEnd(end)) => {
 //!             println!("  done, {} bytes total", end.payload_length);
 //!         }
+//!         // Report a record-level parse failure.
 //!         Some(pb::parse_warc_response::Kind::RecordError(error)) => {
 //!             eprintln!("record error (recoverable: {}): {}", error.recoverable, error.message);
 //!         }
+//!         // Flatten an optional transport batch into the same event handler.
 //!         Some(pb::parse_warc_response::Kind::Batch(batch)) => {
 //!             for item in batch.items {
 //!                 handle_response(item);
@@ -167,21 +172,24 @@
 //! `include_payload`, `include_headers`, `response_batch_size`, and `archive_path`.
 //! Filtered-out records are skipped silently, matching local iteration.
 //!
-//! Two differences from the local APIs matter:
+//! One difference from the local APIs matters:
 //!
-//! * `parse_http` defaults to **false** (the proto3 zero value). Python and Rust default to true.
-//!   Set it explicitly for parity.
 //! * Arbitrary filter callables cannot travel over gRPC. The built-in predicates are available as
 //!   [`BuiltinFilter`](proto::fastwarc::v1::BuiltinFilter) values in `filters`; anything custom
 //!   should be filtered client-side from the streamed metadata.
 //!
 //! # Digest Verification
 //!
-//! With `verify_digests` set, the server verifies `WARC-Block-Digest` against the raw record
-//! block before any HTTP parsing, then verifies `WARC-Payload-Digest`. Results are reported per
-//! record as [`DigestStatus`](proto::fastwarc::v1::DigestStatus) values in `record_end`. Unlike
-//! local iteration, which skips records with missing or failed block digests, the service always
-//! emits the record and lets the client decide.
+//! With `verify_digests` set, the server skips records with a missing or invalid
+//! `WARC-Block-Digest`, matching local [`fastwarc::warc::iter::ArchiveIterator`] behavior.
+//!
+//! # Wire Mapping
+//!
+//! Header names and values use protobuf `bytes`, not strings, and remain in source order so
+//! duplicate fields survive. Each header block also carries the raw source bytes. Payload chunks
+//! belong to the most recent `record_start`; a `record_end` closes that record before the next one
+//! begins. The default 32 KiB header limit can be raised to 2 MiB for large crawl headers while
+//! keeping each lossless header response within the server's 16 MiB message limit.
 //!
 //! # Error Handling
 //!
@@ -207,14 +215,14 @@
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_server::WarcServiceServer;
 //! use fastwarc_grpc::warc_service::WarcParser;
 //!
-//! # #[tokio::main]
-//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
 //!     .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(WarcParser::new())))
 //!     .serve("[::1]:50061".parse()?)
 //!     .await?;
-//! # Ok(())
-//! # }
+//! Ok(())
+//! }
 //! ```
 //!
 //! # Clients in Other Languages
@@ -229,8 +237,7 @@
 //!   localhost:50061 fastwarc.v1.WarcService/ParseArchive
 //! ```
 //!
-//! See `DESIGN.md` for the architecture and the lossless data mapping, and `README.md` for the
-//! full Python-parity table.
+//! See `README.md` for build, run, and compatibility notes.
 
 #![deny(missing_docs)]
 #![warn(clippy::pedantic)]

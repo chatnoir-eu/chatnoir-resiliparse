@@ -24,3 +24,8 @@ fn record_types_mask_ors_bits() {
     let mask = record_types_mask(&[pb::WarcRecordType::Response as i32, pb::WarcRecordType::Request as i32]);
     assert_eq!(mask, (WarcRecordType::Response as u16) | (WarcRecordType::Request as u16));
 }
+
+#[test]
+fn unknown_record_type_keeps_fastwarc_value() {
+    assert_eq!(pb::WarcRecordType::Unknown as i32, i32::from(WarcRecordType::Unknown as u16));
+}

@@ -2,8 +2,7 @@
 
 Streaming gRPC server exposing the `fastwarc` WARC parser. Binary gRPC only
 (no JSON transcoding); the protobuf contracts live in [`proto/`](proto) and
-follow the buf Standard (`STANDARD` + `COMMENTS` lint categories). See
-[DESIGN.md](DESIGN.md) for the architecture and the lossless data mapping.
+follow the buf Standard (`STANDARD` + `COMMENTS` lint categories).
 
 This crate is a separate workspace member; the `fastwarc` library itself is
 untouched and carries no gRPC dependencies. The server sits directly on the
@@ -22,11 +21,11 @@ Usage documentation with worked client examples lives in the crate docs:
   was started with `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1`, since it grants
   clients read access to the server's filesystem). Receive per kept record: `record_start` (full
   metadata, lossless header blocks), `payload_chunk`* (offset-tagged),
-  `record_end` (payload length, digest verification results). HTTP-header
+  `record_end` (payload length). HTTP-header
   failures on a framed record yield a recoverable `record_error`; WARC
   framing failures end the stream (non-recoverable).
 - `fastwarc.v1.WarcService/ParseArchive` (unary): the whole archive in one
-  request, every kept record (metadata, whole payload, digest statuses) in
+  request, every kept record (metadata and whole payload) in
   one response, for single records and small archives within the gRPC
   message size limits (this server accepts 16 MiB; many clients default to
   4 MiB). Same parse pipeline, filters, and error model as the stream; a
@@ -53,8 +52,8 @@ grpcurl -plaintext \
 
 | Local Python default | gRPC |
 |---|---|
-| `parse_http=True` | `parse_http` defaults **false**; set `true` for parity |
-| `verify_digests` skips bad records | still emits; status on `record_end` |
+| `parse_http=True` | same; set `false` to leave HTTP headers in the payload |
+| `verify_digests` skips bad records | same |
 | `func_filter=callable` | use `BuiltinFilter` or filter client-side |
 | writing / fsspec / pickle | out of scope (local-only) |
 
@@ -103,8 +102,5 @@ cargo test -p fastwarc-grpc
 RUSTDOCFLAGS="-D warnings" cargo doc -p fastwarc-grpc --no-deps
 ```
 
-The WARC fixtures under `tests/data/` are unmodified copies from the
-chatnoir-resiliparse test corpus, so parity assertions run against the same
-inputs the library itself is tested with. The one addition is
-`warcfile.warc.zst`, a zstd re-compression of `warcfile.warc` covering the
-zstd autodetection path (the upstream corpus has no plain zstd archive).
+The tests use the existing WARC fixtures from this repository, including the
+zstd archive in `fastwarc-rs/tests/fixtures`.

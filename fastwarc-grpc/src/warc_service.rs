@@ -37,6 +37,10 @@ use crate::proto::fastwarc::v1 as pb;
 
 /// Default maximum WARC/HTTP header block length (matches the crate default).
 const DEFAULT_MAX_HEADER_LEN: usize = 32 << 10;
+/// Largest accepted WARC/HTTP header block. A `HeaderBlock` carries both its
+/// parsed fields and raw bytes, so this leaves room for both WARC and HTTP
+/// headers within the 16 MiB response-message limit.
+const MAX_HEADER_LEN: usize = 2 << 20;
 /// Default payload chunk size for `payload_chunk` messages.
 const DEFAULT_PAYLOAD_CHUNK_SIZE: usize = 64 << 10;
 /// Default buffer capacity of the byte stream fed into the parser.
@@ -126,6 +130,7 @@ impl pb::warc_service_server::WarcService for WarcParser {
                 "archive_path is disabled on this server; stream the archive as chunks instead",
             ));
         }
+        validate_config(&config)?;
 
         let (chunk_tx, chunk_rx) = mpsc::channel::<Bytes>(chunk_channel_bound(config.input_buffer_size));
         let (resp_tx, resp_rx) = mpsc::channel(RESPONSE_CHANNEL_BOUND);
@@ -200,6 +205,7 @@ impl pb::warc_service_server::WarcService for WarcParser {
         let Some(config) = request.config else {
             return Err(Status::invalid_argument("ParseArchive request must set `config`"));
         };
+        validate_config(&config)?;
         let archive = request.archive;
 
         let joined = tokio::task::spawn_blocking(move || {
@@ -245,11 +251,8 @@ fn fold_response(
                 record.payload.extend_from_slice(&chunk.data);
             }
         }
-        Some(pb::parse_warc_response::Kind::RecordEnd(end)) => {
-            if let Some(mut record) = open.take() {
-                record.block_digest_status = end.block_digest_status;
-                record.payload_digest_status = end.payload_digest_status;
-                record.digest_detail = end.digest_detail;
+        Some(pb::parse_warc_response::Kind::RecordEnd(_)) => {
+            if let Some(record) = open.take() {
                 records.push(record);
             }
         }
@@ -261,6 +264,13 @@ fn fold_response(
         }
         None => {}
     }
+}
+
+fn validate_config(config: &pb::ParseWarcConfig) -> Result<(), Status> {
+    if usize::try_from(config.max_header_len).unwrap_or(usize::MAX) > MAX_HEADER_LEN {
+        return Err(Status::invalid_argument(format!("max_header_len must not exceed {MAX_HEADER_LEN} bytes")));
+    }
+    Ok(())
 }
 
 fn response(kind: pb::parse_warc_response::Kind) -> pb::ParseWarcResponse {
@@ -401,22 +411,20 @@ fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConfig, emit: E
     let stream_detect = config.stream_detect.unwrap_or(true);
     let options = ArchiveIteratorOptions {
         stream_detect,
-        // HTTP parse is manual after block-digest verify: WARC-Block-Digest
-        // covers the raw block and must run before HTTP advances the stream.
+        // HTTP parsing remains manual so a malformed embedded HTTP header is
+        // a recoverable record error rather than a framing failure.
         parse_http: false,
         decode_http_payload: convert::auto_decode(config.decode_http_payload),
-        // Iterator-level verify skips mismatches; we verify per record so
-        // results can be reported on the wire.
-        verify_digests: false,
+        verify_digests: config.verify_digests,
         quirks_mode: config.quirks_mode,
         max_header_len,
         // Reuse the iterator buffer when payload is not copied and the record
         // does not need to be frozen for digest verification.
         inplace: !convert::include_payload(config) && !config.verify_digests,
     };
-    let iterator = ArchiveIterator::with_options(reader, options);
+    let iterator = ArchiveIterator::with_options(reader, options)
+        .with_filter(|record| convert::record_passes_filters(record, config));
 
-    let mut record_index = 0u64;
     for item in iterator {
         let record = match item {
             Ok(record) => record,
@@ -427,42 +435,27 @@ fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConfig, emit: E
             }
         };
 
-        {
-            let mut borrowed = record.borrow_mut();
-            if !convert::record_passes_filters(&mut borrowed, config) {
-                // Skip without emitting; next() consumes any unread payload.
-                continue;
-            }
-        }
-
-        match process_record(&record, record_index, config, max_header_len, chunk_size, emit) {
+        match process_record(&record, config, max_header_len, chunk_size, emit) {
             ProcessOutcome::Stop => return,
-            // Advance for both successful emits and recoverable record_errors so
-            // indexes stay aligned with framed, non-filtered records (skips do not
-            // consume an index).
-            ProcessOutcome::Emitted | ProcessOutcome::Continue => record_index += 1,
+            ProcessOutcome::Emitted | ProcessOutcome::Continue => {}
         }
     }
 }
 
 /// Result of attempting to emit one framed record.
 enum ProcessOutcome {
-    /// `record_start` / chunks / `record_end` were sent; advance `record_index`.
+    /// `record_start` / chunks / `record_end` were sent.
     Emitted,
-    /// Recoverable per-record failure (`record_error`); parse continues, index unchanged.
+    /// Recoverable per-record failure (`record_error`); parse continues.
     Continue,
     /// Fatal: consumer gone or non-recoverable payload failure.
     Stop,
 }
 
-/// One record: block digest, optional HTTP parse, payload digest, then
-/// `record_start` / `payload_chunk`* / `record_end`.
-///
-/// Digests run before payload streaming because verification rewinds a frozen
-/// record, not a live stream.
+/// One record: optional HTTP parse, then `record_start` / `payload_chunk`* /
+/// `record_end`. Digest filtering has already run in `ArchiveIterator`.
 fn process_record(
     shared: &std::rc::Rc<std::cell::RefCell<WarcRecord>>,
-    record_index: u64,
     config: &pb::ParseWarcConfig,
     max_header_len: usize,
     chunk_size: usize,
@@ -470,13 +463,7 @@ fn process_record(
 ) -> ProcessOutcome {
     let mut record = shared.borrow_mut();
 
-    let (block_digest_status, block_detail) = if config.verify_digests {
-        convert::digest_status(record.verify_block_digest(false))
-    } else {
-        (pb::DigestStatus::Unspecified, None)
-    };
-
-    if config.parse_http
+    if convert::parse_http(config)
         && let Err(e) = record.parse_http_with_opts(
             convert::auto_decode(config.decode_http_payload),
             max_header_len,
@@ -493,13 +480,7 @@ fn process_record(
         };
     }
 
-    let (payload_digest_status, payload_detail) = if config.verify_digests {
-        convert::digest_status(record.verify_payload_digest(false))
-    } else {
-        (pb::DigestStatus::Unspecified, None)
-    };
-
-    let metadata = convert::record_metadata(&record, record_index, convert::include_headers(config));
+    let metadata = convert::record_metadata(&record, convert::include_headers(config));
     if !emit(response(pb::parse_warc_response::Kind::RecordStart(pb::RecordStart {
         metadata: Some(metadata),
     }))) {
@@ -507,7 +488,7 @@ fn process_record(
     }
 
     let payload_length = if convert::include_payload(config) {
-        match stream_payload(&mut record, record_index, chunk_size, emit) {
+        match stream_payload(&mut record, chunk_size, emit) {
             Ok(len) => len,
             Err(e) => {
                 let stream_pos = record.stream_pos();
@@ -519,19 +500,7 @@ fn process_record(
         record.content_length()
     };
 
-    let details: Vec<String> = [block_detail, payload_detail].into_iter().flatten().collect();
-
-    if emit(response(pb::parse_warc_response::Kind::RecordEnd(pb::RecordEnd {
-        record_index,
-        payload_length,
-        block_digest_status: block_digest_status.into(),
-        payload_digest_status: payload_digest_status.into(),
-        digest_detail: if details.is_empty() {
-            None
-        } else {
-            Some(details.join("; "))
-        },
-    }))) {
+    if emit(response(pb::parse_warc_response::Kind::RecordEnd(pb::RecordEnd { payload_length }))) {
         ProcessOutcome::Emitted
     } else {
         ProcessOutcome::Stop
@@ -543,7 +512,7 @@ fn process_record(
 /// Chunks are copied straight out of the record reader's `fill_buf` window
 /// into exact-size `Bytes` (single copy, no scratch buffer), so a chunk may
 /// be shorter than `chunk_size` when it ends at an input buffer boundary.
-fn stream_payload(record: &mut WarcRecord, record_index: u64, chunk_size: usize, emit: EmitFn<'_>) -> io::Result<u64> {
+fn stream_payload(record: &mut WarcRecord, chunk_size: usize, emit: EmitFn<'_>) -> io::Result<u64> {
     let Some(reader) = record.reader_mut() else {
         return Ok(0);
     };
@@ -556,11 +525,7 @@ fn stream_payload(record: &mut WarcRecord, record_index: u64, chunk_size: usize,
         let n = window.len().min(chunk_size);
         let data = Bytes::copy_from_slice(&window[..n]);
         reader.consume(n);
-        if !emit(response(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk {
-            record_index,
-            offset,
-            data,
-        }))) {
+        if !emit(response(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk { offset, data }))) {
             return Err(io::Error::new(io::ErrorKind::BrokenPipe, "consumer gone"));
         }
         offset += n as u64;

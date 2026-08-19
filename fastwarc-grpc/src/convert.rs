@@ -16,13 +16,12 @@
 //! protobuf data model.
 //!
 //! Header blocks are carried as ordered byte pairs plus the verbatim raw
-//! block, so no information the parser saw is lost on the way to the wire
-//! (see `DESIGN.md` §5).
+//! block, so no information the parser saw is lost on the way to the wire.
 
 use crate::proto::fastwarc::v1 as pb;
-use fastwarc::warc::header::{HeaderEncoding, HeaderMap};
+use fastwarc::warc::header::HeaderMap;
 use fastwarc::warc::iter::filter;
-use fastwarc::warc::record::{AutoDecode, DigestError, WarcRecord, WarcRecordType};
+use fastwarc::warc::record::{AutoDecode, WarcRecord, WarcRecordType};
 use prost_types::Timestamp;
 use time::OffsetDateTime;
 
@@ -85,15 +84,6 @@ pub fn record_types_mask(types: &[i32]) -> u16 {
     }
 }
 
-/// Convert a [`HeaderEncoding`] to its protobuf enum counterpart.
-#[must_use]
-pub fn header_encoding(encoding: &HeaderEncoding) -> pb::HeaderEncoding {
-    match encoding {
-        HeaderEncoding::Unicode => pb::HeaderEncoding::Unicode,
-        HeaderEncoding::Latin1 => pb::HeaderEncoding::Latin1,
-    }
-}
-
 /// Convert a protobuf `AutoDecode` value to the crate's [`AutoDecode`].
 ///
 /// Unrecognized values fall back to [`AutoDecode::None`].
@@ -137,9 +127,15 @@ pub fn header_block(headers: &HeaderMap) -> pb::HeaderBlock {
                 value: value.into_owned(),
             })
             .collect(),
-        encoding: header_encoding(&headers.encoding()).into(),
         raw_block,
     }
+}
+
+/// Whether embedded HTTP messages should be parsed. Unset defaults to true,
+/// matching [`fastwarc::warc::iter::ArchiveIteratorOptions`].
+#[must_use]
+pub fn parse_http(config: &pb::ParseWarcConfig) -> bool {
+    config.parse_http.unwrap_or(true)
 }
 
 /// Whether payload bytes should be streamed. Unset defaults to true.
@@ -167,14 +163,13 @@ pub fn response_batch_size(config: &pb::ParseWarcConfig) -> usize {
 /// left unset so a scan that only needs type/length/position skips the
 /// lossless header copy.
 #[must_use]
-pub fn record_metadata(record: &WarcRecord, record_index: u64, include_headers: bool) -> pb::RecordMetadata {
+pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::RecordMetadata {
     let (warc_headers, http_headers) = if include_headers {
         (Some(header_block(record.headers())), record.http_headers().map(header_block))
     } else {
         (None, None)
     };
     pb::RecordMetadata {
-        record_index,
         record_type: warc_record_type(record.record_type()).into(),
         warc_headers,
         content_length: record.content_length(),
@@ -202,22 +197,6 @@ pub fn record_metadata(record: &WarcRecord, record_index: u64, include_headers: 
         } else {
             None
         },
-    }
-}
-
-/// Map the outcome of a digest verification to a `DigestStatus` plus an
-/// optional detail string carrying the parser's error message.
-#[must_use]
-pub fn digest_status(result: Result<bool, DigestError>) -> (pb::DigestStatus, Option<String>) {
-    match result {
-        Ok(true) => (pb::DigestStatus::Valid, None),
-        Ok(false) => (pb::DigestStatus::Mismatch, None),
-        Err(e @ (DigestError::Missing(_) | DigestError::NoPayload(_))) => {
-            (pb::DigestStatus::NotPresent, Some(e.to_string()))
-        }
-        Err(e @ DigestError::Unsupported(_)) => (pb::DigestStatus::UnsupportedAlgorithm, Some(e.to_string())),
-        Err(e @ DigestError::FormatError(_)) => (pb::DigestStatus::FormatError, Some(e.to_string())),
-        Err(e @ DigestError::StreamError(_)) => (pb::DigestStatus::Error, Some(e.to_string())),
     }
 }
 

@@ -1,10 +1,10 @@
 [package]
 name = "fastwarc-grpc"
 description = "Streaming gRPC server for the FastWARC WARC parser"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
-publish = false
+publish = true
 authors = ["Kristian Rickert <krickert@gmail.com>"]
 documentation.workspace = true
 repository.workspace = true
