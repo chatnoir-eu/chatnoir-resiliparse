@@ -22,7 +22,6 @@ use std::io::Read;
 
 use common::{RecordOutcome, collect_warc, data_path, direct_options, group_responses, records_only};
 use fastwarc::warc::iter::{ArchiveIterator, filter};
-use fastwarc::warc::record::AutoDecode;
 use fastwarc_grpc::convert;
 use fastwarc_grpc::proto::fastwarc::v1 as pb;
 
@@ -222,7 +221,6 @@ async fn lossless_payload_and_headers() {
     for item in ArchiveIterator::with_options(reader, direct_options(&config)) {
         let record = item.unwrap();
         let mut record = record.borrow_mut();
-        record.parse_http_with_opts(AutoDecode::All, 32 << 10, false).unwrap();
 
         let mut warc_raw_block = Vec::new();
         record.headers().write(&mut warc_raw_block).unwrap();
@@ -406,7 +404,7 @@ async fn corrupt_midstream_ends_without_hang() {
     let outcomes = group_responses(&responses);
     assert!(matches!(
         outcomes.as_slice(),
-        [RecordOutcome::Record { .. }, RecordOutcome::Error(e)] if !e.recoverable
+        [RecordOutcome::Record { .. }, RecordOutcome::Error(error)] if !error.recoverable
     ));
 }
 
@@ -456,10 +454,10 @@ async fn http_parse_failure_is_recoverable() {
         matches!(
             outcomes.as_slice(),
             [
-                RecordOutcome::Error(e),
+                RecordOutcome::Error(error),
                 RecordOutcome::Record { metadata, .. }
-            ] if e.recoverable
-                && e.message.contains("HTTP")
+            ] if error.recoverable
+                && error.message.contains("HTTP")
                 && metadata.record_type == pb::WarcRecordType::Resource as i32
         ),
         "unexpected outcomes: {outcomes:?}"
@@ -525,6 +523,38 @@ async fn excessive_header_limit_is_rejected() {
     assert_eq!(error.code(), tonic::Code::InvalidArgument);
 }
 
+/// Client-controlled allocation and response sizes are rejected before the
+/// parser task starts.
+#[tokio::test]
+async fn excessive_buffer_and_chunk_limits_are_rejected() {
+    let configs = [
+        pb::ParseWarcConfig {
+            payload_chunk_size: (8 << 20) + 1,
+            ..Default::default()
+        },
+        pb::ParseWarcConfig {
+            input_buffer_size: (16 << 20) + 1,
+            ..Default::default()
+        },
+        pb::ParseWarcConfig {
+            min_content_length: Some(2),
+            max_content_length: Some(1),
+            ..Default::default()
+        },
+    ];
+
+    for config in configs {
+        let mut client = common::warc_client().await;
+        let error = client
+            .parse_warc(tokio_stream::iter([pb::ParseWarcRequest {
+                kind: Some(pb::parse_warc_request::Kind::Config(config)),
+            }]))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+    }
+}
+
 /// `record_types` filter keeps only the requested types (Python parity).
 #[tokio::test]
 async fn filter_record_types_response_only() {
@@ -572,6 +602,53 @@ async fn filter_content_length_bounds() {
         assert!(m.content_length >= 100);
         assert!(m.content_length <= 10_000);
     }
+}
+
+/// Content-length filters see the parsed HTTP payload length, matching
+/// `ArchiveIterator::with_filter`.
+#[tokio::test]
+async fn filter_content_length_runs_after_http_parse() {
+    use std::io::Write;
+
+    let http = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nbody";
+    let mut data = Vec::new();
+    write!(
+        data,
+        "WARC/1.0\r\nWARC-Type: response\r\nWARC-Record-ID: <urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Type: application/http; msgtype=response\r\nContent-Length: {}\r\n\r\n",
+        http.len()
+    )
+    .unwrap();
+    data.extend_from_slice(http);
+    data.extend_from_slice(b"\r\n\r\n");
+
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(true),
+        max_content_length: Some(4),
+        ..Default::default()
+    };
+    let direct_count = ArchiveIterator::with_options(
+        std::io::Cursor::new(data.clone()),
+        fastwarc::warc::iter::ArchiveIteratorOptions::default(),
+    )
+    .with_filter(filter::has_content_length_lte(4))
+    .count();
+    assert_eq!(direct_count, 1);
+
+    let mut client = common::warc_client().await;
+    let requests = common::warc_requests(&data, 64, &config);
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(response) = stream.message().await.unwrap() {
+        responses.push(response);
+    }
+    let outcomes = group_responses(&responses);
+    let records = records_only(&outcomes);
+    assert_eq!(records.len(), direct_count);
+    assert_eq!(records[0].0.content_length, 4);
 }
 
 /// Builtin `IS_HTTP` filter matches the crate predicate.
@@ -643,6 +720,24 @@ async fn unary_requires_config() {
     let status = client
         .parse_archive(pb::ParseArchiveRequest {
             config: None,
+            archive: Vec::new().into(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(status.code(), tonic::Code::InvalidArgument);
+}
+
+/// `archive_path` belongs to the streaming RPC and must not be silently
+/// ignored by the unary request.
+#[tokio::test]
+async fn unary_rejects_archive_path() {
+    let mut client = common::warc_client().await;
+    let status = client
+        .parse_archive(pb::ParseArchiveRequest {
+            config: Some(pb::ParseWarcConfig {
+                archive_path: data_path("warcfile.warc").to_string_lossy().into_owned(),
+                ..Default::default()
+            }),
             archive: Vec::new().into(),
         })
         .await
