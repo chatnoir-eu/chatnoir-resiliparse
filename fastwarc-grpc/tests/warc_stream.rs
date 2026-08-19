@@ -26,9 +26,13 @@ use fastwarc::warc::record::AutoDecode;
 use fastwarc_grpc::convert;
 use fastwarc_grpc::proto::fastwarc::v1 as pb;
 
-/// Default config: no HTTP parsing, no digests, default limits.
+/// Most tests leave HTTP parsing off unless it is part of the behavior under
+/// test. An unset `parse_http` is covered separately as the local-API default.
 fn default_config() -> pb::ParseWarcConfig {
-    pb::ParseWarcConfig::default()
+    pb::ParseWarcConfig {
+        parse_http: Some(false),
+        ..Default::default()
+    }
 }
 
 /// Iterate a fixture directly and return the record types in stream order.
@@ -57,6 +61,22 @@ async fn stream_warcfile_plain() {
         };
         assert_eq!(metadata.record_type, *expected_type as i32);
     }
+}
+
+/// An unset `parse_http` follows the `FastWARC` default and parses embedded
+/// HTTP messages.
+#[tokio::test]
+async fn parse_http_defaults_true() {
+    let responses = collect_warc("warcfile.warc", 8 << 10, &pb::ParseWarcConfig::default()).await;
+    let outcomes = group_responses(&responses);
+    let records = records_only(&outcomes);
+    assert!(records.iter().any(|(metadata, _, _)| metadata.is_http));
+    assert!(
+        records
+            .iter()
+            .filter(|(metadata, _, _)| metadata.is_http)
+            .all(|(metadata, _, _)| metadata.http_parsed)
+    );
 }
 
 /// Gzip-, lz4-, and zstd-compressed input is detected transparently from magic
@@ -151,58 +171,28 @@ async fn stream_clueweb_quirk() {
     assert_eq!(outcomes.len(), 30);
 }
 
-/// Digest verification with HTTP parsing on: block digests are verified over
-/// the raw record block (before HTTP parsing) and payload digests over the
-/// HTTP payload. Cross-checked record-by-record against direct verification.
+/// Digest verification has the same skip behavior as a direct iterator.
 #[tokio::test]
 async fn verify_digests() {
     let config = pb::ParseWarcConfig {
-        parse_http: true,
+        parse_http: Some(true),
         verify_digests: true,
         ..Default::default()
     };
     let responses = collect_warc("warcfile.warc", 8 << 10, &config).await;
     let outcomes = group_responses(&responses);
     let records = records_only(&outcomes);
-
-    // Direct reference: same operation order as the service (block digest over
-    // the raw block, then HTTP parse, then payload digest).
-    let reader = std::fs::File::open(data_path("warcfile.warc")).unwrap();
-    let mut expected = Vec::new();
-    for item in ArchiveIterator::with_options(reader, direct_options(&config)) {
-        let record = item.unwrap();
-        let mut record = record.borrow_mut();
-        let block = convert::digest_status(record.verify_block_digest(false)).0;
-        record.parse_http_with_opts(AutoDecode::None, 32 << 10, false).unwrap();
-        let payload = convert::digest_status(record.verify_payload_digest(false)).0;
-        expected.push((block, payload));
-    }
-    assert_eq!(records.len(), expected.len());
-
-    for ((metadata, _, end), (expected_block, expected_payload)) in records.iter().zip(&expected) {
-        let block = pb::DigestStatus::try_from(end.block_digest_status).unwrap();
-        let payload = pb::DigestStatus::try_from(end.payload_digest_status).unwrap();
-        // Verification was requested: a real verdict must be reported.
-        assert_ne!(block, pb::DigestStatus::Unspecified);
-        assert_ne!(payload, pb::DigestStatus::Unspecified);
-        assert_eq!(block, *expected_block, "block digest mismatch at record {}", metadata.record_index);
-        assert_eq!(payload, *expected_payload, "payload digest mismatch at record {}", metadata.record_index);
-
-        // HTTP records declaring a payload digest must verify VALID.
-        let declares_payload_digest = metadata
-            .warc_headers
-            .as_ref()
-            .unwrap()
-            .fields
+    let direct_types = direct_record_types("warcfile.warc", &config);
+    assert_eq!(records.len(), direct_types.len());
+    assert!(
+        records
             .iter()
-            .any(|f| f.name == b"WARC-Payload-Digest");
-        if metadata.is_http && metadata.http_parsed && declares_payload_digest {
-            assert_eq!(payload, pb::DigestStatus::Valid);
-        }
-        // The fixture's block digests are correct: nothing may be a mismatch.
-        assert_ne!(block, pb::DigestStatus::Mismatch);
-        assert_ne!(payload, pb::DigestStatus::Mismatch);
-    }
+            .zip(direct_types)
+            .all(|((metadata, _, _), record_type)| { metadata.record_type == record_type as i32 })
+    );
+
+    let unverified = collect_warc("warcfile.warc", 8 << 10, &default_config()).await;
+    assert!(records.len() < records_only(&group_responses(&unverified)).len());
 }
 
 /// One directly-parsed record for the losslessness comparison.
@@ -219,7 +209,7 @@ struct DirectRecord {
 #[tokio::test]
 async fn lossless_payload_and_headers() {
     let config = pb::ParseWarcConfig {
-        parse_http: true,
+        parse_http: Some(true),
         decode_http_payload: pb::AutoDecode::All as i32,
         ..Default::default()
     };
@@ -267,7 +257,7 @@ async fn lossless_payload_and_headers() {
 
     let mut duplicate_header_records = 0;
     for ((metadata, payload, _), direct) in records.iter().zip(&direct_records) {
-        assert_eq!(payload, &direct.payload, "payload mismatch at record {}", metadata.record_index);
+        assert_eq!(payload, &direct.payload, "payload mismatch at stream offset {}", metadata.stream_pos);
 
         let warc_headers = metadata.warc_headers.as_ref().unwrap();
         assert_eq!(warc_headers.raw_block, direct.warc_raw_block);
@@ -276,7 +266,7 @@ async fn lossless_payload_and_headers() {
             .iter()
             .map(|f| (f.name.clone(), f.value.clone()))
             .collect();
-        assert_eq!(fields, direct.warc_fields, "WARC header fields mismatch at record {}", metadata.record_index);
+        assert_eq!(fields, direct.warc_fields, "WARC header fields mismatch at stream offset {}", metadata.stream_pos);
 
         match (&metadata.http_headers, &direct.http_raw_block) {
             (Some(streamed_http), Some(expected_raw)) => {
@@ -300,7 +290,7 @@ async fn lossless_payload_and_headers() {
                 }
             }
             (None, None) => {}
-            _ => panic!("http_headers presence mismatch at record {}", metadata.record_index),
+            _ => panic!("http_headers presence mismatch at stream offset {}", metadata.stream_pos),
         }
     }
     assert!(duplicate_header_records > 0, "fixture expected to contain duplicate HTTP headers");
@@ -446,7 +436,7 @@ async fn http_parse_failure_is_recoverable() {
     .unwrap();
 
     let config = pb::ParseWarcConfig {
-        parse_http: true,
+        parse_http: Some(true),
         max_header_len: 256,
         ..Default::default()
     };
@@ -474,6 +464,65 @@ async fn http_parse_failure_is_recoverable() {
         ),
         "unexpected outcomes: {outcomes:?}"
     );
+}
+
+/// Large WARC and HTTP headers remain below the gRPC message cap when the
+/// configured parser limit permits them.
+#[tokio::test]
+async fn megabyte_header_blocks_stream_losslessly() {
+    use std::io::Write;
+
+    let large_value = "A".repeat(1 << 20);
+    let http = format!("HTTP/1.1 200 OK\r\nX-Large: {large_value}\r\n\r\nbody");
+    let mut data = Vec::new();
+    write!(
+        data,
+        "WARC/1.0\r\nWARC-Type: response\r\nWARC-Record-ID: <urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Type: application/http; msgtype=response\r\nX-Large: {large_value}\r\nContent-Length: {}\r\n\r\n{http}\r\n\r\n",
+        http.len()
+    )
+    .unwrap();
+
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(true),
+        max_header_len: 2 << 20,
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = common::warc_requests(&data, 64 << 10, &config);
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(response) = stream.message().await.unwrap() {
+        responses.push(response);
+    }
+
+    let outcomes = group_responses(&responses);
+    let records = records_only(&outcomes);
+    assert_eq!(records.len(), 1);
+    let metadata = records[0].0;
+    assert!(metadata.warc_headers.as_ref().unwrap().raw_block.len() > 1 << 20);
+    assert!(metadata.http_headers.as_ref().unwrap().raw_block.len() > 1 << 20);
+}
+
+/// Header limits that could exceed one response message are rejected before
+/// parsing starts.
+#[tokio::test]
+async fn excessive_header_limit_is_rejected() {
+    let config = pb::ParseWarcConfig {
+        max_header_len: (2 << 20) + 1,
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let error = client
+        .parse_warc(tokio_stream::iter([pb::ParseWarcRequest {
+            kind: Some(pb::parse_warc_request::Kind::Config(config)),
+        }]))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), tonic::Code::InvalidArgument);
 }
 
 /// `record_types` filter keeps only the requested types (Python parity).
@@ -510,6 +559,7 @@ async fn filter_record_types_response_only() {
 #[tokio::test]
 async fn filter_content_length_bounds() {
     let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
         min_content_length: Some(100),
         max_content_length: Some(10_000),
         ..Default::default()
@@ -552,13 +602,12 @@ async fn stream_block_sized_records() {
 
 /// The unary `ParseArchive` must return exactly what a folded `ParseWarc`
 /// stream yields for the same input and config: same records in order, same
-/// metadata, same payload bytes, same digest verdicts. Exercised on plain
-/// and gzip input.
+/// metadata and same payload bytes. Exercised on plain and gzip input.
 #[tokio::test]
 async fn unary_matches_stream() {
     for file in ["warcfile.warc", "warcfile.warc.gz"] {
         let config = pb::ParseWarcConfig {
-            parse_http: true,
+            parse_http: Some(true),
             verify_digests: true,
             ..Default::default()
         };
@@ -581,9 +630,7 @@ async fn unary_matches_stream() {
         for (record, (metadata, payload, end)) in unary.records.iter().zip(&streamed) {
             assert_eq!(record.metadata.as_ref().unwrap(), *metadata);
             assert_eq!(record.payload.as_slice(), *payload);
-            assert_eq!(record.block_digest_status, end.block_digest_status);
-            assert_eq!(record.payload_digest_status, end.payload_digest_status);
-            assert_eq!(record.digest_detail, end.digest_detail);
+            assert_eq!(record.payload.len(), usize::try_from(end.payload_length).unwrap());
         }
     }
 }

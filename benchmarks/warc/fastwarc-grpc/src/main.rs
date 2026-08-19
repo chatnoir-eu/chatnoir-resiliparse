@@ -67,7 +67,7 @@ fn spawn_feeder(
 ) {
     std::thread::spawn(move || {
         let config = pb::ParseWarcConfig {
-            parse_http: false,
+            parse_http: Some(false),
             verify_digests: false,
             input_buffer_size: buf_size as u32,
             payload_chunk_size: DEFAULT_PAYLOAD_CHUNK_SIZE as u32,

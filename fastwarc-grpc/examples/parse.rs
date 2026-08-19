@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // backpressure against the gRPC stream.
     std::thread::spawn(move || {
         let config = pb::ParseWarcConfig {
-            parse_http: true,
+            parse_http: Some(true),
             verify_digests: true,
             ..Default::default()
         };
@@ -101,8 +101,7 @@ fn handle_response(response: pb::ParseWarcResponse, records: &mut u64, payload_b
             let record_type =
                 pb::WarcRecordType::try_from(metadata.record_type).unwrap_or(pb::WarcRecordType::Unspecified);
             println!(
-                "#{:<4} {:<12} pos={:<10} len={:<9} {}",
-                metadata.record_index,
+                "{:<12} pos={:<10} len={:<9} {}",
                 record_type.as_str_name().trim_start_matches("WARC_RECORD_TYPE_"),
                 metadata.stream_pos,
                 metadata.content_length,
@@ -114,14 +113,7 @@ fn handle_response(response: pb::ParseWarcResponse, records: &mut u64, payload_b
         }
         Some(pb::parse_warc_response::Kind::RecordEnd(end)) => {
             *records += 1;
-            let block = pb::DigestStatus::try_from(end.block_digest_status).unwrap_or_default();
-            let payload = pb::DigestStatus::try_from(end.payload_digest_status).unwrap_or_default();
-            println!(
-                "      -> {} payload bytes, block digest {}, payload digest {}",
-                end.payload_length,
-                block.as_str_name().trim_start_matches("DIGEST_STATUS_"),
-                payload.as_str_name().trim_start_matches("DIGEST_STATUS_"),
-            );
+            println!("      -> {} payload bytes", end.payload_length);
         }
         Some(pb::parse_warc_response::Kind::RecordError(e)) => {
             eprintln!("record error at pos {} (recoverable: {}): {}", e.stream_pos, e.recoverable, e.message);

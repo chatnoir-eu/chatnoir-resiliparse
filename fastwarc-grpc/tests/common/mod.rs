@@ -30,20 +30,26 @@ use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Channel;
 
-/// Path to a file in the repository's shared `tests/data` directory.
+/// Path to an existing repository test fixture.
 pub fn data_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name)
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository_fixture = manifest_dir.join("../tests/data").join(name);
+    if repository_fixture.exists() {
+        repository_fixture
+    } else {
+        manifest_dir.join("../fastwarc-rs/tests/fixtures").join(name)
+    }
 }
 
 /// Iterator options matching what the service applies for a given config.
 pub fn direct_options(config: &pb::ParseWarcConfig) -> ArchiveIteratorOptions {
     ArchiveIteratorOptions {
         stream_detect: config.stream_detect.unwrap_or(true),
-        // The service parses HTTP manually per record (after digest
-        // verification); direct comparison runs must do the same.
+        // The service parses HTTP manually per record; direct comparison
+        // runs must do the same.
         parse_http: false,
         decode_http_payload: fastwarc_grpc::convert::auto_decode(config.decode_http_payload),
-        verify_digests: false,
+        verify_digests: config.verify_digests,
         quirks_mode: config.quirks_mode,
         max_header_len: if config.max_header_len == 0 {
             32 << 10
@@ -146,8 +152,8 @@ pub enum RecordOutcome {
 }
 
 /// Group a flat response stream into per-record outcomes, asserting the
-/// protocol invariants: record sequences nest properly, record indexes are
-/// sequential, chunk offsets are contiguous from zero, and
+/// protocol invariants: record sequences nest properly, chunk offsets are
+/// contiguous from zero, and
 /// `record_end.payload_length` matches the streamed chunk bytes.
 ///
 /// `batch` messages are flattened first so batched and unbatched streams
@@ -160,18 +166,15 @@ pub fn group_responses(responses: &[pb::ParseWarcResponse]) -> Vec<RecordOutcome
         pb::parse_warc_response::Kind::RecordStart(start) => {
             let metadata = start.metadata.clone().unwrap();
             assert!(open.is_none(), "record_start while record still open");
-            assert_eq!(metadata.record_index, u64::try_from(outcomes.len()).unwrap(), "non-sequential record_index");
             open = Some((metadata, Vec::new()));
         }
         pb::parse_warc_response::Kind::PayloadChunk(chunk) => {
-            let (metadata, payload) = open.as_mut().expect("payload_chunk outside of record");
-            assert_eq!(chunk.record_index, metadata.record_index);
+            let (_, payload) = open.as_mut().expect("payload_chunk outside of record");
             assert_eq!(chunk.offset, u64::try_from(payload.len()).unwrap(), "non-contiguous payload chunk offset");
             payload.extend_from_slice(&chunk.data);
         }
         pb::parse_warc_response::Kind::RecordEnd(end) => {
             let (metadata, payload) = open.take().expect("record_end outside of record");
-            assert_eq!(end.record_index, metadata.record_index);
             assert_eq!(
                 end.payload_length,
                 u64::try_from(payload.len()).unwrap(),
@@ -180,13 +183,11 @@ pub fn group_responses(responses: &[pb::ParseWarcResponse]) -> Vec<RecordOutcome
             outcomes.push(RecordOutcome::Record {
                 metadata: Box::new(metadata),
                 payload,
-                end: end.clone(),
+                end: *end,
             });
         }
         pb::parse_warc_response::Kind::RecordError(e) => {
-            if let Some((metadata, _)) = open.take() {
-                panic!("record_error in the middle of record {}: {}", metadata.record_index, e.message);
-            }
+            assert!(open.take().is_none(), "record_error in the middle of a record: {}", e.message);
             outcomes.push(RecordOutcome::Error(e.clone()));
         }
         pb::parse_warc_response::Kind::Batch(_) => {

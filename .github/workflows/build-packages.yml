@@ -25,7 +25,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest ]
+        include:
+          - os: ubuntu-latest
+            protoc_archive: protoc-35.1-linux-x86_64.zip
+          - os: ubuntu-24.04-arm
+            protoc_archive: protoc-35.1-linux-aarch_64.zip
+          - os: windows-latest
+            protoc_archive: protoc-35.1-win64.zip
+          - os: macos-latest
+            protoc_archive: protoc-35.1-osx-universal_binary.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,39 +48,24 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      # Build only FastWARC at this time. Resiliparse needs additional vcpkg dependencies.
+      - name: Install protoc
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v35.1/${{ matrix.protoc_archive }}" `
+            -OutFile "$env:RUNNER_TEMP/protoc.zip"
+          Expand-Archive "$env:RUNNER_TEMP/protoc.zip" -DestinationPath "$env:RUNNER_TEMP/protoc"
+          "$env:RUNNER_TEMP/protoc/bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+          "PROTOC_INCLUDE=$env:RUNNER_TEMP/protoc/include" | Out-File -Append -FilePath $env:GITHUB_ENV
+
+      # Build only FastWARC and its gRPC service at this time. Resiliparse
+      # needs additional vcpkg dependencies.
       # TODO: Fix this!
       - name: Build
-        run: cargo build --verbose --color always --package fastwarc
+        run: cargo build --verbose --color always --package fastwarc --package fastwarc-grpc
 
       - name: Run tests
-        run: cargo test --verbose --color always --package fastwarc
-
-  # fastwarc-grpc needs protoc for stub generation, so it builds in its own job.
-  build-fastwarc-grpc:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Cache Cargo
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-grpc-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Build
-        run: cargo build --verbose --color always --package fastwarc-grpc
-
-      - name: Run tests
-        run: cargo test --verbose --color always --package fastwarc-grpc
+        run: cargo test --verbose --color always --package fastwarc --package fastwarc-grpc
 
   build-wheels:
     runs-on: ${{ matrix.os }}
