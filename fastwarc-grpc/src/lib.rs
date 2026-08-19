@@ -195,8 +195,8 @@
 //!
 //! Record-level problems arrive as `record_error` messages, not gRPC status codes:
 //!
-//! * An HTTP header parse failure on an already-framed record is **recoverable**. The record is
-//!   reported without parsed HTTP headers and the stream continues.
+//! * An HTTP header parse failure on an already-framed record is **recoverable**. The error is
+//!   reported and the stream continues.
 //! * A WARC framing failure (invalid header, truncated stream) is **non-recoverable** and ends
 //!   the response stream, because the parser cannot find the next record boundary.
 //!

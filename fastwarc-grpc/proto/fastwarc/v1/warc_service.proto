@@ -58,9 +58,9 @@ service WarcService {
   // Responses are ordered per record: one record_start message, zero or
   // more payload chunks, one record_end message. A failure to parse an
   // already-framed record's HTTP headers yields a recoverable record_error
-  // and parsing continues. A failure to frame the next WARC record
-  // (invalid header / lost stream) yields a non-recoverable record_error
-  // and ends the response stream.
+  // and parsing continues. A failure to frame the next WARC record (invalid
+  // header / lost stream) yields a non-recoverable record_error and ends the
+  // response stream.
   rpc ParseWarc(stream ParseWarcRequest) returns (stream ParseWarcResponse);
 
   // ParseArchive parses a complete WARC archive carried in a single request
@@ -68,9 +68,9 @@ service WarcService {
   // convenience for single records and small archives that fit within the
   // gRPC message size limits (this server accepts 16 MiB; many clients
   // default to 4 MiB). Parsing semantics, filters, and the error model are
-  // identical to ParseWarc; records and record-level errors are returned
-  // in stream order, and a non-recoverable framing error ends the record
-  // list with the records parsed up to that point intact. For larger
+  // identical to ParseWarc; records and record-level errors are returned in
+  // stream order, and a non-recoverable framing error ends the record list
+  // with the records parsed up to that point intact. For larger
   // archives or incremental consumption, use ParseWarc.
   rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
 }
@@ -102,7 +102,8 @@ message ParseWarcConfig {
   // values above 2 MiB so a lossless header block fits in one response.
   uint32 max_header_len = 5;
   // payload_chunk_size is the maximum number of payload bytes per streamed
-  // payload_chunk message. Zero selects the server default of 64 KiB.
+  // payload_chunk message. Zero selects the server default of 64 KiB. The
+  // server rejects values above 8 MiB.
   uint32 payload_chunk_size = 6;
   // record_types restricts which WARC record types are returned. Empty means
   // all types, matching Python's `record_types=any_type` default. Values are
@@ -117,12 +118,9 @@ message ParseWarcConfig {
   // stream_detect enables magic-byte compression autodetection (gzip, zstd,
   // lz4). Unset defaults to true, matching Python/Rust. Set false to disable.
   optional bool stream_detect = 10;
-  // input_buffer_size sizes the read buffer for archive_path file reads and
-  // the server's chunk queue. Streamed chunks are parsed in place (no
-  // re-buffering), so their size is set by the client's chunk messages;
-  // sizes from 32 KiB to 1 MiB perform equivalently, multi-MiB chunks
-  // reduce throughput. Zero selects the server default of 64 KiB (Python
-  // `buffer_size`).
+  // input_buffer_size sizes the read buffer for archive_path file reads.
+  // Streamed chunks are parsed in place. Zero selects the server default of
+  // 64 KiB; the server rejects values above 16 MiB.
   uint32 input_buffer_size = 11;
   // filters applies built-in predicates (AND-combined) after record_types
   // and content-length bounds. Arbitrary Python callables cannot be remoted;
@@ -140,11 +138,10 @@ message ParseWarcConfig {
   // `batch` message. Zero (the default) sends one event per message.
   // Batches flush as they fill, so the stream stays live.
   uint32 response_batch_size = 15;
-  // archive_path is a filesystem path on the server. When set, the server
-  // opens this file and ignores request chunks. Empty means the client
-  // streams archive bytes as `chunk`. Servers reject archive_path with
-  // PERMISSION_DENIED unless local-file access was enabled at startup,
-  // since it grants clients read access to the server's filesystem.
+  // archive_path is a filesystem path on the server for ParseWarc. When set,
+  // the server opens this file and ignores request chunks. ParseArchive
+  // rejects it. Servers reject archive_path with PERMISSION_DENIED unless
+  // local-file access was enabled at startup.
   string archive_path = 16;
 }
 
@@ -191,8 +188,8 @@ message RecordError {
   // record began. Zero when the iterator does not expose a position.
   uint64 stream_pos = 1;
   // recoverable indicates parsing resumed after the error. A non-recoverable
-  // error is the last message of the response stream (the WARC framing
-  // stream is no longer usable).
+  // error is the last message of the response stream (the WARC framing stream
+  // is no longer usable).
   bool recoverable = 2;
   // message is the parser's error description.
   string message = 3;
@@ -224,8 +221,8 @@ message ParseArchiveResponse {
   // records holds the kept records in archive order.
   repeated ParsedRecord records = 1;
   // errors holds the record-level parse errors, recoverable or not. A
-  // non-recoverable error is always last and means the rest of the archive
-  // was not parsed.
+  // non-recoverable error is always last and means the rest of the archive was
+  // not parsed.
   repeated RecordError errors = 2;
 }
 

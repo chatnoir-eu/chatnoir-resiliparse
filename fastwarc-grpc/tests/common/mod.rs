@@ -45,9 +45,7 @@ pub fn data_path(name: &str) -> PathBuf {
 pub fn direct_options(config: &pb::ParseWarcConfig) -> ArchiveIteratorOptions {
     ArchiveIteratorOptions {
         stream_detect: config.stream_detect.unwrap_or(true),
-        // The service parses HTTP manually per record; direct comparison
-        // runs must do the same.
-        parse_http: false,
+        parse_http: config.parse_http.unwrap_or(true),
         decode_http_payload: fastwarc_grpc::convert::auto_decode(config.decode_http_payload),
         verify_digests: config.verify_digests,
         quirks_mode: config.quirks_mode,
