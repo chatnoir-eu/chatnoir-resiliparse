@@ -104,6 +104,8 @@
 //!     kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig {
 //!         parse_http: Some(true),
 //!         verify_digests: true,
+//!         // Batch events to reduce per-event gRPC overhead.
+//!         response_batch_size: 64,
 //!         ..Default::default()
 //!     })),
 //! })
@@ -171,6 +173,10 @@
 //! `min_content_length`, `max_content_length`, `stream_detect`, `input_buffer_size`,
 //! `include_payload`, `include_headers`, `response_batch_size`, and `archive_path`.
 //! Filtered-out records are skipped silently, matching local iteration.
+//!
+//! A non-zero `response_batch_size` reduces per-event gRPC overhead on
+//! payload-heavy workloads; 64 is a reasonable starting point. Server-side
+//! defaults and hard limits for these knobs live in [`defaults`].
 //!
 //! One difference from the local APIs matters:
 //!
@@ -243,6 +249,7 @@
 #![warn(clippy::pedantic)]
 
 pub mod convert;
+pub mod defaults;
 pub mod transport;
 pub mod warc_service;
 

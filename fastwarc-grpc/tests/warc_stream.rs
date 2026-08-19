@@ -904,3 +904,187 @@ async fn batched_stream_matches_unbatched() {
     assert_eq!(unbatched.len(), batched.len());
     assert_eq!(unbatched.len(), 50);
 }
+
+/// A missing `archive_path` file yields one non-recoverable `record_error`
+/// naming the path, then a clean stream end.
+#[tokio::test]
+async fn archive_path_missing_file_reports_error() {
+    let config = pb::ParseWarcConfig {
+        archive_path: "/nonexistent/definitely-not-here.warc".to_owned(),
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = vec![pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Config(config)),
+    }];
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.unwrap() {
+        responses.push(resp);
+    }
+    let outcomes = group_responses(&responses);
+    assert!(matches!(
+        outcomes.as_slice(),
+        [RecordOutcome::Error(error)] if !error.recoverable && error.message.contains("definitely-not-here")
+    ));
+}
+
+/// A batch size above the byte cap still flushes near the 2 MiB item budget,
+/// and all records are returned.
+#[tokio::test]
+async fn batch_flush_honors_byte_cap() {
+    use prost::Message;
+    use std::io::Write;
+
+    // Seven records with ~300 KiB WARC headers: each record_start event is
+    // roughly 600 KiB (parsed fields plus raw block), so three events fill
+    // the 2 MiB batch budget long before the requested count is reached.
+    let pad = "A".repeat(300_000);
+    let mut data = Vec::new();
+    for i in 0..7 {
+        write!(
+            data,
+            "WARC/1.0\r\nWARC-Type: resource\r\nWARC-Record-ID: <urn:uuid:cccccccc-cccc-cccc-cccc-{i:012}>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nX-Pad: {pad}\r\nContent-Length: 1\r\n\r\nZ\r\n\r\n"
+        )
+        .unwrap();
+    }
+
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
+        max_header_len: 2 << 20,
+        response_batch_size: u32::MAX,
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = common::warc_requests(&data, 64 << 10, &config);
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.unwrap() {
+        responses.push(resp);
+    }
+
+    assert!(responses.len() > 1, "expected several capped batches, got {} message(s)", responses.len());
+    for resp in &responses {
+        assert!(
+            resp.encoded_len() <= (2 << 20) + 4096,
+            "batch exceeds the item budget plus protobuf envelope: {} bytes",
+            resp.encoded_len()
+        );
+    }
+    let outcomes = group_responses(&responses);
+    assert_eq!(outcomes.len(), 7);
+    assert!(outcomes.iter().all(|o| matches!(o, RecordOutcome::Record { .. })));
+}
+
+/// Four `ParseWarc` streams multiplexed over a single connection each complete.
+#[tokio::test]
+async fn concurrent_streams_complete_independently() {
+    let client = common::warc_client().await;
+    let data = std::fs::read(data_path("warcfile.warc")).unwrap();
+
+    let mut handles = Vec::new();
+    for _ in 0..4 {
+        let mut client = client.clone();
+        let requests = common::warc_requests(&data, 8 << 10, &default_config());
+        handles.push(tokio::spawn(async move {
+            let mut stream = client
+                .parse_warc(tokio_stream::iter(requests))
+                .await
+                .unwrap()
+                .into_inner();
+            let mut responses = Vec::new();
+            while let Some(resp) = stream.message().await.unwrap() {
+                responses.push(resp);
+            }
+            responses
+        }));
+    }
+    for handle in handles {
+        let outcomes = group_responses(&handle.await.unwrap());
+        assert_eq!(outcomes.len(), 50);
+        assert!(outcomes.iter().all(|o| matches!(o, RecordOutcome::Record { .. })));
+    }
+}
+
+/// With `stream_detect` disabled, gzip input is parsed as plain WARC and
+/// fails framing exactly as a direct iterator run with the same options.
+#[tokio::test]
+async fn stream_detect_disabled_matches_direct_behavior() {
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
+        stream_detect: Some(false),
+        ..Default::default()
+    };
+    let responses = collect_warc("warcfile.warc.gz", 8 << 10, &config).await;
+    let outcomes = group_responses(&responses);
+
+    let reader = std::fs::File::open(data_path("warcfile.warc.gz")).unwrap();
+    let mut direct = ArchiveIterator::with_options(reader, direct_options(&config));
+    assert!(direct.next().unwrap().is_err(), "direct parse of undetected gzip should fail framing");
+
+    assert!(matches!(
+        outcomes.as_slice(),
+        [RecordOutcome::Error(error)] if !error.recoverable
+    ));
+}
+
+/// With `include_payload=false` and `parse_http=true`, `record_end`'s
+/// `payload_length` is the content length after HTTP header stripping,
+/// matching the crate's parsed `content_length`.
+#[tokio::test]
+async fn record_end_length_reflects_http_header_stripping() {
+    use std::io::Write;
+
+    let http = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nbody";
+    let mut data = Vec::new();
+    write!(
+        data,
+        "WARC/1.0\r\nWARC-Type: response\r\nWARC-Record-ID: <urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Type: application/http; msgtype=response\r\nContent-Length: {}\r\n\r\n",
+        http.len()
+    )
+    .unwrap();
+    data.extend_from_slice(http);
+    data.extend_from_slice(b"\r\n\r\n");
+
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(true),
+        include_payload: Some(false),
+        include_headers: Some(false),
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = common::warc_requests(&data, 64, &config);
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.unwrap() {
+        responses.push(resp);
+    }
+    // No payload chunks are streamed with include_payload=false, so the
+    // contiguity assertions in group_responses do not apply here.
+    let mut content_length = None;
+    let mut payload_length = None;
+    common::for_each_event(&responses, |resp| match resp.kind.as_ref().unwrap() {
+        pb::parse_warc_response::Kind::RecordStart(start) => {
+            content_length = Some(start.metadata.as_ref().unwrap().content_length);
+        }
+        pb::parse_warc_response::Kind::RecordEnd(end) => {
+            payload_length = Some(end.payload_length);
+        }
+        pb::parse_warc_response::Kind::RecordError(e) => panic!("unexpected record_error: {}", e.message),
+        _ => {}
+    });
+    assert_eq!(payload_length, Some(4), "payload_length should be the HTTP-stripped body length");
+    assert_eq!(content_length, Some(4));
+}

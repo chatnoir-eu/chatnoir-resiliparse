@@ -50,6 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let config = pb::ParseWarcConfig {
             parse_http: Some(true),
             verify_digests: true,
+            // Batch events to reduce per-event gRPC overhead.
+            response_batch_size: 64,
             ..Default::default()
         };
         if tx
