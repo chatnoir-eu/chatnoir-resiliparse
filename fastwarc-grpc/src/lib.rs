@@ -14,12 +14,12 @@
 
 //! FastWARC-gRPC exposes the [FastWARC](https://docs.rs/fastwarc) WARC parser as a streaming gRPC
 //! service. Clients in any language with gRPC support can send WARC archives (uncompressed, Gzip,
-//! Zstd, or LZ4) and receive parsed records with lossless headers and streamed payloads. The
+//! Zstd, or LZ4) and receive parsed headers and streamed payloads. The
 //! service is binary protobuf only, with no JSON transcoding.
 //!
-//! FastWARC-gRPC belongs to the [ChatNoir Resiliparse toolkit](https://resiliparse.chatnoir.eu/en/stable/index.html)
-//! for fast and robust web data processing. The `fastwarc` library itself carries no gRPC
-//! dependencies; this crate is a separate server on top of it.
+//! FastWARC-gRPC belongs to the
+//! [ChatNoir Resiliparse toolkit](https://resiliparse.chatnoir.eu/en/stable/index.html). The
+//! `fastwarc` library carries no gRPC dependencies.
 //!
 //! # Running the Server
 //!
@@ -42,10 +42,9 @@
 //! # Parsing a Small Archive in One Call
 //!
 //! `ParseArchive` is the unary entry point for single records and archives that fit within the
-//! gRPC message size limits. This server accepts 16 MiB ([`transport::MAX_MESSAGE_SIZE`]); many
-//! clients default to 4 MiB and must raise their decode limit to match. One request carries the
-//! configuration and the complete archive; the response carries every kept record with its
-//! metadata and payload.
+//! gRPC message size limits. This server accepts 16 MiB ([`transport::MAX_MESSAGE_SIZE`]). The
+//! client must use compatible encode and decode limits. One request carries the configuration and
+//! complete archive; the response carries the parsed records and errors.
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1 as pb;
@@ -76,21 +75,19 @@
 //! }
 //! ```
 //!
-//! Compression is autodetected from magic bytes, so the same call works for `.warc`, `.warc.gz`,
-//! `.warc.zst`, and `.warc.lz4` inputs.
+//! Compression is detected from the archive's magic bytes.
 //!
 //! # Streaming Large Archives
 //!
-//! `ParseWarc` is the bidirectional streaming RPC for archives of arbitrary size. Memory stays
-//! bounded on both sides. The client sends one `config` message first, then any number of `chunk`
-//! messages with raw archive bytes. Chunk boundaries are arbitrary; the server concatenates them.
+//! `ParseWarc` is the bidirectional RPC for archives that do not fit in one request. The client
+//! sends one `config` message first, then any number of `chunk` messages with archive bytes. The
+//! server reads the chunks in order.
 //! Set `archive_path` on the config to have the server open a local file instead of uploading
 //! chunks (requires a server built with `WarcParser::with_local_files`, or
 //! `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1` for the bundled binary; otherwise `PermissionDenied`).
 //!
-//! For every kept record the server responds with an ordered sequence: one `record_start`
-//! carrying all metadata, zero or more offset-tagged `payload_chunk` messages, and one
-//! `record_end` with the total payload length.
+//! Each returned record has one `record_start`, zero or more `payload_chunk` messages, and one
+//! `record_end`.
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1 as pb;
@@ -161,41 +158,36 @@
 //! }
 //! ```
 //!
-//! This example reads the whole file up front for brevity. `examples/parse.rs` shows the
-//! bounded-memory shape a real client should use: a reader thread feeding a bounded channel, so
-//! archives larger than memory stream fine.
+//! This example reads the whole file up front for brevity. `examples/parse.rs` streams a file
+//! through a bounded channel.
 //!
 //! # Configuration and Filters
 //!
-//! [`ParseWarcConfig`](proto::fastwarc::v1::ParseWarcConfig) mirrors the parse and filter options
-//! of the local `ArchiveIterator` where they make sense on a remote stream: `parse_http`,
+//! [`ParseWarcConfig`](proto::fastwarc::v1::ParseWarcConfig) provides these parsing and filtering
+//! options: `parse_http`,
 //! `decode_http_payload`, `verify_digests`, `quirks_mode`, `max_header_len`, `record_types`,
 //! `min_content_length`, `max_content_length`, `stream_detect`, `input_buffer_size`,
 //! `include_payload`, `include_headers`, `response_batch_size`, and `archive_path`.
-//! Filtered-out records are skipped silently, matching local iteration.
+//! Records that do not pass the filters are not returned.
 //!
-//! A non-zero `response_batch_size` reduces per-event gRPC overhead on
-//! payload-heavy workloads; 64 is a reasonable starting point. Server-side
-//! defaults and hard limits for these knobs live in [`defaults`].
+//! A non-zero `response_batch_size` groups multiple events in one gRPC message. Defaults and hard
+//! limits for these options live in [`defaults`].
 //!
-//! One difference from the local APIs matters:
-//!
-//! * Arbitrary filter callables cannot travel over gRPC. The built-in predicates are available as
-//!   [`BuiltinFilter`](proto::fastwarc::v1::BuiltinFilter) values in `filters`; anything custom
-//!   should be filtered client-side from the streamed metadata.
+//! Custom filter functions cannot be sent over gRPC. Use
+//! [`BuiltinFilter`](proto::fastwarc::v1::BuiltinFilter) or filter the returned metadata on the
+//! client.
 //!
 //! # Digest Verification
 //!
 //! With `verify_digests` set, the server skips records with a missing or invalid
-//! `WARC-Block-Digest`, matching local [`fastwarc::warc::iter::ArchiveIterator`] behavior.
+//! `WARC-Block-Digest`.
 //!
 //! # Wire Mapping
 //!
 //! Header names and values use protobuf `bytes`, not strings, and remain in source order so
-//! duplicate fields survive. Each header block also carries the raw source bytes. Payload chunks
+//! duplicate fields are preserved. Each header block also carries serialized bytes. Payload chunks
 //! belong to the most recent `record_start`; a `record_end` closes that record before the next one
-//! begins. The default 32 KiB header limit can be raised to 2 MiB for large crawl headers while
-//! keeping each lossless header response within the server's 16 MiB message limit.
+//! begins. The default 32 KiB header limit can be raised to 2 MiB.
 //!
 //! # Error Handling
 //!
@@ -204,16 +196,16 @@
 //! * An HTTP header parse failure on an already-framed record is **recoverable**. The error is
 //!   reported and the stream continues.
 //! * A WARC framing failure (invalid header, truncated stream) is **non-recoverable** and ends
-//!   the response stream, because the parser cannot find the next record boundary.
+//!   the response stream.
 //!
 //! Protocol violations (missing or duplicate `config`, empty request `kind`) fail the RPC with
 //! `InvalidArgument`.
 //!
 //! # Embedding the Server
 //!
-//! The service implementation is the [`warc_service::WarcParser`] struct. It is stateless, so it
-//! can be mounted in an existing tonic server alongside other services. `WarcParser::new()`
-//! rejects `archive_path` requests with `PermissionDenied`; construct it with
+//! The service implementation is the [`warc_service::WarcParser`] struct. It can be mounted in an
+//! existing tonic server alongside other services. `WarcParser::new()` rejects `archive_path`
+//! requests with `PermissionDenied`; construct it with
 //! [`warc_service::WarcParser::with_local_files`] to let clients open files on the server
 //! (only when every client is trusted with read access to the server's files):
 //!
@@ -254,9 +246,6 @@ pub mod transport;
 pub mod warc_service;
 
 /// Generated protobuf and gRPC stubs.
-///
-/// The stubs carry no doc comments or clippy annotations of their own; the
-/// commented, linted source of truth is the schema in `proto`.
 #[allow(missing_docs, clippy::all, clippy::pedantic, clippy::nursery)]
 pub mod proto {
     /// Encoded descriptor set of the `fastwarc.v1` package, for server

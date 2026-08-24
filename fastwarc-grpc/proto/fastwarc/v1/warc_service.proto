@@ -1,8 +1,4 @@
-// WarcService streams WARC archives through the `fastwarc` parser.
-//
-// The service is binary-only gRPC (no JSON transcoding). Parsing is exposed
-// as a single bidirectional streaming RPC so archives of arbitrary size can
-// be uploaded, parsed, and returned with bounded memory on both sides.
+// WarcService exposes streaming and unary WARC parsing over gRPC.
 
 syntax = "proto3";
 
@@ -11,10 +7,9 @@ package fastwarc.v1;
 import "fastwarc/v1/warc.proto";
 
 // AutoDecode controls automatic decoding of HTTP transfer and content
-// encodings, matching `fastwarc::warc::record::AutoDecode`.
+// encodings.
 enum AutoDecode {
-  // AUTO_DECODE_UNSPECIFIED leaves payload bytes untouched, matching the
-  // crate's `AutoDecode::None` default.
+  // AUTO_DECODE_UNSPECIFIED leaves payload bytes untouched.
   AUTO_DECODE_UNSPECIFIED = 0;
   // AUTO_DECODE_TRANSFER_ENCODING decodes transfer encodings only (chunked).
   AUTO_DECODE_TRANSFER_ENCODING = 1;
@@ -25,10 +20,8 @@ enum AutoDecode {
   AUTO_DECODE_ALL = 3;
 }
 
-// BuiltinFilter names the built-in ArchiveIterator filter predicates from
-// the FastWARC Python/Rust APIs that can be expressed without a callback.
-// Arbitrary `func_filter` callables cannot be remoted over gRPC; use these
-// instead, or filter on the client from the streamed metadata.
+// BuiltinFilter selects FastWARC record filters. Custom predicates must run
+// on the client.
 enum BuiltinFilter {
   // BUILTIN_FILTER_UNSPECIFIED must not be set; it is ignored if present.
   BUILTIN_FILTER_UNSPECIFIED = 0;
@@ -47,67 +40,47 @@ enum BuiltinFilter {
   BUILTIN_FILTER_IS_WARC_11 = 6;
 }
 
-// WarcService parses streamed WARC archive data into structured records.
+// WarcService parses WARC archive data into structured records.
 service WarcService {
-  // ParseWarc accepts a WARC archive as a stream of byte chunks and streams
-  // back every parsed record. The first request message must carry the
-  // parse configuration; subsequent messages carry archive bytes, which may
-  // be uncompressed or gzip-, zstd-, or lz4-compressed (detected from magic
-  // bytes when stream_detect is enabled). When config.archive_path is set,
-  // the server opens that filesystem path and ignores request chunks.
-  // Responses are ordered per record: one record_start message, zero or
-  // more payload chunks, one record_end message. A failure to parse an
-  // already-framed record's HTTP headers yields a recoverable record_error
-  // and parsing continues. A failure to frame the next WARC record (invalid
-  // header / lost stream) yields a non-recoverable record_error and ends the
-  // response stream.
+  // ParseWarc reads configuration from the first request, followed by archive
+  // chunks. When archive_path is set, the server reads that file instead.
+  // Each returned record has one record_start, zero or more payload_chunk
+  // messages, and one record_end. HTTP header errors are recoverable. WARC
+  // framing errors end the response stream.
   rpc ParseWarc(stream ParseWarcRequest) returns (stream ParseWarcResponse);
 
-  // ParseArchive parses a complete WARC archive carried in a single request
-  // message and returns every kept record in a single response: the unary
-  // convenience for single records and small archives that fit within the
-  // gRPC message size limits (this server accepts 16 MiB; many clients
-  // default to 4 MiB). Parsing semantics, filters, and the error model are
-  // identical to ParseWarc; records and record-level errors are returned in
-  // stream order, and a non-recoverable framing error ends the record list
-  // with the records parsed up to that point intact. For larger
-  // archives or incremental consumption, use ParseWarc.
+  // ParseArchive parses an archive carried in one request and returns records
+  // and errors in separate lists. Each list preserves archive order. It is
+  // intended for inputs that fit within the gRPC message size limit.
   rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
 }
 
-// ParseWarcConfig configures a ParseWarc stream. It covers the parse and
-// filter knobs of Python's `ArchiveIterator` / Rust's
-// `ArchiveIteratorOptions` that make sense on a remote stream, plus
-// streaming-specific chunk sizing. Arbitrary `func_filter` callables are
-// out of scope (see BuiltinFilter).
+// ParseWarcConfig controls parsing, filtering, and streaming.
 message ParseWarcConfig {
   // parse_http enables parsing of HTTP messages embedded in records whose
-  // content type is application/http. Unset defaults to true, matching
-  // Python/Rust ArchiveIterator. Set false to leave HTTP headers in the
-  // record payload.
+  // content type is application/http. Unset defaults to true. Set false to
+  // leave HTTP headers in the record payload.
   optional bool parse_http = 1;
   // decode_http_payload selects automatic decoding of HTTP transfer and
   // content encodings. Requires parse_http to take effect. When decoding is
   // enabled, streamed payload bytes are the decoded view, not the raw
   // on-wire transfer/content-encoded bytes.
   AutoDecode decode_http_payload = 2;
-  // verify_digests skips records with a missing or invalid WARC-Block-Digest,
-  // matching Python/Rust ArchiveIterator.
+  // verify_digests skips records with a missing or invalid WARC-Block-Digest.
   bool verify_digests = 3;
   // quirks_mode relaxes header parsing for non-conforming archives such as
   // ClueWeb captures.
   bool quirks_mode = 4;
   // max_header_len caps the accepted WARC and HTTP header block length in
   // bytes. Zero selects the parser default of 32 KiB. The server rejects
-  // values above 2 MiB so a lossless header block fits in one response.
+  // values above 2 MiB.
   uint32 max_header_len = 5;
   // payload_chunk_size is the maximum number of payload bytes per streamed
   // payload_chunk message. Zero selects the server default of 64 KiB. The
   // server rejects values above 8 MiB.
   uint32 payload_chunk_size = 6;
   // record_types restricts which WARC record types are returned. Empty means
-  // all types, matching Python's `record_types=any_type` default. Values are
-  // OR-combined.
+  // all types. Values are OR-combined.
   repeated WarcRecordType record_types = 7;
   // min_content_length skips records whose Content-Length is below this
   // value. Unset means no minimum.
@@ -115,29 +88,25 @@ message ParseWarcConfig {
   // max_content_length skips records whose Content-Length is above this
   // value. Unset means no maximum.
   optional uint64 max_content_length = 9;
-  // stream_detect enables magic-byte compression autodetection (gzip, zstd,
-  // lz4). Unset defaults to true, matching Python/Rust. Set false to disable.
+  // stream_detect enables magic-byte compression autodetection for gzip,
+  // zstd, and lz4. Unset defaults to true.
   optional bool stream_detect = 10;
-  // input_buffer_size sizes the read buffer for archive_path file reads.
-  // Streamed chunks are parsed in place. Zero selects the server default of
-  // 64 KiB; the server rejects values above 16 MiB.
+  // input_buffer_size controls the read buffer for archive_path. It does not
+  // affect streamed chunks. Zero selects the server default of 64 KiB; the
+  // server rejects values above 16 MiB.
   uint32 input_buffer_size = 11;
   // filters applies built-in predicates (AND-combined) after record_types
-  // and content-length bounds. Arbitrary Python callables cannot be remoted;
-  // clients that need custom logic should filter on streamed metadata.
+  // and content-length bounds. Apply custom filters on the client.
   repeated BuiltinFilter filters = 12;
   // include_payload streams payload_chunk messages. Unset defaults to true.
-  // Set false to skip payload bytes (the iterator still consumes them);
-  // record_end.payload_length is then the content length FastWARC reports
-  // after applying the configured parse options.
+  // Set false to skip payload bytes; record_end.payload_length then equals
+  // RecordMetadata.content_length.
   optional bool include_payload = 13;
-  // include_headers fills warc_headers and http_headers losslessly. Unset
-  // defaults to true. Set false to omit header blocks when only record_type,
-  // content_length, and stream_pos are needed.
+  // include_headers fills warc_headers and http_headers. Unset defaults to
+  // true. Set false to omit the header blocks.
   optional bool include_headers = 14;
   // response_batch_size packs this many protocol events into one gRPC
   // `batch` message. Zero (the default) sends one event per message.
-  // Batches flush as they fill, so the stream stays live.
   uint32 response_batch_size = 15;
   // archive_path is a filesystem path on the server for ParseWarc. When set,
   // the server opens this file and ignores request chunks. ParseArchive
@@ -163,8 +132,8 @@ message ParseWarcRequest {
 // RecordStart opens the response sequence for one successfully parsed record
 // and carries all of its metadata.
 message RecordStart {
-  // metadata holds every per-record property of the parsed record; payload
-  // bytes follow as payload_chunk messages.
+  // metadata describes the parsed record. Payload bytes follow in
+  // payload_chunk messages.
   RecordMetadata metadata = 1;
 }
 
@@ -178,8 +147,9 @@ message PayloadChunk {
 
 // RecordEnd closes the response sequence for one record.
 message RecordEnd {
-  // payload_length is the total number of payload bytes streamed for this
-  // record, for client-side reassembly checks.
+  // When payload bytes are included, payload_length is the total number of
+  // bytes streamed for this record. Otherwise it equals
+  // metadata.content_length, and no payload chunks are sent.
   uint64 payload_length = 1;
 }
 
@@ -188,9 +158,7 @@ message RecordError {
   // stream_pos is the byte offset in the source stream at which the failed
   // record began. Zero when the iterator does not expose a position.
   uint64 stream_pos = 1;
-  // recoverable indicates parsing resumed after the error. A non-recoverable
-  // error is the last message of the response stream (the WARC framing stream
-  // is no longer usable).
+  // recoverable indicates whether parsing can continue after the error.
   bool recoverable = 2;
   // message is the parser's error description.
   string message = 3;
@@ -199,42 +167,34 @@ message RecordError {
 // ParseArchiveRequest carries a complete WARC archive and its parse
 // configuration.
 message ParseArchiveRequest {
-  // config configures parsing exactly as for ParseWarc; payload_chunk_size
-  // has no effect because payloads are returned whole.
+  // config controls parsing and filtering. archive_path is rejected;
+  // payload_chunk_size and response_batch_size have no effect.
   ParseWarcConfig config = 1;
   // archive is the complete source archive: plain, gzip, zstd, or lz4.
   bytes archive = 2;
 }
 
-// ParsedRecord is one kept record of a unary parse: the metadata of a
-// record_start message and its reassembled payload.
+// ParsedRecord contains one record returned by ParseArchive.
 message ParsedRecord {
-  // metadata holds every per-record property of the parsed record.
+  // metadata describes the parsed record.
   RecordMetadata metadata = 1;
   // payload is the complete record payload after any configured HTTP header
   // stripping and payload decoding.
   bytes payload = 2;
 }
 
-// ParseArchiveResponse carries every kept record and every record-level
-// error of a unary parse, each in stream order.
+// ParseArchiveResponse contains records and errors in separate lists.
 message ParseArchiveResponse {
-  // records holds the kept records in archive order.
+  // records holds returned records in archive order.
   repeated ParsedRecord records = 1;
-  // errors holds the record-level parse errors, recoverable or not. A
-  // non-recoverable error is always last and means the rest of the archive was
-  // not parsed.
+  // errors holds record-level parse errors in archive order. Parsing stops
+  // after a non-recoverable error.
   repeated RecordError errors = 2;
 }
 
-// RecordBatch packs several protocol events into one gRPC message.
-//
-// Batches flush as they fill, so the client sees the first records without
-// waiting for the archive to finish. Items are in stream order and never
-// contain nested batches.
+// RecordBatch groups protocol events in stream order. Batches are not nested.
 message RecordBatch {
-  // items are the flattened record_start / payload_chunk / record_end /
-  // record_error events that would otherwise each be their own message.
+  // items are record_start, payload_chunk, record_end, or record_error events.
   repeated ParseWarcResponse items = 1;
 }
 
@@ -251,9 +211,7 @@ message ParseWarcResponse {
     RecordEnd record_end = 3;
     // record_error reports a record that failed to parse.
     RecordError record_error = 4;
-    // batch carries many of the above events in one HTTP/2 frame. Set
-    // ParseWarcConfig.response_batch_size to opt in. Clients that do not
-    // set a batch size never receive this variant.
+    // batch carries multiple record events in one gRPC message.
     RecordBatch batch = 5;
   }
 }

@@ -40,13 +40,10 @@ type ResponseSender = mpsc::Sender<Result<pb::ParseWarcResponse, Status>>;
 
 enum ParserInput {
     Chunks(mpsc::Receiver<Bytes>),
-    Path,
+    LocalFile,
 }
 
 /// The `fastwarc.v1.WarcService` gRPC service.
-///
-/// Server-side file access is disabled by default. See
-/// [`WarcParser::with_local_files`] for the security boundary.
 #[derive(Default)]
 pub struct WarcParser {
     allow_local_files: bool,
@@ -92,7 +89,7 @@ impl pb::warc_service_server::WarcService for WarcParser {
             spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config);
             tokio::spawn(forward_chunks(stream, chunk_tx, response_tx));
         } else {
-            spawn_parser(ParserInput::Path, response_tx, config);
+            spawn_parser(ParserInput::LocalFile, response_tx, config);
         }
         Ok(Response::new(ReceiverStream::new(response_rx)))
     }
@@ -132,7 +129,7 @@ async fn read_config(stream: &mut Streaming<pb::ParseWarcRequest>) -> Result<pb:
 
 fn spawn_parser(input: ParserInput, response_tx: ResponseSender, config: pb::ParseWarcConfig) {
     let error_tx = response_tx.clone();
-    // Convert parser task failures into terminal statuses instead of clean EOF.
+    // Report parser task failures as terminal gRPC errors.
     tokio::spawn(async move {
         let joined = tokio::task::spawn_blocking(move || run_parser(input, &response_tx, &config)).await;
         if let Err(error) = joined {
@@ -211,7 +208,7 @@ fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::Par
         ParserInput::Chunks(chunk_rx) => {
             parse_into(RawReaderAdapter::new(ChannelReader::new(chunk_rx)), config, &mut emit);
         }
-        ParserInput::Path => {
+        ParserInput::LocalFile => {
             let input_buffer_size = if config.input_buffer_size == 0 {
                 DEFAULT_INPUT_BUFFER_SIZE
             } else {

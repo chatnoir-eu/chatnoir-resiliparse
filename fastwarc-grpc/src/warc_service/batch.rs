@@ -20,7 +20,7 @@ use crate::proto::fastwarc::v1 as pb;
 const MAX_BATCH_BYTES: usize = 2 << 20;
 const ITEM_TAG: u32 = 1;
 
-/// Packs protocol events into bounded gRPC messages.
+/// Groups protocol events into gRPC batch messages.
 pub(super) struct BatchEmitter<'a> {
     tx: &'a ResponseSender,
     batch: Vec<pb::ParseWarcResponse>,

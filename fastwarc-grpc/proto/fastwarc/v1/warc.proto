@@ -1,10 +1,5 @@
-// WARC record data model for the fastwarc-grpc service.
-//
-// These messages mirror the public API of the `fastwarc` Rust crate
-// (fastwarc-rs). The mapping is designed to be lossless: header blocks are
-// carried as ordered byte pairs (headers are multimaps with duplicate keys,
-// and header values are not guaranteed to be valid UTF-8) together with the
-// verbatim raw header block bytes.
+// WARC record data model for the fastwarc-grpc service. Header names, values,
+// and serialized blocks use bytes so non-UTF-8 data can be represented.
 
 syntax = "proto3";
 
@@ -12,8 +7,7 @@ package fastwarc.v1;
 
 import "google/protobuf/timestamp.proto";
 
-// WarcRecordType enumerates the WARC 1.1 record types, matching
-// `fastwarc::warc::record::WarcRecordType`.
+// WarcRecordType enumerates the WARC record types used by FastWARC.
 enum WarcRecordType {
   // WARC_RECORD_TYPE_UNSPECIFIED maps to the crate's `NoType` variant.
   WARC_RECORD_TYPE_UNSPECIFIED = 0;
@@ -47,32 +41,28 @@ message HeaderField {
   bytes value = 2;
 }
 
-// HeaderBlock is a complete, lossless representation of a WARC or HTTP header
-// block, matching `fastwarc::warc::header::HeaderMap`. Duplicate header names
-// are preserved through field ordering and repetition.
+// HeaderBlock contains parsed fields and serialized WARC or HTTP header bytes.
+// Duplicate field names are preserved in order.
 message HeaderBlock {
   // status_line is the raw status/request line (HTTP header blocks only).
   // Absent for WARC header blocks and HTTP blocks without a status line.
   optional bytes status_line = 1;
   // fields holds every header entry in original order, duplicates included.
   repeated HeaderField fields = 2;
-  // raw_block is the verbatim header block as it appeared in the source
-  // stream when the header map was not modified during parsing, which is
-  // always the case for server-side parsing. It is the authoritative
-  // byte-exact copy; `fields` is its parsed view.
+  // raw_block contains the serialized header block. For an unmodified parsed
+  // block, it contains the source bytes.
   bytes raw_block = 3;
 }
 
-// RecordMetadata carries every piece of per-record state exposed by
-// `fastwarc::warc::record::WarcRecord` except the payload bytes, which are
-// streamed separately.
+// RecordMetadata describes a parsed record. Payload bytes are streamed
+// separately.
 message RecordMetadata {
   // record_type is the parsed WARC record type.
   WarcRecordType record_type = 1;
-  // warc_headers is the lossless WARC header block of the record.
+  // warc_headers is the WARC header block of the record.
   HeaderBlock warc_headers = 2;
-  // content_length is the payload length in bytes as declared by the record
-  // after any configured HTTP parsing and payload decoding.
+  // content_length is the remaining record content length after HTTP header
+  // parsing, when enabled. Payload decoding does not recompute this value.
   uint64 content_length = 3;
   // stream_pos is the byte offset of the record start in the (uncompressed)
   // source stream.
@@ -80,11 +70,10 @@ message RecordMetadata {
   // is_http indicates the record content was detected as an HTTP message
   // (Content-Type: application/http).
   bool is_http = 5;
-  // http_parsed indicates the embedded HTTP message was actually parsed,
-  // which happens only when requested in the parse configuration.
+  // http_parsed indicates whether the embedded HTTP message was parsed.
   bool http_parsed = 6;
-  // http_headers is the lossless embedded HTTP header block, present only
-  // when http_parsed is true.
+  // http_headers is the embedded HTTP header block, present only when
+  // http_parsed is true.
   optional HeaderBlock http_headers = 7;
   // http_content_type is the embedded HTTP Content-Type without parameters,
   // present only when http_parsed is true and the header exists.
@@ -92,8 +81,8 @@ message RecordMetadata {
   // http_charset is the charset parameter of the embedded HTTP Content-Type,
   // present only when it was declared.
   optional string http_charset = 9;
-  // record_id is the WARC-Record-ID header value, present when declared.
-  // The authoritative copy remains in warc_headers.
+  // record_id is the WARC-Record-ID header value, present when declared. Its
+  // raw value remains in warc_headers.
   optional string record_id = 10;
   // record_date is the parsed WARC-Date header value, present when declared
   // and parseable. The raw string remains in warc_headers.

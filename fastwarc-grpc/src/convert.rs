@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Lossless conversions from `fastwarc` crate types to the `fastwarc.v1`
-//! protobuf data model.
-//!
-//! Header blocks are carried as ordered byte pairs plus the verbatim raw
-//! block, so no information the parser saw is lost on the way to the wire.
+//! Conversions between `fastwarc` types and `fastwarc.v1` protobuf messages.
 
 use crate::proto::fastwarc::v1 as pb;
 use fastwarc::warc::header::HeaderMap;
@@ -27,9 +23,7 @@ use time::OffsetDateTime;
 
 /// Convert a [`WarcRecordType`] to its protobuf enum counterpart.
 ///
-/// The crate's `NoType` maps to `WARC_RECORD_TYPE_UNSPECIFIED`; the `AnyType`
-/// bitmask wildcard never occurs on a parsed record and also maps to
-/// `WARC_RECORD_TYPE_UNSPECIFIED`.
+/// `NoType` and `AnyType` map to `WARC_RECORD_TYPE_UNSPECIFIED`.
 #[must_use]
 pub fn warc_record_type(record_type: WarcRecordType) -> pb::WarcRecordType {
     match record_type {
@@ -46,10 +40,9 @@ pub fn warc_record_type(record_type: WarcRecordType) -> pb::WarcRecordType {
     }
 }
 
-/// Map a protobuf [`pb::WarcRecordType`] to the crate's bitmask value.
+/// Map a protobuf [`pb::WarcRecordType`] to a `fastwarc` filter bitmask.
 ///
-/// Proto enum numbers are sequential (proto3 convention); the crate uses
-/// bitmasks for filtering. Returns `None` for unspecified / unrecognized.
+/// Returns `None` for unspecified or unrecognized values.
 #[must_use]
 pub fn warc_record_type_bit(value: i32) -> Option<u16> {
     match pb::WarcRecordType::try_from(value).unwrap_or_default() {
@@ -66,7 +59,7 @@ pub fn warc_record_type_bit(value: i32) -> Option<u16> {
     }
 }
 
-/// OR-combine protobuf record-type enums into a crate filter bitmask.
+/// Combine protobuf record types into a `fastwarc` filter bitmask.
 ///
 /// An empty list means "any type" (`WarcRecordType::AnyType`).
 #[must_use]
@@ -84,7 +77,7 @@ pub fn record_types_mask(types: &[i32]) -> u16 {
     }
 }
 
-/// Convert a protobuf `AutoDecode` value to the crate's [`AutoDecode`].
+/// Convert a protobuf `AutoDecode` value to [`AutoDecode`].
 ///
 /// Unrecognized values fall back to [`AutoDecode::None`].
 #[must_use]
@@ -102,17 +95,15 @@ pub fn auto_decode(value: i32) -> AutoDecode {
 pub fn timestamp(date: OffsetDateTime) -> Timestamp {
     Timestamp {
         seconds: date.unix_timestamp(),
-        // Subsecond nanoseconds are always in 0..1e9, so the conversion
-        // can never actually fail.
+        // Nanoseconds are below 1e9 and fit in i32.
         nanos: i32::try_from(date.nanosecond()).unwrap_or_default(),
     }
 }
 
-/// Convert a [`HeaderMap`] to a lossless protobuf `HeaderBlock`.
+/// Convert a [`HeaderMap`] to a protobuf `HeaderBlock`.
 ///
-/// The parsed view is emitted as ordered raw byte pairs (duplicates and
-/// original case preserved); `raw_block` carries the verbatim source bytes
-/// via [`HeaderMap::write`], which writes the unmodified raw buffer.
+/// Fields retain their byte representation and order. `raw_block` contains
+/// the output of [`HeaderMap::write`].
 #[must_use]
 pub fn header_block(headers: &HeaderMap) -> pb::HeaderBlock {
     let mut raw_block = Vec::new();
@@ -131,8 +122,7 @@ pub fn header_block(headers: &HeaderMap) -> pb::HeaderBlock {
     }
 }
 
-/// Whether embedded HTTP messages should be parsed. Unset defaults to true,
-/// matching [`fastwarc::warc::iter::ArchiveIteratorOptions`].
+/// Whether embedded HTTP messages should be parsed. Unset defaults to true.
 #[must_use]
 pub fn parse_http(config: &pb::ParseWarcConfig) -> bool {
     config.parse_http.unwrap_or(true)
@@ -144,7 +134,7 @@ pub fn include_payload(config: &pb::ParseWarcConfig) -> bool {
     config.include_payload.unwrap_or(true)
 }
 
-/// Whether lossless header blocks should be filled. Unset defaults to true.
+/// Whether header blocks should be filled. Unset defaults to true.
 #[must_use]
 pub fn include_headers(config: &pb::ParseWarcConfig) -> bool {
     config.include_headers.unwrap_or(true)
@@ -160,8 +150,7 @@ pub fn response_batch_size(config: &pb::ParseWarcConfig) -> usize {
 /// Build the `RecordMetadata` for a parsed record.
 ///
 /// When `include_headers` is false, `warc_headers` and `http_headers` are
-/// left unset so a scan that only needs type/length/position skips the
-/// lossless header copy.
+/// left unset to skip header serialization.
 #[must_use]
 pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::RecordMetadata {
     let (warc_headers, http_headers) = if include_headers {
@@ -200,7 +189,7 @@ pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::Record
     }
 }
 
-/// Whether a record passes the configured type / length / builtin filters.
+/// Whether a record passes the configured type, length, and built-in filters.
 #[must_use]
 pub fn record_passes_filters(record: &mut WarcRecord, config: &pb::ParseWarcConfig) -> bool {
     let mask = record_types_mask(&config.record_types);
