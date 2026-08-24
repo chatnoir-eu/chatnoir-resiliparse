@@ -8,6 +8,7 @@ The following benchmarks are available:
 FastWARC:
 
 - `fastwarc` (Rust)
+- `fastwarc-grpc` (Rust, gRPC client/server round trip over a Unix socket)
 - `fastwarc-py` (Python bindings)
 - `fastwarc-py` (legacy Cython implementation)
 
