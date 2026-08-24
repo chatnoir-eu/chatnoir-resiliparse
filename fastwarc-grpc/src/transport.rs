@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! HTTP/2 settings for bulk WARC transfer.
-//!
-//! Tonic/h2 default to a 64 KiB flow-control window, which starves a
-//! multi-gigabyte archive stream. The server binary, the loopback
-//! benchmark, and the integration tests share these helpers.
+//! Shared HTTP/2 settings for WARC transfer.
 
 use tonic::transport::{Endpoint, Server};
 
@@ -30,11 +26,9 @@ pub const HTTP2_CONNECTION_WINDOW: u32 = 32 * 1024 * 1024;
 ///
 /// Override with `FASTWARC_HTTP2_STREAM_WINDOW` (bytes, minimum 65535).
 pub const HTTP2_STREAM_WINDOW: u32 = 16 * 1024 * 1024;
-/// Largest HTTP/2 DATA frame. RFC 7540 allows up to 16 777 215 bytes; 1 MiB
-/// keeps syscall count down without pinning large contiguous buffers.
+/// HTTP/2 DATA frame size: 1 MiB.
 pub const HTTP2_MAX_FRAME: u32 = 1024 * 1024;
-/// gRPC message size cap. Covers a large `chunk` or a filled `batch`
-/// (batches flush at 2 MiB). Tonic's default is 4 MiB.
+/// gRPC message size limit: 16 MiB.
 pub const MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 
 fn env_window(name: &str, default: u32) -> u32 {
@@ -57,12 +51,7 @@ pub fn stream_window() -> u32 {
     env_window("FASTWARC_HTTP2_STREAM_WINDOW", HTTP2_STREAM_WINDOW)
 }
 
-/// Apply bulk-transfer HTTP/2 settings to a tonic server builder.
-///
-/// Adaptive (BDP-probing) windows are deliberately off: they override the
-/// fixed windows below and their ping-based estimator can stall a stream
-/// that is saturated in both directions. Fixed large windows are the right
-/// shape for bulk archive transfer.
+/// Apply the shared HTTP/2 settings to a tonic server builder.
 #[must_use]
 pub fn configure_server(builder: Server) -> Server {
     builder
@@ -79,10 +68,7 @@ pub fn configure_warc_server<S>(svc: WarcServiceServer<S>) -> WarcServiceServer<
         .max_encoding_message_size(MAX_MESSAGE_SIZE)
 }
 
-/// Apply the matching client-side HTTP/2 settings.
-///
-/// HTTP/2 flow control is the minimum of both peers; tuning only the server
-/// leaves the client at 64 KiB and the stream stays starved.
+/// Apply the shared HTTP/2 settings to a client endpoint.
 #[must_use]
 pub fn configure_endpoint(endpoint: Endpoint) -> Endpoint {
     endpoint

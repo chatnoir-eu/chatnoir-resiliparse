@@ -100,4 +100,46 @@ mod tests {
         let mut reader = ChannelReader::new(rx);
         assert_eq!(reader.read(&mut []).unwrap(), 0);
     }
+
+    #[test]
+    fn fragmented_stream_head_is_coalesced_for_detection() {
+        let (tx, rx) = mpsc::channel(3);
+        tx.try_send(Bytes::from_static(b"\x1f")).unwrap();
+        tx.try_send(Bytes::from_static(b"\x8b\x08")).unwrap();
+        tx.try_send(Bytes::from_static(b"\x00payload")).unwrap();
+        drop(tx);
+
+        let mut reader = ChannelReader::new(rx);
+        assert_eq!(reader.fill_buf().unwrap(), b"\x1f\x8b\x08\x00payload");
+    }
+
+    #[test]
+    fn short_stream_returns_available_prefix_at_eof() {
+        let (tx, rx) = mpsc::channel(1);
+        tx.try_send(Bytes::from_static(b"WA")).unwrap();
+        drop(tx);
+
+        let mut reader = ChannelReader::new(rx);
+        assert_eq!(reader.fill_buf().unwrap(), b"WA");
+    }
+
+    #[test]
+    fn seek_accepts_current_position_only() {
+        let (tx, rx) = mpsc::channel(1);
+        tx.try_send(Bytes::from_static(b"WARC")).unwrap();
+        drop(tx);
+
+        let mut reader = ChannelReader::new(rx);
+        assert_eq!(reader.stream_position().unwrap(), 0);
+        assert_eq!(reader.seek(SeekFrom::Start(0)).unwrap(), 0);
+
+        let mut prefix = [0; 2];
+        reader.read_exact(&mut prefix).unwrap();
+        assert_eq!(&prefix, b"WA");
+        assert_eq!(reader.stream_position().unwrap(), 2);
+        assert_eq!(reader.seek(SeekFrom::Start(2)).unwrap(), 2);
+        assert_eq!(reader.seek(SeekFrom::Start(0)).unwrap_err().kind(), io::ErrorKind::Unsupported);
+        assert_eq!(reader.seek(SeekFrom::Current(1)).unwrap_err().kind(), io::ErrorKind::Unsupported);
+        assert_eq!(reader.seek(SeekFrom::End(0)).unwrap_err().kind(), io::ErrorKind::Unsupported);
+    }
 }

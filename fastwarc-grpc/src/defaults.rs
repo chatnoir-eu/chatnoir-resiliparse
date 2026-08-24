@@ -12,34 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Server-side defaults and hard limits for the tunable
-//! [`ParseWarcConfig`](crate::proto::fastwarc::v1::ParseWarcConfig) values.
-//!
-//! A zero (or unset) config value selects the default below; a value above
-//! the corresponding hard limit is rejected with `InvalidArgument` before
-//! parsing starts. The limits exist so that a remote client cannot make the
-//! server allocate unbounded buffers or emit messages larger than
-//! [`MAX_MESSAGE_SIZE`](crate::transport::MAX_MESSAGE_SIZE).
+//! Defaults and limits for
+//! [`ParseWarcConfig`](crate::proto::fastwarc::v1::ParseWarcConfig).
 
 /// Default cap on WARC and HTTP header block length: 32 KiB, matching the
 /// `fastwarc` crate's `ArchiveIteratorOptions` default.
 pub const DEFAULT_MAX_HEADER_LEN: usize = 32 << 10;
 
-/// Hard limit for `max_header_len`: 2 MiB. Large enough for the roughly
-/// 1 MiB header blocks seen in large web-crawl captures, small enough that
-/// a lossless `HeaderBlock` always fits within one response message.
+/// Hard limit for `max_header_len`: 2 MiB.
 pub const MAX_HEADER_LEN: usize = 2 << 20;
 
 /// Default payload bytes per `payload_chunk` message: 64 KiB.
 pub const DEFAULT_PAYLOAD_CHUNK_SIZE: usize = 64 << 10;
 
-/// Hard limit for `payload_chunk_size`: half the message cap, so one chunk
-/// message including its framing always fits in a single gRPC message.
+/// Hard limit for `payload_chunk_size`: 8 MiB.
 pub const MAX_PAYLOAD_CHUNK_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE / 2;
 
-/// Default read buffer for `archive_path` file input: 64 KiB. Streamed
-/// chunks are parsed in place and do not use this buffer.
+/// Default read buffer for `archive_path` file input: 64 KiB. This setting
+/// does not affect streamed chunks.
 pub const DEFAULT_INPUT_BUFFER_SIZE: usize = 64 << 10;
 
-/// Hard limit for `input_buffer_size`: the gRPC message cap.
+/// Hard limit for `input_buffer_size`: 16 MiB.
 pub const MAX_INPUT_BUFFER_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE;

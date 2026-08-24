@@ -27,8 +27,7 @@ use tonic::transport::Server;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = std::env::var("FASTWARC_GRPC_ADDR").unwrap_or_else(|_| "[::]:50061".to_owned());
-    // Serving server-side files to remote clients is a deliberate operator
-    // decision, so `archive_path` support is off unless explicitly enabled.
+    // Local file access is enabled only by an explicit environment setting.
     let allow_local_files =
         matches!(std::env::var("FASTWARC_GRPC_ALLOW_LOCAL_FILES").as_deref(), Ok("1" | "true" | "TRUE"));
     let parser = if allow_local_files {
@@ -81,8 +80,7 @@ fn unix_socket_path(addr: &str) -> Option<PathBuf> {
     path.is_absolute().then(|| path.to_path_buf())
 }
 
-/// Resolves on SIGINT, or on SIGTERM where available (the signal container
-/// runtimes send on stop).
+/// Resolves on SIGINT or SIGTERM where available.
 async fn shutdown_signal() {
     #[cfg(unix)]
     {
