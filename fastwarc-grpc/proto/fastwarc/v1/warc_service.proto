@@ -46,12 +46,20 @@ service WarcService {
   // chunks. When archive_path is set, the server reads that file instead.
   // Each returned record has one record_start, zero or more payload_chunk
   // messages, and one record_end. HTTP header errors are recoverable. WARC
-  // framing errors end the response stream.
+  // framing errors end the response stream. If reading a record's payload
+  // fails after record_start was sent, the server emits a non-recoverable
+  // record_error followed by a record_end that terminates that record's
+  // sequence, then ends the stream. Transport failures can interrupt this
+  // sequence.
   rpc ParseWarc(stream ParseWarcRequest) returns (stream ParseWarcResponse);
 
   // ParseArchive parses an archive carried in one request and returns records
   // and errors in separate lists. Each list preserves archive order. It is
-  // intended for inputs that fit within the gRPC message size limit.
+  // intended for inputs that fit within the gRPC message size limit. The
+  // request limit only bounds the compressed archive, so the server also
+  // budgets the decoded response (payload bytes plus encoded metadata and
+  // errors, including protobuf framing) at 16 MiB and fails with RESOURCE_EXHAUSTED when an archive
+  // decodes past it. Use ParseWarc for larger archives.
   rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
 }
 
@@ -103,7 +111,8 @@ message ParseWarcConfig {
   // RecordMetadata.content_length.
   optional bool include_payload = 13;
   // include_headers fills warc_headers and http_headers. Unset defaults to
-  // true. Set false to omit the header blocks.
+  // true. Set false to omit the header blocks; parsed scalar metadata
+  // (http_content_type, http_charset, record_id, record_date) stays populated.
   optional bool include_headers = 14;
   // response_batch_size packs this many protocol events into one gRPC
   // `batch` message. Zero (the default) sends one event per message.
@@ -149,11 +158,16 @@ message PayloadChunk {
 message RecordEnd {
   // When payload bytes are included, payload_length is the total number of
   // bytes streamed for this record. Otherwise it equals
-  // metadata.content_length, and no payload chunks are sent.
+  // metadata.content_length, and no payload chunks are sent. After a
+  // mid-record record_error, it is the number of payload bytes streamed
+  // before the failure.
   uint64 payload_length = 1;
 }
 
-// RecordError reports a record that could not be parsed.
+// RecordError reports a record that could not be parsed. When it arrives
+// between a record_start and its record_end, the failure happened while
+// streaming that record's payload and the record_end that follows terminates
+// the aborted sequence.
 message RecordError {
   // stream_pos is the byte offset in the source stream at which the failed
   // record began. Zero when the iterator does not expose a position.

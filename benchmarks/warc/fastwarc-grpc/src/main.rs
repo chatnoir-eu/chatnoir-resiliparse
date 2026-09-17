@@ -12,8 +12,12 @@ use tonic::transport::{Channel, Uri};
 use tower::service_fn;
 
 const DEFAULT_BUFFER_SIZE: usize = 64 << 10;
-const DEFAULT_PAYLOAD_CHUNK_SIZE: usize = 1024 << 10;
 const REQUEST_CHANNEL_BYTES: usize = 32 * 1024 * 1024;
+
+/// Uses 1 MiB payload chunks, capped at the service limit.
+fn payload_chunk_size() -> usize {
+    (1 << 20).min(fastwarc_grpc::defaults::MAX_PAYLOAD_CHUNK_SIZE)
+}
 
 fn buffer_size() -> usize {
     std::env::var("BUFFER_SIZE")
@@ -70,7 +74,7 @@ fn spawn_feeder(
             parse_http: Some(false),
             verify_digests: false,
             input_buffer_size: buf_size as u32,
-            payload_chunk_size: DEFAULT_PAYLOAD_CHUNK_SIZE as u32,
+            payload_chunk_size: payload_chunk_size() as u32,
             include_payload: Some(full),
             include_headers: Some(full),
             response_batch_size: 64,
@@ -204,22 +208,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  FASTWARC_GRPC_JOBS=N: N concurrent streams; reports aggregate throughput");
         return Ok(());
     }
-    let path = args[1].clone();
     let full = full_echo();
     let buf_size = buffer_size();
     let remote = server_url();
     let local = local_file();
     let jobs = jobs();
+    // Remote archive paths belong to the server's filesystem.
+    let path = if local && remote.is_none() {
+        std::fs::canonicalize(&args[1])?.to_string_lossy().into_owned()
+    } else {
+        args[1].clone()
+    };
 
     let sock = std::env::temp_dir().join(format!("fastwarc-grpc-bench-{}.sock", std::process::id()));
     if remote.is_none() {
+        let parser = if local {
+            let root = std::path::Path::new(&path)
+                .parent()
+                .ok_or("WARCFILE has no parent directory")?;
+            WarcParser::with_local_files(root)?
+        } else {
+            WarcParser::new()
+        };
         let _ = std::fs::remove_file(&sock);
         let listener = UnixListener::bind(&sock)?;
         tokio::spawn(
             fastwarc_grpc::transport::configure_server(tonic::transport::Server::builder())
-                .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(
-                    WarcParser::with_local_files(),
-                )))
+                .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(parser)))
                 .serve_with_incoming(UnixListenerStream::new(listener)),
         );
     }

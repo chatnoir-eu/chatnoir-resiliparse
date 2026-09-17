@@ -20,18 +20,25 @@ use std::path::{Path, PathBuf};
 use fastwarc_grpc::proto;
 use fastwarc_grpc::proto::fastwarc::v1::warc_service_server::WarcServiceServer;
 use fastwarc_grpc::warc_service::WarcParser;
+#[cfg(unix)]
 use tokio::net::UnixListener;
+#[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = std::env::var("FASTWARC_GRPC_ADDR").unwrap_or_else(|_| "[::]:50061".to_owned());
-    // Local file access is enabled only by an explicit environment setting.
     let allow_local_files =
         matches!(std::env::var("FASTWARC_GRPC_ALLOW_LOCAL_FILES").as_deref(), Ok("1" | "true" | "TRUE"));
+    let local_file_root = std::env::var_os("FASTWARC_GRPC_LOCAL_FILE_ROOT").map(PathBuf::from);
     let parser = if allow_local_files {
-        WarcParser::with_local_files()
+        let root = local_file_root.as_deref().ok_or(
+            "FASTWARC_GRPC_ALLOW_LOCAL_FILES is set but FASTWARC_GRPC_LOCAL_FILE_ROOT is not; \
+             set it to the directory that archive_path requests are confined to",
+        )?;
+        WarcParser::with_local_files(root)
+            .map_err(|error| format!("invalid FASTWARC_GRPC_LOCAL_FILE_ROOT {}: {error}", root.display()))?
     } else {
         WarcParser::new()
     };
@@ -52,23 +59,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "fastwarc-grpc listening on {addr} (http2 stream {} MiB, connection {} MiB, local files {})",
         f64::from(fastwarc_grpc::transport::stream_window()) / 1024.0 / 1024.0,
         f64::from(fastwarc_grpc::transport::connection_window()) / 1024.0 / 1024.0,
-        if allow_local_files { "allowed" } else { "disabled" }
+        match local_file_root.as_deref().filter(|_| allow_local_files) {
+            Some(root) => format!("confined to {}", root.display()),
+            None => "disabled".to_owned(),
+        }
     );
 
-    if let Some(path) = unix_socket_path(&addr) {
-        let _ = std::fs::remove_file(&path);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+    match unix_socket_path(&addr) {
+        #[cfg(unix)]
+        Some(path) => {
+            remove_stale_socket(&path)?;
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let listener = UnixListener::bind(&path)?;
+            builder
+                .serve_with_incoming_shutdown(UnixListenerStream::new(listener), shutdown_signal())
+                .await?;
+            remove_stale_socket(&path)?;
         }
-        let listener = UnixListener::bind(&path)?;
-        builder
-            .serve_with_incoming_shutdown(UnixListenerStream::new(listener), shutdown_signal())
-            .await?;
-        let _ = std::fs::remove_file(&path);
-    } else {
-        builder.serve_with_shutdown(addr.parse()?, shutdown_signal()).await?;
+        #[cfg(not(unix))]
+        Some(path) => {
+            return Err(format!(
+                "unix domain socket address {} is not supported on this platform; \
+                 set FASTWARC_GRPC_ADDR to a TCP address such as [::]:50061",
+                path.display()
+            )
+            .into());
+        }
+        None => {
+            builder.serve_with_shutdown(addr.parse()?, shutdown_signal()).await?;
+        }
     }
     Ok(())
+}
+
+/// Removes a leftover socket file so the listener can rebind, refusing to
+/// delete anything that is not a unix socket.
+#[cfg(unix)]
+fn remove_stale_socket(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::FileTypeExt;
+
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_socket() => std::fs::remove_file(path),
+        Ok(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!("{} already exists and is not a unix socket", path.display()),
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 /// `unix:///path`, `unix:/path`, or an absolute filesystem path.
@@ -102,3 +142,7 @@ async fn shutdown_signal() {
         }
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "main_test.rs"]
+mod main_test;

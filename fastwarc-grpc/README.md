@@ -19,16 +19,24 @@ Usage documentation with worked client examples lives in the crate docs:
   `archive_path` on the config to have the server open a local file instead
   of uploading chunks (rejected with `PERMISSION_DENIED` unless the server
   was started with `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1`, since it grants
-  clients read access to the server's filesystem). Receive per kept record: `record_start` (full
+  clients read access to the server's filesystem; paths are confined to the
+  directory named by `FASTWARC_GRPC_LOCAL_FILE_ROOT`, see
+  [Run](#run)). Receive per kept record: `record_start` (full
   metadata, lossless header blocks), `payload_chunk`* (offset-tagged),
   `record_end` (payload length). HTTP-header
-  failures on a framed record yield a recoverable `record_error`; WARC
-  framing failures end the stream (non-recoverable).
+  failures on a framed record yield a recoverable `record_error`. Decoder
+  setup and WARC framing failures end the stream. A payload read failure
+  after `record_start` emits a non-recoverable `record_error` followed by
+  `record_end`, then ends the stream.
+
 - `fastwarc.v1.WarcService/ParseArchive` (unary): the whole archive in one
   request, every kept record (metadata and whole payload) in
   one response, for single records and small archives within the gRPC
   message size limits (this server accepts 16 MiB; many clients default to
-  4 MiB). Same parse pipeline, filters, and error model as the stream; a
+  4 MiB). Because the request limit only bounds the compressed archive, the
+  collected response has a 16 MiB budget, including protobuf framing;
+  archives exceeding it fail with `RESOURCE_EXHAUSTED` and must use `ParseWarc`. Same parse
+  pipeline, filters, and error model as the stream; a
   framing error returns the records parsed so far plus one non-recoverable
   error.
 - `include_payload` / `include_headers` default to true. Set false to skip
@@ -81,10 +89,26 @@ FASTWARC_GRPC_ADDR="[::]:50061" cargo run -p fastwarc-grpc
 `FASTWARC_GRPC_ADDR` also accepts `unix:///path.sock` or an absolute
 filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
 
+Local file access (`archive_path` on the request config) is disabled by
+default. To enable it, set both:
+
+```sh
+FASTWARC_GRPC_ALLOW_LOCAL_FILES=1 \
+FASTWARC_GRPC_LOCAL_FILE_ROOT=/data/warcs \
+cargo run -p fastwarc-grpc
+```
+
+`FASTWARC_GRPC_LOCAL_FILE_ROOT` selects the directory exposed to clients.
+Relative paths are opened beneath a retained directory handle. Absolute
+paths must start with the canonical root; `..` and symlinks that escape
+it are rejected with `PERMISSION_DENIED`. Symlink targets must be relative.
+The server requires a valid root when local access is enabled.
+Embedders configure it with `WarcParser::with_local_files(root)`.
+
 An example client streams a local archive and prints a per-record summary:
 
 ```sh
-cargo run -p fastwarc-grpc --example parse -- fastwarc-grpc/tests/data/warcfile.warc.gz
+cargo run -p fastwarc-grpc --example parse -- fastwarc-rs/tests/fixtures/warcfile.warc.gz
 ```
 
 A throughput benchmark following the shared profile format lives in

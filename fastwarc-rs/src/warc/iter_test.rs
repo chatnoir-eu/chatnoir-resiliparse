@@ -781,3 +781,19 @@ fn archive_iterator_zstd_dict() -> io::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn invalid_header_between_records_is_reported() -> io::Result<()> {
+    let mut data = warc_record_data("warcinfo", "<urn:uuid:first>", None, b"ABC");
+    data.extend_from_slice(b"NOT-A-WARC-HEADER\r\n\r\n");
+    data.extend_from_slice(&warc_record_data("resource", "<urn:uuid:last>", None, b"X"));
+    for inplace in [false, true] {
+        let mut iterator = ArchiveIterator::new(io::Cursor::new(data.clone()))
+            .with_parse_http(false)
+            .with_inplace(inplace);
+        let first = iterator.next().expect("first record")?;
+        assert_eq!(first.borrow().record_id().as_deref(), Some("<urn:uuid:first>"));
+        assert!(iterator.next().expect("framing error").is_err());
+    }
+    Ok(())
+}

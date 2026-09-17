@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Drives the [FastWARC](https://docs.rs/fastwarc) iterator and emits the
+//! `ParseWarc` event sequence.
+
 use std::cell::RefCell;
 use std::io::{self, BufRead};
 use std::rc::Rc;
@@ -25,9 +28,12 @@ use crate::convert;
 use crate::defaults::{DEFAULT_MAX_HEADER_LEN, DEFAULT_PAYLOAD_CHUNK_SIZE};
 use crate::proto::fastwarc::v1 as pb;
 
+/// Receives parser events. Returning `false` stops parsing.
 type EmitFn<'a> = &'a mut dyn FnMut(pb::ParseWarcResponse) -> bool;
 
-/// Parses an archive and emits one ordered response sequence per record.
+/// Parses records and emits start, payload, and end events.
+/// HTTP header failures are recoverable while the record retains its reader.
+/// Framing, decoder setup, and payload read failures stop parsing.
 pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConfig, emit: EmitFn<'_>) {
     let chunk_size = if config.payload_chunk_size == 0 {
         DEFAULT_PAYLOAD_CHUNK_SIZE
@@ -61,7 +67,14 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
                 config.quirks_mode,
             )
         {
-            http_error.replace(Some((record.stream_pos(), format!("failed to parse HTTP headers: {error}"))));
+            // Decoder setup can consume the reader, preventing further iteration.
+            let recoverable = record.reader_mut().is_some();
+            let message = if recoverable {
+                format!("failed to parse HTTP headers: {error}")
+            } else {
+                format!("failed to set up HTTP payload decoder: {error}")
+            };
+            http_error.replace(Some((record.stream_pos(), recoverable, message)));
             // Yield once so the error is emitted before iteration resumes.
             return true;
         }
@@ -76,8 +89,8 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
                 return;
             }
         };
-        if let Some((stream_pos, message)) = http_error.borrow_mut().take() {
-            if !emit(record_error(stream_pos, true, message)) {
+        if let Some((stream_pos, recoverable, message)) = http_error.borrow_mut().take() {
+            if !emit(record_error(stream_pos, recoverable, message)) || !recoverable {
                 return;
             }
             continue;
@@ -88,6 +101,8 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
     }
 }
 
+/// Emits one record. A payload read failure emits an error followed by
+/// `record_end` with the bytes sent so far, then stops parsing.
 fn emit_record(
     shared: &Rc<RefCell<WarcRecord>>,
     config: &pb::ParseWarcConfig,
@@ -104,10 +119,15 @@ fn emit_record(
 
     let payload_length = if convert::include_payload(config) {
         match stream_payload(&mut record, chunk_size, emit) {
-            Ok(len) => len,
-            Err(error) => {
+            Ok(Some(len)) => len,
+            Ok(None) => return false,
+            Err((bytes_streamed, error)) => {
                 let stream_pos = record.stream_pos();
-                let _ = emit(record_error(stream_pos, false, format!("failed to read record payload: {error}")));
+                if emit(record_error(stream_pos, false, format!("failed to read record payload: {error}"))) {
+                    let _ = emit(response(pb::parse_warc_response::Kind::RecordEnd(pb::RecordEnd {
+                        payload_length: bytes_streamed,
+                    })));
+                }
                 return false;
             }
         }
@@ -118,30 +138,41 @@ fn emit_record(
     emit(response(pb::parse_warc_response::Kind::RecordEnd(pb::RecordEnd { payload_length })))
 }
 
-fn stream_payload(record: &mut WarcRecord, chunk_size: usize, emit: EmitFn<'_>) -> io::Result<u64> {
+/// Streams chunks and returns their total length. On failure, returns the
+/// bytes sent so far and the error. `None` means the consumer stopped.
+fn stream_payload(
+    record: &mut WarcRecord,
+    chunk_size: usize,
+    emit: EmitFn<'_>,
+) -> Result<Option<u64>, (u64, io::Error)> {
     let Some(reader) = record.reader_mut() else {
-        return Ok(0);
+        return Ok(Some(0));
     };
     let mut offset = 0u64;
     loop {
-        let window = reader.fill_buf()?;
+        let window = match reader.fill_buf() {
+            Ok(window) => window,
+            Err(error) => return Err((offset, error)),
+        };
         if window.is_empty() {
-            return Ok(offset);
+            return Ok(Some(offset));
         }
         let n = window.len().min(chunk_size);
         let data = Bytes::copy_from_slice(&window[..n]);
         reader.consume(n);
         if !emit(response(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk { offset, data }))) {
-            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "consumer gone"));
+            return Ok(None);
         }
         offset += n as u64;
     }
 }
 
+/// Wraps an event kind in a `ParseWarcResponse` envelope.
 fn response(kind: pb::parse_warc_response::Kind) -> pb::ParseWarcResponse {
     pb::ParseWarcResponse { kind: Some(kind) }
 }
 
+/// Builds an error event. Use a zero offset when the failed record position is unknown.
 pub(super) fn record_error(stream_pos: u64, recoverable: bool, message: String) -> pb::ParseWarcResponse {
     response(pb::parse_warc_response::Kind::RecordError(pb::RecordError {
         stream_pos,
@@ -149,3 +180,7 @@ pub(super) fn record_error(stream_pos: u64, recoverable: bool, message: String) 
         message,
     }))
 }
+
+#[cfg(test)]
+#[path = "parser_test.rs"]
+mod parser_test;

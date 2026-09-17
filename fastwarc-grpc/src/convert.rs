@@ -150,7 +150,9 @@ pub fn response_batch_size(config: &pb::ParseWarcConfig) -> usize {
 /// Build the `RecordMetadata` for a parsed record.
 ///
 /// When `include_headers` is false, `warc_headers` and `http_headers` are
-/// left unset to skip header serialization.
+/// left unset to skip raw header serialization. Parsed scalar metadata
+/// (`http_content_type`, `http_charset`, `record_id`, `record_date`) is
+/// is retained when available, regardless of the flag.
 #[must_use]
 pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::RecordMetadata {
     let (warc_headers, http_headers) = if include_headers {
@@ -166,26 +168,10 @@ pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::Record
         is_http: record.is_http(),
         http_parsed: record.is_http_parsed(),
         http_headers,
-        http_content_type: if include_headers {
-            record.http_content_type()
-        } else {
-            None
-        },
-        http_charset: if include_headers {
-            record.http_charset().map(std::borrow::Cow::into_owned)
-        } else {
-            None
-        },
-        record_id: if include_headers {
-            record.record_id().map(std::borrow::Cow::into_owned)
-        } else {
-            None
-        },
-        record_date: if include_headers {
-            record.record_date().map(timestamp)
-        } else {
-            None
-        },
+        http_content_type: record.http_content_type(),
+        http_charset: record.http_charset().map(std::borrow::Cow::into_owned),
+        record_id: record.record_id().map(std::borrow::Cow::into_owned),
+        record_date: record.record_date().map(timestamp),
     }
 }
 

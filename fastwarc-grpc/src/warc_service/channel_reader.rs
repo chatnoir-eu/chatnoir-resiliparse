@@ -12,21 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Blocking `Read`/`BufRead` adapter over the client's chunk channel.
+
 use std::io::{self, BufRead, Read, Seek, SeekFrom};
 
 use prost::bytes::{Buf, Bytes, BytesMut};
 use tokio::sync::mpsc;
 
+/// Prefix length required by compression detection.
 const MAGIC_LEN: usize = 4;
 
-/// Blocking reader over the chunks received by the streaming RPC.
+/// Blocking reader over input chunks. A closed channel signals EOF.
+/// Tracks consumed bytes for position queries; repositioning is unsupported.
 pub(super) struct ChannelReader {
+    /// Receiving half of the chunk channel; `None` from it means the client
+    /// stream ended.
     rx: mpsc::Receiver<Bytes>,
+    /// Unconsumed remainder of the most recently received chunk.
     current: Bytes,
+    /// Absolute position in the logical archive stream, i.e. the number of
+    /// bytes consumed so far.
     pos: u64,
 }
 
 impl ChannelReader {
+    /// A reader that yields the bytes arriving on `rx` in order.
     pub(super) fn new(rx: mpsc::Receiver<Bytes>) -> Self {
         Self {
             rx,
@@ -37,19 +47,20 @@ impl ChannelReader {
 }
 
 impl Read for ChannelReader {
+    /// Reads from the buffered chunk, waiting for input when necessary.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if buf.is_empty() {
             return Ok(0);
         }
-        let src = self.fill_buf()?;
-        let n = src.len().min(buf.len());
-        buf[..n].copy_from_slice(&src[..n]);
+        let n = self.fill_buf()?.read(buf)?;
         self.consume(n);
         Ok(n)
     }
 }
 
 impl BufRead for ChannelReader {
+    /// Skips empty chunks and buffers the initial compression prefix.
+    /// Returns an empty slice only after the input channel closes.
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         while self.current.is_empty() {
             match self.rx.blocking_recv() {
@@ -73,6 +84,7 @@ impl BufRead for ChannelReader {
         Ok(&self.current)
     }
 
+    /// Advances by at most the number of buffered bytes.
     fn consume(&mut self, amt: usize) {
         let n = amt.min(self.current.len());
         self.current.advance(n);
@@ -81,6 +93,7 @@ impl BufRead for ChannelReader {
 }
 
 impl Seek for ChannelReader {
+    /// Accepts only seeks to the current position; other seeks return `Unsupported`.
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match pos {
             SeekFrom::Current(0) => Ok(self.pos),
@@ -91,55 +104,5 @@ impl Seek for ChannelReader {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_read_does_not_wait_for_input() {
-        let (_tx, rx) = mpsc::channel(1);
-        let mut reader = ChannelReader::new(rx);
-        assert_eq!(reader.read(&mut []).unwrap(), 0);
-    }
-
-    #[test]
-    fn fragmented_stream_head_is_coalesced_for_detection() {
-        let (tx, rx) = mpsc::channel(3);
-        tx.try_send(Bytes::from_static(b"\x1f")).unwrap();
-        tx.try_send(Bytes::from_static(b"\x8b\x08")).unwrap();
-        tx.try_send(Bytes::from_static(b"\x00payload")).unwrap();
-        drop(tx);
-
-        let mut reader = ChannelReader::new(rx);
-        assert_eq!(reader.fill_buf().unwrap(), b"\x1f\x8b\x08\x00payload");
-    }
-
-    #[test]
-    fn short_stream_returns_available_prefix_at_eof() {
-        let (tx, rx) = mpsc::channel(1);
-        tx.try_send(Bytes::from_static(b"WA")).unwrap();
-        drop(tx);
-
-        let mut reader = ChannelReader::new(rx);
-        assert_eq!(reader.fill_buf().unwrap(), b"WA");
-    }
-
-    #[test]
-    fn seek_accepts_current_position_only() {
-        let (tx, rx) = mpsc::channel(1);
-        tx.try_send(Bytes::from_static(b"WARC")).unwrap();
-        drop(tx);
-
-        let mut reader = ChannelReader::new(rx);
-        assert_eq!(reader.stream_position().unwrap(), 0);
-        assert_eq!(reader.seek(SeekFrom::Start(0)).unwrap(), 0);
-
-        let mut prefix = [0; 2];
-        reader.read_exact(&mut prefix).unwrap();
-        assert_eq!(&prefix, b"WA");
-        assert_eq!(reader.stream_position().unwrap(), 2);
-        assert_eq!(reader.seek(SeekFrom::Start(2)).unwrap(), 2);
-        assert_eq!(reader.seek(SeekFrom::Start(0)).unwrap_err().kind(), io::ErrorKind::Unsupported);
-        assert_eq!(reader.seek(SeekFrom::Current(1)).unwrap_err().kind(), io::ErrorKind::Unsupported);
-        assert_eq!(reader.seek(SeekFrom::End(0)).unwrap_err().kind(), io::ErrorKind::Unsupported);
-    }
-}
+#[path = "channel_reader_test.rs"]
+mod channel_reader_test;

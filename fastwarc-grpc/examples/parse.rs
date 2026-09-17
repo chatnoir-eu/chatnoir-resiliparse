@@ -15,9 +15,11 @@
 //! Example client: stream a WARC file to a running server and print a
 //! per-record summary.
 //!
+//! From the repository root:
+//!
 //! ```sh
-//! cargo run &
-//! cargo run --example parse -- tests/data/warcfile.warc.gz
+//! cargo run -p fastwarc-grpc &
+//! cargo run -p fastwarc-grpc --example parse -- fastwarc-rs/tests/fixtures/warcfile.warc.gz
 //! ```
 //!
 //! The file is read in chunks on a separate thread and fed through a bounded

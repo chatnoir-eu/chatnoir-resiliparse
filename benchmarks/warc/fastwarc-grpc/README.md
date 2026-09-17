@@ -34,7 +34,8 @@ client on another:
 
 ```bash
 FASTWARC_GRPC_ADDR=0.0.0.0:50061 cargo run -p fastwarc-grpc --release
-# add FASTWARC_GRPC_ALLOW_LOCAL_FILES=1 to the server env for FASTWARC_GRPC_LOCAL runs
+# for FASTWARC_GRPC_LOCAL runs, also set both server variables:
+# FASTWARC_GRPC_ALLOW_LOCAL_FILES=1 FASTWARC_GRPC_LOCAL_FILE_ROOT=/data/warcs
 FASTWARC_GRPC_URL=http://server:50061 ./profile WARCFILE.warc
 ```
 

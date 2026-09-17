@@ -46,6 +46,12 @@
 //! client must use compatible encode and decode limits. One request carries the configuration and
 //! complete archive; the response carries the parsed records and errors.
 //!
+//! The request limit only bounds the compressed archive, so the server also budgets the decoded
+//! response at 16 MiB ([`defaults::MAX_UNARY_RESPONSE_SIZE`]): an archive whose collected records
+//! (payload bytes, encoded metadata, errors, and framing) exceed that budget fails with
+//! `ResourceExhausted`. Use the streaming `ParseWarc` RPC for such archives. This limits response
+//! collection, not parser allocations such as records buffered for digest verification.
+//!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1 as pb;
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_client::WarcServiceClient;
@@ -84,7 +90,9 @@
 //! server reads the chunks in order.
 //! Set `archive_path` on the config to have the server open a local file instead of uploading
 //! chunks (requires a server built with `WarcParser::with_local_files`, or
-//! `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1` for the bundled binary; otherwise `PermissionDenied`).
+//! `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1` plus `FASTWARC_GRPC_LOCAL_FILE_ROOT=/dir` for the bundled
+//! binary; otherwise `PermissionDenied`). Requested paths are confined to the configured root
+//! directory; paths that resolve outside it are rejected with `PermissionDenied`.
 //!
 //! Each returned record has one `record_start`, zero or more `payload_chunk` messages, and one
 //! `record_end`.
@@ -195,8 +203,15 @@
 //!
 //! * An HTTP header parse failure on an already-framed record is **recoverable**. The error is
 //!   reported and the stream continues.
+//! * An HTTP payload decoder setup failure (e.g. an unsupported `Content-Encoding` with
+//!   auto-decoding enabled) is **non-recoverable**: decoder setup consumes the record's reader,
+//!   so the stream cannot advance past the record and ends after the error.
 //! * A WARC framing failure (invalid header, truncated stream) is **non-recoverable** and ends
 //!   the response stream.
+//! * A payload read failure after `record_start` was sent is **non-recoverable**. The server
+//!   emits the `record_error` followed by a `record_end` that terminates the aborted record's
+//!   sequence (its `payload_length` counts the bytes streamed before the failure), then ends the
+//!   stream. Transport failures can interrupt this sequence.
 //!
 //! Protocol violations (missing or duplicate `config`, empty request `kind`) fail the RPC with
 //! `InvalidArgument`.
@@ -206,8 +221,10 @@
 //! The service implementation is the [`warc_service::WarcParser`] struct. It can be mounted in an
 //! existing tonic server alongside other services. `WarcParser::new()` rejects `archive_path`
 //! requests with `PermissionDenied`; construct it with
-//! [`warc_service::WarcParser::with_local_files`] to let clients open files on the server
-//! (only when every client is trusted with read access to the server's files):
+//! [`warc_service::WarcParser::with_local_files`] to let clients open files on the server.
+//! Local file access is confined to the root directory passed to `with_local_files`: files are opened
+//! relative to a retained directory handle (only use this when every client
+//! is trusted with read access to everything under the root):
 //!
 //! ```no_run
 //! use fastwarc_grpc::proto::fastwarc::v1::warc_service_server::WarcServiceServer;

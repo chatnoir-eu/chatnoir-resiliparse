@@ -12,23 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Batching of `ParseWarc` response events into `RecordBatch` messages.
+
 use prost::Message;
 
 use super::ResponseSender;
 use crate::proto::fastwarc::v1 as pb;
 
+/// Flush threshold for encoded batch items. A single larger event is sent unbatched.
 const MAX_BATCH_BYTES: usize = 2 << 20;
+/// Protobuf field number of `RecordBatch.items`.
 const ITEM_TAG: u32 = 1;
 
-/// Groups protocol events into gRPC batch messages.
+/// Groups events by count and encoded size without reordering them.
+/// Call [`Self::flush`] after the last event to send any remaining items.
 pub(super) struct BatchEmitter<'a> {
+    /// Response stream that receives the finished batches.
     tx: &'a ResponseSender,
+    /// Events accumulated for the current batch, in emission order.
     batch: Vec<pb::ParseWarcResponse>,
+    /// Number of events that triggers a flush; `<= 1` disables batching.
     batch_size: usize,
+    /// Encoded size of `batch` as `RecordBatch.items` entries, including each
+    /// item's key and length prefix.
     batch_bytes: usize,
 }
 
 impl BatchEmitter<'_> {
+    /// An emitter that groups `batch_size` events per response on `tx`.
     pub(super) fn new(tx: &ResponseSender, batch_size: usize) -> BatchEmitter<'_> {
         BatchEmitter {
             tx,
@@ -38,6 +49,8 @@ impl BatchEmitter<'_> {
         }
     }
 
+    /// Queues an event, flushing when either limit is reached.
+    /// Returns `false` when the response channel is closed.
     pub(super) fn emit(&mut self, response: pb::ParseWarcResponse) -> bool {
         if self.batch_size <= 1 {
             return send_response(self.tx, response);
@@ -61,6 +74,8 @@ impl BatchEmitter<'_> {
         }
     }
 
+    /// Sends pending events, leaving a single event unwrapped.
+    /// Returns `false` when the response channel is closed.
     pub(super) fn flush(&mut self) -> bool {
         if self.batch.is_empty() {
             return true;
@@ -79,6 +94,7 @@ impl BatchEmitter<'_> {
     }
 }
 
+/// Sends from the blocking parser task, waiting only when the channel is full.
 fn send_response(tx: &ResponseSender, response: pb::ParseWarcResponse) -> bool {
     match tx.try_send(Ok(response)) {
         Ok(()) => true,

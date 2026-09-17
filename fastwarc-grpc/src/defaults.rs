@@ -34,3 +34,7 @@ pub const DEFAULT_INPUT_BUFFER_SIZE: usize = 64 << 10;
 
 /// Hard limit for `input_buffer_size`: 16 MiB.
 pub const MAX_INPUT_BUFFER_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE;
+
+/// Budget for collected unary payloads, metadata, errors, and protobuf framing.
+/// Archives that exceed it fail with `ResourceExhausted`; use `ParseWarc` instead.
+pub const MAX_UNARY_RESPONSE_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE;

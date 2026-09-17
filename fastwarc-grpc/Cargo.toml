@@ -13,6 +13,7 @@ keywords = ["warc", "grpc", "fastwarc", "webarchive"]
 categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
+cap-std = "4"
 fastwarc = { version = "1", path = "../fastwarc-rs" }
 prost = "0.14"
 prost-types = "0.14"
@@ -30,5 +31,8 @@ time.workspace = true
 tonic-prost-build = "0.14"
 
 [dev-dependencies]
+tempfile = "3"
 # "net" enables TcpListenerStream for the in-process integration test server.
 tokio-stream = { version = "0.1", features = ["net"] }
+# "time" enables tokio::time::timeout for hang-regression tests.
+tokio = { version = "1", features = ["time"] }
