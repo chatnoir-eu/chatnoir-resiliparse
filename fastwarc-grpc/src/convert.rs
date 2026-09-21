@@ -152,7 +152,7 @@ pub fn response_batch_size(config: &pb::ParseWarcConfig) -> usize {
 /// When `include_headers` is false, `warc_headers` and `http_headers` are
 /// left unset to skip raw header serialization. Parsed scalar metadata
 /// (`http_content_type`, `http_charset`, `record_id`, `record_date`) is
-/// is retained when available, regardless of the flag.
+/// retained when available, regardless of the flag.
 #[must_use]
 pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::RecordMetadata {
     let (warc_headers, http_headers) = if include_headers {

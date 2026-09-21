@@ -382,6 +382,7 @@ version = "0.1.0"
 dependencies = [
  "fastwarc-grpc",
  "hyper-util",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tonic",

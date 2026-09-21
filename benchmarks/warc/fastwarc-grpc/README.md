@@ -1,77 +1,45 @@
 # Benchmark: FastWARC-gRPC
 
-Benchmark for the [`fastwarc-grpc`](../../../fastwarc-grpc) crate in this repository.
+Parses one archive uploaded over a Unix domain socket to an in-process
+`fastwarc-grpc` server. It uses one connection and one request stream.
 
-The profile binary starts the gRPC server in-process and streams the WARC over a
-Unix domain socket. HTTP/2 windows and message limits come from
-`fastwarc_grpc::transport`, the same helpers the server binary uses. Compare
-against the plain `fastwarc` benchmark for service overhead.
+The parser options match the plain [`fastwarc` benchmark](../fastwarc):
+HTTP parsing and digest verification are disabled, records are reused in
+place, and payloads are consumed without returning their bytes. The gRPC
+server omits header blocks and batches up to 64 response events per message.
+Both benchmarks build against this checkout's `fastwarc-rs` crate.
 
-Default configuration matches `fastwarc`: no HTTP parsing, no digest
-verification, no payload or header echo. The server parses in place.
+## Build
 
-```bash
-./profile WARCFILE.warc                         # parse-only, 64 KiB chunks
-FASTWARC_GRPC_FULL=1 ./profile WARCFILE.warc    # stream payload and headers back
-FASTWARC_GRPC_LOCAL=1 ./profile WARCFILE.warc   # server opens WARCFILE; no upload
-FASTWARC_GRPC_JOBS=8 ./profile WARCFILE.warc    # 8 concurrent streams; progress lines and summary are aggregate
+Rust and `protoc` must be on the PATH. The gRPC benchmark requires Unix.
+
+```sh
+make -C benchmarks/warc/fastwarc
+make -C benchmarks/warc/fastwarc-grpc
 ```
 
-`BUFFER_SIZE` is the gRPC input chunk size (default 64 KiB).
-`response_batch_size` is 64; batches flush as they fill.
+## Compare
 
-`rawuds` (built alongside `profile`) pushes the file through a bare Unix
-socket with no framing, protobuf, or parsing. It provides a reference for
-the machine's raw socket-copy cost.
+Run from the repository root with the same archive and `BUFFER_SIZE`:
 
-```bash
-./target/release/rawuds WARCFILE.warc          # 64 KiB writes
-./target/release/rawuds WARCFILE.warc 262144   # 256 KiB writes
+```sh
+BUFFER_SIZE=1048576 benchmarks/warc/fastwarc/profile /data/archive.warc
+BUFFER_SIZE=1048576 benchmarks/warc/fastwarc-grpc/profile /data/archive.warc
 ```
 
-For a remote TCP run, start the server on one host and the profile binary as a
-client on another:
+`BUFFER_SIZE` defaults to 1 MiB in both programs. It sets the plain parser's
+read buffer and the gRPC client's upload chunk size. The gRPC benchmark
+accepts up to 8 MiB per chunk to leave room for protobuf framing.
 
-```bash
-FASTWARC_GRPC_ADDR=0.0.0.0:50061 cargo run -p fastwarc-grpc --release
-# for FASTWARC_GRPC_LOCAL runs, also set both server variables:
-# FASTWARC_GRPC_ALLOW_LOCAL_FILES=1 FASTWARC_GRPC_LOCAL_FILE_ROOT=/data/warcs
-FASTWARC_GRPC_URL=http://server:50061 ./profile WARCFILE.warc
-```
+Compare runs on the same machine with the same compression and cache state.
+Check that both summaries report the same record count and payload byte
+total. Each program counts parsed payload bytes, not archive bytes read
+from disk. The gRPC benchmark skips recoverable record errors and fails on fatal
+parser errors instead of reporting throughput for a partial archive.
 
-## Install Dependencies:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Building also requires a `protoc` binary on the PATH (Debian/Ubuntu: `apt install protobuf-compiler`).
-
-## Build the Benchmark
-
-```bash
-make
-```
-
-## Run the Benchmark
-
-```bash
-sync && echo 3 | sudo tee /proc/sys/vm/drop_caches
-./profile WARCFILE.warc
-```
-
-## Results
-
-Reviewer reproduction on Ubuntu with a Threadripper 2920X and the 5298 MiB
-uncompressed Common Crawl file
-`CC-MAIN-20231005012006-20231005042006-00899.warc`:
-
-| Path | Storage | MiB/s |
-|---|---|---:|
-| `fastwarc` bench, in-process | page cache | 5283.3 |
-| `fastwarc-grpc`, upload over Unix socket, parse-only | tmpfs | 927.5 |
-| `fastwarc-grpc`, upload over Unix socket, parse-only | SSD | 753.4 |
-
-These are single-stream measurements. With `FASTWARC_GRPC_JOBS=N`, every
-stream parses a complete copy of the archive; the reported rate is aggregate
-throughput across all copies, not the latency of one file.
+The gRPC timer starts after server startup and connection establishment,
+before opening and uploading the file. It includes upload, parsing, and
+response consumption. Its result measures service overhead for one stream;
+the client, runtime, and parser can use multiple threads. It is not a
+single-core parser measurement. Record the machine, revision, archive,
+storage, and cache state alongside any published results.

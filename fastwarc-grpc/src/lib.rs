@@ -93,6 +93,9 @@
 //! `FASTWARC_GRPC_ALLOW_LOCAL_FILES=1` plus `FASTWARC_GRPC_LOCAL_FILE_ROOT=/dir` for the bundled
 //! binary; otherwise `PermissionDenied`). Requested paths are confined to the configured root
 //! directory; paths that resolve outside it are rejected with `PermissionDenied`.
+//! In local-file mode, chunk contents are ignored, but duplicate configurations and missing
+//! message kinds are still rejected while parsing is active. The response finishes when the
+//! parser stops, even if the client's request stream remains open.
 //!
 //! Each returned record has one `record_start`, zero or more `payload_chunk` messages, and one
 //! `record_end`.

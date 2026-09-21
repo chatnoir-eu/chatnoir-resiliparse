@@ -52,6 +52,9 @@ impl BatchEmitter<'_> {
     /// Queues an event, flushing when either limit is reached.
     /// Returns `false` when the response channel is closed.
     pub(super) fn emit(&mut self, response: pb::ParseWarcResponse) -> bool {
+        if self.tx.is_closed() {
+            return false;
+        }
         if self.batch_size <= 1 {
             return send_response(self.tx, response);
         }

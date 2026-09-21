@@ -908,14 +908,31 @@ async fn unary_reports_framing_error() {
 /// survive the cancel and serve subsequent RPCs on the same connection.
 #[tokio::test]
 async fn client_cancel_mid_stream() {
-    let mut client = common::warc_client().await;
     let data = std::fs::read(data_path("warcfile.warc")).unwrap();
+    cancel_stream_and_reuse_connection(common::warc_requests(&data, 8 << 10, &default_config())).await;
+}
+
+#[tokio::test]
+async fn archive_path_client_cancel_mid_stream() {
+    let config = pb::ParseWarcConfig {
+        archive_path: data_path("warcfile.warc").to_string_lossy().into_owned(),
+        payload_chunk_size: 64,
+        ..default_config()
+    };
+    cancel_stream_and_reuse_connection(vec![pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Config(config)),
+    }])
+    .await;
+}
+
+/// Cancel active responses, then verify that the same connection remains usable.
+async fn cancel_stream_and_reuse_connection(requests: Vec<pb::ParseWarcRequest>) {
+    let mut client = common::warc_client().await;
 
     // Cancel several in-flight parses after a few messages each.
     for _ in 0..3 {
-        let requests = common::warc_requests(&data, 8 << 10, &default_config());
         let mut stream = client
-            .parse_warc(tokio_stream::iter(requests))
+            .parse_warc(tokio_stream::iter(requests.clone()))
             .await
             .unwrap()
             .into_inner();
@@ -926,7 +943,6 @@ async fn client_cancel_mid_stream() {
     }
 
     // The same connection must still complete a full parse afterwards.
-    let requests = common::warc_requests(&data, 8 << 10, &default_config());
     let mut stream = client
         .parse_warc(tokio_stream::iter(requests))
         .await
@@ -1060,6 +1076,48 @@ async fn archive_path_counts_records_without_chunks() {
         }
     });
     assert_eq!(ends, 50);
+}
+
+#[tokio::test]
+async fn archive_path_ignores_chunks_and_completes_with_open_request_stream() {
+    let config = pb::ParseWarcConfig {
+        archive_path: data_path("warcfile.warc").to_string_lossy().into_owned(),
+        ..default_config()
+    };
+    let mut client = common::warc_client().await;
+    let (tx, rx) = tokio::sync::mpsc::channel(2);
+    tx.send(pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Config(config)),
+    })
+    .await
+    .unwrap();
+    tx.send(pb::ParseWarcRequest {
+        kind: Some(pb::parse_warc_request::Kind::Chunk(b"not archive data".to_vec().into())),
+    })
+    .await
+    .unwrap();
+    let mut stream = client
+        .parse_warc(tokio_stream::wrappers::ReceiverStream::new(rx))
+        .await
+        .unwrap()
+        .into_inner();
+    let responses = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let mut responses = Vec::new();
+        while let Some(response) = stream.message().await.unwrap() {
+            responses.push(response);
+        }
+        responses
+    })
+    .await
+    .expect("local-file parser waited for the request stream to close");
+    let outcomes = group_responses(&responses);
+    assert_eq!(outcomes.len(), 50);
+    assert!(
+        outcomes
+            .iter()
+            .all(|outcome| matches!(outcome, RecordOutcome::Record { .. }))
+    );
+    drop(tx);
 }
 
 /// Batched responses flatten to the same records as the 1:1 wire.

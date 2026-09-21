@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Server binary: binds the gRPC endpoint and serves `WarcService`, the
-//! standard health service, and server reflection until SIGINT or SIGTERM.
+//! Tests for the server binary's unix socket housekeeping.
 
 use super::*;
 

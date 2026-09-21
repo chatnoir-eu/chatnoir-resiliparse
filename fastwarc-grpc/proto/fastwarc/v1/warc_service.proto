@@ -58,8 +58,9 @@ service WarcService {
   // intended for inputs that fit within the gRPC message size limit. The
   // request limit only bounds the compressed archive, so the server also
   // budgets the decoded response (payload bytes plus encoded metadata and
-  // errors, including protobuf framing) at 16 MiB and fails with RESOURCE_EXHAUSTED when an archive
-  // decodes past it. Use ParseWarc for larger archives.
+  // errors, including protobuf framing) at 16 MiB and fails with
+  // RESOURCE_EXHAUSTED when an archive decodes past it. Use ParseWarc for
+  // larger archives.
   rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
 }
 
@@ -118,9 +119,12 @@ message ParseWarcConfig {
   // `batch` message. Zero (the default) sends one event per message.
   uint32 response_batch_size = 15;
   // archive_path is a filesystem path on the server for ParseWarc. When set,
-  // the server opens this file and ignores request chunks. ParseArchive
-  // rejects it. Servers reject archive_path with PERMISSION_DENIED unless
-  // local-file access was enabled at startup.
+  // the server opens this file and ignores chunk contents. Later messages
+  // must still set chunk; duplicate config and missing kinds are rejected
+  // while parsing is active. The response finishes when parsing ends,
+  // without waiting for the client to close its request stream.
+  // ParseArchive rejects archive_path. Servers reject it with
+  // PERMISSION_DENIED unless local-file access was enabled at startup.
   string archive_path = 16;
 }
 

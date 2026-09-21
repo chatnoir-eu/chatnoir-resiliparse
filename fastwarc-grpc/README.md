@@ -24,21 +24,17 @@ Usage documentation with worked client examples lives in the crate docs:
   [Run](#run)). Receive per kept record: `record_start` (full
   metadata, lossless header blocks), `payload_chunk`* (offset-tagged),
   `record_end` (payload length). HTTP-header
-  failures on a framed record yield a recoverable `record_error`. Decoder
-  setup and WARC framing failures end the stream. A payload read failure
-  after `record_start` emits a non-recoverable `record_error` followed by
-  `record_end`, then ends the stream.
-
+  failures on a framed record yield a recoverable `record_error`; every
+  other failure ends the stream (see the crate docs for the exact event
+  sequence).
 - `fastwarc.v1.WarcService/ParseArchive` (unary): the whole archive in one
   request, every kept record (metadata and whole payload) in
   one response, for single records and small archives within the gRPC
   message size limits (this server accepts 16 MiB; many clients default to
-  4 MiB). Because the request limit only bounds the compressed archive, the
-  collected response has a 16 MiB budget, including protobuf framing;
-  archives exceeding it fail with `RESOURCE_EXHAUSTED` and must use `ParseWarc`. Same parse
-  pipeline, filters, and error model as the stream; a
-  framing error returns the records parsed so far plus one non-recoverable
-  error.
+  4 MiB). The decoded response is capped at 16 MiB as well; larger archives
+  fail with `RESOURCE_EXHAUSTED` and belong on `ParseWarc`. Same parse
+  pipeline, filters, and error model as the stream; a framing error returns
+  the records parsed so far plus one non-recoverable error.
 - `include_payload` / `include_headers` default to true. Set false to skip
   payload bytes and/or lossless header blocks. `response_batch_size` packs
   that many protocol events into one `batch` message (zero = one event per

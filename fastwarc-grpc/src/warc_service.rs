@@ -29,6 +29,7 @@ use fastwarc::stream_io::bufread::RawReaderAdapter;
 use prost::bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
 
 use self::batch::BatchEmitter;
@@ -147,10 +148,12 @@ impl pb::warc_service_server::WarcService for WarcParser {
 
         let (response_tx, response_rx) = mpsc::channel(RESPONSE_CHANNEL_BOUND);
         if let Some((root, path)) = local_path {
-            spawn_parser(ParserInput::LocalFile(root, path), response_tx, config);
+            let parser = spawn_parser(ParserInput::LocalFile(root, path), response_tx.clone(), config);
+            tokio::spawn(validate_local_requests(stream, response_tx, parser));
         } else {
             let (chunk_tx, chunk_rx) = mpsc::channel::<Bytes>(CHUNK_CHANNEL_BOUND);
-            spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config);
+            // The forwarder observes parser completion through the input channel.
+            drop(spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config));
             tokio::spawn(forward_chunks(stream, chunk_tx, response_tx));
         }
         Ok(Response::new(ReceiverStream::new(response_rx)))
@@ -192,7 +195,11 @@ async fn read_config(stream: &mut Streaming<pb::ParseWarcRequest>) -> Result<pb:
 }
 
 /// Runs the parser on a blocking task and reports task failures as gRPC errors.
-fn spawn_parser(input: ParserInput, response_tx: ResponseSender, config: pb::ParseWarcConfig) {
+fn spawn_parser(
+    input: ParserInput,
+    response_tx: ResponseSender,
+    config: pb::ParseWarcConfig,
+) -> tokio::task::JoinHandle<()> {
     let error_tx = response_tx.clone();
     tokio::spawn(async move {
         let joined = tokio::task::spawn_blocking(move || run_parser(input, &response_tx, &config)).await;
@@ -204,13 +211,36 @@ fn spawn_parser(input: ParserInput, response_tx: ResponseSender, config: pb::Par
             };
             let _ = error_tx.send(Err(status)).await;
         }
-    });
+    })
+}
+
+/// Checks messages in local-file mode without waiting for the client to close
+/// its upload after parsing finishes. Chunk contents are ignored.
+async fn validate_local_requests(
+    mut stream: impl Stream<Item = Result<pb::ParseWarcRequest, Status>> + Unpin,
+    response_tx: ResponseSender,
+    mut parser: tokio::task::JoinHandle<()>,
+) {
+    loop {
+        let message = tokio::select! {
+            biased;
+            _ = &mut parser => return,
+            () = response_tx.closed() => return,
+            message = stream.next() => message,
+        };
+        let Some(message) = message else { return };
+        let Err(status) = message.and_then(request_chunk) else {
+            continue;
+        };
+        let _ = response_tx.send(Err(status)).await;
+        return;
+    }
 }
 
 /// Forwards chunks until input ends or the parser stops. Duplicate configuration
 /// messages and missing message kinds terminate the RPC with `InvalidArgument`.
 async fn forward_chunks(
-    mut stream: Streaming<pb::ParseWarcRequest>,
+    mut stream: impl Stream<Item = Result<pb::ParseWarcRequest, Status>> + Unpin,
     chunk_tx: mpsc::Sender<Bytes>,
     response_tx: ResponseSender,
 ) {
@@ -219,37 +249,37 @@ async fn forward_chunks(
         let message = tokio::select! {
             biased;
             () = chunk_tx.closed() => return,
-            message = stream.message() => message,
+            () = response_tx.closed() => return,
+            message = stream.next() => message,
         };
-        match message {
-            Ok(Some(pb::ParseWarcRequest {
-                kind: Some(pb::parse_warc_request::Kind::Chunk(chunk)),
-            })) => {
-                if chunk_tx.send(chunk).await.is_err() {
-                    return;
-                }
-            }
-            Ok(Some(pb::ParseWarcRequest {
-                kind: Some(pb::parse_warc_request::Kind::Config(_)),
-            })) => {
+        let Some(message) = message else { return };
+        let chunk = match message.and_then(request_chunk) {
+            Ok(chunk) => chunk,
+            Err(status) => {
                 // Already queued parser events may precede this terminal status.
-                let _ = response_tx
-                    .send(Err(Status::invalid_argument("`config` may only be set on the first request message")))
-                    .await;
+                let _ = response_tx.send(Err(status)).await;
                 return;
             }
-            Ok(Some(pb::ParseWarcRequest { kind: None })) => {
-                let _ = response_tx
-                    .send(Err(Status::invalid_argument("ParseWarc request message must set `config` or `chunk`")))
-                    .await;
-                return;
-            }
-            Ok(None) => return,
-            Err(error) => {
-                let _ = response_tx.send(Err(error)).await;
-                return;
-            }
+        };
+        let sent = tokio::select! {
+            biased;
+            () = response_tx.closed() => return,
+            sent = chunk_tx.send(chunk) => sent,
+        };
+        if sent.is_err() {
+            return;
         }
+    }
+}
+
+/// Extracts a chunk after the initial configuration, rejecting other message kinds.
+fn request_chunk(request: pb::ParseWarcRequest) -> Result<Bytes, Status> {
+    match request.kind {
+        Some(pb::parse_warc_request::Kind::Chunk(chunk)) => Ok(chunk),
+        Some(pb::parse_warc_request::Kind::Config(_)) => {
+            Err(Status::invalid_argument("`config` may only be set on the first request message"))
+        }
+        None => Err(Status::invalid_argument("ParseWarc request message must set `config` or `chunk`")),
     }
 }
 
