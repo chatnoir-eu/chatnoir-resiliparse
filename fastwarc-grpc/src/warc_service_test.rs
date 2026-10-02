@@ -66,7 +66,12 @@ async fn response_cancellation_stops_upload_and_parser() {
         include_headers: Some(false),
         ..Default::default()
     };
-    let mut parser = spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config);
+    let mut parser = spawn_parser(
+        ParserInput::Chunks(chunk_rx),
+        response_tx.clone(),
+        config,
+        WarcParser::new().acquire_parser().unwrap(),
+    );
     let mut forwarder = tokio::spawn(forward_chunks(ReceiverStream::new(request_rx), chunk_tx, response_tx));
     request_tx
         .send(Ok(pb::ParseWarcRequest {
@@ -149,7 +154,12 @@ async fn local_file_parser_finishes_after_response_cancellation() {
         response_batch_size: 8,
         ..Default::default()
     };
-    let parser = spawn_parser(ParserInput::LocalFile(root, "warcfile.warc".into()), response_tx, config);
+    let parser = spawn_parser(
+        ParserInput::LocalFile(root, "warcfile.warc".into()),
+        response_tx,
+        config,
+        WarcParser::new().acquire_parser().unwrap(),
+    );
     tokio::time::timeout(std::time::Duration::from_secs(10), response_rx.recv())
         .await
         .expect("local-file parser did not emit a batch")
@@ -209,4 +219,191 @@ async fn local_file_requests_reject_invalid_messages_while_parsing() {
         assert!(response_rx.recv().await.is_none());
         finish_tx.send(()).unwrap();
     }
+}
+
+/// An idle upload must not queue other requests behind a blocked parser.
+#[tokio::test]
+async fn parser_capacity_is_shared_and_recovers_after_cancellation() {
+    use pb::warc_service_client::WarcServiceClient;
+    use pb::warc_service_server::WarcServiceServer;
+    use tokio_stream::wrappers::TcpListenerStream;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fastwarc-rs/tests/fixtures");
+    let service = WarcParser::with_local_files(root)
+        .unwrap()
+        .with_max_concurrent_parsers(1)
+        .unwrap();
+    let slots = Arc::clone(&service.parser_slots);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        tonic::transport::Server::builder()
+            .add_service(WarcServiceServer::new(service))
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+    let mut client = WarcServiceClient::connect(format!("http://{addr}")).await.unwrap();
+    let mut other = WarcServiceClient::connect(format!("http://{addr}")).await.unwrap();
+    let (request_tx, request_rx) = mpsc::channel(1);
+    request_tx
+        .send(pb::ParseWarcRequest {
+            kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig::default())),
+        })
+        .await
+        .unwrap();
+    let response = client
+        .parse_warc(ReceiverStream::new(request_rx))
+        .await
+        .unwrap()
+        .into_inner();
+    for archive_path in ["", "warcfile.warc"] {
+        let requests = tokio_stream::iter([pb::ParseWarcRequest {
+            kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig {
+                archive_path: archive_path.into(),
+                ..Default::default()
+            })),
+        }]);
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), other.parse_warc(requests))
+            .await
+            .expect("excess streaming request was queued");
+        assert_eq!(result.unwrap_err().code(), tonic::Code::ResourceExhausted);
+    }
+    let request = pb::ParseArchiveRequest {
+        config: Some(pb::ParseWarcConfig::default()),
+        archive: Bytes::new(),
+    };
+    let result = tokio::time::timeout(std::time::Duration::from_secs(10), other.parse_archive(request.clone()))
+        .await
+        .expect("excess unary request was queued");
+    assert_eq!(result.unwrap_err().code(), tonic::Code::ResourceExhausted);
+    drop(response);
+    // Close both halves of the idle RPC before accepting another parser.
+    drop(request_tx);
+    drop(
+        tokio::time::timeout(std::time::Duration::from_secs(10), slots.acquire())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    other.parse_archive(request).await.unwrap();
+    for (archive_path, expected_error) in [("missing.warc", true), ("warcfile.warc", false)] {
+        let requests = tokio_stream::iter([pb::ParseWarcRequest {
+            kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig {
+                archive_path: archive_path.into(),
+                include_payload: Some(false),
+                ..Default::default()
+            })),
+        }]);
+        let mut response = other.parse_warc(requests).await.unwrap().into_inner();
+        let mut errors = 0;
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while let Some(event) = response.message().await.unwrap() {
+                if matches!(event.kind, Some(pb::parse_warc_response::Kind::RecordError(_))) {
+                    errors += 1;
+                }
+            }
+        })
+        .await
+        .expect("local-file parser did not finish");
+        assert_eq!(errors != 0, expected_error);
+        // Both EOF and a file-open failure must release the slot.
+        assert_eq!(slots.available_permits(), 1);
+    }
+    server.abort();
+}
+
+/// Aborting the async completion monitor must not release a running worker's slot.
+#[tokio::test]
+async fn parser_slot_is_held_until_blocking_worker_exits() {
+    let service = WarcParser::new().with_max_concurrent_parsers(1).unwrap();
+    let (chunk_tx, chunk_rx) = mpsc::channel(1);
+    let (response_tx, mut response_rx) = mpsc::channel(8);
+    let parser = spawn_parser(
+        ParserInput::Chunks(chunk_rx),
+        response_tx,
+        pb::ParseWarcConfig {
+            parse_http: Some(false),
+            include_payload: Some(false),
+            ..Default::default()
+        },
+        service.acquire_parser().unwrap(),
+    );
+    chunk_tx
+        .send(Bytes::from_static(b"WARC/1.0\r\nWARC-Type: resource\r\nContent-Length: 1000000\r\n\r\nbody"))
+        .await
+        .unwrap();
+    // Start/end events prove the blocking worker has started and is skipping the payload.
+    for _ in 0..2 {
+        tokio::time::timeout(std::time::Duration::from_secs(10), response_rx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
+    parser.abort();
+    assert!(parser.await.unwrap_err().is_cancelled());
+    assert_eq!(service.acquire_parser().unwrap_err().code(), tonic::Code::ResourceExhausted);
+    drop(chunk_tx);
+    let _permit = tokio::time::timeout(std::time::Duration::from_secs(10), service.parser_slots.acquire())
+        .await
+        .expect("finished worker retained its slot")
+        .unwrap();
+}
+
+/// A cancelled unary RPC can still have a blocking job queued in Tokio.
+#[test]
+fn cancelled_unary_request_keeps_queued_parser_slot() {
+    use pb::warc_service_server::WarcService;
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let service = Arc::new(WarcParser::new().with_max_concurrent_parsers(1).unwrap());
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let blocker = tokio::task::spawn_blocking(move || {
+            started_tx.send(()).unwrap();
+            let _ = release_rx.recv();
+        });
+        started_rx.await.unwrap();
+        let parser = Arc::clone(&service);
+        let request = tokio::spawn(async move {
+            parser
+                .parse_archive(Request::new(pb::ParseArchiveRequest {
+                    config: Some(pb::ParseWarcConfig::default()),
+                    archive: Bytes::new(),
+                }))
+                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while service.parser_slots.available_permits() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("unary request did not reserve a parser slot");
+        request.abort();
+        assert!(request.await.unwrap_err().is_cancelled());
+        assert_eq!(service.acquire_parser().unwrap_err().code(), tonic::Code::ResourceExhausted);
+        drop(release_tx);
+        blocker.await.unwrap();
+        let _permit = tokio::time::timeout(std::time::Duration::from_secs(10), service.parser_slots.acquire())
+            .await
+            .expect("completed unary worker retained its slot")
+            .unwrap();
+    });
+}
+
+#[test]
+fn invalid_parser_limits_are_rejected() {
+    for limit in [0, Semaphore::MAX_PERMITS + 1] {
+        let error = WarcParser::new().with_max_concurrent_parsers(limit).err().unwrap();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    }
+    assert_eq!(WarcParser::default().parser_slots.available_permits(), DEFAULT_MAX_CONCURRENT_PARSERS);
 }

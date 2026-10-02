@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Defaults and limits for
-//! [`ParseWarcConfig`](crate::proto::fastwarc::v1::ParseWarcConfig).
+//! Parser configuration defaults and service limits.
 
 /// Default cap on WARC and HTTP header block length: 32 KiB, matching the
 /// `fastwarc` crate's `ArchiveIteratorOptions` default.
@@ -38,3 +37,6 @@ pub const MAX_INPUT_BUFFER_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE;
 /// Budget for collected unary payloads, metadata, errors, and protobuf framing.
 /// Archives that exceed it fail with `ResourceExhausted`; use `ParseWarc` instead.
 pub const MAX_UNARY_RESPONSE_SIZE: usize = crate::transport::MAX_MESSAGE_SIZE;
+
+/// Default number of concurrent blocking parsers per service instance.
+pub const DEFAULT_MAX_CONCURRENT_PARSERS: usize = 32;

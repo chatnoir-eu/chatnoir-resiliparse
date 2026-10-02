@@ -83,7 +83,19 @@ FASTWARC_GRPC_ADDR="[::]:50061" cargo run -p fastwarc-grpc
 ```
 
 `FASTWARC_GRPC_ADDR` also accepts `unix:///path.sock` or an absolute
-filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
+filesystem path. An existing socket path prevents startup. After a crash,
+remove a leftover socket only after confirming that no server is using it.
+On SIGINT or SIGTERM, the server shuts down gracefully and removes its socket
+if the path still refers to the socket it created. Keep the socket directory
+under the server operator's control.
+
+The service allows 32 concurrent parsers across uploads, local files, and
+unary calls. Excess requests fail immediately with `RESOURCE_EXHAUSTED`.
+Set `FASTWARC_GRPC_MAX_CONCURRENT_PARSERS` to a positive integer to change
+this limit. Embedders use `WarcParser::with_max_concurrent_parsers(limit)`;
+choose a limit below the runtime's blocking-thread capacity to leave room
+for other blocking work. Idle uploads count toward the limit until they
+finish or are cancelled.
 
 Local file access (`archive_path` on the request config) is disabled by
 default. To enable it, set both:

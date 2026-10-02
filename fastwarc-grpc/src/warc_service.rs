@@ -27,7 +27,7 @@ use std::sync::Arc;
 use cap_std::fs::Dir;
 use fastwarc::stream_io::bufread::RawReaderAdapter;
 use prost::bytes::Bytes;
-use tokio::sync::mpsc;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
@@ -37,7 +37,8 @@ use self::channel_reader::ChannelReader;
 use self::parser::{parse_into, record_error};
 use crate::convert;
 use crate::defaults::{
-    DEFAULT_INPUT_BUFFER_SIZE, MAX_HEADER_LEN, MAX_INPUT_BUFFER_SIZE, MAX_PAYLOAD_CHUNK_SIZE, MAX_UNARY_RESPONSE_SIZE,
+    DEFAULT_INPUT_BUFFER_SIZE, DEFAULT_MAX_CONCURRENT_PARSERS, MAX_HEADER_LEN, MAX_INPUT_BUFFER_SIZE,
+    MAX_PAYLOAD_CHUNK_SIZE, MAX_UNARY_RESPONSE_SIZE,
 };
 use crate::proto::fastwarc::v1 as pb;
 
@@ -61,11 +62,12 @@ enum ParserInput {
 ///
 /// Use [`Self::new`] for uploaded archives or [`Self::with_local_files`] to
 /// enable files under a configured directory.
-#[derive(Default)]
 pub struct WarcParser {
     /// Directory that `archive_path` requests are confined to. `None`
     /// rejects every server-side path.
     local_file_root: Option<Arc<LocalFileRoot>>,
+    /// Shared capacity for streaming and unary blocking parsers.
+    parser_slots: Arc<Semaphore>,
 }
 
 /// The configured directory, held open so requests cannot redirect its path.
@@ -76,11 +78,41 @@ struct LocalFileRoot {
     dir: Dir,
 }
 
+impl Default for WarcParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WarcParser {
     /// A parser that rejects server-side archive paths.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            local_file_root: None,
+            parser_slots: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_PARSERS)),
+        }
+    }
+
+    /// Sets the shared limit for uploaded, local-file, and unary parsers.
+    /// Requests above the limit fail immediately with `ResourceExhausted`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero and limits above [`Semaphore::MAX_PERMITS`].
+    pub fn with_max_concurrent_parsers(mut self, limit: usize) -> io::Result<Self> {
+        if limit == 0 || limit > Semaphore::MAX_PERMITS {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid concurrent parser limit"));
+        }
+        self.parser_slots = Arc::new(Semaphore::new(limit));
+        Ok(self)
+    }
+
+    /// Reserves parser capacity without queuing work on the blocking pool.
+    fn acquire_parser(&self) -> Result<OwnedSemaphorePermit, Status> {
+        Arc::clone(&self.parser_slots)
+            .try_acquire_owned()
+            .map_err(|_| Status::resource_exhausted("concurrent parser limit reached"))
     }
 
     /// A parser that permits server-side paths confined to the `root`
@@ -105,6 +137,7 @@ impl WarcParser {
         let dir = Dir::open_ambient_dir(&root, cap_std::ambient_authority())?;
         Ok(Self {
             local_file_root: Some(Arc::new(LocalFileRoot { path: root, dir })),
+            ..Self::new()
         })
     }
 }
@@ -146,14 +179,15 @@ impl pb::warc_service_server::WarcService for WarcParser {
             ));
         };
 
+        let permit = self.acquire_parser()?;
         let (response_tx, response_rx) = mpsc::channel(RESPONSE_CHANNEL_BOUND);
         if let Some((root, path)) = local_path {
-            let parser = spawn_parser(ParserInput::LocalFile(root, path), response_tx.clone(), config);
+            let parser = spawn_parser(ParserInput::LocalFile(root, path), response_tx.clone(), config, permit);
             tokio::spawn(validate_local_requests(stream, response_tx, parser));
         } else {
             let (chunk_tx, chunk_rx) = mpsc::channel::<Bytes>(CHUNK_CHANNEL_BOUND);
             // The forwarder observes parser completion through the input channel.
-            drop(spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config));
+            drop(spawn_parser(ParserInput::Chunks(chunk_rx), response_tx.clone(), config, permit));
             tokio::spawn(forward_chunks(stream, chunk_tx, response_tx));
         }
         Ok(Response::new(ReceiverStream::new(response_rx)))
@@ -173,8 +207,13 @@ impl pb::warc_service_server::WarcService for WarcParser {
             return Err(Status::invalid_argument("archive_path is only supported by ParseWarc"));
         }
 
+        let permit = self.acquire_parser()?;
         let archive = request.archive;
-        let joined = tokio::task::spawn_blocking(move || collect_archive(io::Cursor::new(archive), &config)).await;
+        let joined = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            collect_archive(io::Cursor::new(archive), &config)
+        })
+        .await;
         match joined {
             Ok(response) => Ok(Response::new(response?)),
             Err(error) if error.is_panic() => Err(Status::internal("WARC parser task panicked")),
@@ -199,10 +238,16 @@ fn spawn_parser(
     input: ParserInput,
     response_tx: ResponseSender,
     config: pb::ParseWarcConfig,
+    permit: OwnedSemaphorePermit,
 ) -> tokio::task::JoinHandle<()> {
     let error_tx = response_tx.clone();
     tokio::spawn(async move {
-        let joined = tokio::task::spawn_blocking(move || run_parser(input, &response_tx, &config)).await;
+        let joined = tokio::task::spawn_blocking(move || {
+            // Cancelling the async wrapper must not release a running parser's slot.
+            let _permit = permit;
+            run_parser(input, &response_tx, &config);
+        })
+        .await;
         if let Err(error) = joined {
             let status = if error.is_panic() {
                 Status::internal("WARC parser task panicked")

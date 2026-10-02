@@ -16,20 +16,65 @@
 
 use super::*;
 
-#[test]
-fn stale_socket_cleanup_preserves_other_files() {
+#[tokio::test]
+async fn socket_bind_preserves_existing_paths() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("server.sock");
-    remove_stale_socket(&path).unwrap();
     std::fs::write(&path, b"keep").unwrap();
-    assert_eq!(remove_stale_socket(&path).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+    assert!(bind_unix_socket(&path).is_err());
     assert_eq!(std::fs::read(&path).unwrap(), b"keep");
     let link = dir.path().join("link");
     std::os::unix::fs::symlink(&path, &link).unwrap();
-    assert_eq!(remove_stale_socket(&link).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+    assert!(bind_unix_socket(&link).is_err());
     assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
     let socket = dir.path().join("stale.sock");
     drop(std::os::unix::net::UnixListener::bind(&socket).unwrap());
-    remove_stale_socket(&socket).unwrap();
-    assert!(!socket.exists());
+    assert!(bind_unix_socket(&socket).is_err());
+    assert!(socket.exists());
+}
+
+#[tokio::test]
+async fn socket_bind_preserves_live_listener() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("live.sock");
+    let original = std::os::unix::net::UnixListener::bind(&path).unwrap();
+    assert!(bind_unix_socket(&path).is_err(), "replaced a live socket");
+    let _client = std::os::unix::net::UnixStream::connect(&path).unwrap();
+    original.set_nonblocking(true).unwrap();
+    original.accept().expect("original listener lost its endpoint");
+}
+
+#[tokio::test]
+async fn socket_shutdown_removes_own_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested/server.sock");
+    let _listener = bind_unix_socket(&path).unwrap();
+    let metadata = std::fs::symlink_metadata(&path).unwrap();
+    remove_owned_socket(&path, &metadata).unwrap();
+    assert!(!path.exists());
+    remove_owned_socket(&path, &metadata).unwrap();
+}
+
+#[tokio::test]
+async fn socket_shutdown_preserves_replacement_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.sock");
+    let _original = bind_unix_socket(&path).unwrap();
+    let metadata = std::fs::symlink_metadata(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    let replacement = std::os::unix::net::UnixListener::bind(&path).unwrap();
+    remove_owned_socket(&path, &metadata).unwrap();
+    let _client = std::os::unix::net::UnixStream::connect(&path).unwrap();
+    replacement.set_nonblocking(true).unwrap();
+    replacement.accept().expect("replacement listener lost its endpoint");
+
+    std::fs::remove_file(&path).unwrap();
+    std::fs::write(&path, b"keep").unwrap();
+    remove_owned_socket(&path, &metadata).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"keep");
+
+    std::fs::remove_file(&path).unwrap();
+    std::os::unix::fs::symlink("missing", &path).unwrap();
+    remove_owned_socket(&path, &metadata).unwrap();
+    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
 }

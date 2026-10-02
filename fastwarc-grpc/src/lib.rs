@@ -30,7 +30,16 @@
 //! ```
 //!
 //! `FASTWARC_GRPC_ADDR` defaults to `[::]:50061`. A Unix socket is accepted as `unix:///path.sock`
-//! or as an absolute filesystem path. The server shuts down gracefully on SIGINT or SIGTERM.
+//! or as an absolute filesystem path. Existing socket paths prevent startup; remove a stale socket
+//! manually after confirming that no server owns it. Use a directory controlled by the server operator.
+//! The server shuts down gracefully on SIGINT or SIGTERM and removes its own socket if still present.
+//!
+//! At most 32 parsers run concurrently per service instance, shared by both RPCs and local files.
+//! Excess requests fail with `ResourceExhausted`. The binary accepts a positive
+//! `FASTWARC_GRPC_MAX_CONCURRENT_PARSERS` override; embedders can use
+//! [`WarcParser::with_max_concurrent_parsers`](warc_service::WarcParser::with_max_concurrent_parsers).
+//! Keep the limit below the runtime's blocking-thread capacity. Idle uploads hold a slot until they
+//! finish or are cancelled.
 //! Besides [`WarcService`](proto::fastwarc::v1::warc_service_server::WarcService), it serves the
 //! standard `grpc.health.v1.Health` service for load-balancer probes and gRPC server reflection
 //! (v1), so generic tools can discover the API without local proto files:

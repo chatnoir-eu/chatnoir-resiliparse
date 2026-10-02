@@ -43,6 +43,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         WarcParser::new()
     };
 
+    let parser = match std::env::var("FASTWARC_GRPC_MAX_CONCURRENT_PARSERS") {
+        Ok(limit) => parser.with_max_concurrent_parsers(
+            limit
+                .parse()
+                .map_err(|_| "FASTWARC_GRPC_MAX_CONCURRENT_PARSERS must be a positive integer")?,
+        )?,
+        Err(std::env::VarError::NotPresent) => parser,
+        Err(error) => return Err(error.into()),
+    };
+
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter.set_serving::<WarcServiceServer<WarcParser>>().await;
 
@@ -68,15 +78,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match unix_socket_path(&addr) {
         #[cfg(unix)]
         Some(path) => {
-            remove_stale_socket(&path)?;
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let listener = UnixListener::bind(&path)?;
-            builder
+            let listener = bind_unix_socket(&path)?;
+            let socket = std::fs::symlink_metadata(&path)?;
+            let served = builder
                 .serve_with_incoming_shutdown(UnixListenerStream::new(listener), shutdown_signal())
-                .await?;
-            remove_stale_socket(&path)?;
+                .await;
+            remove_owned_socket(&path, &socket)?;
+            served?;
         }
         #[cfg(not(unix))]
         Some(path) => {
@@ -94,18 +102,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Removes a leftover socket file so the listener can rebind, refusing to
-/// delete anything that is not a unix socket.
+/// Binds the server socket, creating its parent directory if needed.
 #[cfg(unix)]
-fn remove_stale_socket(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::FileTypeExt;
+fn bind_unix_socket(path: &Path) -> std::io::Result<UnixListener> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    UnixListener::bind(path)
+}
+
+/// Removes the bound socket on shutdown if its path still names the same inode.
+#[cfg(unix)]
+fn remove_owned_socket(path: &Path, socket: &std::fs::Metadata) -> std::io::Result<()> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
 
     match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_socket() => std::fs::remove_file(path),
-        Ok(_) => Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            format!("{} already exists and is not a unix socket", path.display()),
-        )),
+        Ok(meta) if meta.file_type().is_socket() && meta.dev() == socket.dev() && meta.ino() == socket.ino() => {
+            std::fs::remove_file(path)
+        }
+        Ok(_) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
     }
