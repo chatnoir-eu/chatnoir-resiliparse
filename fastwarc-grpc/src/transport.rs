@@ -14,6 +14,8 @@
 
 //! Shared HTTP/2 settings for WARC transfer.
 
+use std::time::Duration;
+
 use tonic::transport::{Endpoint, Server};
 
 use crate::proto::fastwarc::v1::warc_service_server::WarcServiceServer;
@@ -30,6 +32,11 @@ pub const HTTP2_STREAM_WINDOW: u32 = 16 * 1024 * 1024;
 pub const HTTP2_MAX_FRAME: u32 = 1024 * 1024;
 /// gRPC message size limit: 16 MiB.
 pub const MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
+/// Interval between server HTTP/2 keepalive pings on an idle connection.
+pub const HTTP2_KEEPALIVE_INTERVAL: Duration = Duration::from_mins(1);
+/// Time to wait for a keepalive acknowledgement before closing the
+/// connection, which ends its RPCs and frees their parser slots.
+pub const HTTP2_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
 fn env_window(name: &str, default: u32) -> u32 {
     std::env::var(name)
@@ -59,6 +66,8 @@ pub fn configure_server(builder: Server) -> Server {
         .initial_connection_window_size(Some(connection_window()))
         .initial_stream_window_size(Some(stream_window()))
         .max_frame_size(Some(HTTP2_MAX_FRAME))
+        .http2_keepalive_interval(Some(HTTP2_KEEPALIVE_INTERVAL))
+        .http2_keepalive_timeout(Some(HTTP2_KEEPALIVE_TIMEOUT))
 }
 
 /// Raise the generated service's encode/decode message caps for bulk WARC.

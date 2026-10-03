@@ -94,8 +94,11 @@ unary calls. Excess requests fail immediately with `RESOURCE_EXHAUSTED`.
 Set `FASTWARC_GRPC_MAX_CONCURRENT_PARSERS` to a positive integer to change
 this limit. Embedders use `WarcParser::with_max_concurrent_parsers(limit)`;
 choose a limit below the runtime's blocking-thread capacity to leave room
-for other blocking work. Idle uploads count toward the limit until they
-finish or are cancelled.
+for other blocking work. Idle uploads, and clients that stop reading
+responses, count toward the limit until they finish or are cancelled.
+The server sends HTTP/2 keepalive pings so connections to unreachable
+peers close and release their slots; a connected but silent client still
+holds its slot.
 
 Local file access (`archive_path` on the request config) is disabled by
 default. To enable it, set both:
