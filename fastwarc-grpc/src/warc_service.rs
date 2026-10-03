@@ -216,8 +216,7 @@ impl pb::warc_service_server::WarcService for WarcParser {
         .await;
         match joined {
             Ok(response) => Ok(Response::new(response?)),
-            Err(error) if error.is_panic() => Err(Status::internal("WARC parser task panicked")),
-            Err(_) => Err(Status::cancelled("WARC parser task cancelled")),
+            Err(error) => Err(join_error_status(&error)),
         }
     }
 }
@@ -249,14 +248,20 @@ fn spawn_parser(
         })
         .await;
         if let Err(error) = joined {
-            let status = if error.is_panic() {
-                Status::internal("WARC parser task panicked")
-            } else {
-                Status::cancelled("WARC parser task cancelled")
-            };
-            let _ = error_tx.send(Err(status)).await;
+            let _ = error_tx.send(Err(join_error_status(&error))).await;
         }
     })
+}
+
+/// Maps a failed blocking parser task to `Internal`. Blocking tasks cannot be
+/// aborted once running, so a non-panic failure means the runtime dropped the
+/// task before it started, which is a server fault rather than a client cancel.
+fn join_error_status(error: &tokio::task::JoinError) -> Status {
+    if error.is_panic() {
+        Status::internal("WARC parser task panicked")
+    } else {
+        Status::internal("WARC parser task did not run")
+    }
 }
 
 /// Checks messages in local-file mode without waiting for the client to close
