@@ -178,18 +178,15 @@ pub fn record_metadata(record: &WarcRecord, include_headers: bool) -> pb::Record
 /// Whether a record passes the configured type, length, and built-in filters.
 #[must_use]
 pub fn record_passes_filters(record: &mut WarcRecord, config: &pb::ParseWarcConfig) -> bool {
+    record_passes_header_filters(record, config) && record_passes_length_filters(record, config)
+}
+
+/// Type and built-in filters, which depend only on WARC headers and can run
+/// before HTTP parsing.
+#[must_use]
+pub fn record_passes_header_filters(record: &mut WarcRecord, config: &pb::ParseWarcConfig) -> bool {
     let mask = record_types_mask(&config.record_types);
     if !filter::has_record_type(mask)(record) {
-        return false;
-    }
-    if let Some(min) = config.min_content_length
-        && !filter::has_content_length_gte(min)(record)
-    {
-        return false;
-    }
-    if let Some(max) = config.max_content_length
-        && !filter::has_content_length_lte(max)(record)
-    {
         return false;
     }
     for f in &config.filters {
@@ -205,6 +202,23 @@ pub fn record_passes_filters(record: &mut WarcRecord, config: &pb::ParseWarcConf
         if !keep {
             return false;
         }
+    }
+    true
+}
+
+/// Content-length bounds. HTTP parsing narrows the length to the HTTP body,
+/// so these run after it, matching `ArchiveIterator`.
+#[must_use]
+pub fn record_passes_length_filters(record: &mut WarcRecord, config: &pb::ParseWarcConfig) -> bool {
+    if let Some(min) = config.min_content_length
+        && !filter::has_content_length_gte(min)(record)
+    {
+        return false;
+    }
+    if let Some(max) = config.max_content_length
+        && !filter::has_content_length_lte(max)(record)
+    {
+        return false;
     }
     true
 }

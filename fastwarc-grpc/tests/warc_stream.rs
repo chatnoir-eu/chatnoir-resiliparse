@@ -502,6 +502,56 @@ async fn http_parse_failure_is_recoverable() {
     );
 }
 
+/// Records excluded by `record_types` are skipped before HTTP parsing, so a
+/// malformed HTTP block in a filtered-out record does not surface an error.
+#[tokio::test]
+async fn filtered_record_type_skips_http_parse_failure() {
+    use std::io::Write;
+
+    let http_hdr = format!("HTTP/1.1 200 OK\r\nX: {}\r\n\r\nbody", "A".repeat(400));
+    let payload = http_hdr.as_bytes();
+    let mut data = Vec::new();
+    write!(
+        data,
+        "WARC/1.0\r\nWARC-Type: response\r\nWARC-Record-ID: <urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Type: application/http; msgtype=response\r\nContent-Length: {}\r\n\r\n",
+        payload.len()
+    )
+    .unwrap();
+    data.extend_from_slice(payload);
+    data.extend_from_slice(b"\r\n\r\n");
+    write!(
+        data,
+        "WARC/1.0\r\nWARC-Type: resource\r\nWARC-Record-ID: <urn:uuid:bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Length: 1\r\n\r\nZ\r\n\r\n"
+    )
+    .unwrap();
+
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(true),
+        max_header_len: 256,
+        record_types: vec![pb::WarcRecordType::Resource as i32],
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let requests = common::warc_requests(&data, 256, &config);
+    let mut stream = client
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.unwrap() {
+        responses.push(resp);
+    }
+    let outcomes = group_responses(&responses);
+    assert!(
+        matches!(
+            outcomes.as_slice(),
+            [RecordOutcome::Record { metadata, .. }] if metadata.record_type == pb::WarcRecordType::Resource as i32
+        ),
+        "unexpected outcomes: {outcomes:?}"
+    );
+}
+
 /// Decoder setup failures stop parsing without a second framing error.
 #[tokio::test]
 async fn decoder_setup_failure_is_non_recoverable() {

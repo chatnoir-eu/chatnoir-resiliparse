@@ -89,13 +89,16 @@ message ParseWarcConfig {
   // server rejects values above 8 MiB.
   uint32 payload_chunk_size = 6;
   // record_types restricts which WARC record types are returned. Empty means
-  // all types. Values are OR-combined.
+  // all types. Values are OR-combined. Other types are skipped before HTTP
+  // parsing, so they never produce a record_error.
   repeated WarcRecordType record_types = 7;
   // min_content_length skips records whose Content-Length is below this
-  // value. Unset means no minimum.
+  // value. Unset means no minimum. Applied after HTTP parsing, so for parsed
+  // HTTP records it bounds the HTTP body length.
   optional uint64 min_content_length = 8;
   // max_content_length skips records whose Content-Length is above this
-  // value. Unset means no maximum.
+  // value. Unset means no maximum. Applied after HTTP parsing, like
+  // min_content_length.
   optional uint64 max_content_length = 9;
   // stream_detect enables magic-byte compression autodetection for gzip,
   // zstd, and lz4. Unset defaults to true.
@@ -104,8 +107,8 @@ message ParseWarcConfig {
   // affect streamed chunks. Zero selects the server default of 64 KiB; the
   // server rejects values above 16 MiB.
   uint32 input_buffer_size = 11;
-  // filters applies built-in predicates (AND-combined) after record_types
-  // and content-length bounds. Apply custom filters on the client.
+  // filters applies built-in predicates (AND-combined) with record_types,
+  // before HTTP parsing. Apply custom filters on the client.
   repeated BuiltinFilter filters = 12;
   // include_payload streams payload_chunk messages. Unset defaults to true.
   // Set false to skip payload bytes; record_end.payload_length then equals

@@ -57,6 +57,10 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
     };
     let http_error = RefCell::new(None);
     let iterator = ArchiveIterator::with_options(reader, options).with_filter(|record| {
+        // Skip unwanted types before HTTP parsing so they cannot surface HTTP errors.
+        if !convert::record_passes_header_filters(record, config) {
+            return false;
+        }
         // Match ArchiveIterator's HTTP parsing order while preserving header
         // failures as recoverable record errors.
         if convert::parse_http(config)
@@ -78,7 +82,7 @@ pub(super) fn parse_into(reader: impl IntoWarcReader, config: &pb::ParseWarcConf
             // Yield once so the error is emitted before iteration resumes.
             return true;
         }
-        convert::record_passes_filters(record, config)
+        convert::record_passes_length_filters(record, config)
     });
 
     for item in iterator {
