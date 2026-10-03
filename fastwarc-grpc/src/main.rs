@@ -25,6 +25,7 @@ use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
+use tonic::transport::server::TcpIncoming;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,21 +66,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(reflection_service)
         .add_service(fastwarc_grpc::transport::configure_warc_server(WarcServiceServer::new(parser)));
 
-    println!(
-        "fastwarc-grpc listening on {addr} (http2 stream {} MiB, connection {} MiB, local files {})",
-        f64::from(fastwarc_grpc::transport::stream_window()) / 1024.0 / 1024.0,
-        f64::from(fastwarc_grpc::transport::connection_window()) / 1024.0 / 1024.0,
-        match local_file_root.as_deref().filter(|_| allow_local_files) {
-            Some(root) => format!("confined to {}", root.display()),
-            None => "disabled".to_owned(),
-        }
-    );
+    let local_files = match local_file_root.as_deref().filter(|_| allow_local_files) {
+        Some(root) => format!("confined to {}", root.display()),
+        None => "disabled".to_owned(),
+    };
+    // Report only after the socket is bound so startup failures are not logged as listening.
+    let announce = |bound: &dyn std::fmt::Display| {
+        println!(
+            "fastwarc-grpc listening on {bound} (http2 stream {} MiB, connection {} MiB, local files {local_files})",
+            f64::from(fastwarc_grpc::transport::stream_window()) / 1024.0 / 1024.0,
+            f64::from(fastwarc_grpc::transport::connection_window()) / 1024.0 / 1024.0,
+        );
+    };
 
     match unix_socket_path(&addr) {
         #[cfg(unix)]
         Some(path) => {
             let listener = bind_unix_socket(&path)?;
             let socket = std::fs::symlink_metadata(&path)?;
+            announce(&format!("unix:{}", path.display()));
             let served = builder
                 .serve_with_incoming_shutdown(UnixListenerStream::new(listener), shutdown_signal())
                 .await;
@@ -96,7 +101,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .into());
         }
         None => {
-            builder.serve_with_shutdown(addr.parse()?, shutdown_signal()).await?;
+            let incoming = TcpIncoming::bind(addr.parse()?)?.with_nodelay(Some(true));
+            announce(&incoming.local_addr()?);
+            builder
+                .serve_with_incoming_shutdown(incoming, shutdown_signal())
+                .await?;
         }
     }
     Ok(())
