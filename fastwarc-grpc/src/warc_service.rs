@@ -328,17 +328,30 @@ fn request_chunk(request: pb::ParseWarcRequest) -> Result<Bytes, Status> {
     }
 }
 
-/// Rejects sizes above their limits and inverted content-length bounds.
+/// Rejects sizes above their limits, unknown enum values, and inverted
+/// content-length bounds.
 fn validate_config(config: &pb::ParseWarcConfig) -> Result<(), Status> {
     validate_limit("max_header_len", config.max_header_len, MAX_HEADER_LEN)?;
     validate_limit("payload_chunk_size", config.payload_chunk_size, MAX_PAYLOAD_CHUNK_SIZE)?;
     validate_limit("input_buffer_size", config.input_buffer_size, MAX_INPUT_BUFFER_SIZE)?;
+    validate_enum::<pb::WarcRecordType>("record_types", &config.record_types)?;
+    validate_enum::<pb::BuiltinFilter>("filters", &config.filters)?;
+    validate_enum::<pb::AutoDecode>("decode_http_payload", &[config.decode_http_payload])?;
     if let (Some(min), Some(max)) = (config.min_content_length, config.max_content_length)
         && min > max
     {
         return Err(Status::invalid_argument("min_content_length must not exceed max_content_length"));
     }
     Ok(())
+}
+
+/// Rejects enum numbers this server does not know, which would otherwise be
+/// ignored and silently widen or change the request.
+fn validate_enum<E: TryFrom<i32>>(name: &str, values: &[i32]) -> Result<(), Status> {
+    match values.iter().find(|&&value| E::try_from(value).is_err()) {
+        Some(value) => Err(Status::invalid_argument(format!("{name} contains unknown enum value {value}"))),
+        None => Ok(()),
+    }
 }
 
 /// Rejects values above `max`; zero selects the default.

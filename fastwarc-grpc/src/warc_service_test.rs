@@ -407,3 +407,34 @@ fn invalid_parser_limits_are_rejected() {
     }
     assert_eq!(WarcParser::default().parser_slots.available_permits(), DEFAULT_MAX_CONCURRENT_PARSERS);
 }
+
+#[test]
+fn unknown_enum_values_are_rejected() {
+    let configs = [
+        pb::ParseWarcConfig {
+            record_types: vec![pb::WarcRecordType::Response as i32, 999],
+            ..Default::default()
+        },
+        pb::ParseWarcConfig {
+            filters: vec![999],
+            ..Default::default()
+        },
+        pb::ParseWarcConfig {
+            decode_http_payload: 999,
+            ..Default::default()
+        },
+    ];
+    for config in configs {
+        assert_eq!(validate_config(&config).unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+    let known = pb::ParseWarcConfig {
+        record_types: vec![
+            pb::WarcRecordType::Unspecified as i32,
+            pb::WarcRecordType::Response as i32,
+        ],
+        filters: vec![pb::BuiltinFilter::IsHttp as i32],
+        decode_http_payload: pb::AutoDecode::All as i32,
+        ..Default::default()
+    };
+    assert!(validate_config(&known).is_ok());
+}

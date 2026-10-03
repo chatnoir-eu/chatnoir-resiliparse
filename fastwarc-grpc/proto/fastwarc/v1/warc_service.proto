@@ -64,7 +64,8 @@ service WarcService {
   rpc ParseArchive(ParseArchiveRequest) returns (ParseArchiveResponse);
 }
 
-// ParseWarcConfig controls parsing, filtering, and streaming.
+// ParseWarcConfig controls parsing, filtering, and streaming. The server
+// rejects unknown enum values with INVALID_ARGUMENT.
 message ParseWarcConfig {
   // parse_http enables parsing of HTTP messages embedded in records whose
   // content type is application/http. Unset defaults to true. Set false to
