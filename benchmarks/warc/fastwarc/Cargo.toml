@@ -11,4 +11,4 @@ name = "profile"
 path = "src/main.rs"
 
 [dependencies]
-fastwarc = "1"
+fastwarc = { version = "1", path = "../../../fastwarc-rs" }

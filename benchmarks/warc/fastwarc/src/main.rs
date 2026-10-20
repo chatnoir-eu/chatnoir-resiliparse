@@ -1,4 +1,5 @@
-use fastwarc::warc::iter::{ArchiveIterator, SharedWarcRecord};
+use fastwarc::warc::iter::ArchiveIterator;
+use fastwarc::warc::record::SharedWarcRecord;
 use std::fs::File;
 use std::io::BufReader;
 use std::time::{Duration, Instant};

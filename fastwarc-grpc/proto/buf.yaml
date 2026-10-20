@@ -1,0 +1,14 @@
+# Buf v2 configuration for the fastwarc-grpc protobuf contracts.
+#
+# Linting runs the full STANDARD category plus COMMENTS, so every element in
+# every file must carry a documentation comment. Comment ignores are
+# disallowed to keep the contract documentation honest.
+version: v2
+lint:
+  use:
+    - STANDARD
+    - COMMENTS
+  disallow_comment_ignores: true
+breaking:
+  use:
+    - FILE

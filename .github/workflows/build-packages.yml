@@ -19,6 +19,7 @@ env:
   PYTHON_VERSION: "3.14"
   FORCE_COLOR: "1"
   MACOSX_DEPLOYMENT_TARGET: "12.0"
+  PROTOC_VERSION: "35.1"
 
 jobs:
   build-rust:
@@ -26,6 +27,15 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest ]
+        include:
+          - os: ubuntu-latest
+            protoc_platform: linux-x86_64
+          - os: ubuntu-24.04-arm
+            protoc_platform: linux-aarch_64
+          - os: windows-latest
+            protoc_platform: win64
+          - os: macos-latest
+            protoc_platform: osx-universal_binary
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,13 +50,24 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      # Build only FastWARC at this time. Resiliparse needs additional vcpkg dependencies.
+      - name: Install protoc
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v$env:PROTOC_VERSION/protoc-$env:PROTOC_VERSION-${{ matrix.protoc_platform }}.zip" `
+            -OutFile "$env:RUNNER_TEMP/protoc.zip"
+          Expand-Archive "$env:RUNNER_TEMP/protoc.zip" -DestinationPath "$env:RUNNER_TEMP/protoc"
+          "$env:RUNNER_TEMP/protoc/bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+          "PROTOC_INCLUDE=$env:RUNNER_TEMP/protoc/include" | Out-File -Append -FilePath $env:GITHUB_ENV
+
+      # Build only FastWARC and its gRPC service at this time. Resiliparse
+      # needs additional vcpkg dependencies.
       # TODO: Fix this!
       - name: Build
-        run: cargo build --verbose --color always --package fastwarc
+        run: cargo build --verbose --color always --package fastwarc --package fastwarc-grpc
 
       - name: Run tests
-        run: cargo test --verbose --color always --package fastwarc
+        run: cargo test --verbose --color always --package fastwarc --package fastwarc-grpc
 
   build-wheels:
     runs-on: ${{ matrix.os }}
