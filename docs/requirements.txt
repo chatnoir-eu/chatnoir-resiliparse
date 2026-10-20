@@ -3,7 +3,7 @@ resiliparse[all]
 sphinx>=9.0
 sphinx-click
 sphinx_rtd_theme
-sphinx-substitution-extensions
+sphinx-substitution-extensions==2026.8.13.1
 
 # Need to install apache_beam here on Python 3.14. We cannot define it as a
 # dependency of the main wheel, because it requires building grpcio for 314t.
