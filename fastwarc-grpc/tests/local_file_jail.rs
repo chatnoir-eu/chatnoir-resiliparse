@@ -102,8 +102,18 @@ async fn absolute_path_outside_root_is_rejected() {
 #[tokio::test]
 async fn parent_traversal_is_rejected(#[case] absolute: bool, #[case] path: &str) {
     let (mut client, root) = fixture_jail_client().await;
-    let requested = if absolute { root.join(path) } else { PathBuf::from(path) };
-    let requested = requested.to_string_lossy().into_owned();
+    // Path::join normalizes away `..` on Windows verbatim paths.
+    let path = path.replace('/', std::path::MAIN_SEPARATOR_STR);
+    let requested = if absolute {
+        format!("{}{sep}{path}", root.display(), sep = std::path::MAIN_SEPARATOR)
+    } else {
+        path
+    };
+    assert!(
+        Path::new(&requested)
+            .components()
+            .any(|component| component == std::path::Component::ParentDir)
+    );
     let status = parse_path(&mut client, requested.clone()).await.unwrap_err();
     assert_eq!(status.code(), tonic::Code::PermissionDenied, "expected denial for {requested}");
 }
