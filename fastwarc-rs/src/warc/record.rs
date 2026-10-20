@@ -1395,7 +1395,11 @@ impl WarcRecord {
         }
         match &mut self.reader {
             Some(ReaderType::Original(r)) => r.reset_limit(),
-            Some(ReaderType::Wrapped(r)) => r.reset_limit(),
+            Some(ReaderType::Wrapped(_)) => {
+                // Resume on the archive reader, not the finished HTTP decoder.
+                let reader = self.detach_reader()?;
+                self.attach_reader(reader);
+            }
             _ => return None,
         };
 

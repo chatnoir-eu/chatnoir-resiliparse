@@ -153,6 +153,32 @@ fn archive_iterator_inplace() -> io::Result<()> {
 }
 
 #[test]
+fn archive_iterator_inplace_after_http_decoding() -> io::Result<()> {
+    let first = http_response_warc_data_encoded("<urn:uuid:encoded>", b"3\r\nabc\r\n0\r\n\r\n", Some("chunked"), None);
+    let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
+    for read_length in [0, 1, 3] {
+        let mut iterator = ArchiveIterator::new(io::Cursor::new([first.as_slice(), second.as_slice()].concat()))
+            .with_inplace(true)
+            .with_decode_http_payload(AutoDecode::All);
+        let record = iterator.next().unwrap()?;
+        let mut payload = vec![0; read_length];
+        record.borrow_mut().reader_mut().unwrap().read_exact(&mut payload)?;
+        assert_eq!(payload, b"abc"[..read_length]);
+
+        let next = iterator.next().expect("record after the HTTP decoder")?;
+        assert!(Rc::ptr_eq(&record, &next));
+        assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
+        assert_eq!(next.borrow().stream_pos(), first.len() as u64);
+        assert!(!next.borrow().is_http_parsed());
+        payload.clear();
+        next.borrow_mut().reader_mut().unwrap().read_to_end(&mut payload)?;
+        assert_eq!(payload, b"NEXT");
+        assert!(iterator.next().is_none());
+    }
+    Ok(())
+}
+
+#[test]
 fn archive_iterator_into_inner() -> io::Result<()> {
     let record_data = warc_record_data("resource", "<urn:uuid:into-inner>", None, b"ABC");
     let mut reader = ArchiveIterator::new(io::Cursor::new(record_data.clone()))
