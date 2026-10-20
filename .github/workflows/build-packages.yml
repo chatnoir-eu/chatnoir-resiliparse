@@ -19,13 +19,13 @@ env:
   PYTHON_VERSION: "3.14"
   FORCE_COLOR: "1"
   MACOSX_DEPLOYMENT_TARGET: "12.0"
+  PROTOC_VERSION: "35.1"
 
 jobs:
   build-rust:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        protoc_version: [ "35.1" ]
         os: [ ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest ]
         include:
           - os: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
         shell: pwsh
         run: |
           Invoke-WebRequest `
-            -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v${{ matrix.protoc_version }}/protoc-${{ matrix.protoc_version }}-${{ matrix.protoc_platform }}.zip" `
+            -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v$env:PROTOC_VERSION/protoc-$env:PROTOC_VERSION-${{ matrix.protoc_platform }}.zip" `
             -OutFile "$env:RUNNER_TEMP/protoc.zip"
           Expand-Archive "$env:RUNNER_TEMP/protoc.zip" -DestinationPath "$env:RUNNER_TEMP/protoc"
           "$env:RUNNER_TEMP/protoc/bin" | Out-File -Append -FilePath $env:GITHUB_PATH
