@@ -329,6 +329,13 @@ fn record_http_parsing() -> io::Result<()> {
 }
 
 #[test]
+fn warcinfo_quirks_mode_without_length_respects_buffer_limit() {
+    let data = format!("WARC/1.1\r\nWARC-Type: warcinfo\r\n\r\nsoftware: {}\r\n\r\n", "x".repeat(100));
+    let error = WarcRecord::from_reader_with_opts(io::Cursor::new(data), true, 64).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+}
+
+#[test]
 fn parse_warc_headers_quirks_and_payload_replacement() -> io::Result<()> {
     let warc_data = b"garbage before header\r\n\
                       \r\n\

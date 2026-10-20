@@ -535,17 +535,19 @@
 //! have non-trivial defects nonetheless.
 //!
 //! *First*, the initial `warcinfo` records are missing the required `Content-Length` header, so we have to rely on
-//! heuristics to determine where the record ends. If quirks mode is on and the WARC is read from a Gzip-compressed
-//! stream, FastWARC will attempt to use the internal buffer boundaries for determining the record end. If you are
-//! reading the WARC as an uncompressed file, FastWARC has to seek forward to the next valid `WARC/1.1` version line.
-//! In this case, the record body will be skipped as empty. Without quirks mode, FastWARC will stop after the first
-//! header block.
+//! heuristics to determine where the record ends. If quirks mode is on, FastWARC will read and buffer a `warcinfo`
+//! record until a blank line is found (up to `max_header_len` bytes) and then scan forward to the next valid WARC
+//! version line in the next iteration. Without quirks mode, FastWARC will emit a `warcinfo` record with an empty
+//! payload and then exit with an `"Invalid WARC header"` error.
 //!
 //! *Second*, all records are of type `response` with `Content-Type: application/http; msgtype=response`, yet they
 //! contain only the HTML body and not the full HTTP response (the correct record type would be `resource` with
 //! `Content-Type: text/html`). This incorrect type description triggers FastWARC's automatic HTTP parsing, which
 //! will result in empty or incomplete record bodies. To avoid this, explicitly set
 //! [`ArchiveIterator::with_parse_http(false)`](warc::iter::ArchiveIterator::with_parse_http).
+//!
+//! *Third*, all `response` records have a number of `VDOM-*` headers, which can get extremely large (up to 1MiB).
+//! When parsing ClueWeb22 WARCs, set the iterator's `max_header_len` option accordingly.
 //!
 //!
 //! # Benchmarks

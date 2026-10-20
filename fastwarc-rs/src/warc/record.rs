@@ -765,7 +765,35 @@ impl WarcRecord {
             }
         }
 
-        reader.set_limit(self.content_length);
+        if quirks_mode
+            && self.record_type == WarcRecordType::WarcInfo
+            && !self.headers.contains_key_bytes(WarcHeader::ContentLength)
+        {
+            // ClueWeb22 has no Content-Length header in the initial warcinfo record.
+            // Read until the next empty line or until max_header_len if quirks mode is on.
+            reader.set_limit(max_header_len as u64);
+            let mut payload = Vec::new();
+            loop {
+                line.clear();
+                let n = reader.read_line(&mut line, max_header_len)?;
+                if n == 0 {
+                    if payload.len() == max_header_len {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "warcinfo record payload exceeds maximum header length",
+                        ));
+                    }
+                    break;
+                }
+                if line.trim_ascii_end().is_empty() {
+                    break;
+                }
+                payload.extend_from_slice(&line);
+            }
+            self.set_bytes_payload(payload);
+        } else {
+            reader.set_limit(self.content_length);
+        }
         Ok(bytes_read)
     }
 
@@ -1395,8 +1423,8 @@ impl WarcRecord {
         }
         match &mut self.reader {
             Some(ReaderType::Original(r)) => r.reset_limit(),
-            Some(ReaderType::Wrapped(_)) => {
-                // Resume on the archive reader, not the finished HTTP decoder.
+            Some(ReaderType::Wrapped(_) | ReaderType::Frozen(_)) => {
+                // Resume on the archive reader after decoded or buffered payloads.
                 let reader = self.detach_reader()?;
                 self.attach_reader(reader);
             }

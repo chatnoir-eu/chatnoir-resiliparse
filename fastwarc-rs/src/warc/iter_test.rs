@@ -305,6 +305,46 @@ fn archive_iterator_thread_safe() -> io::Result<()> {
 }
 
 #[test]
+fn warcinfo_without_content_length_in_quirks_mode() -> io::Result<()> {
+    // Quirks mode: test ClueWeb22-style warcinfo records without Content-Length header
+    for newline in ["\r\n", "\n"] {
+        let payload = format!("software: synthetic{newline}format: WARC{newline}");
+        let first = format!("WARC/1.1{newline}WARC-Type: warcinfo{newline}{newline}{payload}{newline}{newline}");
+        let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
+        let mut gzip = gzip::GzipWriter::new(Vec::new());
+        gzip.write_all(first.as_bytes())?;
+        gzip.finish()?;
+        gzip.write_all(&second)?;
+        let compressed = gzip.into_inner()?;
+        for data in [[first.as_bytes(), second.as_slice()].concat(), compressed] {
+            for inplace in [false, true] {
+                for read_payload in [false, true] {
+                    let reader = io::BufReader::with_capacity(4, io::Cursor::new(data.clone()));
+                    let mut iterator = ArchiveIterator::new(reader)
+                        .with_quirks_mode(true)
+                        .with_inplace(inplace);
+                    let record = iterator.next().unwrap()?;
+                    assert_eq!(record.borrow().record_type(), WarcRecordType::WarcInfo);
+                    assert_eq!(record.borrow().content_length(), payload.len() as u64);
+                    if read_payload {
+                        let mut body = Vec::new();
+                        record.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
+                        assert_eq!(body, payload.as_bytes());
+                    }
+                    let next = iterator.next().expect("record after warcinfo")?;
+                    assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
+                    let mut body = Vec::new();
+                    next.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
+                    assert_eq!(body, b"NEXT");
+                    assert!(iterator.next().is_none());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn archive_iterator_quirks_mode() -> io::Result<()> {
     let mut record_data = warc_record_data("resource", "<urn:uuid:a>", None, b"ABC");
     record_data.extend_from_slice(b"corrupted-data-without-linefeed");
