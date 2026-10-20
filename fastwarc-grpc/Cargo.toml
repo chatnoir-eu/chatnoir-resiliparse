@@ -23,8 +23,6 @@ tonic-health = "0.14"
 tonic-reflection = "0.14"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-# Only OffsetDateTime accessors are used; fastwarc's public API exposes the
-# type, so the dependency is unavoidable but needs no extra features.
 time.workspace = true
 
 [build-dependencies]
@@ -32,7 +30,5 @@ tonic-prost-build = "0.14"
 
 [dev-dependencies]
 tempfile = "3"
-# "net" enables TcpListenerStream for the in-process integration test server.
 tokio-stream = { version = "0.1", features = ["net"] }
-# "time" enables tokio::time::timeout for hang-regression tests.
 tokio = { version = "1", features = ["time"] }
