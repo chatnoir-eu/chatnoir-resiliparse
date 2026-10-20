@@ -29,6 +29,7 @@ time.workspace = true
 tonic-prost-build = "0.14"
 
 [dev-dependencies]
+rstest.workspace = true
 tempfile = "3"
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio = { version = "1", features = ["time"] }

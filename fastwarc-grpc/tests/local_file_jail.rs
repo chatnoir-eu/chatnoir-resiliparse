@@ -17,6 +17,7 @@
 
 mod common;
 
+use rstest::rstest;
 use std::path::{Path, PathBuf};
 
 use common::{RecordOutcome, data_path, group_responses};
@@ -94,15 +95,17 @@ async fn absolute_path_outside_root_is_rejected() {
 
 /// `..` components cannot escape the jail, even when the traversal would
 /// land back on an existing file.
+#[rstest]
+#[case::absolute_escape(true, "../../../fastwarc-rs/tests/fixtures/warcfile.warc.zst")]
+#[case::relative_escape(false, "../data/warcfile.warc")]
+#[case::parent(false, "..")]
 #[tokio::test]
-async fn parent_traversal_is_rejected() {
+async fn parent_traversal_is_rejected(#[case] absolute: bool, #[case] path: &str) {
     let (mut client, root) = fixture_jail_client().await;
-    // Escapes to the sibling fixture directory of the fastwarc crate.
-    let escape = format!("{}/../../../fastwarc-rs/tests/fixtures/warcfile.warc.zst", root.display());
-    for requested in [escape, "../data/warcfile.warc".to_owned(), "..".to_owned()] {
-        let status = parse_path(&mut client, requested.clone()).await.unwrap_err();
-        assert_eq!(status.code(), tonic::Code::PermissionDenied, "expected denial for {requested}");
-    }
+    let requested = if absolute { root.join(path) } else { PathBuf::from(path) };
+    let requested = requested.to_string_lossy().into_owned();
+    let status = parse_path(&mut client, requested.clone()).await.unwrap_err();
+    assert_eq!(status.code(), tonic::Code::PermissionDenied, "expected denial for {requested}");
 }
 
 /// A symlink inside the jail pointing outside of it is rejected.

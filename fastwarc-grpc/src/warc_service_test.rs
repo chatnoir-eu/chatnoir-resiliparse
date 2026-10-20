@@ -14,31 +14,30 @@
 
 use super::*;
 use prost::Message;
+use rstest::rstest;
 
-#[test]
-fn unary_budget_includes_protobuf_framing() {
+#[rstest]
+fn unary_budget_includes_protobuf_framing(#[values(0, 1, 127, 128, 16_383, 16_384)] length: usize) {
     let metadata = pb::RecordMetadata::default();
     let start = pb::ParseWarcResponse {
         kind: Some(pb::parse_warc_response::Kind::RecordStart(pb::RecordStart {
             metadata: Some(metadata.clone()),
         })),
     };
-    for length in [0, 1, 127, 128, 16_383, 16_384] {
-        let chunk = pb::ParseWarcResponse {
-            kind: Some(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk {
-                offset: 0,
-                data: vec![0; length].into(),
-            })),
-        };
-        let response = pb::ParseArchiveResponse {
-            records: vec![pb::ParsedRecord {
-                metadata: Some(metadata.clone()),
-                payload: vec![0; length],
-            }],
-            errors: vec![],
-        };
-        assert!(event_size(&start) + event_size(&chunk) >= response.encoded_len());
-    }
+    let chunk = pb::ParseWarcResponse {
+        kind: Some(pb::parse_warc_response::Kind::PayloadChunk(pb::PayloadChunk {
+            offset: 0,
+            data: vec![0; length].into(),
+        })),
+    };
+    let response = pb::ParseArchiveResponse {
+        records: vec![pb::ParsedRecord {
+            metadata: Some(metadata.clone()),
+            payload: vec![0; length],
+        }],
+        errors: vec![],
+    };
+    assert!(event_size(&start) + event_size(&chunk) >= response.encoded_len());
     let error = pb::RecordError {
         message: "bad record".into(),
         ..Default::default()
@@ -187,38 +186,38 @@ fn response_cancellation_stops_an_unflushed_batch() {
 }
 
 /// Keep parsing active until validation finishes so scheduling cannot hide errors.
+#[rstest]
+#[case::duplicate_config(Ok(pb::ParseWarcRequest {
+    kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig::default())),
+}))]
+#[case::missing_kind(Ok(pb::ParseWarcRequest { kind: None }))]
+#[case::transport_error(Err(Status::data_loss("upload failed")))]
 #[tokio::test]
-async fn local_file_requests_reject_invalid_messages_while_parsing() {
-    for message in [
+async fn local_file_requests_reject_invalid_messages_while_parsing(
+    #[case] message: Result<pb::ParseWarcRequest, Status>,
+) {
+    let expected = message
+        .as_ref()
+        .err()
+        .map_or(tonic::Code::InvalidArgument, Status::code);
+    let (finish_tx, finish_rx) = tokio::sync::oneshot::channel::<()>();
+    let parser = tokio::spawn(async move {
+        let _ = finish_rx.await;
+    });
+    let (response_tx, mut response_rx) = mpsc::channel(1);
+    let stream = tokio_stream::iter([
         Ok(pb::ParseWarcRequest {
-            kind: Some(pb::parse_warc_request::Kind::Config(pb::ParseWarcConfig::default())),
+            kind: Some(pb::parse_warc_request::Kind::Chunk(Bytes::from_static(b"ignored"))),
         }),
-        Ok(pb::ParseWarcRequest { kind: None }),
-        Err(Status::data_loss("upload failed")),
-    ] {
-        let expected = message
-            .as_ref()
-            .err()
-            .map_or(tonic::Code::InvalidArgument, Status::code);
-        let (finish_tx, finish_rx) = tokio::sync::oneshot::channel::<()>();
-        let parser = tokio::spawn(async move {
-            let _ = finish_rx.await;
-        });
-        let (response_tx, mut response_rx) = mpsc::channel(1);
-        let stream = tokio_stream::iter([
-            Ok(pb::ParseWarcRequest {
-                kind: Some(pb::parse_warc_request::Kind::Chunk(Bytes::from_static(b"ignored"))),
-            }),
-            message,
-        ]);
-        tokio::time::timeout(std::time::Duration::from_secs(10), validate_local_requests(stream, response_tx, parser))
-            .await
-            .expect("local-file validation did not finish");
-        let status = response_rx.recv().await.unwrap().unwrap_err();
-        assert_eq!(status.code(), expected);
-        assert!(response_rx.recv().await.is_none());
-        finish_tx.send(()).unwrap();
-    }
+        message,
+    ]);
+    tokio::time::timeout(std::time::Duration::from_secs(10), validate_local_requests(stream, response_tx, parser))
+        .await
+        .expect("local-file validation did not finish");
+    let status = response_rx.recv().await.unwrap().unwrap_err();
+    assert_eq!(status.code(), expected);
+    assert!(response_rx.recv().await.is_none());
+    finish_tx.send(()).unwrap();
 }
 
 /// An idle upload must not queue other requests behind a blocked parser.
@@ -399,34 +398,21 @@ fn cancelled_unary_request_keeps_queued_parser_slot() {
     });
 }
 
-#[test]
-fn invalid_parser_limits_are_rejected() {
-    for limit in [0, Semaphore::MAX_PERMITS + 1] {
-        let error = WarcParser::new().with_max_concurrent_parsers(limit).err().unwrap();
-        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-    }
+#[rstest]
+#[case::zero(0)]
+#[case::above_maximum(Semaphore::MAX_PERMITS + 1)]
+fn invalid_parser_limits_are_rejected(#[case] limit: usize) {
+    let error = WarcParser::new().with_max_concurrent_parsers(limit).err().unwrap();
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
     assert_eq!(WarcParser::default().parser_slots.available_permits(), DEFAULT_MAX_CONCURRENT_PARSERS);
 }
 
-#[test]
-fn unknown_enum_values_are_rejected() {
-    let configs = [
-        pb::ParseWarcConfig {
-            record_types: vec![pb::WarcRecordType::Response as i32, 999],
-            ..Default::default()
-        },
-        pb::ParseWarcConfig {
-            filters: vec![999],
-            ..Default::default()
-        },
-        pb::ParseWarcConfig {
-            decode_http_payload: 999,
-            ..Default::default()
-        },
-    ];
-    for config in configs {
-        assert_eq!(validate_config(&config).unwrap_err().code(), tonic::Code::InvalidArgument);
-    }
+#[rstest]
+#[case::record_type(pb::ParseWarcConfig { record_types: vec![pb::WarcRecordType::Response as i32, 999], ..Default::default() })]
+#[case::filter(pb::ParseWarcConfig { filters: vec![999], ..Default::default() })]
+#[case::decode(pb::ParseWarcConfig { decode_http_payload: 999, ..Default::default() })]
+fn unknown_enum_values_are_rejected(#[case] config: pb::ParseWarcConfig) {
+    assert_eq!(validate_config(&config).unwrap_err().code(), tonic::Code::InvalidArgument);
     let known = pb::ParseWarcConfig {
         record_types: vec![
             pb::WarcRecordType::Unspecified as i32,

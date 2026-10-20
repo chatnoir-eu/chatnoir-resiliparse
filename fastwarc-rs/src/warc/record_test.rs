@@ -20,6 +20,7 @@ use crate::warc::mod_test::*;
 use data_encoding::{BASE32, HEXLOWER};
 use md5::Md5;
 use pretty_assertions::{assert_eq, assert_ne};
+use rstest::rstest;
 use sha1::{Digest, Sha1};
 use sha2::{Sha256, Sha512};
 use std::io::{self, BufRead, Read, Seek, Write};
@@ -58,26 +59,24 @@ fn record_type_from_helpers() {
     assert_eq!(<&'static str>::from(WarcRecordType::NoType), "unknown");
 }
 
+#[rstest]
+#[case::warcinfo(WarcRecordType::WarcInfo, 2, "warcinfo")]
+#[case::response(WarcRecordType::Response, 4, "response")]
+#[case::resource(WarcRecordType::Resource, 8, "resource")]
+#[case::request(WarcRecordType::Request, 16, "request")]
+#[case::metadata(WarcRecordType::Metadata, 32, "metadata")]
+#[case::revisit(WarcRecordType::Revisit, 64, "revisit")]
+#[case::conversion(WarcRecordType::Conversion, 128, "conversion")]
+#[case::continuation(WarcRecordType::Continuation, 256, "continuation")]
+fn record_type_conversions(#[case] record_type: WarcRecordType, #[case] value: u16, #[case] name: &str) {
+    assert_eq!(WarcRecordType::try_from(value), Ok(record_type));
+    assert_eq!(WarcRecordType::try_from(name), Ok(record_type));
+    assert_eq!(WarcRecordType::try_from(name.as_bytes()), Ok(record_type));
+    assert_eq!(<&'static str>::from(record_type), name);
+}
+
 #[test]
-fn record_type_conversions() {
-    let named_types = [
-        (WarcRecordType::WarcInfo, 2u16, "warcinfo"),
-        (WarcRecordType::Response, 4u16, "response"),
-        (WarcRecordType::Resource, 8u16, "resource"),
-        (WarcRecordType::Request, 16u16, "request"),
-        (WarcRecordType::Metadata, 32u16, "metadata"),
-        (WarcRecordType::Revisit, 64u16, "revisit"),
-        (WarcRecordType::Conversion, 128u16, "conversion"),
-        (WarcRecordType::Continuation, 256u16, "continuation"),
-    ];
-
-    for (record_type, value, name) in named_types {
-        assert_eq!(WarcRecordType::try_from(value), Ok(record_type));
-        assert_eq!(WarcRecordType::try_from(name), Ok(record_type));
-        assert_eq!(WarcRecordType::try_from(name.as_bytes()), Ok(record_type));
-        assert_eq!(<&'static str>::from(record_type), name);
-    }
-
+fn record_type_special_conversions() {
     assert_eq!(WarcRecordType::try_from(WarcRecordType::AnyType as u16), Ok(WarcRecordType::AnyType));
     assert_eq!(WarcRecordType::try_from(WarcRecordType::NoType as u16), Ok(WarcRecordType::NoType));
     assert_eq!(<&'static str>::from(WarcRecordType::AnyType), "unknown");

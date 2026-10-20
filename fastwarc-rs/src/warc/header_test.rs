@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use super::*;
+use rstest::rstest;
 use std::borrow::Cow;
 use std::io::{self, Read};
 
@@ -250,26 +251,26 @@ fn parse_headers_with_continuation_lines() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn parse_headers_with_split_eoh_marker() -> io::Result<()> {
-    for sep in ["\n", "\r\n"] {
-        // EOH markers split at buffer boundaries should not cause issues.
-        let http_headers = format!("HTTP/1.1 200 OK{sep}Content-Length: 123{sep}{sep}");
-        let http_data = [http_headers.as_bytes(), b"payload"].concat();
+#[rstest]
+#[case::lf("\n")]
+#[case::crlf("\r\n")]
+fn parse_headers_with_split_eoh_marker(#[case] sep: &str) -> io::Result<()> {
+    // EOH markers split at buffer boundaries should not cause issues.
+    let http_headers = format!("HTTP/1.1 200 OK{sep}Content-Length: 123{sep}{sep}");
+    let http_data = [http_headers.as_bytes(), b"payload"].concat();
 
-        let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
-        let mut reader = io::BufReader::with_capacity(1, io::Cursor::new(http_data));
-        let quirks_mode = sep == "\n";
-        let bytes_read = headers.parse_with_opts(&mut reader, true, 8192, quirks_mode)?;
+    let mut headers = HeaderMap::new(HeaderEncoding::Latin1);
+    let mut reader = io::BufReader::with_capacity(1, io::Cursor::new(http_data));
+    let quirks_mode = sep == "\n";
+    let bytes_read = headers.parse_with_opts(&mut reader, true, 8192, quirks_mode)?;
 
-        assert_eq!(bytes_read, http_headers.len());
-        assert_eq!(headers.status_line().as_deref(), Some("HTTP/1.1 200 OK"));
-        assert_eq!(headers.get("Content-Length").as_deref(), Some("123"));
+    assert_eq!(bytes_read, http_headers.len());
+    assert_eq!(headers.status_line().as_deref(), Some("HTTP/1.1 200 OK"));
+    assert_eq!(headers.get("Content-Length").as_deref(), Some("123"));
 
-        let mut payload = Vec::new();
-        reader.read_to_end(&mut payload)?;
-        assert_eq!(payload, b"payload");
-    }
+    let mut payload = Vec::new();
+    reader.read_to_end(&mut payload)?;
+    assert_eq!(payload, b"payload");
 
     Ok(())
 }

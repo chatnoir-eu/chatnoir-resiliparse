@@ -25,6 +25,7 @@ use data_encoding::{BASE32, HEXLOWER};
 use digest::Digest;
 use md5::Md5;
 use pretty_assertions::{assert_eq, assert_ne};
+use rstest::rstest;
 use sha1::Sha1;
 use std::fs::File;
 use std::io;
@@ -152,29 +153,30 @@ fn archive_iterator_inplace() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn archive_iterator_inplace_after_http_decoding() -> io::Result<()> {
+#[rstest]
+#[case::unread(0)]
+#[case::partial(1)]
+#[case::complete(3)]
+fn archive_iterator_inplace_after_http_decoding(#[case] read_length: usize) -> io::Result<()> {
     let first = http_response_warc_data_encoded("<urn:uuid:encoded>", b"3\r\nabc\r\n0\r\n\r\n", Some("chunked"), None);
     let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
-    for read_length in [0, 1, 3] {
-        let mut iterator = ArchiveIterator::new(io::Cursor::new([first.as_slice(), second.as_slice()].concat()))
-            .with_inplace(true)
-            .with_decode_http_payload(AutoDecode::All);
-        let record = iterator.next().unwrap()?;
-        let mut payload = vec![0; read_length];
-        record.borrow_mut().reader_mut().unwrap().read_exact(&mut payload)?;
-        assert_eq!(payload, b"abc"[..read_length]);
+    let mut iterator = ArchiveIterator::new(io::Cursor::new([first.as_slice(), second.as_slice()].concat()))
+        .with_inplace(true)
+        .with_decode_http_payload(AutoDecode::All);
+    let record = iterator.next().unwrap()?;
+    let mut payload = vec![0; read_length];
+    record.borrow_mut().reader_mut().unwrap().read_exact(&mut payload)?;
+    assert_eq!(payload, b"abc"[..read_length]);
 
-        let next = iterator.next().expect("record after the HTTP decoder")?;
-        assert!(Rc::ptr_eq(&record, &next));
-        assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
-        assert_eq!(next.borrow().stream_pos(), first.len() as u64);
-        assert!(!next.borrow().is_http_parsed());
-        payload.clear();
-        next.borrow_mut().reader_mut().unwrap().read_to_end(&mut payload)?;
-        assert_eq!(payload, b"NEXT");
-        assert!(iterator.next().is_none());
-    }
+    let next = iterator.next().expect("record after the HTTP decoder")?;
+    assert!(Rc::ptr_eq(&record, &next));
+    assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
+    assert_eq!(next.borrow().stream_pos(), first.len() as u64);
+    assert!(!next.borrow().is_http_parsed());
+    payload.clear();
+    next.borrow_mut().reader_mut().unwrap().read_to_end(&mut payload)?;
+    assert_eq!(payload, b"NEXT");
+    assert!(iterator.next().is_none());
     Ok(())
 }
 
@@ -192,38 +194,25 @@ fn archive_iterator_into_inner() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn archive_iterator_stream_compression_autodetection() -> io::Result<()> {
-    let plain_warc = get_fixture_path("warcfile.warc");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(plain_warc)?));
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let gzip_warc = get_fixture_path("warcfile.warc.gz");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(gzip_warc)?));
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let zstd_warc = get_fixture_path("warcfile.warc.zst");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(zstd_warc)?));
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let zstd_dict_warc = get_fixture_path("warcfile-with-dict.warc.zst");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(zstd_dict_warc)?));
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let lz4_warc = get_fixture_path("warcfile.warc.lz4");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(lz4_warc)?));
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    // Gzip without autodetection
-    let gzip_warc = get_fixture_path("warcfile.warc.gz");
-    let mut it = ArchiveIterator::new(io::BufReader::new(File::open(gzip_warc)?)).with_stream_detect(false);
-    assert_eq!(it.next().transpose().unwrap_err().kind(), io::ErrorKind::InvalidData);
-
+#[rstest]
+#[case::plain("warcfile.warc", true)]
+#[case::gzip("warcfile.warc.gz", true)]
+#[case::zstd("warcfile.warc.zst", true)]
+#[case::zstd_dictionary("warcfile-with-dict.warc.zst", true)]
+#[case::lz4("warcfile.warc.lz4", true)]
+#[case::disabled("warcfile.warc.gz", false)]
+fn archive_iterator_stream_compression_autodetection(
+    #[case] file: &str,
+    #[case] stream_detect: bool,
+) -> io::Result<()> {
+    let reader = io::BufReader::new(File::open(get_fixture_path(file))?);
+    let mut iterator = ArchiveIterator::new(reader).with_stream_detect(stream_detect);
+    if stream_detect {
+        iterator.next().expect("first record")?;
+        iterator.next().expect("second record")?;
+    } else {
+        assert_eq!(iterator.next().transpose().unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
     Ok(())
 }
 
@@ -247,42 +236,32 @@ fn archive_iterator_no_stream_detect_for_decoding_readers() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn archive_iterator_from_path() -> io::Result<()> {
-    let plain_warc = get_fixture_path("warcfile.warc");
-    let mut it = ArchiveIterator::from_path(plain_warc)?;
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    // Invalid path
-    let plain_warc = get_fixture_path("warcfile.warc.doesnotexist");
-    assert_eq!(ArchiveIterator::from_path(plain_warc).unwrap_err().kind(), io::ErrorKind::NotFound);
-
-    // With autodetection
-    let gzip_warc = get_fixture_path("warcfile.warc.gz");
-    let mut it = ArchiveIterator::from_path(gzip_warc)?;
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let zstd_warc = get_fixture_path("warcfile.warc.zst");
-    let mut it = ArchiveIterator::from_path(zstd_warc)?;
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    let lz4_warc = get_fixture_path("warcfile.warc.lz4");
-    let mut it = ArchiveIterator::from_path(lz4_warc)?;
-    it.next().transpose()?;
-    it.next().transpose()?;
-
-    // Without autodetection
-    let plain_warc = get_fixture_path("warcfile.warc.gz");
-    let opts = ArchiveIteratorOptions {
-        stream_detect: false,
-        ..ArchiveIteratorOptions::default()
+#[rstest]
+#[case::plain("warcfile.warc", true, None)]
+#[case::gzip("warcfile.warc.gz", true, None)]
+#[case::zstd("warcfile.warc.zst", true, None)]
+#[case::lz4("warcfile.warc.lz4", true, None)]
+#[case::missing("warcfile.warc.doesnotexist", true, Some(io::ErrorKind::NotFound))]
+#[case::disabled("warcfile.warc.gz", false, Some(io::ErrorKind::InvalidData))]
+fn archive_iterator_from_path(
+    #[case] file: &str,
+    #[case] stream_detect: bool,
+    #[case] expected_error: Option<io::ErrorKind>,
+) -> io::Result<()> {
+    let options = ArchiveIteratorOptions {
+        stream_detect,
+        ..Default::default()
     };
-    let mut it = ArchiveIterator::from_path_with_options(plain_warc, opts)?;
-    assert_eq!(it.next().transpose().unwrap_err().kind(), io::ErrorKind::InvalidData);
-
+    let result = ArchiveIterator::from_path_with_options(get_fixture_path(file), options).and_then(|mut iterator| {
+        iterator.next().expect("first record")?;
+        iterator.next().expect("second record")?;
+        Ok(())
+    });
+    if let Some(expected) = expected_error {
+        assert_eq!(result.unwrap_err().kind(), expected);
+    } else {
+        result?;
+    }
     Ok(())
 }
 
@@ -304,43 +283,46 @@ fn archive_iterator_thread_safe() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn warcinfo_without_content_length_in_quirks_mode() -> io::Result<()> {
+#[rstest]
+#[case::crlf("\r\n")]
+#[case::lf("\n")]
+fn warcinfo_without_content_length_in_quirks_mode(
+    #[case] newline: &str,
+    #[values(false, true)] compressed: bool,
+    #[values(false, true)] inplace: bool,
+    #[values(false, true)] read_payload: bool,
+) -> io::Result<()> {
     // Quirks mode: test ClueWeb22-style warcinfo records without Content-Length header
-    for newline in ["\r\n", "\n"] {
-        let payload = format!("software: synthetic{newline}format: WARC{newline}");
-        let first = format!("WARC/1.1{newline}WARC-Type: warcinfo{newline}{newline}{payload}{newline}{newline}");
-        let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
+    let payload = format!("software: synthetic{newline}format: WARC{newline}");
+    let first = format!("WARC/1.1{newline}WARC-Type: warcinfo{newline}{newline}{payload}{newline}{newline}");
+    let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
+    let data = if compressed {
         let mut gzip = gzip::GzipWriter::new(Vec::new());
         gzip.write_all(first.as_bytes())?;
         gzip.finish()?;
         gzip.write_all(&second)?;
-        let compressed = gzip.into_inner()?;
-        for data in [[first.as_bytes(), second.as_slice()].concat(), compressed] {
-            for inplace in [false, true] {
-                for read_payload in [false, true] {
-                    let reader = io::BufReader::with_capacity(4, io::Cursor::new(data.clone()));
-                    let mut iterator = ArchiveIterator::new(reader)
-                        .with_quirks_mode(true)
-                        .with_inplace(inplace);
-                    let record = iterator.next().unwrap()?;
-                    assert_eq!(record.borrow().record_type(), WarcRecordType::WarcInfo);
-                    assert_eq!(record.borrow().content_length(), payload.len() as u64);
-                    if read_payload {
-                        let mut body = Vec::new();
-                        record.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
-                        assert_eq!(body, payload.as_bytes());
-                    }
-                    let next = iterator.next().expect("record after warcinfo")?;
-                    assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
-                    let mut body = Vec::new();
-                    next.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
-                    assert_eq!(body, b"NEXT");
-                    assert!(iterator.next().is_none());
-                }
-            }
-        }
+        gzip.into_inner()?
+    } else {
+        [first.as_bytes(), second.as_slice()].concat()
+    };
+    let reader = io::BufReader::with_capacity(4, io::Cursor::new(data));
+    let mut iterator = ArchiveIterator::new(reader)
+        .with_quirks_mode(true)
+        .with_inplace(inplace);
+    let record = iterator.next().unwrap()?;
+    assert_eq!(record.borrow().record_type(), WarcRecordType::WarcInfo);
+    assert_eq!(record.borrow().content_length(), payload.len() as u64);
+    if read_payload {
+        let mut body = Vec::new();
+        record.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
+        assert_eq!(body, payload.as_bytes());
     }
+    let next = iterator.next().expect("record after warcinfo")?;
+    assert_eq!(next.borrow().record_id().as_deref(), Some("<urn:uuid:next>"));
+    let mut body = Vec::new();
+    next.borrow_mut().reader_mut().unwrap().read_to_end(&mut body)?;
+    assert_eq!(body, b"NEXT");
+    assert!(iterator.next().is_none());
     Ok(())
 }
 
@@ -639,38 +621,36 @@ fn clone_warc_file() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn archive_iterator_read_clipped_warc_file() -> io::Result<()> {
+#[rstest]
+fn archive_iterator_read_clipped_warc_file(#[values(false, true)] parse_http: bool) -> io::Result<()> {
     let clipped = get_fixture_path("clipped.warc.gz");
 
-    for parse_http in [true, false] {
-        let mut rec_count = 0;
-        run_archive_iterator_variants(
-            || Ok(gzip::GzipReader::new(File::open(clipped.clone())?)),
-            |r| -> io::Result<()> {
-                let mut content = Vec::with_capacity(r.content_length() as usize);
-                r.reader_mut().unwrap().read_to_end(&mut content)?;
+    let mut rec_count = 0;
+    run_archive_iterator_variants(
+        || Ok(gzip::GzipReader::new(File::open(clipped.clone())?)),
+        |r| -> io::Result<()> {
+            let mut content = Vec::with_capacity(r.content_length() as usize);
+            r.reader_mut().unwrap().read_to_end(&mut content)?;
 
-                if parse_http {
-                    r.parse_http()?;
-                    assert!(r.http_headers().is_some());
-                } else {
-                    assert!(content.starts_with(b"HTTP/"));
-                }
-                // Content-Length is larger than the actual clipped payload.
-                assert!(r.content_length() as usize > content.len());
+            if parse_http {
+                r.parse_http()?;
+                assert!(r.http_headers().is_some());
+            } else {
+                assert!(content.starts_with(b"HTTP/"));
+            }
+            // Content-Length is larger than the actual clipped payload.
+            assert!(r.content_length() as usize > content.len());
 
-                // Should fail, since we already read the contents.
-                assert!(!r.verify_block_digest(true).unwrap());
-                rec_count += 1;
+            // Should fail, since we already read the contents.
+            assert!(!r.verify_block_digest(true).unwrap());
+            rec_count += 1;
 
-                Ok(())
-            },
-        )?;
+            Ok(())
+        },
+    )?;
 
-        // Contains exactly one record (one per iteration)
-        assert_eq!(rec_count, 2);
-    }
+    // Contains exactly one record (one per iteration)
+    assert_eq!(rec_count, 2);
 
     Ok(())
 }
@@ -822,18 +802,16 @@ fn archive_iterator_zstd_dict() -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn invalid_header_between_records_is_reported() -> io::Result<()> {
+#[rstest]
+fn invalid_header_between_records_is_reported(#[values(false, true)] inplace: bool) -> io::Result<()> {
     let mut data = warc_record_data("warcinfo", "<urn:uuid:first>", None, b"ABC");
     data.extend_from_slice(b"NOT-A-WARC-HEADER\r\n\r\n");
     data.extend_from_slice(&warc_record_data("resource", "<urn:uuid:last>", None, b"X"));
-    for inplace in [false, true] {
-        let mut iterator = ArchiveIterator::new(io::Cursor::new(data.clone()))
-            .with_parse_http(false)
-            .with_inplace(inplace);
-        let first = iterator.next().expect("first record")?;
-        assert_eq!(first.borrow().record_id().as_deref(), Some("<urn:uuid:first>"));
-        assert!(iterator.next().expect("framing error").is_err());
-    }
+    let mut iterator = ArchiveIterator::new(io::Cursor::new(data))
+        .with_parse_http(false)
+        .with_inplace(inplace);
+    let first = iterator.next().expect("first record")?;
+    assert_eq!(first.borrow().record_id().as_deref(), Some("<urn:uuid:first>"));
+    assert!(iterator.next().expect("framing error").is_err());
     Ok(())
 }

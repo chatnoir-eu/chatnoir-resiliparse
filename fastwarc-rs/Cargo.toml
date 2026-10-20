@@ -30,3 +30,4 @@ digest = "0.11"
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+rstest.workspace = true
