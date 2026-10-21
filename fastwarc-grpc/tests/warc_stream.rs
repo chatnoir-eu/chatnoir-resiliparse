@@ -1368,3 +1368,39 @@ async fn record_end_length_reflects_http_header_stripping() {
     assert_eq!(payload_length, Some(4), "payload_length should be the HTTP-stripped body length");
     assert_eq!(content_length, Some(4));
 }
+
+/// Batched record events are flushed when the upload stream goes idle.
+#[tokio::test]
+async fn batched_record_delivered_while_upload_idle() {
+    let record = b"WARC/1.0\r\nWARC-Type: resource\r\nWARC-Record-ID: <urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Length: 4\r\n\r\nbody\r\n\r\n";
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
+        response_batch_size: 64,
+        ..Default::default()
+    };
+    let mut client = common::warc_client().await;
+    let (req_tx, req_rx) = tokio::sync::mpsc::channel::<pb::ParseWarcRequest>(4);
+    for request in common::warc_requests(record, record.len(), &config) {
+        req_tx.send(request).await.unwrap();
+    }
+    let mut stream = client
+        .parse_warc(tokio_stream::wrappers::ReceiverStream::new(req_rx))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let first = tokio::time::timeout(std::time::Duration::from_secs(10), stream.message())
+        .await
+        .expect("batched events were withheld while the parser waited for more input")
+        .unwrap()
+        .unwrap();
+    let mut events = Vec::new();
+    common::for_each_event(std::slice::from_ref(&first), |event| events.push(event.clone()));
+    assert!(
+        matches!(events.last().and_then(|e| e.kind.as_ref()), Some(pb::parse_warc_response::Kind::RecordEnd(_))),
+        "expected the complete record sequence, got {events:?}"
+    );
+
+    drop(req_tx);
+    while stream.message().await.unwrap().is_some() {}
+}

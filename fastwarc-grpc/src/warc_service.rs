@@ -22,7 +22,7 @@ mod parser;
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use cap_std::fs::Dir;
 use fastwarc::stream_io::bufread::RawReaderAdapter;
@@ -368,13 +368,21 @@ fn validate_limit(name: &str, value: u32, max: usize) -> Result<(), Status> {
     }
 }
 
+fn lock(emitter: &Mutex<BatchEmitter>) -> std::sync::MutexGuard<'_, BatchEmitter> {
+    emitter.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// Parses the selected input and flushes any pending response batch.
 fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::ParseWarcConfig) {
-    let mut emitter = BatchEmitter::new(response_tx, convert::response_batch_size(config));
-    let mut emit = |response| emitter.emit(response);
+    let emitter = Arc::new(Mutex::new(BatchEmitter::new(response_tx.clone(), convert::response_batch_size(config))));
+    let mut emit = |response| lock(&emitter).emit(response);
     match input {
         ParserInput::Chunks(chunk_rx) => {
-            parse_into(RawReaderAdapter::new(ChannelReader::new(chunk_rx)), config, &mut emit);
+            let idle_emitter = Arc::clone(&emitter);
+            let reader = ChannelReader::new(chunk_rx).with_idle_hook(move || {
+                let _ = lock(&idle_emitter).flush();
+            });
+            parse_into(RawReaderAdapter::new(reader), config, &mut emit);
         }
         ParserInput::LocalFile(root, path) => {
             let input_buffer_size = if config.input_buffer_size == 0 {
@@ -401,7 +409,7 @@ fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::Par
             }
         }
     }
-    emitter.flush();
+    lock(&emitter).flush();
 }
 
 /// Collects records for the unary RPC, stopping when the response budget is exceeded.
