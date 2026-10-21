@@ -26,9 +26,9 @@ const ITEM_TAG: u32 = 1;
 
 /// Groups events by count and encoded size without reordering them.
 /// Call [`Self::flush`] after the last event to send any remaining items.
-pub(super) struct BatchEmitter<'a> {
+pub(super) struct BatchEmitter {
     /// Response stream that receives the finished batches.
-    tx: &'a ResponseSender,
+    tx: ResponseSender,
     /// Events accumulated for the current batch, in emission order.
     batch: Vec<pb::ParseWarcResponse>,
     /// Number of events that triggers a flush; `<= 1` disables batching.
@@ -38,9 +38,9 @@ pub(super) struct BatchEmitter<'a> {
     batch_bytes: usize,
 }
 
-impl BatchEmitter<'_> {
+impl BatchEmitter {
     /// An emitter that groups `batch_size` events per response on `tx`.
-    pub(super) fn new(tx: &ResponseSender, batch_size: usize) -> BatchEmitter<'_> {
+    pub(super) fn new(tx: ResponseSender, batch_size: usize) -> BatchEmitter {
         BatchEmitter {
             tx,
             batch: Vec::new(),
@@ -56,7 +56,7 @@ impl BatchEmitter<'_> {
             return false;
         }
         if self.batch_size <= 1 {
-            return send_response(self.tx, response);
+            return send_response(&self.tx, response);
         }
 
         let encoded_len = response.encoded_len();
@@ -93,7 +93,7 @@ impl BatchEmitter<'_> {
                 kind: Some(pb::parse_warc_response::Kind::Batch(pb::RecordBatch { items })),
             }
         };
-        send_response(self.tx, response)
+        send_response(&self.tx, response)
     }
 }
 

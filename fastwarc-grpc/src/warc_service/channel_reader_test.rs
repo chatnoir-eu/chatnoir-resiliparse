@@ -62,3 +62,32 @@ fn seek_accepts_current_position_only() {
     assert_eq!(reader.seek(SeekFrom::Current(1)).unwrap_err().kind(), io::ErrorKind::Unsupported);
     assert_eq!(reader.seek(SeekFrom::End(0)).unwrap_err().kind(), io::ErrorKind::Unsupported);
 }
+
+#[test]
+fn idle_hook_runs_only_before_waiting() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let (tx, rx) = mpsc::channel(2);
+    tx.try_send(Bytes::from_static(b"WARC")).unwrap();
+    let idle = Arc::new(AtomicUsize::new(0));
+    let mut reader = ChannelReader::new(rx).with_idle_hook({
+        let idle = Arc::clone(&idle);
+        move || {
+            idle.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+
+    assert_eq!(reader.fill_buf().unwrap(), b"WARC");
+    assert_eq!(idle.load(Ordering::SeqCst), 0);
+    reader.consume(4);
+
+    let sender = std::thread::spawn(move || {
+        while idle.load(Ordering::SeqCst) == 0 {
+            std::thread::yield_now();
+        }
+        tx.blocking_send(Bytes::from_static(b"/1.0")).unwrap();
+    });
+    assert_eq!(reader.fill_buf().unwrap(), b"/1.0");
+    sender.join().unwrap();
+}

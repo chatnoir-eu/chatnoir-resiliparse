@@ -18,6 +18,7 @@ use std::io::{self, BufRead, Read, Seek, SeekFrom};
 
 use prost::bytes::{Buf, Bytes, BytesMut};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
 
 /// Prefix length required by compression detection.
 const MAGIC_LEN: usize = 4;
@@ -33,6 +34,8 @@ pub(super) struct ChannelReader {
     /// Absolute position in the logical archive stream, i.e. the number of
     /// bytes consumed so far.
     pos: u64,
+    /// Callback invoked before waiting on an empty channel.
+    on_idle: Option<Box<dyn FnMut() + Send>>,
 }
 
 impl ChannelReader {
@@ -42,6 +45,27 @@ impl ChannelReader {
             rx,
             current: Bytes::new(),
             pos: 0,
+            on_idle: None,
+        }
+    }
+
+    /// Calls `on_idle` each time the reader is about to wait for input.
+    pub(super) fn with_idle_hook(mut self, on_idle: impl FnMut() + Send + 'static) -> Self {
+        self.on_idle = Some(Box::new(on_idle));
+        self
+    }
+
+    /// Receives the next chunk, running the idle hook before waiting.
+    fn recv(&mut self) -> Option<Bytes> {
+        match self.rx.try_recv() {
+            Ok(chunk) => Some(chunk),
+            Err(TryRecvError::Disconnected) => None,
+            Err(TryRecvError::Empty) => {
+                if let Some(on_idle) = self.on_idle.as_mut() {
+                    on_idle();
+                }
+                self.rx.blocking_recv()
+            }
         }
     }
 }
@@ -63,7 +87,7 @@ impl BufRead for ChannelReader {
     /// Returns an empty slice only after the input channel closes.
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         while self.current.is_empty() {
-            match self.rx.blocking_recv() {
+            match self.recv() {
                 Some(chunk) if chunk.is_empty() => {}
                 Some(chunk) => self.current = chunk,
                 None => return Ok(&[]),
@@ -74,7 +98,7 @@ impl BufRead for ChannelReader {
         if self.pos == 0 && self.current.len() < MAGIC_LEN {
             let mut head = BytesMut::from(&self.current[..]);
             while head.len() < MAGIC_LEN {
-                match self.rx.blocking_recv() {
+                match self.recv() {
                     Some(chunk) => head.extend_from_slice(&chunk),
                     None => break,
                 }
