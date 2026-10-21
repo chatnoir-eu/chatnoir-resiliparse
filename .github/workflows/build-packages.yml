@@ -142,7 +142,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Build FastWARC
-        uses: pypa/cibuildwheel@v3.4
+        uses: pypa/cibuildwheel@v4.3
         with:
           package-dir: fastwarc-py
           output-dir: wheelhouse
@@ -150,7 +150,7 @@ jobs:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/fastwarc-py/fastwarc-pytest
 
       - name: Build Resiliparse
-        uses: pypa/cibuildwheel@v3.4
+        uses: pypa/cibuildwheel@v4.3
         with:
           package-dir: resiliparse-py
           output-dir: wheelhouse

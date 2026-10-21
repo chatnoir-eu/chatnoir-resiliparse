@@ -26,8 +26,8 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 bindgen = "0.72"
-pyo3 = "0.28"
-pyo3-build-config = "0.28"
+pyo3 = "0.29"
+pyo3-build-config = "0.29"
 pretty_assertions = "1.4"
 rstest = { version = "0.28", default-features = false }
 memchr = "2.7"
