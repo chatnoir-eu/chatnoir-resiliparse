@@ -114,43 +114,6 @@ cdef lxb_css_selector_list_t* parse_css_selectors(lxb_css_parser_t* parser, cons
     return sel_list
 
 
-cdef inline lxb_dom_node_t* next_node(const lxb_dom_node_t* root_node, lxb_dom_node_t* node,
-                                      size_t* depth=NULL, bint* end_tag=NULL) noexcept nogil:
-    """
-    DOM tree pre-order traversal primitive.
-    
-    This is a more flexible, step-wise implementation of ``lxb_dom_node_simple_walk()``, which
-    allows a client to react on closing tags.
-
-    :param root_node: root node at which traversal started
-    :param node: current node
-    :param depth: tracks DOM depth if not ``NULL`` (needs to be initialized and passed back in at each step)
-    :param end_tag: if not ``NULL``, tracks whether step was an end tag (needs to be initialized with ``False``
-                    and passed back in at each step)
-    :returns: next node or ``NULL`` if done
-    """
-    cdef bint is_end = end_tag and end_tag[0]
-
-    if not is_end and node.first_child:
-        if depth:
-            preinc(depth[0])
-        return node.first_child
-    else:
-        while not node.next and node != root_node:
-            node = node.parent
-            if depth:
-                predec(depth[0])
-            if end_tag:
-                end_tag[0] = True
-                return node
-
-        if end_tag:
-            end_tag[0] = False
-        if node == root_node:
-            return NULL
-        return node.next
-
-
 cdef inline string get_node_text(lxb_dom_node_t* node) noexcept nogil:
     """Get node inner text."""
     cdef lxb_dom_character_data_t* char_data
