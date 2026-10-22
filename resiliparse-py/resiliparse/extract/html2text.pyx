@@ -473,7 +473,10 @@ cdef inline bint _is_unprintable_pua(lxb_dom_node_t* node) noexcept nogil:
     if not node.first_child and node.type != LXB_DOM_NODE_TYPE_TEXT:
         return False
 
-    cdef string element_text = strip_str(get_node_text(node))
+    # Text of the node itself or of its only child, which is a text node
+    cdef lxb_dom_character_data_t* char_data = <lxb_dom_character_data_t*>(
+        node if node.type == LXB_DOM_NODE_TYPE_TEXT else node.first_child)
+    cdef string_view element_text = strip_sv(string_view(<const char*>char_data.data.data, char_data.data.length))
     if element_text.size() > 3:
         return False
 
