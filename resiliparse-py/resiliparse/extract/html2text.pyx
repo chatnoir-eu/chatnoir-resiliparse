@@ -553,9 +553,65 @@ cdef stl_set[string] blacklist_aria_roles = [b'alert', b'banner', b'checkbox', b
                                              b'separator', b'tab', b'toolbar', b'tooltip']
 
 
+cdef struct _MainContentAttrs:
+    # Attribute names used by _is_main_content_node(), looked up in the document's
+    # attribute table once instead of again for every element
+    const lxb_dom_attr_data_t* hidden
+    const lxb_dom_attr_data_t* rel
+    const lxb_dom_attr_data_t* itemprop
+    const lxb_dom_attr_data_t* aria_hidden
+    const lxb_dom_attr_data_t* aria_expanded
+    const lxb_dom_attr_data_t* class_
+    const lxb_dom_attr_data_t* id
+    const lxb_dom_attr_data_t* style
+    const lxb_dom_attr_data_t* role
+    const lxb_dom_attr_data_t* data_ad
+    const lxb_dom_attr_data_t* data_advertisement
+    const lxb_dom_attr_data_t* data_text_ad
+
+
+cdef inline const lxb_dom_attr_data_t* _attr_data(lxb_dom_document_t* document, const string& name) noexcept nogil:
+    return lxb_dom_attr_data_by_local_name(document.attrs, <const lxb_char_t*>name.data(), name.size())
+
+
+cdef _MainContentAttrs _main_content_attrs(lxb_dom_document_t* document) noexcept nogil:
+    cdef _MainContentAttrs attrs
+    attrs.hidden = _attr_data(document, b'hidden')
+    attrs.rel = _attr_data(document, b'rel')
+    attrs.itemprop = _attr_data(document, b'itemprop')
+    attrs.aria_hidden = _attr_data(document, b'aria-hidden')
+    attrs.aria_expanded = _attr_data(document, b'aria-expanded')
+    attrs.class_ = _attr_data(document, b'class')
+    attrs.id = _attr_data(document, b'id')
+    attrs.style = _attr_data(document, b'style')
+    attrs.role = _attr_data(document, b'role')
+    attrs.data_ad = _attr_data(document, b'data-ad')
+    attrs.data_advertisement = _attr_data(document, b'data-advertisement')
+    attrs.data_text_ad = _attr_data(document, b'data-text-ad')
+    return attrs
+
+
+cdef inline lxb_dom_attr_t* _get_attr(lxb_dom_node_t* node, const lxb_dom_attr_data_t* attr_data) noexcept nogil:
+    """Find an attribute by a name from ``_MainContentAttrs`` (``NULL`` if the document has no such attribute)."""
+    if attr_data == NULL:
+        return NULL
+    return lxb_dom_element_attr_by_local_name_data(<lxb_dom_element_t*>node, attr_data)
+
+
+cdef inline string_view _get_attr_sv(lxb_dom_node_t* node, const lxb_dom_attr_data_t* attr_data) noexcept nogil:
+    """Same as ``get_node_attr_sv()``, but with a name from ``_MainContentAttrs``."""
+    cdef lxb_dom_attr_t* attr = _get_attr(node, attr_data)
+    if attr == NULL:
+        return string_view()
+    cdef size_t value_len = 0
+    cdef const lxb_char_t* value = lxb_dom_attr_value(attr, &value_len)
+    return string_view(<const char*>value, value_len)
+
+
 # noinspection DuplicatedCode
 cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, bint keep_comments,
-                                       bint keep_post_meta, bint keep_hidden) noexcept nogil:
+                                       bint keep_post_meta, bint keep_hidden,
+                                       const _MainContentAttrs& attrs) noexcept nogil:
     """
     Perform a rule-based check whether the given element is a "main-content" element.
     
@@ -612,32 +668,32 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     # ------ Section 2: Rel and ARIA attribute matching ------
 
     # Hidden elements
-    if lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'hidden', 6):
+    if _get_attr(node, attrs.hidden):
         return False
 
     # rel attributes
-    cdef string_view rel_attr = strip_sv(get_node_attr_sv(node, b'rel'))
+    cdef string_view rel_attr = strip_sv(_get_attr_sv(node, attrs.rel))
     if not rel_attr.empty() and rel_attr in [b'author', b'icon', b'search', b'prev', b'next', b'tag']:
         return False
 
     # itemprop attributes
-    cdef string_view itemprop_attr = strip_sv(get_node_attr_sv(node, b'itemprop'))
+    cdef string_view itemprop_attr = strip_sv(_get_attr_sv(node, attrs.itemprop))
     if not itemprop_attr.empty() and itemprop_attr in [b'datePublished', b'author', b'url']:
         return False
 
     # ARIA hidden
-    if strip_sv(get_node_attr_sv(node, b'aria-hidden')) == b'true':
+    if strip_sv(_get_attr_sv(node, attrs.aria_hidden)) == b'true':
         return False
 
     # ARIA expanded
-    if strip_sv(get_node_attr_sv(node, b'aria-expanded')) == b'false':
+    if strip_sv(_get_attr_sv(node, attrs.aria_expanded)) == b'false':
         return False
 
 
     # ------ Section 3: General class and ID matching ------
 
-    cdef string_view cls_attr = get_node_attr_sv(node, b'class')
-    cdef string_view id_attr = get_node_attr_sv(node, b'id')
+    cdef string_view cls_attr = _get_attr_sv(node, attrs.class_)
+    cdef string_view id_attr = _get_attr_sv(node, attrs.id)
     # Only elements with class or id attributes from here on
     if cls_attr.empty() and id_attr.empty():
         if node.local_name == LXB_TAG_DIV:
@@ -652,7 +708,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
 
     # Hidden elements
     if not keep_hidden and regex_search_not_empty(cls_attr, display_cls_regex) \
-            or regex_search_not_empty(get_node_attr_sv(node, b'style'), display_css_regex):
+            or regex_search_not_empty(_get_attr_sv(node, attrs.style), display_css_regex):
         return False
 
     # Skip links
@@ -679,9 +735,9 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
 
     # Ads
     if regex_search_not_empty(cls_and_id_attr, ads_cls_regex) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-ad', 7) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-advertisement', 18) \
-            or lxb_dom_element_has_attribute(<lxb_dom_element_t*>node, <const lxb_char_t*>b'data-text-ad', 12):
+            or _get_attr(node, attrs.data_ad) \
+            or _get_attr(node, attrs.data_advertisement) \
+            or _get_attr(node, attrs.data_text_ad):
         return False
 
     # Other junk
@@ -695,7 +751,7 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
         return True
 
     # ARIA roles
-    cdef string_view role_attr = strip_sv(get_node_attr_sv(node, b'role'))
+    cdef string_view role_attr = strip_sv(_get_attr_sv(node, attrs.role))
     if rel_attr == b'main':
         return True
     if not role_attr.empty() and blacklist_aria_roles.find(<string>role_attr) != blacklist_aria_roles.end():
@@ -791,15 +847,14 @@ cdef size_t _count_main_content_classes(string_view class_list) noexcept nogil:
     return count
 
 
-cdef size_t _count_main_content_candidates(lxb_dom_node_t* root, lxb_dom_node_t** first_candidate) noexcept nogil:
+cdef size_t _count_main_content_candidates(lxb_dom_node_t* root, const _MainContentAttrs& attrs,
+                                           lxb_dom_node_t** first_candidate) noexcept nogil:
     """
     Count matches of the main content root selector (any class in ``MAIN_CONTENT_CLASSES`` or ``[role="main"]``)
     below ``root`` and store the first matching element in ``first_candidate``.
 
     The count is the same as lexbor's ``querySelectorAll()``, which reports an element once per selector it matches.
     """
-    cdef const lxb_dom_attr_data_t* role_attr_data = lxb_dom_attr_data_by_local_name(
-        root.owner_document.attrs, <const lxb_char_t*>b'role', 4)
     cdef lxb_dom_element_t* element
     cdef lxb_dom_attr_t* role_attr
     cdef size_t matches
@@ -813,11 +868,10 @@ cdef size_t _count_main_content_candidates(lxb_dom_node_t* root, lxb_dom_node_t*
         if element.attr_class and element.attr_class.value:
             matches += _count_main_content_classes(
                 string_view(<const char*>element.attr_class.value.data, element.attr_class.value.length))
-        if role_attr_data:
-            role_attr = lxb_dom_element_attr_by_local_name_data(element, role_attr_data)
-            if role_attr and role_attr.value and role_attr.value.length == 4 and \
-                    lexbor_str_data_ncmp(role_attr.value.data, <const lxb_char_t*>b'main', 4):
-                preinc(matches)
+        role_attr = _get_attr(node, attrs.role)
+        if role_attr and role_attr.value and role_attr.value.length == 4 and \
+                lexbor_str_data_ncmp(role_attr.value.data, <const lxb_char_t*>b'main', 4):
+            preinc(matches)
 
         if matches and not count:
             first_candidate[0] = node
@@ -986,10 +1040,12 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
         ctx.node = ctx.root_node
 
+    cdef _MainContentAttrs main_content_attrs
     cdef lxb_dom_node_t* root_candidate = NULL
     if main_content:
+        main_content_attrs = _main_content_attrs(ctx.node.owner_document)
         # Use result only if there is exactly one match
-        if _count_main_content_candidates(ctx.node, &root_candidate) == 1:
+        if _count_main_content_candidates(ctx.node, main_content_attrs, &root_candidate) == 1:
             ctx.root_node = root_candidate
             ctx.node = ctx.root_node
 
@@ -1034,7 +1090,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         if not is_end_tag and ((ctx.node != ctx.root_node and skip_tag_ids.count(ctx.node.local_name)) or \
                 blacklisted_nodes.count(ctx.node) or \
                 (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments,
-                                                            post_meta, hidden_elements))):
+                                                            post_meta, hidden_elements, main_content_attrs))):
             is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
