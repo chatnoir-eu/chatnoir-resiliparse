@@ -31,7 +31,7 @@ if src_dir.joinpath('fastwarc-py', 'fastwarc', f'_fastwarc{EXTENSION_SUFFIXES[0]
 project = 'ChatNoir Resiliparse'
 copyright = f'2021-{datetime.datetime.today().year}, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = re.search(r'^version\s*=\s*"([\d.]+)"$',
+release = re.search(r'^version\s*=\s*"([^"]+)"$',
                     open(src_dir.joinpath('resiliparse-py', 'pyproject.toml')).read(), re.M).group(1)
 master_doc = 'index'
 

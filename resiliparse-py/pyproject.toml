@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Resiliparse"
-version = "1.0.9"
+version = "1.0.9+datology.1"
 description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
 authors = [
     { name = "Janek Bevendorff" }
