@@ -14,6 +14,8 @@
 
 # distutils: language = c++
 
+import re
+
 from cython.operator cimport dereference as deref, preincrement as preinc, predecrement as predec
 from libcpp.set cimport set as stl_set
 from libc.string cimport memcpy
@@ -728,6 +730,9 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     return True
 
 
+_TAG_NAME_RE = re.compile(rb'[A-Za-z][A-Za-z0-9_-]*')
+
+
 cdef inline lxb_status_t _exists_cb(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec, void *ctx) noexcept nogil:
     (<bint*>ctx)[0] = True
     return LXB_STATUS_STOP
@@ -803,15 +808,25 @@ def extract_plain_text(html,
     if not check_node(tree.body):
         return ''
 
-    skip_selectors = {e.encode() for e in skip_elements or []}
-    skip_selectors.update({b'script', b'style', b'iframe', b'frame', b'template'})
+    skip_tags = {b'script', b'style', b'iframe', b'frame', b'template'}
     if not alt_texts:
-        skip_selectors.update({b'object', b'video', b'audio', b'embed' b'img', b'area',
-                               b'svg', b'figcaption', b'figure'})
+        skip_tags.update({b'object', b'video', b'audio', b'embed' b'img', b'area',
+                          b'svg', b'figcaption', b'figure'})
     if not noscript:
-        skip_selectors.add(b'noscript')
+        skip_tags.add(b'noscript')
     if not form_fields:
-        skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label', })
+        skip_tags.update({b'textarea', b'input', b'button', b'select', b'option', b'label', })
+
+    # Plain tag names are matched by tag ID, which is much cheaper than running the CSS
+    # selector engine over the whole tree. Only other selectors go through it.
+    skip_selectors = []
+    for e in skip_elements or []:
+        e = e.encode()
+        if _TAG_NAME_RE.fullmatch(e):
+            skip_tags.add(e)
+        else:
+            skip_selectors.append(e)
+    cdef vector[string] skip_tag_names = skip_tags
     cdef string skip_selector = <string>b','.join(skip_selectors)
 
     cdef FormattingOpts formatting_opts = FormattingOpts.FORMAT_OFF
@@ -834,6 +849,7 @@ def extract_plain_text(html,
             comments,
             post_meta,
             hidden_elements,
+            skip_tag_names,
             skip_selector)
     return extracted.decode(errors='ignore')
 
@@ -848,6 +864,7 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
                                      bint comments,
                                      bint post_meta,
                                      bint hidden_elements,
+                                     const vector[string]& skip_tags,
                                      string skip_selector) noexcept nogil:
     """Internal extractor implementation not requiring GIL."""
 
@@ -889,9 +906,18 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
             lxb_dom_collection_destroy(root_candidates, True)
             root_candidates = NULL
 
-    # Select all blacklisted elements and store them in a set
-    cdef lxb_dom_collection_t* blacklist_coll = query_selector_all_impl(ctx.root_node, tree,
-                                                                        skip_selector.data(), skip_selector.size(), 30)
+    # Resolve skipped tag names to tag IDs, select all other blacklisted elements and store them in a set
+    cdef stl_set[lxb_tag_id_t] skip_tag_ids
+    cdef lxb_tag_id_t tag_id
+    for i in range(skip_tags.size()):
+        tag_id = lxb_tag_id_by_name(ctx.root_node.owner_document.tags,
+                                    <const lxb_char_t*>skip_tags[i].data(), skip_tags[i].size())
+        if tag_id != LXB_TAG__UNDEF:
+            skip_tag_ids.insert(tag_id)
+
+    cdef lxb_dom_collection_t* blacklist_coll = NULL
+    if not skip_selector.empty():
+        blacklist_coll = query_selector_all_impl(ctx.root_node, tree, skip_selector.data(), skip_selector.size(), 30)
     cdef stl_set[lxb_dom_node_t*] blacklisted_nodes
     if blacklist_coll != NULL:
         for i in range(lxb_dom_collection_length(blacklist_coll)):
@@ -917,7 +943,9 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
 
         # Skip blacklisted or non-main-content nodes. End-tag visits are only reached if the
         # start-tag visit passed these checks (otherwise the subtree is skipped), so don't redo them.
-        if not is_end_tag and (blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
+        # (Like the CSS selector engine, the tag ID check does not match the root node itself.)
+        if not is_end_tag and ((ctx.node != ctx.root_node and skip_tag_ids.count(ctx.node.local_name)) or \
+                blacklisted_nodes.count(ctx.node) or \
                 (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments,
                                                             post_meta, hidden_elements))):
             is_end_tag = True

@@ -661,6 +661,7 @@ cdef extern from "<lexbor/tag/tag.h>" nogil:
         bint                read_only
 
     cdef const lxb_tag_data_t * lxb_tag_data_by_id(lexbor_hash_t *hash, lxb_tag_id_t tag_id)
+    lxb_tag_id_t lxb_tag_id_by_name(lexbor_hash_t *hash, const lxb_char_t *name, size_t len)
 
 
 cdef extern from "<lexbor/encoding/encoding.h>" nogil:

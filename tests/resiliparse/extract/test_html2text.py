@@ -210,6 +210,18 @@ Sorry, your browser doesn't support VB Script!
 Copyright (C) 2021 Foo Bar"""
 
 
+def test_skip_elements():
+    # Script, style (also inside SVG), template and noscript elements are skipped by default
+    html = '<p>a</p><script>s</script><style>s</style><svg><style>x</style></svg>' \
+           '<template><p>t</p></template><noscript>n</noscript><p>b</p>'
+    assert extract_plain_text(html) == 'a\n\nb'
+    assert extract_plain_text('<p>a</p><noscript>n</noscript>', noscript=True) == 'a\n\nn'
+
+    # Tag names (in any case) and other CSS selectors can be mixed
+    html = '<nav>n</nav><p class="ads">ad</p><P>keep</P><ASIDE>aside</ASIDE>'
+    assert extract_plain_text(html, skip_elements=['nav', '.ads', 'ASIDE']) == 'keep'
+
+
 def test_main_content_extraction():
     assert extract_plain_text(tree, alt_texts=False, main_content=True) == \
            "foo\n\nbaz\nbar"
