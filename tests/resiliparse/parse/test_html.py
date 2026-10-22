@@ -4,7 +4,7 @@ import html as pyhtml
 
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from fastwarc.stream_io import FileStream
-from resiliparse.parse.encoding import detect_encoding
+from resiliparse.parse.encoding import bytes_to_str, detect_encoding
 from resiliparse.parse.html import *
 
 
@@ -65,6 +65,27 @@ def test_parse_from_bytes():
     tree = HTMLTree.parse_from_bytes(html.encode('utf-16'), 'utf-16')
     assert tree is not None
     validate_document(tree)
+
+
+@pytest.mark.parametrize('data', [
+    '<p>héllo wörld € 😀</p>'.encode(),
+    b'\xef\xbb\xbf<p>BOM</p>',
+    b'\xef\xbb\xbf',
+    b'\xef\xbb\xbf<p>BOM and invalid \xe2\x82</p>',
+    b'<p>truncated \xe2\x82</p>',
+    b'<p>ends with</p>\xf0\x9f\x98',
+    b'<p>bad continuation \xc3(</p>',
+    b'<p>bad continuation \xe2\x28\xa1</p>',
+    b'<p>overlong \xc0\xaf</p>',
+    b'<p>overlong \xe0\x80\xaf</p>',
+    b'<p>overlong \xf0\x80\x80\xaf</p>',
+    b'<p>surrogate \xed\xa0\x80</p>',
+    b'<p>above U+10FFFF \xf4\x90\x80\x80</p>',
+])
+def test_parse_from_bytes_utf8(data):
+    # Same result as decoding first, also for invalid UTF-8 (which bytes_to_str() decodes as cp1252)
+    assert HTMLTree.parse_from_bytes(data, 'utf-8').document.html == \
+           HTMLTree.parse(bytes_to_str(data, 'utf-8')).document.html
 
 
 html_no_head = """<!doctype html><body><span></span></body>"""

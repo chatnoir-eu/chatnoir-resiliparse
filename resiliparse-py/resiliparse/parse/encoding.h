@@ -17,6 +17,8 @@
 #ifndef RESILIPARSE_ENCODING_H
 #define RESILIPARSE_ENCODING_H
 
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -118,5 +120,58 @@ static std::vector<mime_bytes_t> MIME_BYTES = {
     {"\xCA\xFE\xBA\xBE"s, "application/java-vm"},
     {"\x49\x54\x53\x46\x03\x00\x00\x00\x60\x00\x00\x00"s, "application/vnd.ms-htmlhelp"}
 };
+
+/**
+ * Check whether a byte string is valid UTF-8. Accepts exactly what Python's strict "utf-8" codec
+ * accepts, i.e., no overlong encodings, no surrogates, and no code points above U+10FFFF.
+ */
+inline bool is_valid_utf8(const char* data, size_t length) {
+    const auto* s = reinterpret_cast<const unsigned char*>(data);
+    size_t i = 0;
+    while (i < length) {
+        // Skip ASCII eight bytes at a time
+        if (i + 8 <= length) {
+            uint64_t chunk;
+            std::memcpy(&chunk, s + i, 8);
+            if (!(chunk & 0x8080808080808080ULL)) {
+                i += 8;
+                continue;
+            }
+        }
+
+        const unsigned char c = s[i];
+        if (c < 0x80) {
+            ++i;
+            continue;
+        }
+
+        size_t num_cont;                              // Number of continuation bytes
+        unsigned char first_min = 0x80, first_max = 0xBF;  // Valid range of the first continuation byte
+        if (c >= 0xC2 && c <= 0xDF) {
+            num_cont = 1;
+        } else if (c >= 0xE0 && c <= 0xEF) {
+            num_cont = 2;
+            if (c == 0xE0) first_min = 0xA0;          // Overlong
+            if (c == 0xED) first_max = 0x9F;          // Surrogates
+        } else if (c >= 0xF0 && c <= 0xF4) {
+            num_cont = 3;
+            if (c == 0xF0) first_min = 0x90;          // Overlong
+            if (c == 0xF4) first_max = 0x8F;          // Above U+10FFFF
+        } else {
+            return false;
+        }
+
+        if (length - i <= num_cont || s[i + 1] < first_min || s[i + 1] > first_max) {
+            return false;
+        }
+        for (size_t k = 2; k <= num_cont; ++k) {
+            if ((s[i + k] & 0xC0) != 0x80) {
+                return false;
+            }
+        }
+        i += num_cont + 1;
+    }
+    return true;
+}
 
 #endif  // RESILIPARSE_ENCODING_H

@@ -32,3 +32,4 @@ cdef extern from "encoding.h" nogil:
         string magic_bytes
         string mime_type
     cdef vector[mime_bytes_t] MIME_BYTES
+    bint is_valid_utf8(const char* data, size_t length)

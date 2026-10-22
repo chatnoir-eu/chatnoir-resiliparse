@@ -22,7 +22,7 @@ from cpython.ref cimport PyObject
 from libcpp.set cimport set as unordered_set
 
 from resiliparse_inc.lexbor cimport *
-from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
+from resiliparse.parse.encoding cimport bytes_to_str, is_valid_utf8, map_encoding_to_html5
 
 __all__ = [
     'DOMCollection',
@@ -1645,11 +1645,17 @@ cdef HTMLTree create_html_tree(bytes document, bint reencode=True, str encoding=
     :return: :class:`HTMLTree` instance
     """
     encoding = map_encoding_to_html5(encoding)
+    cdef size_t bom_len = 0
+    if reencode and encoding == 'utf-8':
+        # Decoding valid UTF-8 and encoding it again only strips the BOM, so skip it
+        bom_len = 3 if document.startswith(b'\xef\xbb\xbf') else 0
+        reencode = not is_valid_utf8(<const char*>document + bom_len, len(document) - bom_len)
     if reencode:
         document = bytes_to_str(document, encoding, errors).encode()
+        bom_len = 0
     cdef lxb_status_t status
-    cdef const lxb_char_t* html = <const lxb_char_t*>document
-    cdef size_t html_len = len(document)
+    cdef const lxb_char_t* html = <const lxb_char_t*>document + bom_len
+    cdef size_t html_len = len(document) - bom_len
     cdef HTMLTree tree = HTMLTree.__new__(HTMLTree)
     with nogil:
         status = lxb_html_document_parse(tree.dom_document, html, html_len)
