@@ -128,6 +128,32 @@ cdef string _get_collapsed_string(const string& input_str) noexcept nogil:
     return element_text
 
 
+cdef size_t _collapsed_text_length(lxb_dom_node_t* node, size_t max_length=0) noexcept nogil:
+    """
+    Length of ``_get_collapsed_string(get_node_text(node))`` for an element, computed without copying any text.
+    Counting stops as soon as the length exceeds ``max_length`` (0 for no limit).
+    """
+    cdef size_t length = 0
+    cdef bint in_space = False
+    cdef lxb_dom_character_data_t* char_data
+    cdef size_t i
+    cdef lxb_dom_node_t* child = next_node(node, node)
+    while child:
+        if child.type == LXB_DOM_NODE_TYPE_TEXT:
+            char_data = <lxb_dom_character_data_t*>child
+            for i in range(char_data.data.length):
+                if not isspace(<char>char_data.data.data[i]):
+                    preinc(length)
+                    in_space = False
+                elif not in_space:
+                    preinc(length)
+                    in_space = True
+            if max_length and length > max_length:
+                break
+        child = next_node(node, child)
+    return length
+
+
 cdef string LIST_BULLET = <const char*>b'\xe2\x80\xa2'
 
 
@@ -506,18 +532,17 @@ cdef inline bint _is_link_cluster(lxb_dom_node_t* node, double max_link_ratio, s
     :param max_length: do not check ratio if content length is larger than this (0 to disable limit)
     :return: true if element is a link cluster
     """
-    cdef string element_text = _get_collapsed_string(get_node_text(node))
-    if max_length and element_text.size() > max_length:
+    cdef size_t text_length = _collapsed_text_length(node, max_length)
+    if max_length and text_length > max_length:
         return False
     dom_coll = lxb_dom_collection_make(node.owner_document, 20)
     lxb_dom_elements_by_tag_name(<lxb_dom_element_t *> node, dom_coll, <const lxb_char_t *> b'a', 1)
     cdef size_t i
-    cdef string link_texts
-    link_texts.reserve(element_text.size())
+    cdef size_t link_text_length = 0
     for i in range(lxb_dom_collection_length(dom_coll)):
-        link_texts.append(_get_collapsed_string(get_node_text(lxb_dom_collection_node(dom_coll, i))))
+        link_text_length += _collapsed_text_length(lxb_dom_collection_node(dom_coll, i))
     lxb_dom_collection_destroy(dom_coll, True)
-    if not link_texts.empty() and link_texts.size() / <double> element_text.size() > max_link_ratio:
+    if link_text_length and link_text_length / <double> text_length > max_link_ratio:
         return True
     return False
 

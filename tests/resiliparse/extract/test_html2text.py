@@ -251,6 +251,29 @@ def test_main_content_root():
     assert extract_plain_text(html, main_content=True) == 'Body'
 
 
+def test_main_content_link_clusters():
+    def nested(html):
+        return '<div><div><div><div>' + html + '</div></div></div></div><p>After</p>'
+
+    # Lists are dropped if more than 20% of their text (with collapsed white space) is link text
+    assert extract_plain_text(nested('<ul><li><a>aaaa</a></li><li>b' + ' ' * 50 + 'c</li></ul>'),
+                              main_content=True) == 'After'
+    assert extract_plain_text(nested('<ul><li><a>aaaa </a></li><li>  ' + 'b ' * 9 + '</li></ul>'),
+                              main_content=True) == 'After'
+
+    # Script text counts as text, nested links count twice
+    assert extract_plain_text(nested('<ul><li><a>link</a>' + 't' * 10 + '<script>' + 'x' * 30 + '</script></li></ul>'),
+                              main_content=True) == '  \u2022 linktttttttttt\n\nAfter'
+    assert extract_plain_text(nested('<ul><li><a href="#">' + 'o' * 10 + '<svg><a>' + 'i' * 40 + '</a></svg></a>' +
+                                     'w' * 300 + '</li></ul>'), main_content=True) == 'After'
+
+    # Deeply nested divs are only checked up to 800 characters of text
+    html = '<div>' * 7 + '<a>link</a> ' * 150 + '</div>' * 7 + '<p>After</p>'
+    assert extract_plain_text(html, main_content=True) == 'After'
+    html = '<div>' * 7 + '<a>link</a> ' * 200 + '</div>' * 7 + '<p>After</p>'
+    assert extract_plain_text(html, main_content=True).startswith('link link')
+
+
 def test_inline_after_block():
     html = """<body>
 <div>A</div>B
