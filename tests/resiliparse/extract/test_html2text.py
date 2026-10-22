@@ -231,6 +231,26 @@ def test_main_content_extraction():
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
+def test_main_content_root():
+    # A single element matching one of the main content root selectors becomes the extraction root
+    other = '<div><p>Other</p></div>'
+    assert extract_plain_text(other + '<div class="article-body"><p>Body</p></div>', main_content=True) == 'Body'
+    assert extract_plain_text(other + '<div class="x ARTICLE-BODY"><p>Body</p></div>', main_content=True) == 'Body'
+    assert extract_plain_text(other + '<section role="main"><p>Body</p></section>', main_content=True) == 'Body'
+    assert extract_plain_text(other + '<section role="Main"><p>Body</p></section>', main_content=True) == \
+           'Other\n\nBody'
+
+    # The root is not used if there is more than one match (an element matching two selectors counts twice)
+    html = other + '<div class="post-content"><p>Body</p></div><div class="post-content"><p>Body 2</p></div>'
+    assert extract_plain_text(html, main_content=True) == 'Other\n\nBody\n\nBody 2'
+    html = other + '<main class="main-content" role="main"><p>Body</p></main>'
+    assert extract_plain_text(html, main_content=True) == 'Other\n\nBody'
+
+    # The root itself is never skipped, even if it is a skipped element type
+    html = other + '<noscript class="article-body"><p>Body</p></noscript>'
+    assert extract_plain_text(html, main_content=True) == 'Body'
+
+
 def test_inline_after_block():
     html = """<body>
 <div>A</div>B

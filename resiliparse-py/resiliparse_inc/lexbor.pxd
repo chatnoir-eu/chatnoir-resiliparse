@@ -43,6 +43,7 @@ cdef extern from "<lexbor/core/core.h>" nogil:
 
     bint lexbor_str_data_ncmp(const lxb_char_t *first, const lxb_char_t *sec, size_t size)
     bint lexbor_str_data_cmp(const lxb_char_t *first, const lxb_char_t *sec)
+    bint lexbor_str_data_ncasecmp(const lxb_char_t *first, const lxb_char_t *sec, size_t size)
 
 
 cdef extern from "<lexbor/html/html.h>" nogil:
@@ -356,6 +357,14 @@ cdef extern from "<lexbor/dom/dom.h>" nogil:
                                                   const lxb_char_t *qualified_name, size_t length)
     lxb_dom_attr_t * lxb_dom_element_attr_is_exist(lxb_dom_element_t *element,
                                                    const lxb_char_t *qualified_name, size_t length)
+    lxb_dom_attr_t * lxb_dom_element_attr_by_local_name_data(lxb_dom_element_t *element,
+                                                             const lxb_dom_attr_data_t *data)
+
+    ctypedef struct lxb_dom_attr_data_t:
+        lxb_dom_attr_id_t attr_id
+
+    const lxb_dom_attr_data_t * lxb_dom_attr_data_by_local_name(lexbor_hash_t *hash,
+                                                                const lxb_char_t *name, size_t length)
     lxb_tag_id_t lxb_dom_node_tag_id_noi(lxb_dom_node_t *node)
     lxb_dom_node_t * lxb_dom_document_import_node(lxb_dom_document_t *doc, lxb_dom_node_t *node, bint deep)
     void lxb_dom_node_insert_after(lxb_dom_node_t *to, lxb_dom_node_t *node)

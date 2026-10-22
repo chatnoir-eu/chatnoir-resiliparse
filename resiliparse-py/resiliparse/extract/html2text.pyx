@@ -730,6 +730,77 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
     return True
 
 
+cdef vector[string] MAIN_CONTENT_CLASSES = [b'article-body', b'articleBody', b'contentBody', b'article-text',
+                                             b'main-content', b'postcontent', b'post-content', b'single-post']
+
+
+cdef inline bint _is_html_space(char c) noexcept nogil:
+    return c == b' ' or c == b'\t' or c == b'\n' or c == b'\f' or c == b'\r'
+
+
+cdef size_t _count_main_content_classes(string_view class_list) noexcept nogil:
+    """
+    Number of class names from ``MAIN_CONTENT_CLASSES`` in a class attribute value.
+
+    Class names are compared ASCII case-insensitively, like lexbor's ``.class`` selectors.
+    """
+    cdef uint32_t found = 0     # Bit i is set if MAIN_CONTENT_CLASSES[i] was found
+    cdef size_t start = 0
+    cdef size_t end
+    cdef size_t i
+    while start < class_list.size():
+        end = start
+        while end < class_list.size() and not _is_html_space(class_list[end]):
+            preinc(end)
+        for i in range(MAIN_CONTENT_CLASSES.size()):
+            if end - start == MAIN_CONTENT_CLASSES[i].size() and lexbor_str_data_ncasecmp(
+                    <const lxb_char_t*>class_list.data() + start,
+                    <const lxb_char_t*>MAIN_CONTENT_CLASSES[i].data(), end - start):
+                found |= 1u << i
+        start = end + 1
+
+    cdef size_t count = 0
+    while found:
+        found &= found - 1
+        preinc(count)
+    return count
+
+
+cdef size_t _count_main_content_candidates(lxb_dom_node_t* root, lxb_dom_node_t** first_candidate) noexcept nogil:
+    """
+    Count matches of the main content root selector (any class in ``MAIN_CONTENT_CLASSES`` or ``[role="main"]``)
+    below ``root`` and store the first matching element in ``first_candidate``.
+
+    The count is the same as lexbor's ``querySelectorAll()``, which reports an element once per selector it matches.
+    """
+    cdef const lxb_dom_attr_data_t* role_attr_data = lxb_dom_attr_data_by_local_name(
+        root.owner_document.attrs, <const lxb_char_t*>b'role', 4)
+    cdef lxb_dom_element_t* element
+    cdef lxb_dom_attr_t* role_attr
+    cdef size_t matches
+    cdef size_t count = 0
+    first_candidate[0] = NULL
+
+    cdef lxb_dom_node_t* node = next_element_node(root, root)
+    while node:
+        matches = 0
+        element = <lxb_dom_element_t*>node
+        if element.attr_class and element.attr_class.value:
+            matches += _count_main_content_classes(
+                string_view(<const char*>element.attr_class.value.data, element.attr_class.value.length))
+        if role_attr_data:
+            role_attr = lxb_dom_element_attr_by_local_name_data(element, role_attr_data)
+            if role_attr and role_attr.value and role_attr.value.length == 4 and \
+                    lexbor_str_data_ncmp(role_attr.value.data, <const lxb_char_t*>b'main', 4):
+                preinc(matches)
+
+        if matches and not count:
+            first_candidate[0] = node
+        count += matches
+        node = next_element_node(root, node)
+    return count
+
+
 _TAG_NAME_RE = re.compile(rb'[A-Za-z][A-Za-z0-9_-]*')
 
 
@@ -890,21 +961,12 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
         ctx.node = ctx.root_node
 
-    cdef string main_content_selector
-    cdef lxb_dom_collection_t* root_candidates = NULL
+    cdef lxb_dom_node_t* root_candidate = NULL
     if main_content:
-        main_content_selector = string(b'.article-body, .articleBody, .contentBody, .article-text,'
-                                       b'.main-content, .postcontent, .post-content, .single-post,'
-                                       b'[role="main"]')
-        root_candidates = query_selector_all_impl(ctx.node, tree,
-                                                  main_content_selector.data(), main_content_selector.size(), 5)
-        if root_candidates != NULL:
-            if lxb_dom_collection_length(root_candidates) == 1:
-                # Use result only if there is exactly one match
-                ctx.root_node = lxb_dom_collection_node(root_candidates, 0)
-                ctx.node = ctx.root_node
-            lxb_dom_collection_destroy(root_candidates, True)
-            root_candidates = NULL
+        # Use result only if there is exactly one match
+        if _count_main_content_candidates(ctx.node, &root_candidate) == 1:
+            ctx.root_node = root_candidate
+            ctx.node = ctx.root_node
 
     # Resolve skipped tag names to tag IDs, select all other blacklisted elements and store them in a set
     cdef stl_set[lxb_tag_id_t] skip_tag_ids
