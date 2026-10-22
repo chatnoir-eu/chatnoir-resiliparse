@@ -1,0 +1,13 @@
+--- a/src/nsUniversalDetector.cpp
++++ b/src/nsUniversalDetector.cpp
+@@ -205,6 +205,10 @@
+             return NS_ERROR_OUT_OF_MEMORY;
+         }
+       }
++      /* Once in eHighbyte state, the rest of this scan cannot change anything:
++       * mInputState never leaves eHighbyte, and mNbspFound / mLastChar are only
++       * consulted in the pure/escaped ASCII states. */
++      break;
+     }
+     else
+     {
