@@ -915,10 +915,11 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
 
-        # Skip blacklisted or non-main-content nodes
-        if blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
+        # Skip blacklisted or non-main-content nodes. End-tag visits are only reached if the
+        # start-tag visit passed these checks (otherwise the subtree is skipped), so don't redo them.
+        if not is_end_tag and (blacklisted_nodes.find(ctx.node) != blacklisted_nodes.end() or \
                 (main_content and not _is_main_content_node(ctx.node, ctx.depth + base_depth, comments,
-                                                            post_meta, hidden_elements)):
+                                                            post_meta, hidden_elements))):
             is_end_tag = True
             ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
             continue
