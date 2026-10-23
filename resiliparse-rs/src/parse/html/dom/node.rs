@@ -472,7 +472,8 @@ macro_rules! define_node_type {
 define_node_type!(DocumentTypeNode, DocumentType);
 
 //noinspection DuplicatedCode
-impl DocumentType for DocumentTypeNode {
+// Private native borrows; callers hold the document lock until strings are copied.
+impl DocumentTypeNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_document_type_name_noi) }
     }
@@ -484,7 +485,9 @@ impl DocumentType for DocumentTypeNode {
     unsafe fn system_id_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_document_type_system_id_noi) }
     }
+}
 
+impl DocumentType for DocumentTypeNode {
     #[inline]
     fn name(&self) -> Option<String> {
         check_node!(self);
@@ -694,7 +697,8 @@ impl NonElementParentNode for DocumentFragmentNode {}
 
 define_node_type!(ElementNode, Element);
 
-impl Element for ElementNode {
+// Private native borrows; callers hold the document lock until strings are copied.
+impl ElementNode {
     /// DOM element tag or node name.
     unsafe fn tag_name_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_element_tag_name) }
@@ -706,11 +710,6 @@ impl Element for ElementNode {
 
     unsafe fn id_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_element_id_noi) }
-    }
-
-    #[inline]
-    unsafe fn name_unchecked(&self) -> Option<&str> {
-        unsafe { self.attribute_unchecked("name") }
     }
 
     unsafe fn class_name_unchecked(&self) -> Option<&str> {
@@ -747,7 +746,9 @@ impl Element for ElementNode {
             name_vec
         }
     }
+}
 
+impl Element for ElementNode {
     /// DOM element tag or node name.
     #[inline]
     fn tag_name(&self) -> Option<String> {
@@ -1087,7 +1088,8 @@ impl NonDocumentTypeChildNode for ElementNode {}
 
 define_node_type!(AttrNode, Attribute);
 
-impl Attr for AttrNode {
+// Private native borrows; callers hold the document lock until strings are copied.
+impl AttrNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_attr_qualified_name) }
     }
@@ -1099,7 +1101,9 @@ impl Attr for AttrNode {
     unsafe fn value_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_attr_value_noi) }
     }
+}
 
+impl Attr for AttrNode {
     #[inline]
     fn local_name(&self) -> Option<String> {
         check_node!(self);
@@ -1196,7 +1200,8 @@ impl NonDocumentTypeChildNode for CommentNode {}
 define_node_type!(NotationNode, Notation);
 
 //noinspection DuplicatedCode
-impl Notation for NotationNode {
+// Private native borrows; callers hold the document lock until strings are copied.
+impl NotationNode {
     unsafe fn public_id_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_document_type_public_id_noi) }
     }
@@ -1204,7 +1209,9 @@ impl Notation for NotationNode {
     unsafe fn system_id_unchecked(&self) -> Option<&str> {
         unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_document_type_system_id_noi) }
     }
+}
 
+impl Notation for NotationNode {
     #[inline]
     fn public_id(&self) -> Option<String> {
         check_node!(self);

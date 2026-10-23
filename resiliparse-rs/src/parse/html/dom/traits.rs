@@ -524,10 +524,6 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
 /// DocumentType node.
 pub trait DocumentType: ChildNode {
-    unsafe fn name_unchecked(&self) -> Option<&str>;
-    unsafe fn public_id_unchecked(&self) -> Option<&str>;
-    unsafe fn system_id_unchecked(&self) -> Option<&str>;
-
     fn name(&self) -> Option<String>;
     fn public_id(&self) -> Option<String>;
     fn system_id(&self) -> Option<String>;
@@ -714,14 +710,6 @@ pub trait NonDocumentTypeChildNode: NodeInterface {
 
 /// HTML Element mixin trait.
 pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
-    unsafe fn tag_name_unchecked(&self) -> Option<&str>;
-    unsafe fn local_name_unchecked(&self) -> Option<&str>;
-    unsafe fn id_unchecked(&self) -> Option<&str>;
-    unsafe fn name_unchecked(&self) -> Option<&str>;
-    unsafe fn class_name_unchecked(&self) -> Option<&str>;
-    unsafe fn attribute_unchecked(&self, qualified_name: &str) -> Option<&str>;
-    unsafe fn attribute_names_unchecked(&self) -> Vec<&str>;
-
     fn tag_name(&self) -> Option<String>;
     fn local_name(&self) -> Option<String>;
     fn id(&self) -> Option<String>;
@@ -761,10 +749,6 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 }
 
 pub trait Attr: NodeInterface {
-    unsafe fn name_unchecked(&self) -> Option<&str>;
-    unsafe fn local_name_unchecked(&self) -> Option<&str>;
-    unsafe fn value_unchecked(&self) -> Option<&str>;
-
     fn local_name(&self) -> Option<String>;
     fn name(&self) -> Option<String>;
     fn value(&self) -> Option<String>;
@@ -862,8 +846,6 @@ pub trait ProcessingInstruction: CharacterData {
 pub trait Comment: CharacterData {}
 
 pub trait Notation: NodeInterface {
-    unsafe fn public_id_unchecked(&self) -> Option<&str>;
-    unsafe fn system_id_unchecked(&self) -> Option<&str>;
     fn public_id(&self) -> Option<String>;
     fn system_id(&self) -> Option<String>;
 }
