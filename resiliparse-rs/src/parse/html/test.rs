@@ -1686,3 +1686,86 @@ fn value_and_text_setters_update_attribute_and_character_data() {
         assert_eq!(node.node_value().unwrap(), "");
     }
 }
+
+#[test]
+fn node_capability_views_cover_supported_node_kinds_without_cloning() {
+    let tree = HTMLTree::parse("<!doctype html><p>text</p>").unwrap();
+    let mut doc = tree.document().unwrap();
+    let cases = [
+        (doc.as_node(), true, false, false, false),
+        (doc.create_document_fragment().unwrap().as_node(), true, false, false, false),
+        (tree.body().unwrap().as_node(), true, false, true, false),
+        (doc.create_text_node("é🙂").unwrap().as_node(), false, true, false, true),
+        (doc.create_cdata_section("é🙂").unwrap().as_node(), false, true, false, false),
+        (doc.create_comment("é🙂").unwrap().as_node(), false, true, false, false),
+        (doc.create_processing_instruction("target", "é🙂").unwrap().as_node(), false, true, false, false),
+        (doc.create_attribute("test").unwrap().as_node(), false, false, false, false),
+        (doc.doctype().unwrap().as_node(), false, false, false, false),
+    ];
+    for (mut node, parent, character_data, element, text) in cases {
+        let document = node.tree_();
+        let _guard = document.doc_ptr();
+        let ref_count = unsafe { (*node.node_ptr_()).ref_count };
+        let parent_view = node.as_parent();
+        let data_view = node.as_character_data();
+        assert_eq!(parent_view.is_some(), parent);
+        assert_eq!(data_view.is_some(), character_data);
+        assert_eq!(node.as_element().is_some(), element);
+        assert_eq!(node.as_text().is_some(), text);
+        // Views are Copy; retaining another view must not retain a native handle.
+        let _parent_copy = parent_view;
+        let _data_copy = data_view;
+        assert_eq!(unsafe { (*node.node_ptr_()).ref_count }, ref_count);
+        if let Some(data) = data_view {
+            assert_eq!(data.len(), 2);
+            assert_eq!(data.substring_data(1, 1).unwrap(), "🙂");
+        }
+        if let Node::Element(element) = &node {
+            assert!(std::ptr::eq(node.as_element().unwrap(), element));
+        }
+        if let Node::Text(text) = &node {
+            assert!(std::ptr::eq(node.as_text().unwrap(), text));
+        }
+        let borrowed = node.as_noderef();
+        assert_eq!(borrowed.as_parent().is_some(), parent);
+        assert_eq!(borrowed.as_character_data().is_some(), character_data);
+        assert_eq!(borrowed.as_element().is_some(), element);
+        assert_eq!(borrowed.as_text().is_some(), text);
+        let borrowed_mut = node.as_noderef_mut();
+        assert_eq!(borrowed_mut.as_parent().is_some(), parent);
+        assert_eq!(borrowed_mut.as_character_data().is_some(), character_data);
+        assert_eq!(borrowed_mut.as_element().is_some(), element);
+        assert_eq!(borrowed_mut.as_text().is_some(), text);
+        assert_eq!(unsafe { (*node.node_ptr_()).ref_count }, ref_count);
+    }
+}
+
+#[test]
+fn parent_views_support_queries_and_live_collections() {
+    fn count_children<T: ParentNode + ?Sized>(parent: &T) -> usize {
+        parent.child_element_count()
+    }
+
+    let tree = HTMLTree::parse("<div><a href='/one'>one</a><span>two</span></div>").unwrap();
+    let mut doc = tree.document().unwrap();
+    let mut element = tree.body().unwrap().first_element_child().unwrap();
+    let mut fragment = doc.create_document_fragment().unwrap();
+    let detached_link = doc.create_element("a").unwrap();
+    fragment.append_child(&detached_link.as_noderef()).unwrap();
+    for (node, expected_count) in [(doc.as_node(), 1), (element.as_node(), 2), (fragment.as_node(), 1)] {
+        let parent = node.as_parent().unwrap();
+        assert_eq!(count_children(&*parent), expected_count);
+        assert_eq!(parent.children().len(), expected_count);
+        assert_eq!(parent.query_selector_all("a").unwrap().len(), 1);
+    }
+    let node = element.as_node();
+    let parent = node.as_parent().unwrap();
+    let children = parent.children();
+    let links = parent.query_selector_all("a[href]").unwrap();
+    assert_eq!(links.len(), 1);
+    element
+        .append_child(&doc.create_element("b").unwrap().as_noderef())
+        .unwrap();
+    assert_eq!(children.len(), 3);
+    assert_eq!(parent.child_element_count(), 3);
+}

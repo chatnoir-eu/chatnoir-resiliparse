@@ -34,8 +34,54 @@ pub use crate::parse::html::dom::traits::NodeType;
 
 // ----------------------------------------- Node Base Enum ----------------------------------------
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum Node {
+// Keep the owned and borrowed node variants and their common dispatch together.
+macro_rules! define_node_enums {
+    ($($Variant:ident($Type:ty)),+ $(,)?) => {
+        #[derive(Clone, PartialEq, Debug)]
+        pub enum Node { $($Variant($Type)),+ }
+
+        #[derive(Clone, PartialEq, Debug)]
+        pub enum NodeRef<'a> { $($Variant(&'a $Type)),+ }
+
+        #[derive(PartialEq, Debug)]
+        pub enum NodeRefMut<'a> { $($Variant(&'a mut $Type)),+ }
+
+        impl Deref for Node {
+            type Target = dyn NodeInterface;
+            fn deref(&self) -> &Self::Target {
+                match self { $(Self::$Variant(node) => node),+ }
+            }
+        }
+
+        impl DerefMut for Node {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                match self { $(Self::$Variant(node) => node),+ }
+            }
+        }
+
+        impl Deref for NodeRef<'_> {
+            type Target = dyn NodeInterface;
+            fn deref(&self) -> &Self::Target {
+                match self { $(Self::$Variant(node) => *node),+ }
+            }
+        }
+
+        impl Deref for NodeRefMut<'_> {
+            type Target = dyn NodeInterface;
+            fn deref(&self) -> &Self::Target {
+                match self { $(Self::$Variant(node) => *node),+ }
+            }
+        }
+
+        impl DerefMut for NodeRefMut<'_> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                match self { $(Self::$Variant(node) => *node),+ }
+            }
+        }
+    };
+}
+
+define_node_enums! {
     Element(ElementNode),
     Attribute(AttrNode),
     Text(TextNode),
@@ -48,103 +94,98 @@ pub enum Node {
     Notation(NotationNode), // legacy
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum NodeRef<'a> {
+/// Borrowed parent capability. Constructing or copying this view does not clone
+/// a native handle. Read operations are available through `ParentNode`.
+///
+/// ```
+/// use resiliparse::parse::html::{dom::traits::NodeInterface, tree::HTMLTree};
+///
+/// let tree = HTMLTree::parse("<a href='/page'>link</a>").unwrap();
+/// let node = tree.body().unwrap().into_node();
+/// if let Some(parent) = node.as_parent() {
+///     assert_eq!(parent.query_selector_all("a[href]").unwrap().len(), 1);
+/// }
+/// ```
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ParentNodeRef<'a> {
     Element(&'a ElementNode),
-    Attribute(&'a AttrNode),
+    Document(&'a DocumentNode),
+    DocumentFragment(&'a DocumentFragmentNode),
+}
+
+impl<'a> Deref for ParentNodeRef<'a> {
+    type Target = dyn ParentNode + 'a;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Element(node) => *node,
+            Self::Document(node) => *node,
+            Self::DocumentFragment(node) => *node,
+        }
+    }
+}
+
+/// Borrowed character-data capability. Constructing or copying this view does
+/// not clone a native handle. Read operations use `CharacterData`'s scalar indices.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum CharacterDataRef<'a> {
     Text(&'a TextNode),
     CdataSection(&'a CdataSectionNode),
-    ProcessingInstruction(&'a ProcessingInstructionNode),
     Comment(&'a CommentNode),
-    Document(&'a DocumentNode),
-    DocumentType(&'a DocumentTypeNode),
-    DocumentFragment(&'a DocumentFragmentNode),
-    Notation(&'a NotationNode), // legacy
+    ProcessingInstruction(&'a ProcessingInstructionNode),
 }
 
-#[derive(PartialEq, Debug)]
-pub enum NodeRefMut<'a> {
-    Element(&'a mut ElementNode),
-    Attribute(&'a mut AttrNode),
-    Text(&'a mut TextNode),
-    CdataSection(&'a mut CdataSectionNode),
-    ProcessingInstruction(&'a mut ProcessingInstructionNode),
-    Comment(&'a mut CommentNode),
-    Document(&'a mut DocumentNode),
-    DocumentType(&'a mut DocumentTypeNode),
-    DocumentFragment(&'a mut DocumentFragmentNode),
-    Notation(&'a mut NotationNode), // legacy
-}
+impl<'a> Deref for CharacterDataRef<'a> {
+    type Target = dyn CharacterData + 'a;
 
-macro_rules! unwrap_node {
-    ($node: ident) => {
-        match $node {
-            Node::Element(n) => n,
-            Node::Attribute(n) => n,
-            Node::Text(n) => n,
-            Node::CdataSection(n) => n,
-            Node::ProcessingInstruction(n) => n,
-            Node::Comment(n) => n,
-            Node::Document(n) => n,
-            Node::DocumentType(n) => n,
-            Node::DocumentFragment(n) => n,
-            Node::Notation(n) => n, // legacy
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Text(node) => *node,
+            Self::CdataSection(node) => *node,
+            Self::Comment(node) => *node,
+            Self::ProcessingInstruction(node) => *node,
         }
-    };
+    }
 }
 
-macro_rules! unwrap_noderef {
-    ($Enum: ident, $node: ident) => {
-        match $node {
-            $Enum::Element(n) => *n,
-            $Enum::Attribute(n) => *n,
-            $Enum::Text(n) => *n,
-            $Enum::CdataSection(n) => *n,
-            $Enum::ProcessingInstruction(n) => *n,
-            $Enum::Comment(n) => *n,
-            $Enum::Document(n) => *n,
-            $Enum::DocumentType(n) => *n,
-            $Enum::DocumentFragment(n) => *n,
-            $Enum::Notation(n) => *n, // legacy
+macro_rules! impl_node_views {
+    ($($Node:ty),+ $(,)?) => {$(
+        impl $Node {
+            /// Borrow this node as an element, if it is one.
+            pub fn as_element(&self) -> Option<&ElementNode> {
+                match self { Self::Element(node) => Some(node), _ => None }
+            }
+
+            /// Borrow this node as text. CDATA has its own concrete node type.
+            pub fn as_text(&self) -> Option<&TextNode> {
+                match self { Self::Text(node) => Some(node), _ => None }
+            }
+
+            /// Borrow the parent capability without cloning a node handle.
+            pub fn as_parent(&self) -> Option<ParentNodeRef<'_>> {
+                match self {
+                    Self::Element(node) => Some(ParentNodeRef::Element(node)),
+                    Self::Document(node) => Some(ParentNodeRef::Document(node)),
+                    Self::DocumentFragment(node) => Some(ParentNodeRef::DocumentFragment(node)),
+                    _ => None,
+                }
+            }
+
+            /// Borrow the character-data capability without cloning a node handle.
+            pub fn as_character_data(&self) -> Option<CharacterDataRef<'_>> {
+                match self {
+                    Self::Text(node) => Some(CharacterDataRef::Text(node)),
+                    Self::CdataSection(node) => Some(CharacterDataRef::CdataSection(node)),
+                    Self::Comment(node) => Some(CharacterDataRef::Comment(node)),
+                    Self::ProcessingInstruction(node) => Some(CharacterDataRef::ProcessingInstruction(node)),
+                    _ => None,
+                }
+            }
         }
-    };
+    )+};
 }
 
-impl Deref for Node {
-    type Target = dyn NodeInterface;
-
-    fn deref(&self) -> &Self::Target {
-        unwrap_node!(self)
-    }
-}
-
-impl DerefMut for Node {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unwrap_node!(self)
-    }
-}
-
-impl<'a> Deref for NodeRef<'a> {
-    type Target = dyn NodeInterface;
-
-    fn deref(&self) -> &Self::Target {
-        unwrap_noderef!(NodeRef, self)
-    }
-}
-
-impl<'a> Deref for NodeRefMut<'a> {
-    type Target = dyn NodeInterface;
-
-    fn deref(&self) -> &Self::Target {
-        unwrap_noderef!(NodeRefMut, self)
-    }
-}
-
-impl<'a> DerefMut for NodeRefMut<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unwrap_noderef!(NodeRefMut, self)
-    }
-}
+impl_node_views!(Node, NodeRef<'_>, NodeRefMut<'_>);
 
 impl Display for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
