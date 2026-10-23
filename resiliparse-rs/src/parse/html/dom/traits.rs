@@ -25,7 +25,7 @@ use parking_lot::ReentrantMutexGuard;
 use std::cmp::max;
 use std::fmt::{Debug, Display};
 use std::ops::Add;
-use std::ptr::addr_of;
+use std::ptr::{self, addr_of};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum NodeType {
@@ -100,54 +100,51 @@ pub(crate) trait NodeInterfaceBaseImpl {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
-            if let Some(c) = child {
-                if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
+            // Validate before detaching anything, including any fragment child.
+            // Moving an ancestor beneath its descendant would create a cycle.
+            if !self.can_have_children_unchecked() {
+                return None;
+            }
+            let parent = *self.node_ptr_();
+            let mut ancestor = parent;
+            while !ancestor.is_null() {
+                if ancestor == *node.node_ptr_() {
+                    return None;
+                }
+                ancestor = (*ancestor).parent;
+            }
+            let reference = if let Some(c) = child {
+                if *c.parent_node()?.node_ptr_() != *self.node_ptr_() {
                     return None;
                 }
                 if node == &c {
                     return Some(node.clone());
                 }
-                if node.contains(&c) {
-                    return None;
+                *c.node_ptr_()
+            } else {
+                ptr::null_mut()
+            };
+            if let NodeRef::DocumentFragment(fragment) = node {
+                let fragment = *fragment.node_ptr_();
+                if (*fragment).first_child.is_null() {
+                    return Some(node.clone());
                 }
                 document.mark_mutated();
-                // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-                if let NodeRef::DocumentFragment(d) = node {
-                    d.child_nodes().iter().for_each(|c2| {
-                        lxb_dom_node_remove(*c2.node_ptr_());
-                        lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
-                    });
-                } else {
-                    lxb_dom_node_remove(*node.node_ptr_());
-                    lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
+                // Transfer only top-level children, preserving their subtrees.
+                // Detachment naturally empties the fragment's child list.
+                while !(*fragment).first_child.is_null() {
+                    move_node_before_unchecked(parent, (*fragment).first_child, reference);
                 }
-                Some(node.clone())
             } else {
-                self.append_child_unchecked(node)
+                document.mark_mutated();
+                move_node_before_unchecked(parent, *node.node_ptr_(), reference);
             }
+            Some(node.clone())
         }
     }
 
     unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
-        let document = self.tree_();
-        let _guard = document.doc_ptr();
-        unsafe {
-            if !self.can_have_children_unchecked() {
-                return None;
-            }
-            document.mark_mutated();
-            // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
-            if let NodeRef::DocumentFragment(d) = node {
-                d.child_nodes().iter().for_each(|c| {
-                    lxb_dom_node_remove(*c.node_ptr_());
-                    lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
-                });
-            } else {
-                lxb_dom_node_remove(*node.node_ptr_());
-                lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
-            }
-            Some(node.clone())
-        }
+        unsafe { self.insert_before_unchecked(node, None) }
     }
 
     unsafe fn replace_child_unchecked<'a>(

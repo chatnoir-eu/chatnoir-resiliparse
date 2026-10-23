@@ -961,8 +961,7 @@ impl Element for ElementNode {
             }
             while !(*fragment).first_child.is_null() {
                 let child = (*fragment).first_child;
-                lxb_dom_node_remove(child);
-                lxb_dom_node_insert_before(*self.node_ptr_(), child);
+                move_node_before_unchecked((*(*self.node_ptr_())).parent, child, *self.node_ptr_());
             }
             lxb_dom_node_destroy(fragment);
         }
@@ -986,11 +985,14 @@ impl Element for ElementNode {
 
     fn set_outer_text(&mut self, text: &str) {
         check_node!(self);
+        if self.parent_node().is_none() {
+            return;
+        }
         self.set_text_content(text);
         unsafe {
             let fc = lxb_dom_node_first_child_noi(*self.node_ptr_());
             if !fc.is_null() {
-                lxb_dom_node_insert_before(*self.node_ptr_(), fc);
+                move_node_before_unchecked((*(*self.node_ptr_())).parent, fc, *self.node_ptr_());
             }
         }
         self.remove()

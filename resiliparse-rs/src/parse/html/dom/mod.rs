@@ -66,6 +66,28 @@ pub(crate) fn wrap_any_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_nod
 
 // ----------------------------------------- Private Helpers ---------------------------------------
 
+/// Move a node after validation by the caller.
+///
+/// The document lock must be held and its mutation counter updated. All pointers
+/// must be valid, belong to the same document, and describe an acyclic insertion;
+/// a non-null reference must be a child of `parent` and distinct from `node`.
+unsafe fn move_node_before_unchecked(
+    parent: *mut lxb_dom_node_t,
+    node: *mut lxb_dom_node_t,
+    reference: *mut lxb_dom_node_t,
+) {
+    unsafe {
+        // Lexbor's insertion functions do not detach nodes. Always repair the
+        // previous parent's first/last child and the old siblings' links first.
+        lxb_dom_node_remove(node);
+        if reference.is_null() {
+            lxb_dom_node_insert_child(parent, node);
+        } else {
+            lxb_dom_node_insert_before(reference, node);
+        }
+    }
+}
+
 unsafe fn next_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
     unsafe {
         while !child.is_null() {
