@@ -26,6 +26,7 @@ use std::ptr;
 use std::ptr::addr_of_mut;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// HTML parser error.
 #[derive(Debug)]
@@ -147,6 +148,7 @@ impl HTMLTree {
     #[inline]
     /// Get DOM document root node.
     pub fn document(&self) -> Option<DocumentNode> {
+        let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
         if !ptr.is_null() {
             Some(DocumentNode::new(&self.doc, ptr.cast()))
@@ -157,6 +159,7 @@ impl HTMLTree {
 
     /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
+        let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
         if !ptr.is_null() {
             Some(ElementNode::new(&self.doc, unsafe { *ptr }.head.cast()))
@@ -167,6 +170,7 @@ impl HTMLTree {
 
     /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
+        let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
         if !ptr.is_null() {
             Some(ElementNode::new(&self.doc, unsafe { *ptr }.body.cast()))
@@ -178,6 +182,7 @@ impl HTMLTree {
     /// Get HTML `<title>` contents as string.
     #[inline]
     pub fn title(&self) -> Option<String> {
+        let _guard = self.doc.doc_ptr();
         unsafe {
             let mut size = 0;
             let t = lxb_html_document_title(self.get_html_document_ptr(), addr_of_mut!(size));
@@ -190,6 +195,7 @@ impl HTMLTree {
 #[derive(Debug)]
 pub(crate) struct HTMLDocument {
     html_document: ReentrantMutex<*mut lxb_html_document_t>,
+    mutation_epoch: AtomicU64,
 }
 
 unsafe impl Send for HTMLDocument {}
@@ -200,9 +206,23 @@ impl HTMLDocument {
         self.html_document.lock()
     }
 
+    // The document lock must cover checking this counter AND using native
+    // pointers. Atomicity alone cannot prevent destruction between those steps.
+    pub(crate) fn mutation_epoch(&self) -> u64 {
+        self.mutation_epoch.load(Ordering::Relaxed)
+    }
+
+    // Call under the document lock, before changing links or destroying nodes.
+    pub(crate) fn mark_mutated(&self) {
+        self.mutation_epoch
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |epoch| epoch.checked_add(1))
+            .expect("DOM mutation counter exhausted");
+    }
+
     pub(crate) fn new(doc: *mut lxb_html_document_t) -> Self {
         HTMLDocument {
             html_document: ReentrantMutex::new(doc),
+            mutation_epoch: AtomicU64::new(0),
         }
     }
 }

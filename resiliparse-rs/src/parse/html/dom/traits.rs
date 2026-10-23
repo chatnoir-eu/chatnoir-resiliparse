@@ -25,7 +25,6 @@ use parking_lot::ReentrantMutexGuard;
 use std::cmp::max;
 use std::fmt::{Debug, Display};
 use std::ops::Add;
-use std::ptr;
 use std::ptr::addr_of;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -98,6 +97,8 @@ pub(crate) trait NodeInterfaceBaseImpl {
         node: &NodeRef<'a>,
         child: Option<NodeRef>,
     ) -> Option<NodeRef<'a>> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         unsafe {
             if let Some(c) = child {
                 if *c.parent_node()?.node_ptr_() != *self.node_ptr_()
@@ -109,15 +110,15 @@ pub(crate) trait NodeInterfaceBaseImpl {
                 if node == &c {
                     return Some(node.clone());
                 }
+                document.mark_mutated();
                 // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
                 if let NodeRef::DocumentFragment(d) = node {
                     d.child_nodes().iter().for_each(|c2| {
+                        lxb_dom_node_remove(*c2.node_ptr_());
                         lxb_dom_node_insert_before(*c.node_ptr_(), *c2.node_ptr_());
                     });
-                    // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-                    (*(*d.node_ptr_())).first_child = ptr::null_mut();
-                    (*(*d.node_ptr_())).last_child = ptr::null_mut();
                 } else {
+                    lxb_dom_node_remove(*node.node_ptr_());
                     lxb_dom_node_insert_before(*c.node_ptr_(), *node.node_ptr_());
                 }
                 Some(node.clone())
@@ -128,19 +129,21 @@ pub(crate) trait NodeInterfaceBaseImpl {
     }
 
     unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         unsafe {
             if !self.can_have_children_unchecked() {
                 return None;
             }
+            document.mark_mutated();
             // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
             if let NodeRef::DocumentFragment(d) = node {
                 d.child_nodes().iter().for_each(|c| {
+                    lxb_dom_node_remove(*c.node_ptr_());
                     lxb_dom_node_insert_child(*self.node_ptr_(), *c.node_ptr_());
                 });
-                // Lexbor doesn't reset the child pointers upon moving elements from DocumentFragments
-                (*(*d.node_ptr_())).first_child = ptr::null_mut();
-                (*(*d.node_ptr_())).last_child = ptr::null_mut();
             } else {
+                lxb_dom_node_remove(*node.node_ptr_());
                 lxb_dom_node_insert_child(*self.node_ptr_(), *node.node_ptr_());
             }
             Some(node.clone())
@@ -152,6 +155,8 @@ pub(crate) trait NodeInterfaceBaseImpl {
         new_child: &NodeRef<'a>,
         old_child: &NodeRef<'a>,
     ) -> Option<NodeRef<'a>> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         unsafe {
             if *old_child.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
                 return None;
@@ -165,10 +170,13 @@ pub(crate) trait NodeInterfaceBaseImpl {
     }
 
     unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         unsafe {
             if *node.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
                 return None;
             }
+            document.mark_mutated();
             lxb_dom_node_remove(*node.node_ptr_());
             Some(node.clone())
         }
@@ -179,6 +187,8 @@ pub(crate) trait NodeInterfaceBaseImpl {
 #[allow(private_bounds)]
 pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     fn node_type(&self) -> Option<NodeType> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         use lxb_dom_node_type_t::*;
         match unsafe { self.node_ptr_().as_ref()? }.type_ {
             LXB_DOM_NODE_TYPE_ELEMENT => Some(NodeType::Element),
@@ -218,6 +228,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     fn set_node_value(&mut self, value: &str) {
         check_node!(self);
         unsafe {
+            self.tree_().mark_mutated();
             lxb_dom_node_text_content_set(*self.node_ptr_(), value.as_ptr(), value.len());
         }
     }
@@ -252,6 +263,8 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     /// Parent of this node.
     fn parent_node(&self) -> Option<Node> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.parent })
     }
 
@@ -291,21 +304,29 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     /// First child element of this DOM node.
     fn first_child(&self) -> Option<Node> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.first_child })
     }
 
     /// Last child element of this DOM node.
     fn last_child(&self) -> Option<Node> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.last_child })
     }
 
     /// Previous sibling node.
     fn previous_sibling(&self) -> Option<Node> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.prev })
     }
 
     /// Next sibling node.
     fn next_sibling(&self) -> Option<Node> {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         wrap_any_raw_node(&self.tree_(), unsafe { self.node_ptr_().as_ref()?.next })
     }
 
@@ -356,10 +377,13 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     fn decompose(&mut self) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if self.node_ptr_().is_null() {
             return;
         }
         unsafe {
+            document.mark_mutated();
             lxb_dom_node_destroy_deep(*self.node_ptr_());
         }
         self.reset_node_ptr_();
@@ -434,19 +458,31 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn prepend(&mut self, nodes: &[NodeRef]) {
-        let fc = self.first_child();
-        nodes.iter().rev().for_each(|n| {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
+        let mut fc = self.first_child();
+        while let Some(child) = &fc {
+            if !nodes.iter().any(|n| *n == child.as_noderef()) {
+                break;
+            }
+            fc = child.next_sibling();
+        }
+        nodes.iter().for_each(|n| {
             self.insert_before(n, fc.as_ref().map(|n_| n_.as_noderef()));
         });
     }
 
     fn append(&mut self, nodes: &[NodeRef]) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         nodes.iter().for_each(|n| {
             self.append_child(n);
         });
     }
 
     fn replace_children(&mut self, nodes: &[NodeRef]) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         while let Some(c) = self.first_child() {
             self.remove_child(&c.as_noderef());
         }
@@ -496,8 +532,17 @@ pub trait NonElementParentNode: NodeInterface {
 /// ChildNode mixin trait.
 pub trait ChildNode: NodeInterface {
     fn before(&mut self, nodes: &[&mut Node]) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if let Some(p) = &mut self.parent_node() {
-            let anchor = self.parent_node();
+            // Keep an anchor that will not itself be moved by this operation.
+            let mut anchor = Some(self.as_node());
+            while let Some(node) = &anchor {
+                if !nodes.iter().any(|n| n.as_noderef() == node.as_noderef()) {
+                    break;
+                }
+                anchor = node.next_sibling();
+            }
             nodes.iter().for_each(|n| {
                 p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
             });
@@ -505,8 +550,16 @@ pub trait ChildNode: NodeInterface {
     }
 
     fn after(&mut self, nodes: &[&mut Node]) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if let Some(p) = &mut self.parent_node() {
-            let anchor = self.next_sibling();
+            let mut anchor = self.next_sibling();
+            while let Some(node) = &anchor {
+                if !nodes.iter().any(|n| n.as_noderef() == node.as_noderef()) {
+                    break;
+                }
+                anchor = node.next_sibling();
+            }
             nodes.iter().for_each(|n| {
                 p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
             });
@@ -514,13 +567,22 @@ pub trait ChildNode: NodeInterface {
     }
 
     fn replace_with(&mut self, nodes: &[&mut Node]) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
+        if self.parent_node().is_none() {
+            return;
+        }
         self.before(nodes);
-        self.remove();
+        // Replacing with a list containing the receiver moves it into the list.
+        if !nodes.iter().any(|n| n.as_noderef() == self.as_noderef()) {
+            self.remove();
+        }
     }
 
     fn remove(&mut self) {
         check_node!(self);
         unsafe {
+            self.tree_().mark_mutated();
             lxb_dom_node_remove(*self.node_ptr_());
         }
     }
@@ -622,6 +684,8 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     }
 
     fn append_data(&mut self, data: &str) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if data.is_empty() {
             return;
         }
@@ -629,6 +693,8 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     }
 
     fn insert_data(&mut self, offset: usize, data: &str) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if data.is_empty() {
             return;
         }
@@ -645,6 +711,8 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     }
 
     fn delete_data(&mut self, offset: usize, count: usize) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if let Some(s) = self.data() {
             let mut s_new = String::with_capacity(max(0, s.len() - count));
             s.chars().into_iter().enumerate().for_each(|(i, c)| {
@@ -657,6 +725,8 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     }
 
     fn replace_data(&mut self, offset: usize, count: usize, data: &str) {
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
         if let Some(s) = self.data() {
             let mut s_new = String::with_capacity(max(0, s.len() - count + data.len()));
             s.chars().into_iter().enumerate().for_each(|(i, c)| {

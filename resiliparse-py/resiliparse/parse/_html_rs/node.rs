@@ -1217,7 +1217,13 @@ impl NodeIter {
         slf
     }
 
-    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Bound<'_, PyAny>> {
-        create_upcast_node(slf.py(), slf.iter.next()?).ok()
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
+        slf.iter
+            .next()
+            .map(|node| {
+                let node = node.map_err(|error| DOMException::new_err(error.to_string()))?;
+                create_upcast_node(slf.py(), node)
+            })
+            .transpose()
     }
 }
