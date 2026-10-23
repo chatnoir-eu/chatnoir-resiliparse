@@ -69,9 +69,6 @@ unsafe fn splice_siblings_unchecked(
 }
 
 pub(crate) trait NodeInterfaceBaseImpl {
-    fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self
-    where
-        Self: Sized;
     fn tree_(&self) -> Arc<HTMLDocument>;
     fn node_ptr_(&self) -> *mut lxb_dom_node_t;
     fn reset_node_ptr_(&mut self);
@@ -483,6 +480,19 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.remove_child_unchecked(node) }
     }
 
+    /// Lazy pre-order traversal including this node. See [`NodeIterator`] for
+    /// mutation invalidation and error semantics.
+    ///
+    /// ```
+    /// use resiliparse::parse::html::{
+    ///     dom::{node::Node, traits::NodeInterface}, tree::HTMLTree,
+    /// };
+    ///
+    /// let tree = HTMLTree::parse("<p>Hello <b>DOM</b></p>").unwrap();
+    /// let node = Node::from(tree.body().unwrap());
+    /// assert_eq!(node.iter().collect::<Result<Vec<_>, _>>().unwrap().len(), 5);
+    /// assert_eq!(node.iter_elements().collect::<Result<Vec<_>, _>>().unwrap().len(), 3);
+    /// ```
     fn iter(&self) -> NodeIterator<'_>
     where
         Self: Sized,
@@ -490,6 +500,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         NodeIterator::new(self.as_noderef())
     }
 
+    /// Lazy element-only pre-order traversal, including an element root.
     fn iter_elements(&self) -> ElementIterator<'_>
     where
         Self: Sized,

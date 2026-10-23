@@ -15,7 +15,6 @@
 //! HTML parser and DOM tree handle.
 
 use crate::parse::html::dom::node::*;
-use crate::parse::html::dom::traits::*;
 use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;

@@ -40,6 +40,7 @@ macro_rules! define_node_enums {
         /// An owned DOM node. Use concrete types' `TryFrom<Node>` implementations
         /// for checked downcasts; a mismatch returns `Err(original_node)`.
         /// Borrowed access is available through the `as_*` capability views.
+        /// Common operations and traversal use the shared [`NodeInterface`] trait.
         #[derive(Clone, PartialEq, Debug)]
         pub enum Node { $($Variant($Type)),+ }
 
@@ -49,16 +50,36 @@ macro_rules! define_node_enums {
         #[derive(PartialEq, Debug)]
         pub enum NodeRefMut<'a> { $($Variant(&'a mut $Type)),+ }
 
-        impl Deref for Node {
-            type Target = dyn NodeInterface;
-            fn deref(&self) -> &Self::Target {
-                match self { $(Self::$Variant(node) => node),+ }
+        impl NodeInterfaceBaseImpl for Node {
+            fn tree_(&self) -> Arc<HTMLDocument> {
+                match self { $(Self::$Variant(node) => node.tree_()),+ }
+            }
+
+            fn node_ptr_(&self) -> *mut lxb_dom_node_t {
+                match self { $(Self::$Variant(node) => node.node_ptr_()),+ }
+            }
+
+            fn reset_node_ptr_(&mut self) {
+                match self { $(Self::$Variant(node) => node.reset_node_ptr_()),+ }
             }
         }
 
-        impl DerefMut for Node {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                match self { $(Self::$Variant(node) => node),+ }
+        impl NodeInterface for Node {
+            fn as_noderef(&self) -> NodeRef<'_> {
+                match self { $(Self::$Variant(node) => NodeRef::$Variant(node)),+ }
+            }
+
+            fn as_noderef_mut(&mut self) -> NodeRefMut<'_> {
+                match self { $(Self::$Variant(node) => NodeRefMut::$Variant(node)),+ }
+            }
+
+            fn as_node(&self) -> Node { self.clone() }
+            fn into_node(self) -> Node { self }
+        }
+
+        impl Display for Node {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                match self { $(Self::$Variant(node) => Display::fmt(node, f)),+ }
             }
         }
 
@@ -190,12 +211,6 @@ macro_rules! impl_node_views {
 
 impl_node_views!(Node, NodeRef<'_>, NodeRefMut<'_>);
 
-impl Display for Node {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.deref(), f)
-    }
-}
-
 impl Display for NodeRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.deref(), f)
@@ -260,8 +275,8 @@ macro_rules! define_node_type {
         // Raw pointers deliberately keep these clonable handles !Sync.
         unsafe impl Send for $Self {}
 
-        impl NodeInterfaceBaseImpl for $Self {
-            fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self {
+        impl $Self {
+            pub(crate) fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self {
                 let _guard = tree.doc_ptr();
                 if !node.is_null() {
                     unsafe { (*node).ref_count += 1 };
@@ -271,7 +286,9 @@ macro_rules! define_node_type {
                     node,
                 }
             }
+        }
 
+        impl NodeInterfaceBaseImpl for $Self {
             #[inline(always)]
             fn tree_(&self) -> Arc<HTMLDocument> {
                 self.tree.clone()

@@ -1832,3 +1832,78 @@ fn checked_downcasts_preserve_ownership_on_success_and_failure() {
         check::<NotationNode>(node, NodeType::Notation);
     }
 }
+
+// Node uses the same interface as concrete nodes, without trait-object dereferencing.
+mod node_interface_api {
+    use crate::parse::html::dom::iter::TraversalError;
+    use crate::parse::html::dom::node::{Node, NodeType};
+    use crate::parse::html::dom::traits::NodeInterface;
+    use crate::parse::html::tree::HTMLTree;
+
+    #[test]
+    fn common_operations_use_the_shared_interface() {
+        let tree = HTMLTree::parse("<p>text</p><b>last</b>").unwrap();
+        let mut body = Node::from(tree.body().unwrap());
+        assert_eq!(body.node_type(), Some(NodeType::Element));
+        assert_eq!(body.node_name().as_deref(), Some("BODY"));
+        assert!(body.owner_document().is_some());
+        assert!(body.parent_element().is_some());
+        assert!(body.parent_node().is_some());
+        assert!(body.has_child_nodes());
+        assert_eq!(body.child_nodes().len(), 2);
+        let mut first = body.first_child().unwrap();
+        let last = body.last_child().unwrap();
+        assert_eq!(first.next_sibling().unwrap(), last);
+        assert_eq!(last.previous_sibling().unwrap(), first);
+        assert!(body.contains(&first.as_noderef()));
+        assert_eq!(first.as_node().into_node(), first);
+        let copy = first.clone_node(true).unwrap();
+        assert_ne!(copy, first);
+        assert_eq!(copy.text_content(), first.text_content());
+        body.insert_before(&copy.as_noderef(), Some(first.as_noderef()))
+            .unwrap();
+        assert_eq!(body.first_child().unwrap(), copy);
+        body.remove_child(&copy.as_noderef()).unwrap();
+        body.replace_child(&copy.as_noderef(), &first.as_noderef()).unwrap();
+        body.append_child(&first.as_noderef()).unwrap();
+        assert_eq!(body.last_child().unwrap(), first);
+        let mut text = first.first_child().unwrap();
+        text.set_node_value("new");
+        assert_eq!(text.node_value().as_deref(), Some("new"));
+        first.set_text_content("replacement");
+        assert_eq!(first.text_content().as_deref(), Some("replacement"));
+        assert!(matches!(first.as_noderef_mut(), crate::parse::html::dom::node::NodeRefMut::Element(_)));
+        first.decompose();
+        assert!(first.node_type().is_none());
+    }
+
+    #[test]
+    fn borrowed_traversal_preserves_order_and_invalidation() {
+        let tree = HTMLTree::parse("<p>before<b>nested</b>after</p>").unwrap();
+        let node = Node::from(tree.body().unwrap());
+        fn traversal_count<T: NodeInterface>(node: &T) -> usize {
+            node.iter().collect::<Result<Vec<_>, _>>().unwrap().len()
+        }
+        assert_eq!(traversal_count(&node), 6);
+        assert_eq!(traversal_count(&tree.body().unwrap()), 6);
+        let names = node
+            .iter()
+            .map(|result| result.unwrap().node_name().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["BODY", "P", "#text", "B", "#text", "#text"]);
+        let names = node
+            .iter_elements()
+            .map(|result| Node::from(result.unwrap()).node_name().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["BODY", "P", "B"]);
+        let mut nodes = node.iter();
+        let mut elements = node.iter_elements();
+        let mut alias = node.as_node();
+        alias.set_text_content("changed");
+        assert!(matches!(nodes.next(), Some(Err(TraversalError::TreeModified))));
+        assert!(matches!(elements.next(), Some(Err(TraversalError::TreeModified))));
+        assert!(nodes.next().is_none());
+        assert!(elements.next().is_none());
+        assert_eq!(node.node_name().as_deref(), Some("BODY"));
+    }
+}

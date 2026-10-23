@@ -22,7 +22,6 @@ use std::ptr::addr_of_mut;
 use std::sync::{Arc, Weak};
 
 use crate::parse::html::dom::node::{ElementNode, NodeRef};
-use crate::parse::html::dom::traits::NodeInterfaceBaseImpl;
 use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
 use crate::third_party::lexbor::lexbor_status_t::*;
