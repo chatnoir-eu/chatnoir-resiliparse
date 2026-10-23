@@ -2,7 +2,7 @@
 plugins = Cython.Coverage
 relative_files = true
 omit =
-    **/cli.py
+    **/resiliparse/cli.py
     **/setup.py
     tests/**
     docs/**

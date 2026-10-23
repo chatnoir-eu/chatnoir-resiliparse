@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .stream_io import FileStream, GZipStream, LZ4Stream
-from .stream_io import FastWARCError, StreamError
-from .warc import ArchiveIterator, WarcRecord, WarcRecordType
+import importlib
 
-# Exposing symbols for legacy compatibility, please prefer explicit imports from submodules
+# Load Cython exports only when requested. Importing the Rust-backed package's
+# compatibility shims must not require the legacy extensions.
 
 __all__ = [
     "FileStream",
@@ -28,3 +27,16 @@ __all__ = [
     "WarcRecord",
     "WarcRecordType"
 ]
+
+
+def __getattr__(name):
+    if name not in __all__:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = '.warc' if name in ('ArchiveIterator', 'WarcRecord', 'WarcRecordType') else '.stream_io'
+    value = getattr(importlib.import_module(module, __name__), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

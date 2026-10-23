@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import closing, nullcontext
 import getpass
 import importlib
 from itertools import chain
@@ -24,24 +25,78 @@ import urllib.request
 import click
 from tqdm import tqdm
 
-from fastwarc.stream_io import FileStream, StreamError, FastWARCError, PythonIOStreamAdapter
+from fastwarc.stream_io import GzipReader, GzipWriter, Lz4Reader, Lz4Writer, ZstdReader, ZstdWriter
 from fastwarc.warc import ArchiveIterator, WarcRecordType
-from fastwarc.legacy.tools import CompressionAlg, detect_compression_algorithm, wrap_warc_stream, \
-    recompress_warc_interactive, verify_digests
 
 
-def exception_handler(exctype, value, _):
-    if exctype == FastWARCError:
-        click.echo(str(value), err=True)
-        sys.exit(1)
-
-    raise value
+COMPRESSION_ALGORITHMS = ['gzip', 'lz4', 'zstd', 'uncompressed', 'auto']
+_READERS = {'gzip': GzipReader, 'lz4': Lz4Reader, 'zstd': ZstdReader}
+_WRITERS = {'gzip': GzipWriter, 'lz4': Lz4Writer, 'zstd': ZstdWriter}
 
 
-sys.excepthook = exception_handler
+class _FastWarcGroup(click.Group):
+    def invoke(self, ctx):
+        try:
+            return super().invoke(ctx)
+        except (OSError, ValueError) as error:
+            raise click.ClickException(str(error)) from error
 
 
-@click.group(context_settings=dict(help_option_names=['-h', '--help']))
+def _compression_from_path(path):
+    name = os.fspath(path).lower()
+    for suffix, algorithm in (('.gz', 'gzip'), ('.lz4', 'lz4'), ('.zst', 'zstd'), ('.zstd', 'zstd')):
+        if name.endswith(suffix):
+            return algorithm
+    return 'uncompressed'
+
+
+def _warc_records(source, decompress_alg='auto', **options):
+    reader = _READERS[decompress_alg](source) if decompress_alg in _READERS else nullcontext(source)
+    with reader as source:
+        yield from ArchiveIterator(source, stream_detect=decompress_alg == 'auto', **options)
+
+
+def _recompress_records(infile, outfile, decompress_alg, compress_alg, compress_level):
+    if os.path.abspath(infile) == os.path.abspath(outfile) or (
+            os.path.exists(outfile) and os.path.samefile(infile, outfile)):
+        raise click.UsageError('Input and output must be different files.')
+    if compress_alg == 'auto':
+        compress_alg = _compression_from_path(outfile)
+    if compress_level is not None and compress_alg not in ('gzip', 'zstd'):
+        raise click.BadParameter('Compression levels are supported only for gzip and zstd.',
+                                 param_hint='--compress-level')
+    with closing(_warc_records(infile, decompress_alg, parse_http=False, inplace=True)) as records, \
+            open(outfile, 'wb') as output:
+        args = {} if compress_level is None else {'compression_level': compress_level}
+        writer = _WRITERS[compress_alg](output, **args) if compress_alg in _WRITERS else nullcontext(output)
+        with writer as writer:
+            for record in records:
+                before = output.tell()
+                record.write(writer)
+                if compress_alg in _WRITERS:
+                    writer.finish()  # One independently seekable compression member per record.
+                yield output.tell() - before
+
+
+def _verify_digests(infile, verify_payloads, decompress_alg):
+    with closing(_warc_records(infile, decompress_alg, parse_http=False, inplace=True)) as records:
+        for record in records:
+            result = {
+                'record_id': record.record_id,
+                'block_digest_ok': record.verify_block_digest(not verify_payloads or not record.is_http)
+                if 'WARC-Block-Digest' in record.headers else None,
+            }
+            if verify_payloads:
+                if 'WARC-Payload-Digest' in record.headers:
+                    if record.is_http:
+                        record.parse_http()
+                    result['payload_digest_ok'] = record.verify_payload_digest(True)
+                else:
+                    result['payload_digest_ok'] = None
+            yield result
+
+
+@click.group(cls=_FastWarcGroup, context_settings=dict(help_option_names=['-h', '--help']))
 def main():
     """FastWARC Command Line Interface."""
     return 0
@@ -51,7 +106,7 @@ def _human_readable_bytes(byte_num):
     for unit in ['bytes', 'KiB', 'MiB', 'GiB', 'TiB']:
         if byte_num <= 1024 or unit == 'TiB':
             if int(byte_num) == byte_num:
-                return f'{byte_num:d} {unit}'
+                return f'{int(byte_num)} {unit}'
             return f'{byte_num:.2f} {unit}'
         byte_num /= 1024
 
@@ -59,47 +114,33 @@ def _human_readable_bytes(byte_num):
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
 @click.argument('outfile', type=click.Path(dir_okay=False, exists=False))
-@click.option('-c', '--compress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+@click.option('-c', '--compress-alg', type=click.Choice(COMPRESSION_ALGORITHMS),
               default='auto', show_default=True, help='Compression algorithm to use for output file')
-@click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+@click.option('-d', '--decompress-alg', type=click.Choice(COMPRESSION_ALGORITHMS),
               default='auto', show_default=True,
-              help='Decompression algorithm for decoding input file (auto tries to detect based on file extension)')
-@click.option('-l', '--compress-level', type=int, default=None, help='Compression level (defaults to max)')
+              help='Decompression algorithm for decoding input file (auto detects input compression)')
+@click.option('-l', '--compress-level', type=int, default=None,
+              help='Compression level for gzip or zstd (defaults: gzip 9, zstd 3)')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
 def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, quiet):
     """
     Recompress a WARC file.
 
     This command allows you to recompress a WARC file if it is uncompressed or not compressed
-    properly at the record-level if or you want to recompress a GZip WARC as LZ4 or vice versa.
+    properly at the record level, or to change between GZip, LZ4, and Zstandard.
     """
-
-    compress_alg = getattr(CompressionAlg, compress_alg)
-    decompress_alg = getattr(CompressionAlg, decompress_alg)
-
-    comp_args = {}
-    if compress_level is None:
-        if compress_alg == CompressionAlg.gzip:
-            comp_args['compression_level'] = 9
-        elif compress_alg == CompressionAlg.lz4:
-            comp_args['compression_level'] = 12
 
     bytes_written = 0
     num = 0
     start = time.time()
     try:
-        for _, b in tqdm(recompress_warc_interactive(infile, outfile, decompress_alg, compress_alg, **comp_args),
-                         desc='Recompressing WARC file', unit=' record(s)', leave=False,
-                         disable=quiet, mininterval=0.2):
-            num += 1
-            bytes_written += b
-
+        with closing(_recompress_records(infile, outfile, decompress_alg, compress_alg, compress_level)) as records:
+            for b in tqdm(records, desc='Recompressing WARC file', unit=' record(s)', leave=False,
+                          disable=quiet, mininterval=0.2):
+                num += 1
+                bytes_written += b
         if not quiet:
             click.echo('Recompression completed.')
-    except KeyboardInterrupt:
-        if not quiet:
-            click.echo('Recompression aborted.')
-            sys.exit(1)
     finally:
         if not quiet and num > 0:
             click.echo(f'  - Records recompressed: {num}')
@@ -109,7 +150,7 @@ def recompress(infile, outfile, compress_alg, decompress_alg, compress_level, qu
 
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
-@click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+@click.option('-d', '--decompress-alg', type=click.Choice(COMPRESSION_ALGORITHMS),
               default='auto', show_default=True, help='Decompression algorithm')
 @click.option('-p', '--verify-payloads', is_flag=True, help='Also verify payload digests')
 @click.option('-q', '--quiet', is_flag=True, help='Do not print progress information')
@@ -125,14 +166,12 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
     The command will exit with a non-zero exit code if at least one record fails verification.
     """
 
-    decompress_alg = getattr(CompressionAlg, decompress_alg)
-
     failed_digests = []
     num_total = 0
     num_no_digest = 0
     try:
         desc_tpl = 'Verifying digests ({} failed)'
-        pbar = tqdm(verify_digests(infile, verify_payloads, decompress_alg),
+        pbar = tqdm(_verify_digests(infile, verify_payloads, decompress_alg),
                     desc=desc_tpl.format(0), unit=' record(s)', leave=False, disable=quiet, mininterval=0.2)
 
         for v in pbar:
@@ -161,13 +200,6 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
             if output:
                 output.write(f'{v["record_id"]}: {status}\n')
 
-        if output:
-            output.close()
-
-    except KeyboardInterrupt:
-        if not quiet:
-            click.echo('Verification aborted.')
-            sys.exit(1)
     finally:
         if not quiet and num_total > 0:
             if not failed_digests:
@@ -179,13 +211,15 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
                 click.echo('===============')
                 for rec in failed_digests:
                     click.echo(rec)
-                sys.exit(1)
+
+    if failed_digests:
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
 @click.argument('infile', type=click.Path(dir_okay=False, exists=True))
-@click.argument('offset', type=int)
-@click.option('-o', '--output', type=click.File('wb'), default=sys.stdout.buffer,
+@click.argument('offset', type=click.IntRange(min=0))
+@click.option('-o', '--output', type=click.File('wb'), default='-',
               help='Output file, default is stdout')
 @click.option('--payload', is_flag=True,
               help='Output only record payload (transfer and/or content encoding are preserved')
@@ -202,15 +236,14 @@ def extract(infile, offset, output, payload, headers):
     with open(infile, 'rb') as stream:
         stream.seek(offset)
         try:
-            record = next(ArchiveIterator(stream))
+            iterator = ArchiveIterator(stream)
+            record = next(iterator)
             if compl_record:
                 record.write(output)
             elif headers:
-                record.headers.write(PythonIOStreamAdapter(output))
-                output.write(b'\r\n')
+                record.headers.write(output)
                 if record.is_http:
-                    record.http_headers.write(PythonIOStreamAdapter(output))
-                    output.write(b'\r\n')
+                    record.http_headers.write(output)
             elif payload:
                 buf = record.reader.read(4096)
                 while buf:
@@ -218,8 +251,8 @@ def extract(infile, offset, output, payload, headers):
                     buf = record.reader.read(4096)
         except StopIteration:
             return
-        except (FastWARCError, OSError, ValueError) as e:
-            click.echo(f'Failed to extract WARC record at offset {offset}: {str(e)}', err=True)
+        except (OSError, ValueError) as e:
+            raise click.ClickException(f'Failed to extract WARC record at offset {offset}: {e}') from e
 
 
 def _index_record(output, fields, preserve_multi_header, record, next_record_offset, file_name):
@@ -237,14 +270,11 @@ def _index_record(output, fields, preserve_multi_header, record, next_record_off
             idx[f] = str(record.http_headers.status_code)
         elif f.startswith('http:') and record.is_http:
             if preserve_multi_header:
-                l = []
-                for k, v in record.http_headers:
-                    if k == f[5:]:
-                        l.append(v)
-                if len(l) == 1:
-                    idx[f] = l[0]
-                elif len(l) > 1:
-                    idx[f] = l
+                values = record.http_headers.get_multiple(f[5:])
+                if len(values) == 1:
+                    idx[f] = values[0]
+                elif values:
+                    idx[f] = list(values)
             else:
                 idx[f] = record.http_headers.get(f[5:])
         elif f in record.headers:
@@ -255,7 +285,7 @@ def _index_record(output, fields, preserve_multi_header, record, next_record_off
 
 @main.command()
 @click.argument('infiles', type=click.Path(dir_okay=False, exists=True), nargs=-1)
-@click.option('-o', '--output', type=click.File('w'), default=sys.stdout,
+@click.option('-o', '--output', type=click.File('w'), default='-',
               help='Output file, default is stdout')
 @click.option('-f', '--fields', type=str, metavar='FIELDS',
               default='offset,warc-type,warc-target-uri', show_default=True,
@@ -272,15 +302,14 @@ def index(infiles, output, fields, preserve_multi_header):
     """
     fields = fields.split(',')
     for infile in infiles:
-        with open(infile, 'rb') as stream:
-            prev_record = None
-            for record in ArchiveIterator(stream):
-                if prev_record is not None:
-                    _index_record(output, fields, preserve_multi_header, prev_record, record.stream_pos, infile)
-                prev_record = record
-
+        prev_record = None
+        for record in ArchiveIterator(infile):
             if prev_record is not None:
-                _index_record(output, fields, preserve_multi_header, prev_record, stream.tell(), infile)
+                _index_record(output, fields, preserve_multi_header, prev_record, record.stream_pos, infile)
+            prev_record = record
+
+        if prev_record is not None:
+            _index_record(output, fields, preserve_multi_header, prev_record, os.path.getsize(infile), infile)
 
 
 boto3 = None
@@ -330,7 +359,7 @@ def _get_raw_stream_from_url(input_url, use_python_stream=False):
             click.echo(f"No such file or directory: '{input_url}", err=True)
             sys.exit(1)
 
-        stream = FileStream(input_url, 'rb') if not use_python_stream else open(input_url, 'rb')
+        stream = open(input_url, 'rb') if use_python_stream else input_url
 
     return stream
 
@@ -351,18 +380,18 @@ def _expand_s3_prefixes(input_urls, endpoint_url, aws_access_key, aws_secret_key
 # noinspection PyPackageRequirements
 @main.command()
 @click.argument('input_url', nargs=-1)
-@click.option('-d', '--decompress-alg', type=click.Choice(['gzip', 'lz4', 'uncompressed', 'auto']),
+@click.option('-d', '--decompress-alg', type=click.Choice(COMPRESSION_ALGORITHMS),
               default='auto', show_default=True, help='Decompression algorithm')
 @click.option('-e', '--endpoint-url', help='S3 endpoint URL', default='https://s3.amazonaws.com', show_default=True)
 @click.option('-a', '--aws-access-key', help='AWS access key for s3:// URLs')
 @click.option('-s', '--aws-secret-key', help='AWS secret key for s3:// URLs (leave empty to read from STDIN)')
 @click.option('--is-prefix', is_flag=True, help='Treat input URL as prefix (only for S3)')
 @click.option('-p', '--use-python-stream', is_flag=True,
-              help='Use slower Python I/O instead of native FileStream for local files')
+              help='Use Python I/O instead of native file readers for local files')
 @click.option('-H', '--parse-http', is_flag=True, help='Parse HTTP headers')
 @click.option('-v', '--verify-digests', is_flag=True, help='Verify record block digests')
 @click.option('-f', '--filter-type', type=click.Choice(['warcinfo', 'response', 'resource', 'request', 'metadata',
-                                                        'revisit', 'conversation', 'continuation', 'any_type']),
+                                                        'revisit', 'conversion', 'continuation', 'unknown', 'any_type']),
               default=['any_type'], multiple=True, show_default=True, help='Filter for specific WARC record types')
 @click.option('-w', '--bench-warcio', is_flag=True, help='Compare FastWARC performance with WARCIO')
 def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secret_key, is_prefix, use_python_stream,
@@ -374,7 +403,7 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
     performance on your own machine. The benchmarking results can be compared directly with WARCIO.
 
     Supported WARC sources are local files, S3 and HTTP(s) URLs. Supported compression algorithms
-    are GZip, LZ4, or uncompressed.
+    are GZip, LZ4, Zstandard, or uncompressed.
 
     The read benchmarking tool has additional options, such as reading WARCs directly from a remote S3 data source
     using `Boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`_.
@@ -393,15 +422,10 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
                 _init_s3(endpoint_url, aws_access_key, aws_secret_key)
                 break
 
-    if decompress_alg == 'auto':
-        decompress_alg = detect_compression_algorithm(input_url[0])
-    else:
-        decompress_alg = getattr(CompressionAlg, decompress_alg)
-
     if bench_warcio:
-        if decompress_alg == CompressionAlg.lz4:
-            click.echo('WARCIO does not support LZ4.', err=True)
-            sys.exit(1)
+        algorithms = {_compression_from_path(url) for url in input_url} if decompress_alg == 'auto' else {decompress_alg}
+        if algorithms & {'lz4', 'zstd'}:
+            raise click.UsageError('WARCIO does not support LZ4 or Zstandard.')
 
         try:
             import warcio
@@ -429,9 +453,8 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
             for _ in tqdm(chain(*(_load_lazy(u, stream_loader) for u in urls)),
                           desc=f'Benchmarking {lib}', unit=' records', leave=False, mininterval=0.5):
                 num += 1
-        except StreamError as e:
-            click.echo(f'Error reading input: {e}', err=True)
-            sys.exit(1)
+        except (OSError, ValueError) as e:
+            raise click.ClickException(f'Error reading input: {e}') from e
         except KeyboardInterrupt:
             click.echo(f'Benchmark interrupted.', err=True)
             interrupted = True
@@ -439,10 +462,13 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
         return num, time.monotonic() - start, interrupted
 
     def _fastwarc_iterator(f):
-        # s = _get_raw_stream_from_url(f, use_python_stream)
-        # s = wrap_warc_stream(s, 'rb', decompress_alg)
-        s = '/home/roce3528/code-in-progress/code-research/web-search/chatnoir/chatnoir-resiliparse/tmpfs/CC-MAIN-20231005012006-20231005042006-00899.warc'
-        return ArchiveIterator(s, rec_type_filter, parse_http=parse_http, verify_digests=verify_digests)
+        source = _get_raw_stream_from_url(f, use_python_stream)
+        try:
+            yield from _warc_records(source, decompress_alg, record_types=rec_type_filter,
+                                     parse_http=parse_http, verify_digests=verify_digests, inplace=True)
+        finally:
+            if not isinstance(source, str):
+                source.close()
 
     n, t_fastwarc, interrupted = _bench(input_url, _fastwarc_iterator, 'FastWARC')
     click.echo(f'FastWARC: {n:,} records read in {t_fastwarc:.02f} seconds ({n / t_fastwarc:,.02f} records/s).')
@@ -452,17 +478,19 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
 
     if bench_warcio:
         def _warcio_iterator(f):
-            s = _get_raw_stream_from_url(f, True)
-            if rec_type_filter == WarcRecordType.any_type:
-                yield from warcio.ArchiveIterator(s, no_record_parse=not parse_http, check_digests=verify_digests)
-            else:
-                # WARCIO does not support record filtering out of the box
-                for rec in warcio.ArchiveIterator(s, not parse_http):
-                    if rec_type_filter & getattr(WarcRecordType, rec.rec_type) != 0:
+            source = _get_raw_stream_from_url(f, True)
+            try:
+                for rec in warcio.ArchiveIterator(source, no_record_parse=not parse_http,
+                                                 check_digests=verify_digests):
+                    if rec_type_filter & getattr(WarcRecordType, rec.rec_type):
                         yield rec
+            finally:
+                source.close()
 
-        n, t_warcio, _ = _bench(input_url, _warcio_iterator, 'WARCIO')
+        n, t_warcio, interrupted = _bench(input_url, _warcio_iterator, 'WARCIO')
         click.echo(f'WARCIO:   {n:,} records read in {t_warcio:.02f} seconds ({n / t_warcio:,.02f} records/s).')
+        if interrupted:
+            raise click.exceptions.Exit(1)
         click.echo(f'Time difference: {t_fastwarc - t_warcio:.02f} seconds, speedup: {t_warcio / t_fastwarc:,.02f}')
 
 
