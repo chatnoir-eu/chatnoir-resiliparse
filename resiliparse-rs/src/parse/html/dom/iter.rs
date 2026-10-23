@@ -20,7 +20,6 @@ use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::NodeInterface;
 use crate::parse::html::dom::wrap_any_raw_node;
 use crate::third_party::lexbor::*;
-use parking_lot::ReentrantMutex;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::iter::FusedIterator;
@@ -29,53 +28,43 @@ use std::sync::Arc;
 
 use crate::parse::html::tree::HTMLDocument;
 
-pub(crate) struct NodeIteratorRaw {
-    root: ReentrantMutex<*mut lxb_dom_node_t>,
-    next_node: ReentrantMutex<*mut lxb_dom_node_t>,
+// Only the owning TraversalState is Send; an unowned raw cursor is not.
+struct NodeIteratorRaw {
+    root: *mut lxb_dom_node_t,
+    next_node: *mut lxb_dom_node_t,
 }
-
-unsafe impl Send for NodeIteratorRaw {}
-unsafe impl Sync for NodeIteratorRaw {}
 
 impl NodeIteratorRaw {
     fn is_exhausted(&self) -> bool {
-        self.next_node.lock().is_null()
+        self.next_node.is_null()
     }
 
-    pub(crate) unsafe fn new(root: *mut lxb_dom_node_t) -> Self {
-        Self {
-            root: ReentrantMutex::new(root),
-            next_node: ReentrantMutex::new(root),
-        }
+    fn new(root: *mut lxb_dom_node_t) -> Self {
+        Self { root, next_node: root }
     }
-}
 
-impl Iterator for NodeIteratorRaw {
-    type Item = *mut lxb_dom_node_t;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.next_node.get_mut();
-        let root = self.root.get_mut();
-        if next.is_null() || root.is_null() {
+    // The caller must hold the document lock and verify that its epoch has not
+    // changed since construction. A raw cursor cannot enforce either condition.
+    unsafe fn next_unchecked(&mut self) -> Option<*mut lxb_dom_node_t> {
+        if self.next_node.is_null() || self.root.is_null() {
             return None;
         }
-
-        let return_node = next.clone();
+        let result = self.next_node;
         unsafe {
-            if !(*(*next)).first_child.is_null() {
-                *next = (*(*next)).first_child;
+            if !(*self.next_node).first_child.is_null() {
+                self.next_node = (*self.next_node).first_child;
             } else {
-                while next != root && (*(*next)).next.is_null() {
-                    *next = (*(*next)).parent;
+                while self.next_node != self.root && (*self.next_node).next.is_null() {
+                    self.next_node = (*self.next_node).parent;
                 }
-                if next == root {
-                    *next = ptr::null_mut();
-                    return Some(return_node);
-                }
-                *next = (*(*next)).next;
+                self.next_node = if self.next_node == self.root {
+                    ptr::null_mut()
+                } else {
+                    (*self.next_node).next
+                };
             }
         }
-        Some(return_node)
+        Some(result)
     }
 }
 
@@ -104,12 +93,17 @@ struct TraversalState {
     finished: bool,
 }
 
+// SAFETY: the cursor's document is retained, and all cursor dereferences occur
+// in next() under the document lock after checking the mutation epoch. Moving
+// the cursor does not itself access native memory.
+unsafe impl Send for TraversalState {}
+
 impl TraversalState {
     fn new(root: NodeRef<'_>) -> Self {
         let document = root.tree_();
         let (expected_epoch, cursor) = {
             let _guard = document.doc_ptr();
-            (document.mutation_epoch(), unsafe { NodeIteratorRaw::new(*root.node_ptr_()) })
+            (document.mutation_epoch(), NodeIteratorRaw::new(root.node_ptr_()))
         };
         Self {
             document,
@@ -136,10 +130,7 @@ impl TraversalState {
         }
         // Keep the document locked through cursor advancement and ref-counting
         // the result, so a writer cannot free either pointer between these steps.
-        let result = self
-            .cursor
-            .next()
-            .and_then(|node| wrap_any_raw_node(&self.document, node));
+        let result = unsafe { self.cursor.next_unchecked() }.and_then(|node| wrap_any_raw_node(&self.document, node));
         if result.is_none() || self.cursor.is_exhausted() {
             self.finished = true;
         }

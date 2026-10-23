@@ -18,7 +18,7 @@ use pyo3::prelude::*;
 use pyo3::types::*;
 use resiliparse::parse::html::tree as tree_impl;
 
-#[pyclass(module = "resiliparse.parse._html_rs")]
+#[pyclass(unsendable, module = "resiliparse.parse._html_rs")]
 pub struct HTMLTree {
     tree: tree_impl::HTMLTree,
 }

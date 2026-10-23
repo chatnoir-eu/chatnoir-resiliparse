@@ -45,7 +45,7 @@ impl From<coll_impl::NamedNodeMap> for NL {
     }
 }
 
-#[pyclass(subclass, sequence, frozen, module = "resiliparse.parse._html_rs.coll")]
+#[pyclass(unsendable, subclass, sequence, frozen, module = "resiliparse.parse._html_rs.coll")]
 pub struct NodeList {
     list: NL,
 }
@@ -135,7 +135,7 @@ impl NodeList {
     }
 }
 
-#[pyclass(subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
+#[pyclass(unsendable, subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
 pub struct ElementNodeList {}
 
 impl ElementNodeList {
@@ -230,7 +230,7 @@ impl ElementNodeList {
     }
 }
 
-#[pyclass(subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
+#[pyclass(unsendable, subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
 pub struct NamedNodeMap {}
 
 impl NamedNodeMap {
@@ -239,7 +239,7 @@ impl NamedNodeMap {
     }
 }
 
-#[pyclass(subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
+#[pyclass(unsendable, subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
 #[derive(PartialEq)]
 pub struct DOMTokenList {
     list: coll_impl::DOMTokenListOwned,

@@ -20,8 +20,10 @@ use crate::parse::html::lexbor::*;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
 use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
+use std::cell::Cell;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
 use std::ptr;
 use std::ptr::addr_of_mut;
 use std::str::FromStr;
@@ -59,6 +61,7 @@ impl Error for CSSParserError {}
 /// HTML DOM tree handle.
 pub struct HTMLTree {
     doc: Arc<HTMLDocument>,
+    _not_sync: PhantomData<Cell<()>>,
 }
 
 impl HTMLTree {
@@ -86,6 +89,7 @@ impl HTMLTree {
 
         Ok(HTMLTree {
             doc: Arc::new(HTMLDocument::new(doc_ptr)),
+            _not_sync: PhantomData,
         })
     }
 }
@@ -198,6 +202,9 @@ pub(crate) struct HTMLDocument {
     mutation_epoch: AtomicU64,
 }
 
+// SAFETY: this internal owner is always accessed through the document lock.
+// Cloneable public handles can be sent separately, so they still need this one
+// shared lock even though the public tree and node handles are deliberately !Sync.
 unsafe impl Send for HTMLDocument {}
 unsafe impl Sync for HTMLDocument {}
 

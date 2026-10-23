@@ -182,11 +182,7 @@ impl<'a> CSSSelectorList<'a> {
             custom_data,
         };
         unsafe {
-            self.match_elements_unchecked(
-                *root_node.node_ptr_(),
-                Some(Self::match_cb_adapter::<T, F>),
-                &mut ctx_wrapper,
-            )
+            self.match_elements_unchecked(root_node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
         }
     }
 
@@ -197,7 +193,7 @@ impl<'a> CSSSelectorList<'a> {
         let tree = self.tree.upgrade().unwrap();
         let _guard = tree.doc_ptr();
         unsafe {
-            if (*(*node.node_ptr_())).parent.is_null() || (*(*node.node_ptr_())).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
+            if (*node.node_ptr_()).parent.is_null() || (*node.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
                 return;
             }
         }
@@ -209,7 +205,7 @@ impl<'a> CSSSelectorList<'a> {
         };
         unsafe {
             self.match_elements_unchecked_reverse(
-                *node.node_ptr_(),
+                node.node_ptr_(),
                 Some(Self::match_cb_adapter::<T, F>),
                 &mut ctx_wrapper,
             )

@@ -227,7 +227,7 @@ unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) ->
             return None;
         }
         lxb_dom_elements_by_attr(
-            *node.node_ptr_() as *mut lxb_dom_element_t,
+            node.node_ptr_() as *mut lxb_dom_element_t,
             coll,
             "id".as_ptr(),
             2,
@@ -254,7 +254,7 @@ unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_ins
             return Vec::default();
         }
         lxb_dom_elements_by_attr(
-            *node.node_ptr_() as *mut lxb_dom_element_t,
+            node.node_ptr_() as *mut lxb_dom_element_t,
             coll,
             name.as_ptr(),
             name.len(),
@@ -274,7 +274,7 @@ unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> 
         if coll.is_null() {
             return Vec::default();
         }
-        lxb_dom_node_by_tag_name(*node.node_ptr_(), coll, name.as_ptr(), name.len());
+        lxb_dom_node_by_tag_name(node.node_ptr_(), coll, name.as_ptr(), name.len());
         dom_coll_to_vec(&node.tree_(), coll, true)
     }
 }
