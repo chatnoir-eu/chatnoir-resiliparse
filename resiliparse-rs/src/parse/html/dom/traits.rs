@@ -305,11 +305,25 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { Some(self.node_value_unchecked()?.to_owned()) }
     }
 
+    /// Set attribute or character data. Other node kinds are unchanged.
     fn set_node_value(&mut self, value: &str) {
         check_node!(self);
         unsafe {
-            self.tree_().mark_mutated();
-            lxb_dom_node_text_content_set(self.node_ptr_(), value.as_ptr(), value.len());
+            use lxb_dom_node_type_t::*;
+            match (*self.node_ptr_()).type_ {
+                LXB_DOM_NODE_TYPE_ATTRIBUTE => {
+                    self.tree_().mark_mutated();
+                    lxb_dom_attr_set_existing_value(self.node_ptr_().cast(), value.as_ptr(), value.len());
+                }
+                LXB_DOM_NODE_TYPE_TEXT
+                | LXB_DOM_NODE_TYPE_CDATA_SECTION
+                | LXB_DOM_NODE_TYPE_COMMENT
+                | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => {
+                    self.tree_().mark_mutated();
+                    lxb_dom_character_data_replace(self.node_ptr_().cast(), value.as_ptr(), value.len(), 0, 0);
+                }
+                _ => {}
+            }
         }
     }
 
@@ -326,9 +340,18 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         ret_value
     }
 
-    #[inline]
+    /// Replace children of an element or fragment, or set attribute/character data.
     fn set_text_content(&mut self, content: &str) {
-        self.set_node_value(content)
+        check_node!(self);
+        unsafe {
+            use lxb_dom_node_type_t::*;
+            if matches!((*self.node_ptr_()).type_, LXB_DOM_NODE_TYPE_ELEMENT | LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) {
+                self.tree_().mark_mutated();
+                lxb_dom_node_text_content_set(self.node_ptr_(), content.as_ptr(), content.len());
+            } else {
+                self.set_node_value(content);
+            }
+        }
     }
 
     fn owner_document(&self) -> Option<DocumentNode> {
@@ -773,12 +796,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
 
     #[inline]
     fn set_data(&mut self, data: &str) {
-        check_node!(self);
-        unsafe {
-            self.tree_().mark_mutated();
-            // The generic text-content setter does not handle CDATA.
-            lxb_dom_character_data_replace(self.node_ptr_().cast(), data.as_ptr(), data.len(), 0, 0);
-        }
+        self.set_node_value(data);
     }
 
     fn substring_data(&self, offset: usize, count: usize) -> Result<String, DOMError> {

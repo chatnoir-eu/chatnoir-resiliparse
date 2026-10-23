@@ -1627,3 +1627,62 @@ fn invalid_character_data_offsets_fail_without_mutation() {
     }
     assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 2);
 }
+
+#[test]
+fn node_value_preserves_parent_subtrees() {
+    let tree = HTMLTree::parse("<!doctype html><div><i>keep</i></div>").unwrap();
+    let mut doc = tree.document().unwrap();
+    let mut element = tree.body().unwrap().first_element_child().unwrap();
+    let child = element.first_child().unwrap();
+    let mut fragment = doc.create_document_fragment().unwrap();
+    let fragment_child = doc.create_text_node("keep").unwrap();
+    fragment.append_child(&fragment_child.as_noderef()).unwrap();
+    let iter = doc.clone().into_iter();
+    let fragment_iter = fragment.clone().into_iter();
+    for mut node in [
+        element.as_node(),
+        fragment.as_node(),
+        doc.as_node(),
+        doc.doctype().unwrap().as_node(),
+    ] {
+        assert_eq!(node.node_value(), None);
+        node.set_node_value("ignored");
+        assert_eq!(node.node_value(), None);
+    }
+    doc.set_text_content("ignored");
+    doc.doctype().unwrap().set_text_content("ignored");
+    assert_child_links(&element, &[child.clone()]);
+    assert_child_links(&fragment, &[fragment_child.as_node()]);
+    assert!(iter.collect::<Result<Vec<_>, _>>().is_ok());
+    assert!(fragment_iter.collect::<Result<Vec<_>, _>>().is_ok());
+
+    element.set_text_content("replacement");
+    fragment.set_text_content("replacement");
+    assert_eq!(element.text_content().unwrap(), "replacement");
+    assert_eq!(fragment.text_content().unwrap(), "replacement");
+    assert_eq!(element.child_nodes().len(), 1);
+    assert_eq!(fragment.child_nodes().len(), 1);
+    assert_ne!(element.first_child().unwrap(), child);
+    assert_ne!(fragment.first_child().unwrap(), fragment_child.as_node());
+}
+
+#[test]
+fn value_and_text_setters_update_attribute_and_character_data() {
+    let tree = HTMLTree::parse("").unwrap();
+    let mut doc = tree.document().unwrap();
+    let mut nodes = [
+        doc.create_attribute("test").unwrap().as_node(),
+        doc.create_text_node("").unwrap().as_node(),
+        doc.create_comment("").unwrap().as_node(),
+        doc.create_cdata_section("").unwrap().as_node(),
+        doc.create_processing_instruction("target", "").unwrap().as_node(),
+    ];
+    for node in &mut nodes {
+        node.set_node_value("é🙂");
+        assert_eq!(node.node_value().unwrap(), "é🙂");
+        node.set_text_content("new");
+        assert_eq!(node.node_value().unwrap(), "new");
+        node.set_node_value("");
+        assert_eq!(node.node_value().unwrap(), "");
+    }
+}
