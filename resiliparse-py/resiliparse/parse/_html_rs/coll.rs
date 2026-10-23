@@ -257,12 +257,6 @@ impl From<coll_impl::DOMTokenList<'_>> for DOMTokenList {
     }
 }
 
-impl From<coll_impl::DOMTokenListMut<'_>> for DOMTokenList {
-    fn from(list: coll_impl::DOMTokenListMut<'_>) -> Self {
-        Self { list: list.into() }
-    }
-}
-
 #[pymethods]
 impl DOMTokenList {
     #[getter]
@@ -271,7 +265,7 @@ impl DOMTokenList {
     }
 
     #[setter]
-    pub fn set_value(&mut self, value: &str) {
+    pub fn set_value(&self, value: &str) {
         self.list.set_value(value)
     }
 
@@ -289,7 +283,7 @@ impl DOMTokenList {
 
     //noinspection DuplicatedCode
     #[pyo3(signature = (*token))]
-    pub fn add<'py>(&mut self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
+    pub fn add<'py>(&self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
         self.list.add(
             token
                 .extract::<Vec<String>>()?
@@ -303,7 +297,7 @@ impl DOMTokenList {
 
     //noinspection DuplicatedCode
     #[pyo3(signature = (*token))]
-    pub fn remove<'py>(&mut self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
+    pub fn remove<'py>(&self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
         self.list.remove(
             token
                 .extract::<Vec<String>>()?
@@ -315,12 +309,12 @@ impl DOMTokenList {
         Ok(())
     }
 
-    pub fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
+    pub fn replace(&self, old_token: &str, new_token: &str) -> bool {
         self.list.replace(old_token, new_token)
     }
 
     #[pyo3(signature = (token, force=None))]
-    pub fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
+    pub fn toggle(&self, token: &str, force: Option<bool>) -> bool {
         self.list.toggle(token, force)
     }
 

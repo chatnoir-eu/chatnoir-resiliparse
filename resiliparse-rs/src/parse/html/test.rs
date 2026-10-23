@@ -176,7 +176,7 @@ fn containment_includes_the_receiver_and_aliases() {
 
     let other = HTMLTree::parse("<div></div>").unwrap();
     assert!(!root.contains(&other.body().unwrap().as_noderef()));
-    let mut invalid = tree.document().unwrap().create_element("i").unwrap();
+    let invalid = tree.document().unwrap().create_element("i").unwrap();
     invalid.decompose();
     assert!(!invalid.contains(&invalid.as_noderef()));
     assert!(!root.contains(&invalid.as_noderef()));
@@ -185,7 +185,7 @@ fn containment_includes_the_receiver_and_aliases() {
 #[test]
 fn inserting_a_child_before_itself_is_a_noop() {
     let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
-    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let root = tree.body().unwrap().first_element_child().unwrap();
     let child = root.first_child().unwrap().next_sibling().unwrap();
     let alias = child.clone();
     let iter = root.clone().into_iter();
@@ -199,7 +199,7 @@ fn inserting_a_child_before_itself_is_a_noop() {
 #[test]
 fn replacing_a_child_with_itself_is_a_noop() {
     let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
-    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let root = tree.body().unwrap().first_element_child().unwrap();
     let child = root.first_child().unwrap().next_sibling().unwrap();
     let alias = child.clone();
     let iter = root.clone().into_iter();
@@ -211,7 +211,7 @@ fn replacing_a_child_with_itself_is_a_noop() {
 #[test]
 fn identity_noops_still_require_valid_children() {
     let tree = HTMLTree::parse("<div><a></a></div><section><b></b></section>").unwrap();
-    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let root = tree.body().unwrap().first_element_child().unwrap();
     let child = root.first_child().unwrap();
     let outsider = tree
         .body()
@@ -221,7 +221,7 @@ fn identity_noops_still_require_valid_children() {
         .first_child()
         .unwrap();
     let alias = root.as_node();
-    let mut invalid = tree.document().unwrap().create_element("i").unwrap();
+    let invalid = tree.document().unwrap().create_element("i").unwrap();
     invalid.decompose();
     let iter = root.clone().into_iter();
 
@@ -293,8 +293,8 @@ fn moving_nodes_repairs_both_parents() {
                 "<section><a><b>nested</b></a><i></i><em></em></section><div><p></p><span></span></div>",
             )
             .unwrap();
-            let mut source = tree.body().unwrap().first_element_child().unwrap();
-            let mut target = tree.body().unwrap().last_element_child().unwrap();
+            let source = tree.body().unwrap().first_element_child().unwrap();
+            let target = tree.body().unwrap().last_element_child().unwrap();
             let mut source_children = source.child_nodes().values();
             let mut target_children = target.child_nodes().values();
             let moved = source_children.remove(index);
@@ -353,7 +353,7 @@ fn moving_siblings_repairs_first_last_and_adjacent_links() {
     ];
     for &(operation, moved_index, reference_index, order) in cases {
         let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
-        let mut parent = tree.body().unwrap().first_element_child().unwrap();
+        let parent = tree.body().unwrap().first_element_child().unwrap();
         let children = parent.child_nodes().values();
         let moved = children[moved_index].as_noderef();
         let reference = children[reference_index].as_noderef();
@@ -382,10 +382,10 @@ fn moving_fragment_children_empties_the_fragment_and_preserves_subtrees() {
         )
         .unwrap();
         let source = tree.body().unwrap().first_element_child().unwrap();
-        let mut target = tree.body().unwrap().last_element_child().unwrap();
+        let target = tree.body().unwrap().last_element_child().unwrap();
         let children = source.child_nodes().values();
         let original_html: Vec<_> = children.iter().map(ToString::to_string).collect();
-        let mut fragment = tree.document().unwrap().create_document_fragment().unwrap();
+        let fragment = tree.document().unwrap().create_document_fragment().unwrap();
         fragment.append(&children.iter().map(|node| node.as_noderef()).collect::<Vec<_>>());
         assert_child_links(&source, &[]);
         assert_child_links(&fragment, &children);
@@ -422,8 +422,8 @@ fn moving_fragment_children_empties_the_fragment_and_preserves_subtrees() {
 #[test]
 fn invalid_moves_leave_source_links_and_iterators_unchanged() {
     let tree = HTMLTree::parse("<section><a></a><div><i></i></div></section><aside></aside>").unwrap();
-    let mut source = tree.body().unwrap().first_element_child().unwrap();
-    let mut target = source.last_element_child().unwrap();
+    let source = tree.body().unwrap().first_element_child().unwrap();
+    let target = source.last_element_child().unwrap();
     let moving = source.first_child().unwrap();
     let reference = target.first_child().unwrap();
     let outsider = tree.body().unwrap().last_child().unwrap();
@@ -465,7 +465,7 @@ fn invalid_moves_leave_source_links_and_iterators_unchanged() {
 fn fragment_cycle_is_rejected_before_moving_any_children() {
     let tree = HTMLTree::parse("<div><i></i></div><section><span></span></section>").unwrap();
     let children = tree.body().unwrap().child_nodes().values();
-    let mut fragment = tree.document().unwrap().create_document_fragment().unwrap();
+    let fragment = tree.document().unwrap().create_document_fragment().unwrap();
     fragment.append(&children.iter().map(|node| node.as_noderef()).collect::<Vec<_>>());
     let mut destination = tree.body().unwrap();
     // The destination is inside the fragment's second child. Moving the first
@@ -473,7 +473,7 @@ fn fragment_cycle_is_rejected_before_moving_any_children() {
     if let Node::Element(element) = &children[1] {
         destination = element.first_element_child().unwrap();
     }
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let leaf = doc.create_element("b").unwrap();
     destination.append_child(&leaf.as_noderef()).unwrap();
     let iter = fragment.clone().into_iter();
@@ -497,7 +497,7 @@ fn fragment_cycle_is_rejected_before_moving_any_children() {
 fn outer_text_detaches_the_promoted_text_node() {
     let tree = HTMLTree::parse("<div><i>before</i><p><b>old</b></p><em>after</em></div>").unwrap();
     let parent = tree.body().unwrap().first_element_child().unwrap();
-    let mut old = parent.query_selector("p").unwrap().unwrap();
+    let old = parent.query_selector("p").unwrap().unwrap();
     let first = parent.first_child().unwrap();
     let last = parent.last_child().unwrap();
     old.set_outer_text("replacement");
@@ -677,7 +677,7 @@ fn test_dynamic_collection() {
 #[test]
 fn test_class_list() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let mut a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+    let a = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
 
     assert!(a.has_attribute("class"));
     assert_eq!(a.class_list_mut().values(), a.class_list().values());
@@ -722,7 +722,7 @@ fn test_class_list() {
 #[test]
 fn test_attributes() {
     let tree = HTMLTree::from_str(HTML).unwrap();
-    let mut element = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
+    let element = tree.body().unwrap().query_selector("#b a").unwrap().unwrap();
 
     // List attribute nodes and names
     assert_eq!(
@@ -761,7 +761,7 @@ fn test_attributes() {
     assert!(element.attribute_node("lang").is_none());
 
     // Test individual attribute nodes
-    let mut attr = element.attribute_node("href").unwrap();
+    let attr = element.attribute_node("href").unwrap();
     assert!(attr.parent_node().is_none());
     assert_eq!(attr.name().unwrap(), "href");
     assert_eq!(attr.local_name().unwrap(), attr.name().unwrap());
@@ -940,21 +940,21 @@ fn element_iterator_visits_only_elements_once() {
 #[test]
 fn sibling_mutations_preserve_input_order() {
     let tree = HTMLTree::parse("<div><i>old</i></div>").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
-    let mut old = root.first_element_child().unwrap();
-    let mut a = doc.create_element("a").unwrap().into_node();
-    let mut b = doc.create_element("b").unwrap().into_node();
-    old.before(&[&mut a, &mut b]);
+    let old = root.first_element_child().unwrap();
+    let a = doc.create_element("a").unwrap().into_node();
+    let b = doc.create_element("b").unwrap().into_node();
+    old.before(&[a.as_noderef(), b.as_noderef()]);
     assert_eq!(root.inner_html(), "<a></a><b></b><i>old</i>");
 
-    let mut c = doc.create_element("strong").unwrap().into_node();
-    let mut d = doc.create_text_node("end").unwrap().into_node();
-    old.after(&[&mut c, &mut d]);
+    let c = doc.create_element("strong").unwrap().into_node();
+    let d = doc.create_text_node("end").unwrap().into_node();
+    old.after(&[c.as_noderef(), d.as_noderef()]);
     assert_eq!(root.inner_html(), "<a></a><b></b><i>old</i><strong></strong>end");
 
     // Move already attached siblings, repairing their former positions.
-    old.replace_with(&[&mut c, &mut b]);
+    old.replace_with(&[c.as_noderef(), b.as_noderef()]);
     assert_eq!(root.inner_html(), "<a></a><strong></strong><b></b>end");
     assert!(old.parent_node().is_none());
     assert_eq!(old.inner_html(), "old");
@@ -964,14 +964,14 @@ fn sibling_mutations_preserve_input_order() {
 #[test]
 fn prepend_preserves_order_and_handles_existing_children() {
     let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
-    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let root = tree.body().unwrap().first_element_child().unwrap();
     let a = root.first_child().unwrap();
     let b = a.next_sibling().unwrap();
     root.prepend(&[b.as_noderef(), a.as_noderef()]);
     assert_eq!(root.inner_html(), "<b></b><a></a><i></i>");
 
-    let mut doc = tree.document().unwrap();
-    let mut empty = doc.create_element("div").unwrap();
+    let doc = tree.document().unwrap();
+    let empty = doc.create_element("div").unwrap();
     let c = doc.create_element("strong").unwrap();
     let d = doc.create_text_node("end").unwrap();
     empty.prepend(&[c.as_noderef(), d.as_noderef()]);
@@ -982,17 +982,17 @@ fn prepend_preserves_order_and_handles_existing_children() {
 fn sibling_mutations_handle_the_receiver_in_the_input() {
     let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
-    let mut a = root.first_element_child().unwrap();
-    let mut same_a = a.as_node();
-    let mut b = a.next_sibling().unwrap();
-    a.before(&[&mut b, &mut same_a]);
+    let a = root.first_element_child().unwrap();
+    let same_a = a.as_node();
+    let b = a.next_sibling().unwrap();
+    a.before(&[b.as_noderef(), same_a.as_noderef()]);
     assert_eq!(root.inner_html(), "<b></b><a></a><i></i>");
 
-    a.replace_with(&[&mut same_a, &mut b]);
+    a.replace_with(&[same_a.as_noderef(), b.as_noderef()]);
     assert_eq!(root.inner_html(), "<a></a><b></b><i></i>");
     assert_eq!(a.parent_node().unwrap(), root.as_node());
 
-    a.after(&[&mut b]);
+    a.after(&[b.as_noderef()]);
     assert_eq!(root.inner_html(), "<a></a><b></b><i></i>");
     a.replace_with(&[]);
     assert_eq!(root.inner_html(), "<b></b><i></i>");
@@ -1003,7 +1003,7 @@ fn sibling_mutations_handle_the_receiver_in_the_input() {
 fn outer_html_replaces_only_the_receiver_and_preserves_nesting() {
     let tree = HTMLTree::parse("<div>before<p><i>original</i></p>after</div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
-    let mut old = root.first_element_child().unwrap();
+    let old = root.first_element_child().unwrap();
     old.set_outer_html("<section><b>nested</b>text</section><span>second</span>");
     assert_eq!(root.inner_html(), "before<section><b>nested</b>text</section><span>second</span>after");
     assert!(old.parent_node().is_none());
@@ -1022,9 +1022,9 @@ fn outer_html_uses_the_parent_parsing_context() {
         .set_outer_html("<tr><td><b>new</b></td></tr><tr><td>two</td></tr>");
     assert_eq!(tbody.inner_html(), "<tr><td><b>new</b></td></tr><tr><td>two</td></tr>");
 
-    let mut doc = tree.document().unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
-    let mut child = doc.create_element("p").unwrap();
+    let doc = tree.document().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
+    let child = doc.create_element("p").unwrap();
     fragment.append_child(&child.as_noderef());
     child.set_outer_html("<b>one</b><i>two</i>");
     assert_eq!(fragment.first_child().unwrap().node_name().unwrap(), "B");
@@ -1036,7 +1036,7 @@ fn outer_html_uses_the_parent_parsing_context() {
 fn node_iterator_reports_subtree_destruction_once() {
     let tree = HTMLTree::parse("<div>one<span>two</span><!-- comment --></div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
-    let mut alias = root.clone();
+    let alias = root.clone();
     let mut iter = root.iter();
     assert_eq!(iter.next().unwrap().unwrap(), root.as_node());
     // This destroys the pending child. No stale native pointer may be followed.
@@ -1051,7 +1051,7 @@ fn owned_iterator_reports_reparenting() {
     let tree = HTMLTree::parse("<div><a></a><b></b></div><section></section>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
     let a = root.first_child().unwrap();
-    let mut other = tree.body().unwrap().last_element_child().unwrap();
+    let other = tree.body().unwrap().last_element_child().unwrap();
     let mut iter = root.clone().into_iter();
     assert_eq!(iter.next().unwrap().unwrap(), root.as_node());
     other.append_child(&a.as_noderef());
@@ -1065,7 +1065,7 @@ fn owned_iterator_reports_reparenting() {
 fn element_iterator_reports_html_replacement() {
     let tree = HTMLTree::parse("<div>text<span><b>old</b></span><i></i></div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
-    let mut alias = root.clone();
+    let alias = root.clone();
     let mut iter = root.iter_elements();
     assert_eq!(iter.next().unwrap().unwrap(), root);
     alias.set_inner_html("<p>new</p>");
@@ -1177,7 +1177,7 @@ fn mutation_on_another_thread_invalidates_traversal() {
     let tree = HTMLTree::parse("<div>old<span>text</span></div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
     let mut iter = root.clone().into_iter();
-    let mut alias = root.clone();
+    let alias = root.clone();
     std::thread::spawn(move || alias.decompose()).join().unwrap();
     assert_eq!(iter.next(), Some(Err(TraversalError::TreeModified)));
     assert_eq!(iter.next(), None);
@@ -1190,7 +1190,7 @@ fn traversal_steps_are_serialized_with_concurrent_replacement() {
     let root = tree.body().unwrap().first_element_child().unwrap();
     let start = Arc::new(Barrier::new(2));
     let writer_start = start.clone();
-    let mut alias = root.clone();
+    let alias = root.clone();
     let writer = std::thread::spawn(move || {
         writer_start.wait();
         for _ in 0..64 {
@@ -1324,17 +1324,17 @@ fn test_siblings() {
 
 #[test]
 fn create_nodes() {
-    let mut doc = HTMLTree::from_str(HTML).unwrap().document().unwrap();
+    let doc = HTMLTree::from_str(HTML).unwrap().document().unwrap();
 
-    let mut frag = doc.create_document_fragment().unwrap();
+    let frag = doc.create_document_fragment().unwrap();
 
     let text = doc.create_text_node("Hello World").unwrap();
     assert_eq!(text.node_value().unwrap(), "Hello World");
 
-    let mut element = doc.create_element("foo").unwrap();
+    let element = doc.create_element("foo").unwrap();
     assert_eq!(element.tag_name().unwrap(), "FOO");
 
-    let mut attr = doc.create_attribute("class").unwrap();
+    let attr = doc.create_attribute("class").unwrap();
     assert_eq!(attr.node_name().unwrap(), "class");
 
     let comment = doc.create_comment("Some comment").unwrap();
@@ -1379,13 +1379,13 @@ fn node_reference_counting() {
     let doc = tree.document().unwrap();
 
     // Keep grandchild reference
-    let mut grandchild = doc.first_element_child().unwrap().first_element_child().unwrap();
+    let grandchild = doc.first_element_child().unwrap().first_element_child().unwrap();
 
     // Minimum reference count should be 2 (1 Lexbor + 1 Resiliparse)
     assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 2);
 
     // Create a few more clones
-    let mut grandchild2 = grandchild.clone();
+    let grandchild2 = grandchild.clone();
     assert!(grandchild2.has_child_nodes());
     assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 3);
     assert_eq!(unsafe { *(grandchild2.node_ptr_()) }.ref_count, 3);
@@ -1440,12 +1440,12 @@ fn node_reference_counting() {
 #[test]
 fn hierarchy_rejects_invalid_child_kinds_without_mutation() {
     let tree = HTMLTree::parse("<!doctype html><div><i></i></div>").unwrap();
-    let mut doc = tree.document().unwrap();
-    let mut parent = tree.body().unwrap().first_element_child().unwrap();
+    let doc = tree.document().unwrap();
+    let parent = tree.body().unwrap().first_element_child().unwrap();
     let child = parent.first_child().unwrap();
     let attr = doc.create_attribute("test").unwrap();
     let doctype = doc.doctype().unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
     let iter = parent.clone().into_iter();
     for invalid in [attr.as_noderef(), doctype.as_noderef(), doc.as_noderef()] {
         assert!(parent.append_child(&invalid).is_none());
@@ -1462,13 +1462,13 @@ fn hierarchy_rejects_invalid_child_kinds_without_mutation() {
 #[test]
 fn document_hierarchy_validates_order_counts_and_fragment_contents() {
     let tree = HTMLTree::parse("<!doctype html><html><body></body></html>").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let root = doc.document_element().unwrap();
     let doctype = doc.doctype().unwrap();
     let text = doc.create_text_node("text").unwrap();
     let second = doc.create_element("second").unwrap();
     let duplicate_doctype = doctype.clone_node(false).unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
     let comment = doc.create_comment("keep").unwrap();
     fragment.append(&[comment.as_noderef(), second.as_noderef()]);
     let original = doc.child_nodes().values();
@@ -1513,25 +1513,25 @@ fn document_hierarchy_validates_order_counts_and_fragment_contents() {
 fn invalid_batches_are_atomic_including_ancestor_cycles() {
     for operation in 0..6 {
         let tree = HTMLTree::parse("<section><div><i></i></div><aside></aside></section>").unwrap();
-        let mut ancestor = tree.body().unwrap().first_element_child().unwrap().as_node();
-        let mut parent = tree
+        let ancestor = tree.body().unwrap().first_element_child().unwrap().as_node();
+        let parent = tree
             .body()
             .unwrap()
             .first_element_child()
             .unwrap()
             .first_element_child()
             .unwrap();
-        let mut receiver = parent.first_element_child().unwrap();
-        let mut valid = tree.document().unwrap().create_element("b").unwrap().as_node();
+        let receiver = parent.first_element_child().unwrap();
+        let valid = tree.document().unwrap().create_element("b").unwrap().as_node();
         let original = parent.child_nodes().values();
         let iter = ancestor.clone().into_iter();
         match operation {
             0 => parent.append(&[valid.as_noderef(), ancestor.as_noderef()]),
             1 => parent.prepend(&[valid.as_noderef(), ancestor.as_noderef()]),
             2 => parent.replace_children(&[valid.as_noderef(), ancestor.as_noderef()]),
-            3 => receiver.before(&[&mut valid, &mut ancestor]),
-            4 => receiver.after(&[&mut valid, &mut ancestor]),
-            5 => receiver.replace_with(&[&mut valid, &mut ancestor]),
+            3 => receiver.before(&[valid.as_noderef(), ancestor.as_noderef()]),
+            4 => receiver.after(&[valid.as_noderef(), ancestor.as_noderef()]),
+            5 => receiver.replace_with(&[valid.as_noderef(), ancestor.as_noderef()]),
             _ => unreachable!(),
         }
         assert_child_links(&parent, &original);
@@ -1544,24 +1544,24 @@ fn invalid_batches_are_atomic_including_ancestor_cycles() {
 #[test]
 fn document_batches_validate_the_final_tree() {
     let tree = HTMLTree::parse("<!doctype html><html><body></body></html>").unwrap();
-    let mut doc = tree.document().unwrap();
-    let mut root = doc.document_element().unwrap();
-    let mut replacement = doc.create_element("replacement").unwrap().as_node();
-    let mut comment = doc.create_comment("before").unwrap().as_node();
+    let doc = tree.document().unwrap();
+    let root = doc.document_element().unwrap();
+    let replacement = doc.create_element("replacement").unwrap().as_node();
+    let comment = doc.create_comment("before").unwrap().as_node();
     let text = doc.create_text_node("invalid").unwrap();
     let original = doc.child_nodes().values();
     let iter = doc.clone().into_iter();
     doc.append(&[comment.as_noderef(), replacement.as_noderef()]);
     doc.prepend(&[comment.as_noderef(), replacement.as_noderef()]);
     doc.replace_children(&[replacement.as_noderef(), text.as_noderef()]);
-    root.replace_with(&[&mut comment, &mut replacement, &mut text.as_node()]);
+    root.replace_with(&[comment.as_noderef(), replacement.as_noderef(), text.as_noderef()]);
     root.set_outer_text("invalid at document level");
     assert_child_links(&doc, &original);
     assert!(comment.parent_node().is_none());
     assert!(replacement.parent_node().is_none());
     assert!(iter.collect::<Result<Vec<_>, _>>().is_ok());
 
-    root.replace_with(&[&mut comment, &mut replacement]);
+    root.replace_with(&[comment.as_noderef(), replacement.as_noderef()]);
     assert_child_links(&doc, &[original[0].clone(), comment.clone(), replacement.clone()]);
     // Replacement may also reuse nodes already in the destination document.
     doc.replace_children(&[replacement.as_noderef(), comment.as_noderef()]);
@@ -1571,9 +1571,9 @@ fn document_batches_validate_the_final_tree() {
 #[test]
 fn batches_handle_duplicate_nodes_and_fragments() {
     let tree = HTMLTree::parse("<div></div>").unwrap();
-    let mut doc = tree.document().unwrap();
-    let mut parent = tree.body().unwrap().first_element_child().unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
+    let doc = tree.document().unwrap();
+    let parent = tree.body().unwrap().first_element_child().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
     let a = doc.create_element("a").unwrap();
     let b = doc.create_element("b").unwrap();
     fragment.append_child(&a.as_noderef()).unwrap();
@@ -1590,7 +1590,7 @@ fn batches_handle_duplicate_nodes_and_fragments() {
 #[test]
 fn character_data_uses_unicode_scalar_indices() {
     let tree = HTMLTree::parse("").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let mut nodes: Vec<Box<dyn CharacterData>> = vec![
         Box::new(doc.create_text_node("").unwrap()),
         Box::new(doc.create_comment("").unwrap()),
@@ -1625,7 +1625,7 @@ fn character_data_uses_unicode_scalar_indices() {
 fn invalid_character_data_offsets_fail_without_mutation() {
     let tree = HTMLTree::parse("<p>aé🙂</p>").unwrap();
     let parent = tree.body().unwrap().first_element_child().unwrap();
-    let Node::Text(mut text) = parent.first_child().unwrap() else {
+    let Node::Text(text) = parent.first_child().unwrap() else {
         panic!("Expected text")
     };
     let iter = parent.clone().into_iter();
@@ -1645,15 +1645,15 @@ fn invalid_character_data_offsets_fail_without_mutation() {
 #[test]
 fn node_value_preserves_parent_subtrees() {
     let tree = HTMLTree::parse("<!doctype html><div><i>keep</i></div>").unwrap();
-    let mut doc = tree.document().unwrap();
-    let mut element = tree.body().unwrap().first_element_child().unwrap();
+    let doc = tree.document().unwrap();
+    let element = tree.body().unwrap().first_element_child().unwrap();
     let child = element.first_child().unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
     let fragment_child = doc.create_text_node("keep").unwrap();
     fragment.append_child(&fragment_child.as_noderef()).unwrap();
     let iter = doc.clone().into_iter();
     let fragment_iter = fragment.clone().into_iter();
-    for mut node in [
+    for node in [
         element.as_node(),
         fragment.as_node(),
         doc.as_node(),
@@ -1683,7 +1683,7 @@ fn node_value_preserves_parent_subtrees() {
 #[test]
 fn value_and_text_setters_update_attribute_and_character_data() {
     let tree = HTMLTree::parse("").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let mut nodes = [
         doc.create_attribute("test").unwrap().as_node(),
         doc.create_text_node("").unwrap().as_node(),
@@ -1704,7 +1704,7 @@ fn value_and_text_setters_update_attribute_and_character_data() {
 #[test]
 fn node_capability_views_cover_supported_node_kinds_without_cloning() {
     let tree = HTMLTree::parse("<!doctype html><p>text</p>").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let cases = [
         (doc.as_node(), true, false, false, false),
         (doc.create_document_fragment().unwrap().as_node(), true, false, false, false),
@@ -1761,9 +1761,9 @@ fn parent_views_support_queries_and_live_collections() {
     }
 
     let tree = HTMLTree::parse("<div><a href='/one'>one</a><span>two</span></div>").unwrap();
-    let mut doc = tree.document().unwrap();
-    let mut element = tree.body().unwrap().first_element_child().unwrap();
-    let mut fragment = doc.create_document_fragment().unwrap();
+    let doc = tree.document().unwrap();
+    let element = tree.body().unwrap().first_element_child().unwrap();
+    let fragment = doc.create_document_fragment().unwrap();
     let detached_link = doc.create_element("a").unwrap();
     fragment.append_child(&detached_link.as_noderef()).unwrap();
     for (node, expected_count) in [(doc.as_node(), 1), (element.as_node(), 2), (fragment.as_node(), 1)] {
@@ -1807,7 +1807,7 @@ fn checked_downcasts_preserve_ownership_on_success_and_failure() {
     }
 
     let tree = HTMLTree::parse("<!doctype html><p>text</p>").unwrap();
-    let mut doc = tree.document().unwrap();
+    let doc = tree.document().unwrap();
     let nodes = [
         doc.as_node(),
         tree.body().unwrap().as_node(),
@@ -1843,7 +1843,7 @@ mod node_interface_api {
     #[test]
     fn common_operations_use_the_shared_interface() {
         let tree = HTMLTree::parse("<p>text</p><b>last</b>").unwrap();
-        let mut body = Node::from(tree.body().unwrap());
+        let body = Node::from(tree.body().unwrap());
         assert_eq!(body.node_type(), Some(NodeType::Element));
         assert_eq!(body.node_name().as_deref(), Some("BODY"));
         assert!(body.owner_document().is_some());
@@ -1867,7 +1867,7 @@ mod node_interface_api {
         body.replace_child(&copy.as_noderef(), &first.as_noderef()).unwrap();
         body.append_child(&first.as_noderef()).unwrap();
         assert_eq!(body.last_child().unwrap(), first);
-        let mut text = first.first_child().unwrap();
+        let text = first.first_child().unwrap();
         text.set_node_value("new");
         assert_eq!(text.node_value().as_deref(), Some("new"));
         first.set_text_content("replacement");
@@ -1898,12 +1898,100 @@ mod node_interface_api {
         assert_eq!(names, ["BODY", "P", "B"]);
         let mut nodes = node.iter();
         let mut elements = node.iter_elements();
-        let mut alias = node.as_node();
+        let alias = node.as_node();
         alias.set_text_content("changed");
         assert!(matches!(nodes.next(), Some(Err(TraversalError::TreeModified))));
         assert!(matches!(elements.next(), Some(Err(TraversalError::TreeModified))));
         assert!(nodes.next().is_none());
         assert!(elements.next().is_none());
         assert_eq!(node.node_name().as_deref(), Some("BODY"));
+    }
+}
+
+#[test]
+fn shared_capability_views_mutate_through_the_document_owner() {
+    let tree = HTMLTree::parse("<div></div>").unwrap();
+    let doc = tree.document().unwrap();
+    let element = tree.body().unwrap().first_element_child().unwrap().into_node();
+    let parent = element.as_parent().unwrap();
+    let text = doc.create_text_node("é🙂").unwrap().into_node();
+    parent.append(&[text.as_noderef()]);
+    text.as_character_data().unwrap().replace_data(1, 1, "界").unwrap();
+    assert_eq!(element.text_content().as_deref(), Some("é界"));
+
+    // The iterator and parent view borrow the very same handle being mutated.
+    let mut iter = element.iter();
+    parent.replace_children(&[doc.create_element("b").unwrap().as_noderef()]);
+    assert!(matches!(iter.next(), Some(Err(TraversalError::TreeModified))));
+    assert_eq!(parent.child_element_count(), 1);
+    assert!(text.parent_node().is_none());
+}
+
+#[test]
+fn shared_handle_identity_and_owner_survive_moves_and_tree_drop() {
+    let tree = HTMLTree::parse("<div><i></i></div><aside></aside>").unwrap();
+    let owner = tree.document().unwrap();
+    let source = tree.body().unwrap().first_element_child().unwrap();
+    let destination = source.next_element_sibling().unwrap();
+    let original = source.first_child().unwrap();
+    let alias = original.as_node();
+    destination.append_child(&original.as_noderef()).unwrap();
+    assert_eq!(original, alias);
+    assert_eq!(original, destination.first_child().unwrap());
+    assert_eq!(original.parent_node().unwrap(), destination.as_node());
+    assert!(!source.has_child_nodes());
+    drop(tree);
+    drop(owner);
+    drop(source);
+    drop(destination);
+    alias.set_text_content("still alive");
+    assert_eq!(original.text_content().as_deref(), Some("still alive"));
+
+    // Decomposing one borrowed handle invalidates it and its traversal without
+    // consuming the independent native reference held by its clone.
+    let mut iter = original.iter();
+    original.decompose();
+    assert!(original.node_type().is_none());
+    assert!(matches!(iter.next(), Some(Err(TraversalError::TreeModified))));
+    assert_eq!(alias.node_name().as_deref(), Some("I"));
+    assert!(alias.text_content().unwrap().is_empty());
+}
+
+#[test]
+fn concrete_node_construction_checks_kind_before_retaining() {
+    let tree = HTMLTree::parse("<div></div>").unwrap();
+    let element = tree.body().unwrap();
+    let document = element.tree_();
+    let _guard = document.doc_ptr();
+    let pointer = element.node_ptr_();
+    let ref_count = unsafe { (*pointer).ref_count };
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| TextNode::new(&document, pointer)));
+    assert!(result.is_err());
+    assert_eq!(unsafe { (*pointer).ref_count }, ref_count);
+    assert_eq!(element.tag_name().as_deref(), Some("BODY"));
+}
+
+#[test]
+fn token_list_updates_are_serialized_across_sent_aliases() {
+    let tree = HTMLTree::parse("<div></div>").unwrap();
+    let element = tree.body().unwrap().first_element_child().unwrap();
+    let threads = ["a", "b"].map(|prefix| {
+        let alias = element.clone();
+        std::thread::spawn(move || {
+            let list = alias.class_list();
+            for index in 0..64 {
+                list.add(&[&format!("{prefix}{index}")]);
+            }
+        })
+    });
+    for thread in threads {
+        thread.join().unwrap();
+    }
+    let list = element.class_list();
+    assert_eq!(list.len(), 128);
+    for prefix in ["a", "b"] {
+        for index in 0..64 {
+            assert!(list.contains(&format!("{prefix}{index}")));
+        }
     }
 }

@@ -43,7 +43,7 @@ pub enum NodeType {
     Notation = 0x0C,
 }
 
-#[pyclass(unsendable, subclass, module = "resiliparse.parse._html_rs.node", from_py_object)]
+#[pyclass(eq, unsendable, subclass, module = "resiliparse.parse._html_rs.node", from_py_object)]
 #[derive(Clone, PartialEq)]
 pub struct Node {
     pub(crate) node: node_impl::Node,
@@ -81,7 +81,6 @@ macro_rules! get_elements_by_x {
 
 trait _NodeAccessorMixin<T: NodeInterface>: pyo3::PyClass<Frozen = pyo3::pyclass::boolean_struct::False> {
     fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a T;
-    fn raw_node_mut<'py, 'a>(slf: &'a mut PyRefMut<'py, Self>) -> &'a mut T;
 }
 
 trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
@@ -106,19 +105,19 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
         Self::raw_node(&slf).child_element_count()
     }
 
-    fn prepend_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn prepend_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        Ok(Self::raw_node_mut(&mut slf).prepend(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
+        Ok(Self::raw_node(&slf).prepend(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
-    fn append_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn append_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        Ok(Self::raw_node_mut(&mut slf).append(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
+        Ok(Self::raw_node(&slf).append(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
-    fn replace_children_(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn replace_children_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         let n = node.extract::<Vec<Node>>()?;
-        Ok(Self::raw_node_mut(&mut slf).replace_children(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
+        Ok(Self::raw_node(&slf).replace_children(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
     //noinspection DuplicatedCode
@@ -152,10 +151,10 @@ trait _NonElementParentNodeMixin<T: NonElementParentNode>: _NodeAccessorMixin<T>
 
 macro_rules! child_node_funcs {
     ($func_name: ident, $call_func_name: ident) => {
-        fn $func_name(mut slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
-            let mut n = node.extract::<Vec<Node>>()?;
-            let r: Vec<_> = n.iter_mut().map(|n_| &mut n_.node).collect();
-            Self::raw_node_mut(&mut slf).$call_func_name(&r);
+        fn $func_name(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+            let n = node.extract::<Vec<Node>>()?;
+            let r: Vec<_> = n.iter().map(|n_| n_.node.as_noderef()).collect();
+            Self::raw_node(&slf).$call_func_name(&r);
             Ok(())
         }
     };
@@ -167,8 +166,8 @@ trait _ChildNodeMixin<T: ChildNode>: _NodeAccessorMixin<T> {
     child_node_funcs!(replace_with_, replace_with);
 
     #[inline(always)]
-    fn remove_(mut slf: PyRefMut<'_, Self>) {
-        Self::raw_node_mut(&mut slf).remove();
+    fn remove_(slf: PyRef<'_, Self>) {
+        Self::raw_node(&slf).remove();
     }
 }
 
@@ -204,8 +203,8 @@ macro_rules! character_data_node {
 
             #[setter]
             #[inline(always)]
-            pub fn set_data<'py>(mut slf: PyRefMut<'py, Self>, data: &str) {
-                Self::raw_node_mut(&mut slf).set_data(data)
+            pub fn set_data<'py>(slf: PyRef<'py, Self>, data: &str) {
+                Self::raw_node(&slf).set_data(data)
             }
 
             #[inline(always)]
@@ -214,23 +213,23 @@ macro_rules! character_data_node {
             }
 
             #[inline(always)]
-            pub fn append_data(mut slf: PyRefMut<'_, Self>, data: &str) {
-                Self::raw_node_mut(&mut slf).append_data(data)
+            pub fn append_data(slf: PyRef<'_, Self>, data: &str) {
+                Self::raw_node(&slf).append_data(data)
             }
 
             #[inline(always)]
-            pub fn insert_data(mut slf: PyRefMut<'_, Self>, offset: usize, data: &str) -> PyResult<()> {
-                Self::raw_node_mut(&mut slf).insert_data(offset, data).map_err(|error| DOMException::new_err(error.to_string()))
+            pub fn insert_data(slf: PyRef<'_, Self>, offset: usize, data: &str) -> PyResult<()> {
+                Self::raw_node(&slf).insert_data(offset, data).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             #[inline(always)]
-            pub fn delete_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize) -> PyResult<()> {
-                Self::raw_node_mut(&mut slf).delete_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
+            pub fn delete_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<()> {
+                Self::raw_node(&slf).delete_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             #[inline(always)]
-            pub fn replace_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize, data: &str) -> PyResult<()> {
-                Self::raw_node_mut(&mut slf).replace_data(offset, count, data).map_err(|error| DOMException::new_err(error.to_string()))
+            pub fn replace_data(slf: PyRef<'_, Self>, offset: usize, count: usize, data: &str) -> PyResult<()> {
+                Self::raw_node(&slf).replace_data(offset, count, data).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             $(#[getter]
@@ -242,24 +241,24 @@ macro_rules! character_data_node {
             // _ChildNodeMixin
             #[pyo3(signature = (*node))]
             #[inline(always)]
-            pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+            pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::before_(slf, node)
             }
 
             #[pyo3(signature = (*node))]
             #[inline(always)]
-            pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+            pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::after_(slf, node)
             }
 
             #[pyo3(signature = (*node))]
             #[inline(always)]
-            pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+            pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
                 Self::replace_with_(slf, node)
             }
 
             #[inline(always)]
-            pub fn remove(slf: PyRefMut<'_, Self>) {
+            pub fn remove(slf: PyRef<'_, Self>) {
                 Self::remove_(slf);
             }
 
@@ -311,13 +310,6 @@ macro_rules! define_node_type {
         impl _NodeAccessorMixin<$Base> for $Self {
             fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a $Base {
                 match &slf.as_super().node {
-                    node_impl::Node::$BaseEnum(n) => n,
-                    _ => unreachable!(),
-                }
-            }
-
-            fn raw_node_mut<'py, 'a>(slf: &'a mut PyRefMut<'py, Self>) -> &'a mut $Base {
-                match &mut slf.as_super().node {
                     node_impl::Node::$BaseEnum(n) => n,
                     _ => unreachable!(),
                 }
@@ -388,7 +380,7 @@ impl Node {
     }
 
     #[setter]
-    pub fn set_value(&mut self, value: &str) {
+    pub fn set_value(&self, value: &str) {
         self.set_node_value(value)
     }
 
@@ -398,7 +390,7 @@ impl Node {
     }
 
     #[setter]
-    pub fn set_node_value(&mut self, value: &str) {
+    pub fn set_node_value(&self, value: &str) {
         self.node.set_node_value(value)
     }
 
@@ -408,7 +400,7 @@ impl Node {
     }
 
     #[setter]
-    pub fn set_text(&mut self, text: &str) {
+    pub fn set_text(&self, text: &str) {
         self.set_text_content(text)
     }
 
@@ -418,7 +410,7 @@ impl Node {
     }
 
     #[setter]
-    pub fn set_text_content(&mut self, text: &str) {
+    pub fn set_text_content(&self, text: &str) {
         self.node.set_text_content(text)
     }
 
@@ -507,7 +499,7 @@ impl Node {
 
     #[pyo3(signature = (node, reference=None))]
     pub fn insert_before<'py>(
-        &mut self,
+        &self,
         node: Bound<'py, Node>,
         reference: Option<Bound<'py, Node>>,
     ) -> Option<Bound<'py, Node>> {
@@ -523,12 +515,12 @@ impl Node {
             .and(Some(node))
     }
 
-    pub fn append_child<'a, 'py>(&mut self, node: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+    pub fn append_child<'a, 'py>(&self, node: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
         self.node.append_child(&node.borrow().node.as_noderef()).and(Some(node))
     }
 
     pub fn replace_child<'py>(
-        &mut self,
+        &self,
         new_child: Bound<'py, Node>,
         old_child: Bound<'py, Node>,
     ) -> Option<Bound<'py, Node>> {
@@ -537,13 +529,13 @@ impl Node {
             .and(Some(old_child))
     }
 
-    pub fn remove_child<'py>(&mut self, child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+    pub fn remove_child<'py>(&self, child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
         self.node
             .remove_child(&child.borrow().node.as_noderef())
             .and(Some(child))
     }
 
-    pub fn decompose(&mut self) {
+    pub fn decompose(&self) {
         self.node.decompose()
     }
 
@@ -593,8 +585,8 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_id<'py>(mut slf: PyRefMut<'py, Self>, id: &str) {
-        Self::raw_node_mut(&mut slf).set_id(id)
+    pub fn set_id<'py>(slf: PyRef<'py, Self>, id: &str) {
+        Self::raw_node(&slf).set_id(id)
     }
 
     #[getter]
@@ -603,13 +595,13 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_class_name<'py>(mut slf: PyRefMut<'py, Self>, class_names: &str) {
-        Self::raw_node_mut(&mut slf).set_class_name(class_names)
+    pub fn set_class_name<'py>(slf: PyRef<'py, Self>, class_names: &str) {
+        Self::raw_node(&slf).set_class_name(class_names)
     }
 
     #[getter]
-    pub fn class_list(mut slf: PyRefMut<'_, Self>) -> PyResult<Bound<'_, DOMTokenList>> {
-        Bound::new(slf.py(), DOMTokenList::from(Self::raw_node_mut(&mut slf).class_list_mut()))
+    pub fn class_list(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, DOMTokenList>> {
+        Bound::new(slf.py(), DOMTokenList::from(Self::raw_node(&slf).class_list()))
     }
 
     pub fn get_attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> Option<String> {
@@ -633,17 +625,17 @@ impl ElementNode {
         Self::raw_node(&slf).has_attribute(qualified_name)
     }
 
-    pub fn set_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
-        Self::raw_node_mut(&mut slf).set_attribute(qualified_name, value)
+    pub fn set_attribute(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
+        Self::raw_node(&slf).set_attribute(qualified_name, value)
     }
 
-    pub fn remove_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str) {
-        Self::raw_node_mut(&mut slf).remove_attribute(qualified_name)
+    pub fn remove_attribute(slf: PyRef<'_, Self>, qualified_name: &str) {
+        Self::raw_node(&slf).remove_attribute(qualified_name)
     }
 
     #[pyo3(signature = (qualified_name, force=None))]
-    pub fn toggle_attribute(mut slf: PyRefMut<'_, Self>, qualified_name: &str, force: Option<bool>) -> bool {
-        Self::raw_node_mut(&mut slf).toggle_attribute(qualified_name, force)
+    pub fn toggle_attribute(slf: PyRef<'_, Self>, qualified_name: &str, force: Option<bool>) -> bool {
+        Self::raw_node(&slf).toggle_attribute(qualified_name, force)
     }
 
     #[getter]
@@ -671,20 +663,20 @@ impl ElementNode {
         )
     }
 
-    pub fn setattr(slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
+    pub fn setattr(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
         Self::set_attribute(slf, qualified_name, value)
     }
 
-    pub fn __setitem__(slf: PyRefMut<'_, Self>, qualified_name: &str, value: &str) {
+    pub fn __setitem__(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
         Self::set_attribute(slf, qualified_name, value)
     }
 
-    pub fn delattr(slf: PyRefMut<'_, Self>, qualified_name: &str) {
+    pub fn delattr(slf: PyRef<'_, Self>, qualified_name: &str) {
         Self::remove_attribute(slf, qualified_name)
     }
 
-    pub fn __delitem__(mut slf: PyRefMut<'_, Self>, qualified_name: &str) -> PyResult<()> {
-        if Self::raw_node_mut(&mut slf).has_attribute(qualified_name) {
+    pub fn __delitem__(slf: PyRef<'_, Self>, qualified_name: &str) -> PyResult<()> {
+        if Self::raw_node(&slf).has_attribute(qualified_name) {
             Ok(Self::remove_attribute(slf, qualified_name))
         } else {
             Err(PyIndexError::new_err(format!("Attribute {} does not exist", qualified_name)))
@@ -746,7 +738,7 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_html<'py>(slf: PyRefMut<'py, Self>, html: &str) {
+    pub fn set_html<'py>(slf: PyRef<'py, Self>, html: &str) {
         Self::set_inner_html(slf, html)
     }
 
@@ -756,8 +748,8 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_inner_html<'py>(mut slf: PyRefMut<'py, Self>, inner_html: &str) {
-        Self::raw_node_mut(&mut slf).set_inner_html(inner_html)
+    pub fn set_inner_html<'py>(slf: PyRef<'py, Self>, inner_html: &str) {
+        Self::raw_node(&slf).set_inner_html(inner_html)
     }
 
     #[getter]
@@ -766,8 +758,8 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_outer_html<'py>(mut slf: PyRefMut<'py, Self>, outer_html: &str) {
-        Self::raw_node_mut(&mut slf).set_outer_html(outer_html)
+    pub fn set_outer_html<'py>(slf: PyRef<'py, Self>, outer_html: &str) {
+        Self::raw_node(&slf).set_outer_html(outer_html)
     }
 
     #[getter]
@@ -776,8 +768,8 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_inner_text<'py>(mut slf: PyRefMut<'py, Self>, inner_text: &str) {
-        Self::raw_node_mut(&mut slf).set_inner_text(inner_text)
+    pub fn set_inner_text<'py>(slf: PyRef<'py, Self>, inner_text: &str) {
+        Self::raw_node(&slf).set_inner_text(inner_text)
     }
 
     #[getter]
@@ -786,31 +778,31 @@ impl ElementNode {
     }
 
     #[setter]
-    pub fn set_outer_text<'py>(mut slf: PyRefMut<'py, Self>, outer_text: &str) {
-        Self::raw_node_mut(&mut slf).set_outer_text(outer_text)
+    pub fn set_outer_text<'py>(slf: PyRef<'py, Self>, outer_text: &str) {
+        Self::raw_node(&slf).set_outer_text(outer_text)
     }
 
     // _ChildNodeMixin
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::before_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::after_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_with_(slf, node)
     }
 
     #[inline(always)]
-    pub fn remove(slf: PyRefMut<'_, Self>) {
+    pub fn remove(slf: PyRef<'_, Self>) {
         Self::remove_(slf);
     }
 
@@ -866,19 +858,19 @@ impl ElementNode {
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_children_(slf, node)
     }
 
@@ -916,8 +908,8 @@ impl AttrNode {
     }
 
     #[setter]
-    pub fn set_value<'py>(mut slf: PyRefMut<'py, Self>, value: &str) {
-        Self::raw_node_mut(&mut slf).set_value(value)
+    pub fn set_value<'py>(slf: PyRef<'py, Self>, value: &str) {
+        Self::raw_node(&slf).set_value(value)
     }
 
     #[getter]
@@ -951,31 +943,31 @@ impl DocumentTypeNode {
     // _ChildNodeMixin
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn before(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::before_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn after(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::after_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_with(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_with_(slf, node)
     }
 
     #[inline(always)]
-    pub fn remove(slf: PyRefMut<'_, Self>) {
+    pub fn remove(slf: PyRef<'_, Self>) {
         Self::remove_(slf);
     }
 }
 
 macro_rules! doc_create_x {
     ($slf: ident, $func_name: ident $(, $args: ident)*) => {
-        Self::raw_node_mut(&mut $slf).$func_name($($args),*).map_or_else(
+        Self::raw_node(&$slf).$func_name($($args),*).map_or_else(
             |e| Err(DOMException::new_err(e.to_string())),
             |e| Ok(Some(create_upcast_node($slf.py(), e.into_node())?))
         )
@@ -1027,38 +1019,35 @@ impl DocumentNode {
         get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
     }
 
-    pub fn create_element<'py>(mut slf: PyRefMut<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn create_element<'py>(slf: PyRef<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_element, local_name)
     }
 
-    pub fn create_document_fragment(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
+    pub fn create_document_fragment(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         doc_create_x!(slf, create_document_fragment)
     }
 
-    pub fn create_text_node<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn create_text_node<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_text_node, data)
     }
 
-    pub fn create_cdata_section<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn create_cdata_section<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_cdata_section, data)
     }
 
-    pub fn create_comment<'py>(mut slf: PyRefMut<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn create_comment<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_comment, data)
     }
 
     pub fn create_processing_instruction<'py>(
-        mut slf: PyRefMut<'py, Self>,
+        slf: PyRef<'py, Self>,
         target: &str,
         local_name: &str,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_processing_instruction, target, local_name)
     }
 
-    pub fn create_attribute<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        local_name: &str,
-    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+    pub fn create_attribute<'py>(slf: PyRef<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_attribute, local_name)
     }
 
@@ -1089,19 +1078,19 @@ impl DocumentNode {
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_children_(slf, node)
     }
 
@@ -1160,19 +1149,19 @@ impl DocumentFragmentNode {
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn prepend(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::prepend_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn append(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::append_(slf, node)
     }
 
     #[pyo3(signature = (*node))]
     #[inline(always)]
-    pub fn replace_children(slf: PyRefMut<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
+    pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
         Self::replace_children_(slf, node)
     }
 

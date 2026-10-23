@@ -22,7 +22,7 @@ use std::vec;
 
 use crate::parse::html::css::CSSParserError;
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
-use crate::parse::html::dom::traits::{Element, ParentNode};
+use crate::parse::html::dom::traits::{Element, NodeInterfaceBaseImpl, ParentNode};
 
 #[derive(Clone)]
 pub(crate) struct NodeListClosure<T: Clone> {
@@ -238,10 +238,17 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 }
 
-pub trait DOMTokenListMutInterface: DOMTokenListInterface {
-    fn set_value(&mut self, value: &str);
+pub(crate) trait DOMTokenListBaseImpl {
+    fn element_(&self) -> &ElementNode;
+}
 
-    fn add(&mut self, tokens: &[&str]) {
+#[allow(private_bounds)]
+pub trait DOMTokenListMutInterface: DOMTokenListInterface + DOMTokenListBaseImpl {
+    fn set_value(&self, value: &str);
+
+    fn add(&self, tokens: &[&str]) {
+        let document = self.element_().tree_();
+        let _guard = document.doc_ptr();
         let mut values = self.values();
         tokens.iter().for_each(|t: &&str| {
             let t_owned = (*t).to_owned();
@@ -252,7 +259,9 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
         self.set_value(&values.join(" "));
     }
 
-    fn remove(&mut self, tokens: &[&str]) {
+    fn remove(&self, tokens: &[&str]) {
+        let document = self.element_().tree_();
+        let _guard = document.doc_ptr();
         self.set_value(
             &self
                 .iter()
@@ -262,7 +271,9 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
         );
     }
 
-    fn replace(&mut self, old_token: &str, new_token: &str) -> bool {
+    fn replace(&self, old_token: &str, new_token: &str) -> bool {
+        let document = self.element_().tree_();
+        let _guard = document.doc_ptr();
         let mut repl = false;
         self.set_value(
             &self
@@ -281,7 +292,9 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
         repl
     }
 
-    fn toggle(&mut self, token: &str, force: Option<bool>) -> bool {
+    fn toggle(&self, token: &str, force: Option<bool>) -> bool {
+        let document = self.element_().tree_();
+        let _guard = document.doc_ptr();
         if let Some(f) = force {
             if f {
                 self.add(&[token]);
@@ -304,6 +317,18 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface {
 // Cannot derive default implementations for sub traits (yet)
 macro_rules! dom_token_list_impl {
     ($Self: ty) => {
+        impl DOMTokenListBaseImpl for $Self {
+            fn element_(&self) -> &ElementNode {
+                &self.element
+            }
+        }
+
+        impl DOMTokenListMutInterface for $Self {
+            fn set_value(&self, value: &str) {
+                self.element.set_class_name(value);
+            }
+        }
+
         impl DOMTokenListInterface for $Self {
             #[inline]
             fn value(&self) -> String {
@@ -364,24 +389,8 @@ impl<'a> DOMTokenList<'a> {
 
 dom_token_list_impl!(DOMTokenList<'_>);
 
-#[derive(PartialEq)]
-pub struct DOMTokenListMut<'a> {
-    element: &'a mut ElementNode,
-}
-
-impl<'a> DOMTokenListMut<'a> {
-    pub(crate) fn new(element: &'a mut ElementNode) -> Self {
-        Self { element }
-    }
-}
-
-impl DOMTokenListMutInterface for DOMTokenListMut<'_> {
-    fn set_value(&mut self, value: &str) {
-        self.element.set_class_name(value);
-    }
-}
-
-dom_token_list_impl!(DOMTokenListMut<'_>);
+/// Compatibility name for a shared token-list view; mutation is document-locked.
+pub type DOMTokenListMut<'a> = DOMTokenList<'a>;
 
 #[derive(PartialEq)]
 pub struct DOMTokenListOwned {
@@ -394,22 +403,10 @@ impl DOMTokenListOwned {
     }
 }
 
-impl DOMTokenListMutInterface for DOMTokenListOwned {
-    fn set_value(&mut self, value: &str) {
-        self.element.set_class_name(value);
-    }
-}
-
 dom_token_list_impl!(DOMTokenListOwned);
 
 impl From<DOMTokenList<'_>> for DOMTokenListOwned {
     fn from(value: DOMTokenList<'_>) -> Self {
-        Self::new(value.element.clone())
-    }
-}
-
-impl From<DOMTokenListMut<'_>> for DOMTokenListOwned {
-    fn from(value: DOMTokenListMut<'_>) -> Self {
         Self::new(value.element.clone())
     }
 }

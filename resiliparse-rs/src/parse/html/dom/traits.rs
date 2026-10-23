@@ -45,12 +45,11 @@ pub enum NodeType {
 /// the document lock so the anchor remains valid throughout the operation.
 unsafe fn splice_siblings_unchecked(
     receiver: NodeRef,
-    nodes: &[&mut Node],
+    nodes: &[NodeRef],
     mut anchor: Option<Node>,
     removed: &[*mut lxb_dom_node_t],
 ) {
-    if let Some(mut parent) = receiver.parent_node() {
-        let nodes: Vec<_> = nodes.iter().map(|node| node.as_noderef()).collect();
+    if let Some(parent) = receiver.parent_node() {
         // Keep an anchor that will not itself be moved by this operation.
         while let Some(node) = &anchor {
             if !nodes.iter().any(|input| *input == node.as_noderef()) {
@@ -60,7 +59,7 @@ unsafe fn splice_siblings_unchecked(
         }
         unsafe {
             parent.splice_children_unchecked(
-                &nodes,
+                nodes,
                 anchor.as_ref().map_or(ptr::null_mut(), |node| node.node_ptr_()),
                 removed,
             );
@@ -71,7 +70,7 @@ unsafe fn splice_siblings_unchecked(
 pub(crate) trait NodeInterfaceBaseImpl {
     fn tree_(&self) -> Arc<HTMLDocument>;
     fn node_ptr_(&self) -> *mut lxb_dom_node_t;
-    fn reset_node_ptr_(&mut self);
+    fn reset_node_ptr_(&self);
 
     #[inline(always)]
     unsafe fn doc_ptr_unchecked(&self) -> *mut lxb_dom_document_t {
@@ -113,7 +112,7 @@ pub(crate) trait NodeInterfaceBaseImpl {
     /// Validate the whole operation before changing links. The document lock
     /// covers both validation and mutation; reference/removal pointers are valid.
     unsafe fn splice_children_unchecked(
-        &mut self,
+        &self,
         nodes: &[NodeRef],
         reference: *mut lxb_dom_node_t,
         removed: &[*mut lxb_dom_node_t],
@@ -216,21 +215,17 @@ pub(crate) trait NodeInterfaceBaseImpl {
         }
     }
 
-    unsafe fn insert_before_unchecked<'a>(
-        &mut self,
-        node: &NodeRef<'a>,
-        child: Option<NodeRef>,
-    ) -> Option<NodeRef<'a>> {
+    unsafe fn insert_before_unchecked<'a>(&self, node: &NodeRef<'a>, child: Option<NodeRef>) -> Option<NodeRef<'a>> {
         let reference = child.as_ref().map_or(ptr::null_mut(), |child| child.node_ptr_());
         unsafe { self.splice_children_unchecked(&[node.clone()], reference, &[]) }.then(|| node.clone())
     }
 
-    unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    unsafe fn append_child_unchecked<'a>(&self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         unsafe { self.insert_before_unchecked(node, None) }
     }
 
     unsafe fn replace_child_unchecked<'a>(
-        &mut self,
+        &self,
         new_child: &NodeRef<'a>,
         old_child: &NodeRef<'a>,
     ) -> Option<NodeRef<'a>> {
@@ -246,7 +241,7 @@ pub(crate) trait NodeInterfaceBaseImpl {
         }
     }
 
-    unsafe fn remove_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    unsafe fn remove_child_unchecked<'a>(&self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
@@ -260,7 +255,9 @@ pub(crate) trait NodeInterfaceBaseImpl {
     }
 }
 
-/// Base DOM node interface.
+/// Shared DOM node interface. Clones are aliases, not deep copies. Mutating
+/// methods take `&self` and serialize native access through the document owner;
+/// an exclusive Rust borrow of a wrapper does not imply exclusive node access.
 #[allow(private_bounds)]
 pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     fn node_type(&self) -> Option<NodeType> {
@@ -285,6 +282,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     fn as_noderef(&self) -> NodeRef<'_>;
+    /// Borrow this wrapper mutably; aliases still share the underlying DOM node.
     fn as_noderef_mut(&mut self) -> NodeRefMut<'_>;
     fn as_node(&self) -> Node;
     fn into_node(self) -> Node;
@@ -303,7 +301,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     /// Set attribute or character data. Other node kinds are unchanged.
-    fn set_node_value(&mut self, value: &str) {
+    fn set_node_value(&self, value: &str) {
         check_node!(self);
         unsafe {
             use lxb_dom_node_type_t::*;
@@ -338,7 +336,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     /// Replace children of an element or fragment, or set attribute/character data.
-    fn set_text_content(&mut self, content: &str) {
+    fn set_text_content(&self, content: &str) {
         check_node!(self);
         unsafe {
             use lxb_dom_node_type_t::*;
@@ -444,7 +442,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         wrap_any_raw_node(&self.tree_(), unsafe { lxb_dom_node_clone(self.node_ptr_(), deep) })
     }
 
-    fn insert_before<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef<'a>>) -> Option<NodeRef<'a>> {
+    fn insert_before<'a>(&self, node: &NodeRef<'a>, child: Option<NodeRef<'a>>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         if self.node_ptr_() == node.node_ptr_() {
             return None;
@@ -458,7 +456,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.insert_before_unchecked(node, child) }
     }
 
-    fn append_child<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    fn append_child<'a>(&self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         if self.node_ptr_() == node.node_ptr_() {
             return None;
@@ -466,7 +464,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.append_child_unchecked(node) }
     }
 
-    fn replace_child<'a>(&mut self, node: &NodeRef<'a>, child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    fn replace_child<'a>(&self, node: &NodeRef<'a>, child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         check_nodes!(node, child);
         if self.node_ptr_() == node.node_ptr_() {
@@ -475,7 +473,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.replace_child_unchecked(node, child) }
     }
 
-    fn remove_child<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
+    fn remove_child<'a>(&self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         unsafe { self.remove_child_unchecked(node) }
     }
@@ -508,7 +506,7 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         ElementIterator::new(self)
     }
 
-    fn decompose(&mut self) {
+    fn decompose(&self) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if self.node_ptr_().is_null() {
@@ -543,17 +541,13 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
     fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
-    fn create_element(&mut self, local_name: &str) -> Result<ElementNode, DOMError>;
-    fn create_document_fragment(&mut self) -> Result<DocumentFragmentNode, DOMError>;
-    fn create_text_node(&mut self, data: &str) -> Result<TextNode, DOMError>;
-    fn create_cdata_section(&mut self, data: &str) -> Result<CdataSectionNode, DOMError>;
-    fn create_comment(&mut self, data: &str) -> Result<CommentNode, DOMError>;
-    fn create_processing_instruction(
-        &mut self,
-        target: &str,
-        data: &str,
-    ) -> Result<ProcessingInstructionNode, DOMError>;
-    fn create_attribute(&mut self, local_name: &str) -> Result<AttrNode, DOMError>;
+    fn create_element(&self, local_name: &str) -> Result<ElementNode, DOMError>;
+    fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DOMError>;
+    fn create_text_node(&self, data: &str) -> Result<TextNode, DOMError>;
+    fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DOMError>;
+    fn create_comment(&self, data: &str) -> Result<CommentNode, DOMError>;
+    fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError>;
+    fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DOMError>;
 }
 
 pub trait DocumentFragment: DocumentOrShadowRoot + ParentNode + NonElementParentNode {}
@@ -585,7 +579,7 @@ pub trait ParentNode: NodeInterface {
         count
     }
 
-    fn prepend(&mut self, nodes: &[NodeRef]) {
+    fn prepend(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         let mut fc = self.first_child();
@@ -600,7 +594,7 @@ pub trait ParentNode: NodeInterface {
         }
     }
 
-    fn append(&mut self, nodes: &[NodeRef]) {
+    fn append(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
@@ -608,7 +602,7 @@ pub trait ParentNode: NodeInterface {
         }
     }
 
-    fn replace_children(&mut self, nodes: &[NodeRef]) {
+    fn replace_children(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         let children = self.child_nodes().values();
@@ -660,7 +654,7 @@ pub trait NonElementParentNode: NodeInterface {
 
 /// ChildNode mixin trait.
 pub trait ChildNode: NodeInterface {
-    fn before(&mut self, nodes: &[&mut Node]) {
+    fn before(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
@@ -668,7 +662,7 @@ pub trait ChildNode: NodeInterface {
         }
     }
 
-    fn after(&mut self, nodes: &[&mut Node]) {
+    fn after(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
@@ -676,7 +670,7 @@ pub trait ChildNode: NodeInterface {
         }
     }
 
-    fn replace_with(&mut self, nodes: &[&mut Node]) {
+    fn replace_with(&self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
@@ -684,7 +678,7 @@ pub trait ChildNode: NodeInterface {
         }
     }
 
-    fn remove(&mut self) {
+    fn remove(&self) {
         check_node!(self);
         unsafe {
             self.tree_().mark_mutated();
@@ -713,11 +707,13 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn tag_name(&self) -> Option<String>;
     fn local_name(&self) -> Option<String>;
     fn id(&self) -> Option<String>;
-    fn set_id(&mut self, id: &str);
+    fn set_id(&self, id: &str);
     fn class_name(&self) -> Option<String>;
-    fn set_class_name(&mut self, class_name: &str);
+    fn set_class_name(&self, class_name: &str);
     fn class_list(&self) -> DOMTokenList<'_>;
-    fn class_list_mut(&mut self) -> DOMTokenListMut<'_>;
+    fn class_list_mut(&self) -> DOMTokenListMut<'_> {
+        self.class_list()
+    }
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
     fn attribute_or(&self, qualified_name: &str, default: &str) -> String;
@@ -725,10 +721,10 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn attribute_node(&self, qualified_name: &str) -> Option<AttrNode>;
     fn attribute_names(&self) -> Vec<String>;
     fn attributes(&self) -> NamedNodeMap;
-    fn set_attribute(&mut self, qualified_name: &str, value: &str);
-    fn set_attribute_node(&mut self, attribute: &AttrNode);
-    fn remove_attribute(&mut self, qualified_name: &str);
-    fn toggle_attribute(&mut self, qualified_name: &str, force: Option<bool>) -> bool;
+    fn set_attribute(&self, qualified_name: &str, value: &str);
+    fn set_attribute_node(&self, attribute: &AttrNode);
+    fn remove_attribute(&self, qualified_name: &str);
+    fn toggle_attribute(&self, qualified_name: &str, force: Option<bool>) -> bool;
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
@@ -739,20 +735,20 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
 
     fn inner_html(&self) -> String;
-    fn set_inner_html(&mut self, html: &str);
+    fn set_inner_html(&self, html: &str);
     fn outer_html(&self) -> String;
-    fn set_outer_html(&mut self, html: &str);
+    fn set_outer_html(&self, html: &str);
     fn inner_text(&self) -> String;
-    fn set_inner_text(&mut self, text: &str);
+    fn set_inner_text(&self, text: &str);
     fn outer_text(&self) -> String;
-    fn set_outer_text(&mut self, text: &str);
+    fn set_outer_text(&self, text: &str);
 }
 
 pub trait Attr: NodeInterface {
     fn local_name(&self) -> Option<String>;
     fn name(&self) -> Option<String>;
     fn value(&self) -> Option<String>;
-    fn set_value(&mut self, value: &str);
+    fn set_value(&self, value: &str);
 
     fn owner_element(&self) -> Option<ElementNode>;
 }
@@ -790,7 +786,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     }
 
     #[inline]
-    fn set_data(&mut self, data: &str) {
+    fn set_data(&self, data: &str) {
         self.set_node_value(data);
     }
 
@@ -801,7 +797,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
         Ok(data[character_data_range(&data, offset, count)?].to_owned())
     }
 
-    fn append_data(&mut self, data: &str) {
+    fn append_data(&self, data: &str) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if data.is_empty() {
@@ -812,15 +808,15 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
         self.set_data(&value);
     }
 
-    fn insert_data(&mut self, offset: usize, data: &str) -> Result<(), DOMError> {
+    fn insert_data(&self, offset: usize, data: &str) -> Result<(), DOMError> {
         self.replace_data(offset, 0, data)
     }
 
-    fn delete_data(&mut self, offset: usize, count: usize) -> Result<(), DOMError> {
+    fn delete_data(&self, offset: usize, count: usize) -> Result<(), DOMError> {
         self.replace_data(offset, count, "")
     }
 
-    fn replace_data(&mut self, offset: usize, count: usize, data: &str) -> Result<(), DOMError> {
+    fn replace_data(&self, offset: usize, count: usize, data: &str) -> Result<(), DOMError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         let mut value = self.data().ok_or_else(|| DOMError {
