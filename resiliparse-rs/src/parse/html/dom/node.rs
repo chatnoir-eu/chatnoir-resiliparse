@@ -37,6 +37,9 @@ pub use crate::parse::html::dom::traits::NodeType;
 // Keep the owned and borrowed node variants and their common dispatch together.
 macro_rules! define_node_enums {
     ($($Variant:ident($Type:ty)),+ $(,)?) => {
+        /// An owned DOM node. Use concrete types' `TryFrom<Node>` implementations
+        /// for checked downcasts; a mismatch returns `Err(original_node)`.
+        /// Borrowed access is available through the `as_*` capability views.
         #[derive(Clone, PartialEq, Debug)]
         pub enum Node { $($Variant($Type)),+ }
 
@@ -382,11 +385,13 @@ macro_rules! define_node_type {
             }
         }
 
-        impl From<Node> for $Self {
-            fn from(value: Node) -> $Self {
+        impl TryFrom<Node> for $Self {
+            type Error = Node;
+
+            fn try_from(value: Node) -> Result<Self, Self::Error> {
                 match value {
-                    Node::$EnumType(d) => d,
-                    _ => panic!("Illegal DOM Node type coercion."),
+                    Node::$EnumType(node) => Ok(node),
+                    node => Err(node),
                 }
             }
         }

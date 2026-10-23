@@ -1216,7 +1216,7 @@ fn test_children() {
     assert_eq!(element, element.last_child().unwrap().parent_element().unwrap());
     assert_eq!(element.first_child().unwrap().next_sibling(), element.last_child().unwrap().previous_sibling());
 
-    let t: TextNode = element.first_child().unwrap().into();
+    let t: TextNode = element.first_child().unwrap().try_into().unwrap();
     assert!(t.first_child().is_none());
     assert_eq!(t.node_value().unwrap(), t.text_content().unwrap());
     assert_eq!(t.node_value().unwrap(), "Hello ");
@@ -1225,7 +1225,7 @@ fn test_children() {
     assert!(e_first.node_value().is_none());
     assert_eq!(e_first.text_content().unwrap(), "world");
 
-    let t: TextNode = element.last_child().unwrap().into();
+    let t: TextNode = element.last_child().unwrap().try_into().unwrap();
     assert!(t.last_child().is_none());
     assert_eq!(t.node_value().unwrap(), t.text_content().unwrap());
     assert_eq!(t.node_value().unwrap(), "!");
@@ -1253,7 +1253,13 @@ fn test_siblings() {
     let tree = HTMLTree::from_str(HTML).unwrap();
     let element = tree.document().unwrap().get_element_by_id("a").unwrap();
 
-    let e_next: ElementNode = element.first_child().unwrap().next_sibling().unwrap().into();
+    let e_next: ElementNode = element
+        .first_child()
+        .unwrap()
+        .next_sibling()
+        .unwrap()
+        .try_into()
+        .unwrap();
     assert_eq!(e_next, element.first_element_child().unwrap());
     assert_eq!(e_next.tag_name().unwrap(), "SPAN");
     assert_eq!(e_next.class_name().unwrap(), "bar");
@@ -1261,7 +1267,13 @@ fn test_siblings() {
     assert!(element.previous_sibling().is_some());
     assert!(element.previous_element_sibling().is_none());
 
-    let e_prev: ElementNode = element.last_child().unwrap().previous_sibling().unwrap().into();
+    let e_prev: ElementNode = element
+        .last_child()
+        .unwrap()
+        .previous_sibling()
+        .unwrap()
+        .try_into()
+        .unwrap();
     assert_eq!(e_prev, element.last_element_child().unwrap());
     assert_eq!(e_prev.tag_name().unwrap(), "SPAN");
     assert_eq!(e_prev.class_name().unwrap(), "bar");
@@ -1275,7 +1287,8 @@ fn test_siblings() {
         .unwrap();
     assert_eq!(element1.id().unwrap(), "a");
     assert_eq!(
-        TextNode::from(element1.next_sibling().unwrap())
+        TextNode::try_from(element1.next_sibling().unwrap())
+            .unwrap()
             .node_value()
             .unwrap()
             .trim(),
@@ -1294,7 +1307,8 @@ fn test_siblings() {
         .unwrap();
     assert_eq!(element2.id().unwrap(), "b");
     assert_eq!(
-        TextNode::from(element2.previous_sibling().unwrap())
+        TextNode::try_from(element2.previous_sibling().unwrap())
+            .unwrap()
             .node_value()
             .unwrap()
             .trim(),
@@ -1768,4 +1782,53 @@ fn parent_views_support_queries_and_live_collections() {
         .unwrap();
     assert_eq!(children.len(), 3);
     assert_eq!(parent.child_element_count(), 3);
+}
+
+#[test]
+fn checked_downcasts_preserve_ownership_on_success_and_failure() {
+    fn check<T: NodeInterface + TryFrom<Node, Error = Node>>(node: Node, target: NodeType) {
+        let document = node.tree_();
+        let _guard = document.doc_ptr();
+        let pointer = node.node_ptr_();
+        let ref_count = unsafe { (*pointer).ref_count };
+        let expected_success = node.node_type() == Some(target);
+        let recovered = match T::try_from(node) {
+            Ok(concrete) => {
+                assert!(expected_success);
+                concrete.into_node() // Upcasts remain infallible.
+            }
+            Err(original) => {
+                assert!(!expected_success);
+                original
+            }
+        };
+        assert_eq!(recovered.node_ptr_(), pointer);
+        assert_eq!(unsafe { (*pointer).ref_count }, ref_count);
+    }
+
+    let tree = HTMLTree::parse("<!doctype html><p>text</p>").unwrap();
+    let mut doc = tree.document().unwrap();
+    let nodes = [
+        doc.as_node(),
+        tree.body().unwrap().as_node(),
+        doc.doctype().unwrap().as_node(),
+        doc.create_document_fragment().unwrap().as_node(),
+        doc.create_attribute("test").unwrap().as_node(),
+        doc.create_text_node("text").unwrap().as_node(),
+        doc.create_cdata_section("text").unwrap().as_node(),
+        doc.create_comment("text").unwrap().as_node(),
+        doc.create_processing_instruction("target", "text").unwrap().as_node(),
+    ];
+    for node in nodes {
+        check::<DocumentNode>(node.clone(), NodeType::Document);
+        check::<ElementNode>(node.clone(), NodeType::Element);
+        check::<DocumentTypeNode>(node.clone(), NodeType::DocumentType);
+        check::<DocumentFragmentNode>(node.clone(), NodeType::DocumentFragment);
+        check::<AttrNode>(node.clone(), NodeType::Attribute);
+        check::<TextNode>(node.clone(), NodeType::Text);
+        check::<CdataSectionNode>(node.clone(), NodeType::CdataSection);
+        check::<CommentNode>(node.clone(), NodeType::Comment);
+        check::<ProcessingInstructionNode>(node.clone(), NodeType::ProcessingInstruction);
+        check::<NotationNode>(node, NodeType::Notation);
+    }
 }
