@@ -180,3 +180,6 @@ vcpkg_installed/
 
 # agents
 .codex
+
+# html2text benchmark builds
+/.bench/
