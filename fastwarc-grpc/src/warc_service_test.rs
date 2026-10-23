@@ -176,7 +176,7 @@ async fn local_file_parser_finishes_after_response_cancellation() {
 #[test]
 fn response_cancellation_stops_an_unflushed_batch() {
     let (tx, rx) = mpsc::channel(1);
-    let mut emitter = BatchEmitter::new(&tx, 64);
+    let mut emitter = BatchEmitter::new(tx, 64);
     let event = pb::ParseWarcResponse {
         kind: Some(pb::parse_warc_response::Kind::RecordEnd(pb::RecordEnd { payload_length: 0 })),
     };

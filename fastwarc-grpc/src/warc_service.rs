@@ -22,7 +22,7 @@ mod parser;
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use cap_std::fs::Dir;
 use fastwarc::stream_io::bufread::RawReaderAdapter;
@@ -34,7 +34,7 @@ use tonic::{Request, Response, Status, Streaming};
 
 use self::batch::BatchEmitter;
 use self::channel_reader::ChannelReader;
-use self::parser::{parse_into, record_error};
+use self::parser::{PendingPayload, parse_into, record_error};
 use crate::convert;
 use crate::defaults::{
     DEFAULT_INPUT_BUFFER_SIZE, DEFAULT_MAX_CONCURRENT_PARSERS, MAX_HEADER_LEN, MAX_INPUT_BUFFER_SIZE,
@@ -368,13 +368,27 @@ fn validate_limit(name: &str, value: u32, max: usize) -> Result<(), Status> {
     }
 }
 
+fn lock(emitter: &Mutex<BatchEmitter>) -> std::sync::MutexGuard<'_, BatchEmitter> {
+    emitter.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// Parses the selected input and flushes any pending response batch.
 fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::ParseWarcConfig) {
-    let mut emitter = BatchEmitter::new(response_tx, convert::response_batch_size(config));
-    let mut emit = |response| emitter.emit(response);
+    let emitter = Arc::new(Mutex::new(BatchEmitter::new(response_tx.clone(), convert::response_batch_size(config))));
+    let mut emit = |response| lock(&emitter).emit(response);
     match input {
         ParserInput::Chunks(chunk_rx) => {
-            parse_into(RawReaderAdapter::new(ChannelReader::new(chunk_rx)), config, &mut emit);
+            let pending = Arc::new(PendingPayload::default());
+            let idle_emitter = Arc::clone(&emitter);
+            let idle_payload = Arc::clone(&pending);
+            let reader = ChannelReader::new(chunk_rx).with_idle_hook(move || {
+                let mut emitter = lock(&idle_emitter);
+                if let Some(chunk) = idle_payload.take_chunk() {
+                    let _ = emitter.emit(chunk);
+                }
+                let _ = emitter.flush();
+            });
+            parse_into(RawReaderAdapter::new(reader), config, &pending, &mut emit);
         }
         ParserInput::LocalFile(root, path) => {
             let input_buffer_size = if config.input_buffer_size == 0 {
@@ -384,7 +398,12 @@ fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::Par
             };
             match root.dir.open(&path) {
                 Ok(file) => {
-                    parse_into(io::BufReader::with_capacity(input_buffer_size, file.into_std()), config, &mut emit);
+                    parse_into(
+                        io::BufReader::with_capacity(input_buffer_size, file.into_std()),
+                        config,
+                        &PendingPayload::default(),
+                        &mut emit,
+                    );
                 }
                 Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
                     let _ = response_tx.blocking_send(Err(Status::permission_denied(
@@ -401,7 +420,7 @@ fn run_parser(input: ParserInput, response_tx: &ResponseSender, config: &pb::Par
             }
         }
     }
-    emitter.flush();
+    lock(&emitter).flush();
 }
 
 /// Collects records for the unary RPC, stopping when the response budget is exceeded.
@@ -422,7 +441,7 @@ fn collect_archive(
         fold_response(response, &mut open, &mut records, &mut errors);
         true
     };
-    parse_into(reader, config, &mut emit);
+    parse_into(reader, config, &PendingPayload::default(), &mut emit);
     if collected > MAX_UNARY_RESPONSE_SIZE {
         return Err(Status::resource_exhausted(format!(
             "archive decodes past the {MAX_UNARY_RESPONSE_SIZE}-byte ParseArchive response budget; \

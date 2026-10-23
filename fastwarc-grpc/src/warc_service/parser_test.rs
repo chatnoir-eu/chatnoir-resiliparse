@@ -86,7 +86,12 @@ fn payload_failure_after_start_terminates_record_sequence() {
         events.push(response);
         true
     };
-    parse_into(RawReaderAdapter::new(FailingReader { data, pos: 0 }), &config, &mut emit);
+    parse_into(
+        RawReaderAdapter::new(FailingReader { data, pos: 0 }),
+        &config,
+        &PendingPayload::default(),
+        &mut emit,
+    );
 
     let kinds: Vec<_> = events.iter().map(|e| e.kind.as_ref().unwrap()).collect();
     let [
@@ -116,10 +121,73 @@ fn payload_failure_after_start_terminates_record_sequence() {
 fn rejecting_payload_stops_emission() {
     let data = b"WARC/1.0\r\nWARC-Type: resource\r\nContent-Length: 4\r\n\r\nbody\r\n\r\n";
     let mut rejected = false;
-    parse_into(io::Cursor::new(data), &pb::ParseWarcConfig::default(), &mut |event| {
+    parse_into(io::Cursor::new(data), &pb::ParseWarcConfig::default(), &PendingPayload::default(), &mut |event| {
         assert!(!rejected, "event emitted after the consumer stopped");
         rejected = matches!(event.kind, Some(pb::parse_warc_response::Kind::PayloadChunk(_)));
         !rejected
     });
     assert!(rejected);
+}
+
+#[test]
+fn small_reader_windows_are_coalesced_into_full_chunks() {
+    let payload: Vec<u8> = (0..=u8::MAX).cycle().take(200_000).collect();
+    let mut data = Vec::new();
+    write!(data, "WARC/1.0\r\nWARC-Type: resource\r\nContent-Length: {}\r\n\r\n", payload.len()).unwrap();
+    data.extend_from_slice(&payload);
+    data.extend_from_slice(b"\r\n\r\n");
+
+    let chunk_size = 64 << 10;
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
+        payload_chunk_size: chunk_size.try_into().unwrap(),
+        ..Default::default()
+    };
+    let mut chunks = Vec::new();
+    let reader = io::BufReader::with_capacity(1024, io::Cursor::new(data));
+    parse_into(RawReaderAdapter::new(reader), &config, &PendingPayload::default(), &mut |event| {
+        if let Some(pb::parse_warc_response::Kind::PayloadChunk(chunk)) = event.kind {
+            chunks.push(chunk);
+        }
+        true
+    });
+
+    let sizes: Vec<_> = chunks.iter().map(|chunk| chunk.data.len()).collect();
+    assert_eq!(sizes, [chunk_size, chunk_size, chunk_size, payload.len() - 3 * chunk_size]);
+    assert_eq!(
+        chunks
+            .iter()
+            .flat_map(|chunk| chunk.data.iter().copied())
+            .collect::<Vec<_>>(),
+        payload
+    );
+}
+
+#[test]
+fn short_payload_does_not_retain_target_chunk_capacity() {
+    let payload = vec![b'x'; 2 << 10];
+    let mut data = Vec::new();
+    write!(data, "WARC/1.0\r\nWARC-Type: resource\r\nContent-Length: {}\r\n\r\n", payload.len()).unwrap();
+    data.extend_from_slice(&payload);
+    data.extend_from_slice(b"\r\n\r\n");
+    let config = pb::ParseWarcConfig {
+        parse_http: Some(false),
+        payload_chunk_size: 8 << 20,
+        ..Default::default()
+    };
+    let reader = io::BufReader::with_capacity(1024, io::Cursor::new(data));
+    let mut chunks = Vec::new();
+    parse_into(RawReaderAdapter::new(reader), &config, &PendingPayload::default(), &mut |event| {
+        if let Some(pb::parse_warc_response::Kind::PayloadChunk(chunk)) = event.kind {
+            chunks.push(chunk);
+        }
+        true
+    });
+
+    assert_eq!(chunks.len(), 1);
+    let chunk = chunks.pop().unwrap();
+    assert_eq!(chunk.offset, 0);
+    assert_eq!(chunk.data.as_ref(), payload);
+    let retained = chunk.data.try_into_mut().unwrap();
+    assert!(retained.capacity() <= 2 * payload.len());
 }
