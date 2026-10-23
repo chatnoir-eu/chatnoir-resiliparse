@@ -42,6 +42,33 @@ pub enum NodeType {
     Notation = 0x0C, // legacy
 }
 
+/// Shared implementation for before, after, and replace_with. Caller holds
+/// the document lock so the anchor remains valid throughout the operation.
+unsafe fn splice_siblings_unchecked(
+    receiver: NodeRef,
+    nodes: &[&mut Node],
+    mut anchor: Option<Node>,
+    removed: &[*mut lxb_dom_node_t],
+) {
+    if let Some(mut parent) = receiver.parent_node() {
+        let nodes: Vec<_> = nodes.iter().map(|node| node.as_noderef()).collect();
+        // Keep an anchor that will not itself be moved by this operation.
+        while let Some(node) = &anchor {
+            if !nodes.iter().any(|input| *input == node.as_noderef()) {
+                break;
+            }
+            anchor = node.next_sibling();
+        }
+        unsafe {
+            parent.splice_children_unchecked(
+                &nodes,
+                anchor.as_ref().map_or(ptr::null_mut(), |node| node.node_ptr_()),
+                removed,
+            );
+        }
+    }
+}
+
 pub(crate) trait NodeInterfaceBaseImpl {
     fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self
     where
@@ -87,55 +114,119 @@ pub(crate) trait NodeInterfaceBaseImpl {
         }
     }
 
+    /// Validate the whole operation before changing links. The document lock
+    /// covers both validation and mutation; reference/removal pointers are valid.
+    unsafe fn splice_children_unchecked(
+        &mut self,
+        nodes: &[NodeRef],
+        reference: *mut lxb_dom_node_t,
+        removed: &[*mut lxb_dom_node_t],
+    ) -> bool {
+        use lxb_dom_node_type_t::*;
+        let document = self.tree_();
+        let _guard = document.doc_ptr();
+        unsafe {
+            let parent = self.node_ptr_();
+            if parent.is_null()
+                || !self.can_have_children_unchecked()
+                || (!reference.is_null() && (*reference).parent != parent)
+            {
+                return false;
+            }
+            let mut inserted = Vec::new();
+            for node in nodes {
+                if !Arc::ptr_eq(&document, &node.tree_()) || node.node_ptr_().is_null() {
+                    return false;
+                }
+                let node = node.node_ptr_();
+                let mut ancestor = parent;
+                while !ancestor.is_null() {
+                    if ancestor == node {
+                        return false;
+                    }
+                    ancestor = (*ancestor).parent;
+                }
+                if (*node).type_ == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT {
+                    let mut child = (*node).first_child;
+                    while !child.is_null() {
+                        // Earlier arguments may already have moved this child.
+                        if !inserted.contains(&child) {
+                            inserted.push(child);
+                        }
+                        child = (*child).next;
+                    }
+                } else {
+                    inserted.push(node);
+                }
+            }
+            let is_document = (*parent).type_ == LXB_DOM_NODE_TYPE_DOCUMENT;
+            for &node in &inserted {
+                match (*node).type_ {
+                    LXB_DOM_NODE_TYPE_ELEMENT
+                    | LXB_DOM_NODE_TYPE_TEXT
+                    | LXB_DOM_NODE_TYPE_CDATA_SECTION
+                    | LXB_DOM_NODE_TYPE_COMMENT
+                    | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => {}
+                    LXB_DOM_NODE_TYPE_DOCUMENT_TYPE if is_document => {}
+                    _ => return false,
+                }
+            }
+            if is_document {
+                let (mut element, mut doctype) = (false, false);
+                let mut valid_child = |node: *mut lxb_dom_node_t| match (*node).type_ {
+                    LXB_DOM_NODE_TYPE_ELEMENT if !element => {
+                        element = true;
+                        true
+                    }
+                    LXB_DOM_NODE_TYPE_DOCUMENT_TYPE if !doctype && !element => {
+                        doctype = true;
+                        true
+                    }
+                    LXB_DOM_NODE_TYPE_COMMENT | LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION => true,
+                    _ => false,
+                };
+                let mut child = (*parent).first_child;
+                loop {
+                    if child == reference {
+                        for (i, &node) in inserted.iter().enumerate() {
+                            if node != reference && !inserted[i + 1..].contains(&node) && !valid_child(node) {
+                                return false;
+                            }
+                        }
+                    }
+                    if child.is_null() {
+                        break;
+                    }
+                    let moved = inserted.contains(&child);
+                    if (!moved || child == reference) && (!removed.contains(&child) || moved) && !valid_child(child) {
+                        return false;
+                    }
+                    child = (*child).next;
+                }
+            }
+            for &node in &inserted {
+                if node != reference {
+                    document.mark_mutated();
+                    move_node_before_unchecked(parent, node, reference);
+                }
+            }
+            for &node in removed {
+                if !inserted.contains(&node) {
+                    document.mark_mutated();
+                    lxb_dom_node_remove(node);
+                }
+            }
+            true
+        }
+    }
+
     unsafe fn insert_before_unchecked<'a>(
         &mut self,
         node: &NodeRef<'a>,
         child: Option<NodeRef>,
     ) -> Option<NodeRef<'a>> {
-        let document = self.tree_();
-        let _guard = document.doc_ptr();
-        unsafe {
-            // Validate before detaching anything, including any fragment child.
-            // Moving an ancestor beneath its descendant would create a cycle.
-            if !self.can_have_children_unchecked() {
-                return None;
-            }
-            let parent = self.node_ptr_();
-            let mut ancestor = parent;
-            while !ancestor.is_null() {
-                if ancestor == node.node_ptr_() {
-                    return None;
-                }
-                ancestor = (*ancestor).parent;
-            }
-            let reference = if let Some(c) = child {
-                if c.parent_node()?.node_ptr_() != self.node_ptr_() {
-                    return None;
-                }
-                if node == &c {
-                    return Some(node.clone());
-                }
-                c.node_ptr_()
-            } else {
-                ptr::null_mut()
-            };
-            if let NodeRef::DocumentFragment(fragment) = node {
-                let fragment = fragment.node_ptr_();
-                if (*fragment).first_child.is_null() {
-                    return Some(node.clone());
-                }
-                document.mark_mutated();
-                // Transfer only top-level children, preserving their subtrees.
-                // Detachment naturally empties the fragment's child list.
-                while !(*fragment).first_child.is_null() {
-                    move_node_before_unchecked(parent, (*fragment).first_child, reference);
-                }
-            } else {
-                document.mark_mutated();
-                move_node_before_unchecked(parent, node.node_ptr_(), reference);
-            }
-            Some(node.clone())
-        }
+        let reference = child.as_ref().map_or(ptr::null_mut(), |child| child.node_ptr_());
+        unsafe { self.splice_children_unchecked(&[node.clone()], reference, &[]) }.then(|| node.clone())
     }
 
     unsafe fn append_child_unchecked<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
@@ -150,14 +241,12 @@ pub(crate) trait NodeInterfaceBaseImpl {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         unsafe {
-            if old_child.parent_node()?.node_ptr_() != self.node_ptr_() || !self.can_have_children_unchecked() {
+            let old = old_child.node_ptr_();
+            if old_child.parent_node()?.node_ptr_() != self.node_ptr_() {
                 return None;
             }
-            if new_child == old_child {
-                return Some(old_child.clone());
-            }
-            self.insert_before_unchecked(new_child, Some(old_child.clone()))?;
-            self.remove_child_unchecked(old_child)
+            self.splice_children_unchecked(&[new_child.clone()], old, &[old])
+                .then(|| old_child.clone())
         }
     }
 
@@ -477,26 +566,27 @@ pub trait ParentNode: NodeInterface {
             }
             fc = child.next_sibling();
         }
-        nodes.iter().for_each(|n| {
-            self.insert_before(n, fc.as_ref().map(|n_| n_.as_noderef()));
-        });
+        unsafe {
+            self.splice_children_unchecked(nodes, fc.as_ref().map_or(ptr::null_mut(), |node| node.node_ptr_()), &[]);
+        }
     }
 
     fn append(&mut self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        nodes.iter().for_each(|n| {
-            self.append_child(n);
-        });
+        unsafe {
+            self.splice_children_unchecked(nodes, ptr::null_mut(), &[]);
+        }
     }
 
     fn replace_children(&mut self, nodes: &[NodeRef]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        while let Some(c) = self.first_child() {
-            self.remove_child(&c.as_noderef());
+        let children = self.child_nodes().values();
+        let removed: Vec<_> = children.iter().map(|node| node.node_ptr_()).collect();
+        unsafe {
+            self.splice_children_unchecked(nodes, ptr::null_mut(), &removed);
         }
-        self.append(nodes);
     }
 
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
@@ -544,48 +634,24 @@ pub trait ChildNode: NodeInterface {
     fn before(&mut self, nodes: &[&mut Node]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        if let Some(p) = &mut self.parent_node() {
-            // Keep an anchor that will not itself be moved by this operation.
-            let mut anchor = Some(self.as_node());
-            while let Some(node) = &anchor {
-                if !nodes.iter().any(|n| n.as_noderef() == node.as_noderef()) {
-                    break;
-                }
-                anchor = node.next_sibling();
-            }
-            nodes.iter().for_each(|n| {
-                p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
-            });
+        unsafe {
+            splice_siblings_unchecked(self.as_noderef(), nodes, Some(self.as_node()), &[]);
         }
     }
 
     fn after(&mut self, nodes: &[&mut Node]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        if let Some(p) = &mut self.parent_node() {
-            let mut anchor = self.next_sibling();
-            while let Some(node) = &anchor {
-                if !nodes.iter().any(|n| n.as_noderef() == node.as_noderef()) {
-                    break;
-                }
-                anchor = node.next_sibling();
-            }
-            nodes.iter().for_each(|n| {
-                p.insert_before(&n.as_noderef(), anchor.as_ref().map(|n_| n_.as_noderef()));
-            });
+        unsafe {
+            splice_siblings_unchecked(self.as_noderef(), nodes, self.next_sibling(), &[]);
         }
     }
 
     fn replace_with(&mut self, nodes: &[&mut Node]) {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        if self.parent_node().is_none() {
-            return;
-        }
-        self.before(nodes);
-        // Replacing with a list containing the receiver moves it into the list.
-        if !nodes.iter().any(|n| n.as_noderef() == self.as_noderef()) {
-            self.remove();
+        unsafe {
+            splice_siblings_unchecked(self.as_noderef(), nodes, Some(self.as_node()), &[self.node_ptr_()]);
         }
     }
 

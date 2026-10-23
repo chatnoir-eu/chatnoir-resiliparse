@@ -986,7 +986,7 @@ impl Element for ElementNode {
 
     fn set_outer_text(&mut self, text: &str) {
         check_node!(self);
-        if self.parent_node().is_none() {
+        if !matches!(self.parent_node(), Some(Node::Element(_) | Node::DocumentFragment(_))) {
             return;
         }
         self.set_text_content(text);
