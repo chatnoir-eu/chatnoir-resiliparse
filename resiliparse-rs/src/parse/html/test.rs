@@ -1572,3 +1572,58 @@ fn batches_handle_duplicate_nodes_and_fragments() {
     assert_child_links(&parent, &[a.as_node(), b.as_node()]);
     assert_child_links(&fragment, &[]);
 }
+
+#[test]
+fn character_data_uses_unicode_scalar_indices() {
+    let tree = HTMLTree::parse("").unwrap();
+    let mut doc = tree.document().unwrap();
+    let mut nodes: Vec<Box<dyn CharacterData>> = vec![
+        Box::new(doc.create_text_node("").unwrap()),
+        Box::new(doc.create_comment("").unwrap()),
+        Box::new(doc.create_cdata_section("").unwrap()),
+        Box::new(doc.create_processing_instruction("target", "").unwrap()),
+    ];
+    for node in &mut nodes {
+        assert_eq!(node.len(), 0);
+        assert_eq!(node.substring_data(0, usize::MAX).unwrap(), "");
+        node.insert_data(0, "aé🙂e\u{301}").unwrap();
+        assert_eq!(node.len(), 5); // Combining marks count separately.
+        assert_eq!(node.substring_data(1, 2).unwrap(), "é🙂");
+        assert_eq!(node.substring_data(3, usize::MAX).unwrap(), "e\u{301}");
+        assert_eq!(node.substring_data(5, usize::MAX).unwrap(), "");
+        node.insert_data(5, "界").unwrap();
+        node.replace_data(6, usize::MAX, "!").unwrap();
+        assert_eq!(node.data().unwrap(), "aé🙂e\u{301}界!");
+        node.replace_data(1, 2, "ö").unwrap();
+        node.delete_data(2, usize::MAX).unwrap();
+        assert_eq!(node.data().unwrap(), "aö");
+        node.delete_data(2, usize::MAX).unwrap();
+        node.replace_data(2, 0, "").unwrap();
+        node.append_data("🙂");
+        assert_eq!(node.data().unwrap(), "aö🙂");
+        node.delete_data(0, usize::MAX).unwrap();
+        node.replace_data(0, usize::MAX, "end").unwrap();
+        assert_eq!(node.data().unwrap(), "end");
+    }
+}
+
+#[test]
+fn invalid_character_data_offsets_fail_without_mutation() {
+    let tree = HTMLTree::parse("<p>aé🙂</p>").unwrap();
+    let parent = tree.body().unwrap().first_element_child().unwrap();
+    let Node::Text(mut text) = parent.first_child().unwrap() else {
+        panic!("Expected text")
+    };
+    let iter = parent.clone().into_iter();
+    for offset in [4, usize::MAX] {
+        assert!(text.substring_data(offset, 0).is_err());
+        assert!(text.substring_data(offset, usize::MAX).is_err());
+        assert!(text.insert_data(offset, "").is_err());
+        assert!(text.insert_data(offset, "new").is_err());
+        assert!(text.delete_data(offset, 0).is_err());
+        assert!(text.delete_data(offset, usize::MAX).is_err());
+        assert!(text.replace_data(offset, usize::MAX, "new").is_err());
+        assert_eq!(text.data().unwrap(), "aé🙂");
+    }
+    assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 2);
+}

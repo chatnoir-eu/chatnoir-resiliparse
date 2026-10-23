@@ -21,9 +21,8 @@ use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::*;
 use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
-use std::cmp::max;
 use std::fmt::{Debug, Display};
-use std::ops::Add;
+use std::ops::Range;
 use std::ptr::{self, addr_of};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -740,9 +739,31 @@ pub trait Attr: NodeInterface {
     fn owner_element(&self) -> Option<ElementNode>;
 }
 
+/// Convert Unicode scalar indices to UTF-8 byte boundaries. Counts past the
+/// end are clamped; offsets past the end are rejected, including empty edits.
+fn character_data_range(data: &str, offset: usize, count: usize) -> Result<Range<usize>, DOMError> {
+    let mut boundaries = data
+        .char_indices()
+        .map(|(index, _)| index)
+        .chain(std::iter::once(data.len()));
+    let start = boundaries.nth(offset).ok_or_else(|| DOMError {
+        msg: "Character-data offset exceeds length".into(),
+    })?;
+    let end = if count == 0 {
+        start
+    } else {
+        boundaries.nth(count - 1).unwrap_or(data.len())
+    };
+    Ok(start..end)
+}
+
+/// Character data indexed by Unicode scalar values, including `len()`.
+/// Offsets equal to the length are valid; larger offsets return an error.
+/// Counts extending beyond the end are clamped. Indices are neither UTF-8
+/// byte offsets nor DOM UTF-16 code-unit offsets.
 pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     fn len(&self) -> usize {
-        self.node_value().unwrap_or_default().len()
+        self.node_value().unwrap_or_default().chars().count()
     }
 
     #[inline]
@@ -752,11 +773,19 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
 
     #[inline]
     fn set_data(&mut self, data: &str) {
-        self.set_node_value(data);
+        check_node!(self);
+        unsafe {
+            self.tree_().mark_mutated();
+            // The generic text-content setter does not handle CDATA.
+            lxb_dom_character_data_replace(self.node_ptr_().cast(), data.as_ptr(), data.len(), 0, 0);
+        }
     }
 
-    fn substring_data(&self, offset: usize, count: usize) -> Option<String> {
-        Some(self.data()?.chars().into_iter().skip(offset).take(count).collect())
+    fn substring_data(&self, offset: usize, count: usize) -> Result<String, DOMError> {
+        let data = self.data().ok_or_else(|| DOMError {
+            msg: "Character data is unavailable".into(),
+        })?;
+        Ok(data[character_data_range(&data, offset, count)?].to_owned())
     }
 
     fn append_data(&mut self, data: &str) {
@@ -765,59 +794,31 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
         if data.is_empty() {
             return;
         }
-        self.set_data(&self.data().unwrap_or_default().add(data));
+        let mut value = self.data().unwrap_or_default();
+        value.push_str(data);
+        self.set_data(&value);
     }
 
-    fn insert_data(&mut self, offset: usize, data: &str) {
-        let document = self.tree_();
-        let _guard = document.doc_ptr();
-        if data.is_empty() {
-            return;
-        }
-        if let Some(s) = self.data() {
-            let mut s_new = String::with_capacity(s.len() + data.len());
-            s.chars().into_iter().enumerate().for_each(|(i, c)| {
-                if i == offset {
-                    s_new.push_str(data);
-                }
-                s_new.push(c);
-            });
-            self.set_data(&s_new);
-        }
+    fn insert_data(&mut self, offset: usize, data: &str) -> Result<(), DOMError> {
+        self.replace_data(offset, 0, data)
     }
 
-    fn delete_data(&mut self, offset: usize, count: usize) {
-        let document = self.tree_();
-        let _guard = document.doc_ptr();
-        if let Some(s) = self.data() {
-            let mut s_new = String::with_capacity(max(0, s.len() - count));
-            s.chars().into_iter().enumerate().for_each(|(i, c)| {
-                if i < offset || i >= offset + count {
-                    s_new.push(c);
-                }
-            });
-            self.set_data(&s_new);
-        }
+    fn delete_data(&mut self, offset: usize, count: usize) -> Result<(), DOMError> {
+        self.replace_data(offset, count, "")
     }
 
-    fn replace_data(&mut self, offset: usize, count: usize, data: &str) {
+    fn replace_data(&mut self, offset: usize, count: usize, data: &str) -> Result<(), DOMError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        if let Some(s) = self.data() {
-            let mut s_new = String::with_capacity(max(0, s.len() - count + data.len()));
-            s.chars().into_iter().enumerate().for_each(|(i, c)| {
-                if i < offset {
-                    s_new.push(c);
-                }
-                if i == offset {
-                    s_new.push_str(data);
-                }
-                if i >= offset + count {
-                    s_new.push(c);
-                }
-            });
-            self.set_data(&s_new);
+        let mut value = self.data().ok_or_else(|| DOMError {
+            msg: "Character data is unavailable".into(),
+        })?;
+        let range = character_data_range(&value, offset, count)?;
+        if &value[range.clone()] != data {
+            value.replace_range(range, data);
+            self.set_data(&value);
         }
+        Ok(())
     }
 }
 

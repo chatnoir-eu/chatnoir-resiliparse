@@ -209,8 +209,8 @@ macro_rules! character_data_node {
             }
 
             #[inline(always)]
-            pub fn substring_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> Option<String> {
-                Self::raw_node(&slf).substring_data(offset, count)
+            pub fn substring_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<String> {
+                Self::raw_node(&slf).substring_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             #[inline(always)]
@@ -219,18 +219,18 @@ macro_rules! character_data_node {
             }
 
             #[inline(always)]
-            pub fn insert_data(mut slf: PyRefMut<'_, Self>, offset: usize, data: &str) {
-                Self::raw_node_mut(&mut slf).insert_data(offset, data)
+            pub fn insert_data(mut slf: PyRefMut<'_, Self>, offset: usize, data: &str) -> PyResult<()> {
+                Self::raw_node_mut(&mut slf).insert_data(offset, data).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             #[inline(always)]
-            pub fn delete_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize) {
-                Self::raw_node_mut(&mut slf).delete_data(offset, count)
+            pub fn delete_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize) -> PyResult<()> {
+                Self::raw_node_mut(&mut slf).delete_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             #[inline(always)]
-            pub fn replace_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize, data: &str) {
-                Self::raw_node_mut(&mut slf).replace_data(offset, count, data)
+            pub fn replace_data(mut slf: PyRefMut<'_, Self>, offset: usize, count: usize, data: &str) -> PyResult<()> {
+                Self::raw_node_mut(&mut slf).replace_data(offset, count, data).map_err(|error| DOMException::new_err(error.to_string()))
             }
 
             $(#[getter]
