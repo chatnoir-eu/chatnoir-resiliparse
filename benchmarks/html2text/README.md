@@ -67,7 +67,7 @@ workflows publish wheels and tags on every push.
 ## Development loop
 
 1. Change the code in a working tree and build it: `$B/build.sh dev .` (rebuild after every change).
-2. Run the tests with that build: `.bench/venvs/dev/bin/python -m pytest tests/resiliparse`.
+2. Run the tests with that build: `.bench/venvs/dev/bin/python -m pytest tests/resiliparse/extract tests/resiliparse/parse`.
 3. Check speed and output against the baseline: `run` both, then `compare`. Extraction changes meant as pure
    optimizations must show `0` differing records on a few thousand records of at least one full WARC.
 

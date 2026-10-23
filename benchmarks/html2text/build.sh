@@ -28,8 +28,8 @@ VENV="$BENCH_DIR/venvs/$NAME"
 rm -rf "$VENV"
 uv venv -q -p "$PYTHON" "$VENV"
 pip_install() { uv pip install -q -p "$VENV/bin/python" "$@"; }
-# The benchmark reads WARCs with FastWARC, which every variant can share
-pip_install fastwarc==1.0.9
+# The benchmark reads WARCs with FastWARC, which every variant can share; pytest runs the tests against a build
+pip_install fastwarc==1.0.9 pytest
 
 if [ "$2" = --pypi ]; then
     pip_install "resiliparse==$3"
