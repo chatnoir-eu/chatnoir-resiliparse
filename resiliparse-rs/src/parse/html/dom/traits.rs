@@ -101,14 +101,14 @@ pub(crate) trait NodeInterfaceBaseImpl {
         let _guard = document.doc_ptr();
         unsafe {
             if let Some(c) = child {
-                if *c.parent_node()?.node_ptr_() != *self.node_ptr_()
-                    || !self.can_have_children_unchecked()
-                    || node.contains(&c)
-                {
+                if *c.parent_node()?.node_ptr_() != *self.node_ptr_() || !self.can_have_children_unchecked() {
                     return None;
                 }
                 if node == &c {
                     return Some(node.clone());
+                }
+                if node.contains(&c) {
+                    return None;
                 }
                 document.mark_mutated();
                 // TODO: Insert fragment itself once Lexbor bug is fixed: https://github.com/lexbor/lexbor/issues/180
@@ -337,6 +337,9 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn insert_before<'a>(&mut self, node: &NodeRef<'a>, child: Option<NodeRef<'a>>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
+        if *self.node_ptr_() == *node.node_ptr_() {
+            return None;
+        }
         if let Some(c) = &child {
             check_nodes!(node, c);
             if *self.node_ptr_() == *c.node_ptr_() {
@@ -348,12 +351,18 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
 
     fn append_child<'a>(&mut self, node: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
+        if *self.node_ptr_() == *node.node_ptr_() {
+            return None;
+        }
         unsafe { self.append_child_unchecked(node) }
     }
 
     fn replace_child<'a>(&mut self, node: &NodeRef<'a>, child: &NodeRef<'a>) -> Option<NodeRef<'a>> {
         check_nodes!(self, node);
         check_nodes!(node, child);
+        if *self.node_ptr_() == *node.node_ptr_() {
+            return None;
+        }
         unsafe { self.replace_child_unchecked(node, child) }
     }
 

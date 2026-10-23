@@ -191,15 +191,14 @@ pub(crate) use check_node;
 
 macro_rules! check_nodes {
     ($node1: expr, $node2: expr) => {
+        // Identity is valid for some operations (e.g. contains and replacement).
+        // Only validate handles and document ownership here.
         if !Arc::ptr_eq(&$node1.tree_(), &$node2.tree_()) {
             return Default::default();
         }
         let document = $node1.tree_();
         let _document_guard = document.doc_ptr();
-        if (*$node1.node_ptr_()).is_null()
-            || (*$node2.node_ptr_()).is_null()
-            || *$node1.node_ptr_() == *$node2.node_ptr_()
-        {
+        if (*$node1.node_ptr_()).is_null() || (*$node2.node_ptr_()).is_null() {
             return Default::default();
         }
     };

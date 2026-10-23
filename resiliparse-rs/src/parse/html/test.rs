@@ -118,6 +118,107 @@ fn test_node_equality() {
 }
 
 #[test]
+fn containment_includes_the_receiver_and_aliases() {
+    let tree = HTMLTree::parse("<div><span>text</span></div>").unwrap();
+    let root = tree.body().unwrap().first_element_child().unwrap();
+    let alias = root.clone();
+    let child = root.first_child().unwrap();
+    assert!(root.contains(&root.as_noderef()));
+    assert!(root.contains(&alias.as_noderef()));
+    assert!(root.contains(&child.as_noderef()));
+    assert!(!child.contains(&root.as_noderef()));
+
+    let other = HTMLTree::parse("<div></div>").unwrap();
+    assert!(!root.contains(&other.body().unwrap().as_noderef()));
+    let mut invalid = tree.document().unwrap().create_element("i").unwrap();
+    invalid.decompose();
+    assert!(!invalid.contains(&invalid.as_noderef()));
+    assert!(!root.contains(&invalid.as_noderef()));
+}
+
+#[test]
+fn inserting_a_child_before_itself_is_a_noop() {
+    let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
+    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let child = root.first_child().unwrap().next_sibling().unwrap();
+    let alias = child.clone();
+    let iter = root.clone().into_iter();
+    let result = root.insert_before(&child.as_noderef(), Some(alias.as_noderef()));
+    assert_eq!(result.unwrap(), child.as_noderef());
+    assert_eq!(root.inner_html(), "<a></a><b></b><i></i>");
+    // Successful identity operations must not invalidate active traversal.
+    assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 4);
+}
+
+#[test]
+fn replacing_a_child_with_itself_is_a_noop() {
+    let tree = HTMLTree::parse("<div><a></a><b></b><i></i></div>").unwrap();
+    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let child = root.first_child().unwrap().next_sibling().unwrap();
+    let alias = child.clone();
+    let iter = root.clone().into_iter();
+    assert_eq!(root.replace_child(&child.as_noderef(), &alias.as_noderef()).unwrap(), child.as_noderef());
+    assert_eq!(root.inner_html(), "<a></a><b></b><i></i>");
+    assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 4);
+}
+
+#[test]
+fn identity_noops_still_require_valid_children() {
+    let tree = HTMLTree::parse("<div><a></a></div><section><b></b></section>").unwrap();
+    let mut root = tree.body().unwrap().first_element_child().unwrap();
+    let child = root.first_child().unwrap();
+    let outsider = tree
+        .body()
+        .unwrap()
+        .last_element_child()
+        .unwrap()
+        .first_child()
+        .unwrap();
+    let alias = root.as_node();
+    let mut invalid = tree.document().unwrap().create_element("i").unwrap();
+    invalid.decompose();
+    let iter = root.clone().into_iter();
+
+    assert!(
+        root.insert_before(&outsider.as_noderef(), Some(outsider.as_noderef()))
+            .is_none()
+    );
+    assert!(
+        root.replace_child(&outsider.as_noderef(), &outsider.as_noderef())
+            .is_none()
+    );
+    assert!(root.append_child(&alias.as_noderef()).is_none());
+    assert!(
+        root.insert_before(&alias.as_noderef(), Some(child.as_noderef()))
+            .is_none()
+    );
+    assert!(root.insert_before(&alias.as_noderef(), None).is_none());
+    assert!(root.replace_child(&alias.as_noderef(), &child.as_noderef()).is_none());
+    assert!(root.remove_child(&alias.as_noderef()).is_none());
+    assert!(
+        root.insert_before(&invalid.as_noderef(), Some(invalid.as_noderef()))
+            .is_none()
+    );
+    assert!(
+        root.replace_child(&invalid.as_noderef(), &invalid.as_noderef())
+            .is_none()
+    );
+
+    let other = HTMLTree::parse("<p>foreign</p>").unwrap();
+    let foreign = other.body().unwrap().first_child().unwrap();
+    assert!(
+        root.insert_before(&foreign.as_noderef(), Some(foreign.as_noderef()))
+            .is_none()
+    );
+    assert!(
+        root.replace_child(&foreign.as_noderef(), &foreign.as_noderef())
+            .is_none()
+    );
+    assert_eq!(root.inner_html(), "<a></a>");
+    assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 2);
+}
+
+#[test]
 fn test_selection() {
     let tree = HTMLTree::from_str(HTML).unwrap();
 
