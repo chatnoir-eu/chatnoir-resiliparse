@@ -913,41 +913,11 @@ impl Element for ElementNode {
     }
 
     fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        // // TODO: Efficient implementation broken until https://github.com/lexbor/lexbor/issues/248 is fixed.
-        // let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
-        // let mut found = None;
-        // let mut node = Some(self.clone());
-        // while let Some(n) = node {
-        //     sel_list.match_elements_reverse(&n.as_noderef(), |e, _, found| {
-        //         *found = Some(e);
-        //         TraverseAction::Stop
-        //     }, &mut found);
-        //     if found.is_some() {
-        //         return Ok(found);
-        //     }
-        //     node = n.parent_element();
-        // }
-        // Ok(None)
-
-        let matches = self
-            .owner_document()
-            .map_or_else(|| Ok(Vec::new()), |d| Ok(d.query_selector_all(selectors)?.values()))?;
-        if matches.is_empty() {
-            return Ok(None);
-        }
-        let mut e = Some(self.clone());
-        while let Some(e_inner) = e {
-            if matches.contains(&e_inner) {
-                return Ok(Some(e_inner));
-            }
-            e = e_inner.parent_element();
-        }
-        Ok(None)
+        Selector::new(selectors)?.closest(self)
     }
 
     fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        self.owner_document()
-            .map_or(Ok(false), |d| Ok(d.query_selector_all(selectors)?.into_iter().any(|e| e == *self)))
+        Selector::new(selectors)?.matches(self)
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {

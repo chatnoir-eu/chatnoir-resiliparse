@@ -28,9 +28,9 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::vec;
 
-use crate::parse::html::css::CSSParserError;
+use crate::parse::html::css::{CSSParserError, Selector};
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
-use crate::parse::html::dom::traits::{Element, NodeInterfaceBaseImpl, ParentNode};
+use crate::parse::html::dom::traits::{Element, NodeInterface, NodeInterfaceBaseImpl};
 
 /// A snapshot of collection membership. Nodes themselves remain shared DOM handles.
 /// Length, indexing and borrowed iteration never clone items or re-run a query.
@@ -287,34 +287,47 @@ impl ElementNodeList {
         ElementNodeList::from(coll)
     }
 
+    #[inline(always)]
     pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        for item in self.iter() {
-            match item.query_selector(selectors) {
-                Ok(Some(e)) => return Ok(Some(e)),
-                Ok(None) => continue,
-                Err(e) => return Err(e),
+        self.query_selector_compiled(&Selector::new(selectors)?)
+    }
+
+    pub fn query_selector_compiled(&self, selectors: &Selector) -> Result<Option<ElementNode>, CSSParserError> {
+        for root in self {
+            if let Some(element) = selectors.query_selector(&root.as_noderef())? {
+                return Ok(Some(element));
             }
         }
         Ok(None)
     }
 
+    #[inline(always)]
     pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        let mut coll = Vec::default();
-        for item in self.iter() {
-            match item.query_selector_all(selectors) {
-                Ok(e) => coll.extend(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(ElementNodeList::from(coll))
+        self.query_selector_all_compiled(&Selector::new(selectors)?)
     }
 
+    pub fn query_selector_all_compiled(&self, selectors: &Selector) -> Result<ElementNodeList, CSSParserError> {
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        for root in self {
+            for element in selectors.query_selector_all(&root.as_noderef())? {
+                if seen.insert(element.node_ptr_()) {
+                    result.push(element);
+                }
+            }
+        }
+        Ok(result.into())
+    }
+
+    #[inline(always)]
     pub fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        for item in self.iter() {
-            match item.matches(selectors) {
-                Ok(true) => return Ok(true),
-                Ok(false) => continue,
-                Err(e) => return Err(e),
+        self.matches_compiled(&Selector::new(selectors)?)
+    }
+
+    pub fn matches_compiled(&self, selectors: &Selector) -> Result<bool, CSSParserError> {
+        for element in self {
+            if selectors.matches(element)? {
+                return Ok(true);
             }
         }
         Ok(false)

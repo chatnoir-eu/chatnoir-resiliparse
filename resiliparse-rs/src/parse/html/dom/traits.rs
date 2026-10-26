@@ -16,7 +16,7 @@
 //!
 //! Abstract DOM node type interfaces.
 
-use crate::parse::html::css::{CSSParserError, CSSSelectorList, TraverseAction};
+use crate::parse::html::css::{CSSParserError, Selector};
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::*;
@@ -613,31 +613,11 @@ pub trait ParentNode: NodeInterface {
     }
 
     fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
-        let mut result = Vec::<ElementNode>::with_capacity(1);
-        sel_list.match_elements(
-            &self.as_noderef(),
-            |e, _, ctx| {
-                ctx.push(e);
-                TraverseAction::Stop
-            },
-            &mut result,
-        );
-        Ok(result.pop())
+        Selector::new(selectors)?.query_selector(&self.as_noderef())
     }
 
     fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        let sel_list = CSSSelectorList::parse_selectors(&self.tree_(), selectors)?;
-        let mut result = Vec::<ElementNode>::new();
-        sel_list.match_elements(
-            &self.as_noderef(),
-            |e, _, ctx| {
-                ctx.push(e);
-                TraverseAction::Ok
-            },
-            &mut result,
-        );
-        Ok(ElementNodeList::from(result))
+        Selector::new(selectors)?.query_selector_all(&self.as_noderef())
     }
 }
 

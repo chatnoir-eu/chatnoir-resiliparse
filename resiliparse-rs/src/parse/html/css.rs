@@ -17,16 +17,16 @@
 use std::error::Error;
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
-use std::marker::PhantomData;
-use std::ptr::addr_of_mut;
-use std::sync::{Arc, Weak};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::ptr;
+use std::sync::Arc;
 
+use crate::parse::html::dom::coll::ElementNodeList;
 use crate::parse::html::dom::node::{ElementNode, NodeRef};
+use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
 use crate::parse::html::lexbor::*;
 use crate::parse::html::tree::HTMLDocument;
 use crate::third_party::lexbor::lexbor_status_t::*;
-use crate::third_party::lexbor::lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT;
-use crate::third_party::lexbor::lxb_html_status_t::*;
 use crate::third_party::lexbor::*;
 
 #[derive(Debug)]
@@ -48,49 +48,94 @@ pub enum TraverseAction {
     Err,
 }
 
-struct MatchContextWrapper<'a, T, F: Fn(ElementNode, u32, &mut T) -> TraverseAction> {
+struct MatchContextWrapper<'a, T, F> {
     f: F,
-    tree: Weak<HTMLDocument>,
+    tree: Arc<HTMLDocument>,
     custom_data: &'a mut T,
+    panic: Option<Box<dyn std::any::Any + Send>>,
 }
 
-pub struct CSSSelectorList<'a> {
+/// A reusable parsed selector list, owning its native selector memory.
+///
+/// Compilation is independent of any document. The same selector can query
+/// attached or detached nodes in different documents, even after earlier trees
+/// have been dropped. Each operation uses a separate native matching context.
+/// Queries exclude the root and return unique descendants in tree order.
+///
+/// ```
+/// use resiliparse::parse::html::css::Selector;
+/// use resiliparse::parse::html::dom::traits::*;
+/// use resiliparse::parse::html::tree::HTMLTree;
+///
+/// let selector = Selector::new("a[href]")?;
+/// let tree = HTMLTree::parse("<body><a href='/'>link</a></body>").unwrap();
+/// let body = tree.body().unwrap();
+/// let links = selector.query_selector_all(&body.as_noderef())?;
+/// assert!(selector.matches(&links[0])?);
+/// # Ok::<(), resiliparse::parse::html::css::CSSParserError>(())
+/// ```
+pub struct Selector {
     selector_list: *mut lxb_css_selector_list_t,
-    tree: Weak<HTMLDocument>,
-    phantom: PhantomData<&'a ()>,
+    memory: *mut lxb_css_memory_t,
 }
 
-impl<'a> CSSSelectorList<'a> {
-    pub(crate) fn parse_selectors(
-        tree: &Arc<HTMLDocument>,
-        selectors: &str,
-    ) -> Result<CSSSelectorList<'a>, CSSParserError> {
-        let _guard = tree.doc_ptr();
+struct Matcher(*mut lxb_selectors_t);
+
+impl Drop for Matcher {
+    fn drop(&mut self) {
         unsafe {
-            if lxb_html_document_css_init(*tree.doc_ptr()) != LXB_HTML_STATUS_OK {
+            lxb_selectors_destroy(self.0, true);
+        }
+    }
+}
+
+impl Selector {
+    pub fn new(selectors: &str) -> Result<Self, CSSParserError> {
+        unsafe {
+            // Own the arena explicitly, including on parse failures.
+            let mut compiled = Self {
+                selector_list: ptr::null_mut(),
+                memory: lxb_css_memory_create(),
+            };
+            if compiled.memory.is_null() || lxb_css_memory_init(compiled.memory, 256) != LXB_STATUS_OK {
                 return Err(CSSParserError {
-                    msg: "Failed to initialize CSS parser.".to_owned(),
+                    msg: "Failed to allocate selector memory.".into(),
                 });
             }
-
-            let parser = (*(*tree.doc_ptr())).css.parser;
-            let sel_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
-            if (*parser).status != LXB_STATUS_OK {
-                let mut msg = String::default();
+            let parser = lxb_css_parser_create();
+            if parser.is_null() {
+                return Err(CSSParserError {
+                    msg: "Failed to allocate CSS parser.".into(),
+                });
+            }
+            if lxb_css_parser_init(parser, ptr::null_mut()) != LXB_STATUS_OK {
+                lxb_css_parser_destroy(parser, true);
+                return Err(CSSParserError {
+                    msg: "Failed to initialize CSS parser.".into(),
+                });
+            }
+            (*parser).memory = compiled.memory;
+            compiled.selector_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
+            let failed = (*parser).status != LXB_STATUS_OK || compiled.selector_list.is_null();
+            let mut msg = String::new();
+            if failed {
                 lxb_css_log_serialize(
                     (*parser).log,
                     Some(Self::css_log_serialize_cb),
-                    addr_of_mut!(msg) as *mut c_void,
+                    ptr::from_mut(&mut msg).cast(),
                     "".as_ptr(),
                     0,
                 );
+            }
+            // The parser does not own the explicitly supplied arena.
+            lxb_css_parser_destroy(parser, true);
+            if failed {
+                if msg.is_empty() {
+                    msg = "Invalid selector list.".into();
+                }
                 Err(CSSParserError { msg })
             } else {
-                Ok(CSSSelectorList {
-                    selector_list: sel_list,
-                    tree: Arc::downgrade(&tree),
-                    phantom: Default::default(),
-                })
+                Ok(compiled)
             }
         }
     }
@@ -104,47 +149,7 @@ impl<'a> CSSSelectorList<'a> {
         }
     }
 
-    pub(crate) unsafe fn match_elements_unchecked<Ctx>(
-        &self,
-        root_node: *mut lxb_dom_node_t,
-        cb: lxb_selectors_cb_f,
-        ctx: &mut Ctx,
-    ) {
-        unsafe {
-            if let Some(t) = self.tree.upgrade() {
-                let _guard = t.doc_ptr();
-                lxb_selectors_find(
-                    (*(*t.doc_ptr())).css.selectors,
-                    root_node,
-                    self.selector_list,
-                    cb,
-                    addr_of_mut!(*ctx).cast(),
-                );
-            }
-        }
-    }
-
-    pub(crate) unsafe fn match_elements_unchecked_reverse<T>(
-        &self,
-        node: *mut lxb_dom_node_t,
-        cb: lxb_selectors_cb_f,
-        ctx: &mut T,
-    ) {
-        unsafe {
-            if let Some(t) = self.tree.upgrade() {
-                let _guard = t.doc_ptr();
-                lxb_selectors_find_reverse(
-                    (*(*t.doc_ptr())).css.selectors,
-                    node,
-                    self.selector_list,
-                    cb,
-                    addr_of_mut!(*ctx).cast(),
-                );
-            }
-        }
-    }
-
-    unsafe extern "C" fn match_cb_adapter<T, F>(
+    unsafe extern "C" fn match_callback_adapter<T, F>(
         node: *mut lxb_dom_node_t,
         spec: lxb_css_selector_specificity_t,
         ctx: *mut c_void,
@@ -153,71 +158,151 @@ impl<'a> CSSSelectorList<'a> {
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
         unsafe {
-            if node.is_null() || (*node).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
-                return LXB_STATUS_OK;
-            }
-
-            let ctx_cast = ctx as *mut MatchContextWrapper<T, F>;
-            let new_element = ElementNode::new(&(*ctx_cast).tree.upgrade().unwrap(), node);
-            let status = ((*ctx_cast).f)(new_element, spec, &mut (*ctx_cast).custom_data);
-            match status {
-                TraverseAction::Ok => LXB_STATUS_OK,
-                TraverseAction::Stop => LXB_STATUS_STOP,
-                TraverseAction::Err => LXB_STATUS_ERROR,
+            let ctx = &mut *ctx.cast::<MatchContextWrapper<T, F>>();
+            // Never unwind through native frames.
+            match catch_unwind(AssertUnwindSafe(|| (ctx.f)(ElementNode::new(&ctx.tree, node), spec, ctx.custom_data))) {
+                Ok(TraverseAction::Ok) => LXB_STATUS_OK,
+                Ok(TraverseAction::Stop) => LXB_STATUS_STOP,
+                Ok(TraverseAction::Err) => LXB_STATUS_ERROR,
+                Err(panic) => {
+                    ctx.panic = Some(panic);
+                    LXB_STATUS_STOP
+                }
             }
         }
     }
 
-    pub fn match_elements<T, F>(&self, root_node: &NodeRef, cb: F, custom_data: &mut T)
+    fn execute_with_callback<T, F>(
+        &self,
+        node: &NodeRef,
+        direct: bool,
+        cb: F,
+        custom_data: &mut T,
+    ) -> Result<(), CSSParserError>
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
-        let tree = self.tree.upgrade().unwrap();
+        let tree = node.tree_();
         let _guard = tree.doc_ptr();
-        assert_eq!(*tree.doc_ptr(), *root_node.tree_().doc_ptr());
-        let mut ctx_wrapper = MatchContextWrapper {
-            f: cb,
-            tree: Arc::downgrade(&tree),
-            custom_data,
-        };
-        unsafe {
-            self.match_elements_unchecked(root_node.node_ptr_(), Some(Self::match_cb_adapter::<T, F>), &mut ctx_wrapper)
+        let node = node.node_ptr_();
+        if node.is_null() {
+            return Ok(());
         }
-    }
-
-    pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, custom_data: &mut T)
-    where
-        F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
-    {
-        let tree = self.tree.upgrade().unwrap();
-        let _guard = tree.doc_ptr();
         unsafe {
-            if (*node.node_ptr_()).parent.is_null() || (*node.node_ptr_()).type_ != LXB_DOM_NODE_TYPE_ELEMENT {
-                return;
+            let matcher = Matcher(lxb_selectors_create());
+            if matcher.0.is_null() || lxb_selectors_init(matcher.0) != LXB_STATUS_OK {
+                return Err(CSSParserError {
+                    msg: "Failed to initialize selector matching.".into(),
+                });
+            }
+            (*matcher.0).options = lxb_selectors_opt_t::LXB_SELECTORS_OPT_MATCH_FIRST;
+            let mut ctx = MatchContextWrapper {
+                f: cb,
+                tree: tree.clone(),
+                custom_data,
+                panic: None,
+            };
+            let callback = Some(Self::match_callback_adapter::<T, F> as unsafe extern "C" fn(_, _, _) -> _);
+            let status = if direct {
+                lxb_selectors_match_node(matcher.0, node, self.selector_list, callback, ptr::from_mut(&mut ctx).cast())
+            } else {
+                lxb_selectors_find(matcher.0, node, self.selector_list, callback, ptr::from_mut(&mut ctx).cast())
+            };
+            if let Some(panic) = ctx.panic {
+                resume_unwind(panic);
+            }
+            if status != LXB_STATUS_OK && status != LXB_STATUS_STOP {
+                return Err(CSSParserError {
+                    msg: format!("Native matching failed with status {status}."),
+                });
             }
         }
-        assert_eq!(*tree.doc_ptr(), *node.tree_().doc_ptr());
-        let mut ctx_wrapper = MatchContextWrapper {
-            f: cb,
-            tree: Arc::downgrade(&tree),
-            custom_data,
-        };
+        Ok(())
+    }
+
+    /// Visit unique descendants in tree order. The callback must not mutate the DOM.
+    pub fn match_elements<T, F>(&self, root: &NodeRef, cb: F, data: &mut T) -> Result<(), CSSParserError>
+    where
+        F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
+    {
+        self.execute_with_callback(root, false, cb, data)
+    }
+
+    /// Match only the supplied element, including detached elements.
+    /// The callback must not mutate the DOM.
+    pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, data: &mut T) -> Result<(), CSSParserError>
+    where
+        F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
+    {
+        let tree = node.tree_();
+        let _guard = tree.doc_ptr();
         unsafe {
-            self.match_elements_unchecked_reverse(
-                node.node_ptr_(),
-                Some(Self::match_cb_adapter::<T, F>),
-                &mut ctx_wrapper,
-            )
+            if node.node_ptr_().is_null() || (*node.node_ptr_()).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
+            {
+                return Ok(());
+            }
         }
+        self.execute_with_callback(node, true, cb, data)
+    }
+
+    pub fn query_selector(&self, root: &NodeRef) -> Result<Option<ElementNode>, CSSParserError> {
+        let mut result = None;
+        self.match_elements(
+            root,
+            |e, _, result| {
+                *result = Some(e);
+                TraverseAction::Stop
+            },
+            &mut result,
+        )?;
+        Ok(result)
+    }
+
+    pub fn query_selector_all(&self, root: &NodeRef) -> Result<ElementNodeList, CSSParserError> {
+        let mut result = Vec::new();
+        self.match_elements(
+            root,
+            |e, _, result| {
+                result.push(e);
+                TraverseAction::Ok
+            },
+            &mut result,
+        )?;
+        Ok(result.into())
+    }
+
+    pub fn matches(&self, element: &ElementNode) -> Result<bool, CSSParserError> {
+        let mut found = false;
+        self.match_elements_reverse(
+            &element.as_noderef(),
+            |_, _, found| {
+                *found = true;
+                TraverseAction::Stop
+            },
+            &mut found,
+        )?;
+        Ok(found)
+    }
+
+    /// Test the receiver first, then its ancestors from nearest to farthest.
+    pub fn closest(&self, element: &ElementNode) -> Result<Option<ElementNode>, CSSParserError> {
+        let tree = element.tree_();
+        let _guard = tree.doc_ptr();
+        let mut current = Some(element.clone());
+        while let Some(element) = current {
+            if self.matches(&element)? {
+                return Ok(Some(element));
+            }
+            current = element.parent_element();
+        }
+        Ok(None)
     }
 }
 
-impl Drop for CSSSelectorList<'_> {
+impl Drop for Selector {
     fn drop(&mut self) {
-        let tree = self.tree.upgrade();
-        let _guard = tree.as_ref().map(|tree| tree.doc_ptr());
         unsafe {
-            lxb_css_selector_list_destroy(self.selector_list);
+            lxb_css_memory_destroy(self.memory, true);
         }
     }
 }
