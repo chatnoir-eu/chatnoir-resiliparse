@@ -43,20 +43,6 @@ impl Display for HTMLParserError {
 
 impl Error for HTMLParserError {}
 
-/// CSS parsing error.
-#[derive(Debug)]
-pub struct CSSParserError {
-    msg: String,
-}
-
-impl Display for CSSParserError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CSS parser error: {}", self.msg)
-    }
-}
-
-impl Error for CSSParserError {}
-
 /// HTML DOM tree handle.
 pub struct HTMLTree {
     doc: Arc<HTMLDocument>,
