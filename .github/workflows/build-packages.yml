@@ -75,7 +75,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest ]
     env:
-      CIBW_SKIP: "*cp38* *cp39* *-musllinux*"
+      CIBW_SKIP: "*cp39* *-musllinux*"
       CIBW_TEST_SKIP: "*-macosx_x86_64"   # x86_64 tests are flaky on arm64
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
