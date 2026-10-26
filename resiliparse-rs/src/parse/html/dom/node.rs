@@ -16,12 +16,12 @@
 //!
 //! Concrete node type implementations.
 
-use crate::parse::html::css::*;
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::dom::*;
 use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
+use crate::parse::html::selector::*;
 use crate::parse::html::serialize::{node_format_visible_text, node_serialize_html};
 use std::cell::Cell;
 use std::fmt::{Debug, Display, Formatter};
@@ -949,12 +949,12 @@ impl Element for ElementNode {
         unsafe { lxb_dom_element_has_attribute(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
-    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        Selector::new(selectors)?.closest(self)
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CssParserError> {
+        CssSelector::new(selectors)?.closest(self)
     }
 
-    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        Selector::new(selectors)?.matches(self)
+    fn matches(&self, selectors: &str) -> Result<bool, CssParserError> {
+        CssSelector::new(selectors)?.matches(self)
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {

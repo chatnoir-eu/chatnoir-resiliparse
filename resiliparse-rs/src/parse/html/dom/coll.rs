@@ -28,9 +28,9 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::vec;
 
-use crate::parse::html::css::{CSSParserError, Selector};
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{Element, NodeInterface, NodeInterfaceBaseImpl};
+use crate::parse::html::selector::{CssParserError, CssSelector};
 
 /// A snapshot of collection items.
 ///
@@ -509,8 +509,8 @@ impl ElementNodeList {
     ///
     /// The first matching descendant element across the roots, or `None` if no element matches.
     #[inline(always)]
-    pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        self.query_selector_compiled(&Selector::new(selectors)?)
+    pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CssParserError> {
+        self.query_selector_compiled(&CssSelector::new(selectors)?)
     }
 
     /// Query each root using a previously compiled selector list.
@@ -522,7 +522,7 @@ impl ElementNodeList {
     /// # Returns
     ///
     /// The first matching descendant element across the roots, or `None` if no element matches.
-    pub fn query_selector_compiled(&self, selectors: &Selector) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn query_selector_compiled(&self, selectors: &CssSelector) -> Result<Option<ElementNode>, CssParserError> {
         for root in self {
             if let Some(element) = selectors.query_selector(&root.as_noderef())? {
                 return Ok(Some(element));
@@ -541,8 +541,8 @@ impl ElementNodeList {
     ///
     /// A snapshot of unique matching descendant elements in tree order.
     #[inline(always)]
-    pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        self.query_selector_all_compiled(&Selector::new(selectors)?)
+    pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CssParserError> {
+        self.query_selector_all_compiled(&CssSelector::new(selectors)?)
     }
 
     /// Collect unique matches across the roots in tree order.
@@ -554,7 +554,7 @@ impl ElementNodeList {
     /// # Returns
     ///
     /// A snapshot of unique matching descendant elements in tree order.
-    pub fn query_selector_all_compiled(&self, selectors: &Selector) -> Result<ElementNodeList, CSSParserError> {
+    pub fn query_selector_all_compiled(&self, selectors: &CssSelector) -> Result<ElementNodeList, CssParserError> {
         let mut seen = HashSet::new();
         let mut result = Vec::new();
         for root in self {
@@ -577,8 +577,8 @@ impl ElementNodeList {
     ///
     /// True if any element in the collection matches the selector list.
     #[inline(always)]
-    pub fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
-        self.matches_compiled(&Selector::new(selectors)?)
+    pub fn matches(&self, selectors: &str) -> Result<bool, CssParserError> {
+        self.matches_compiled(&CssSelector::new(selectors)?)
     }
 
     /// Return whether any element in the collection matches the selector list.
@@ -590,7 +590,7 @@ impl ElementNodeList {
     /// # Returns
     ///
     /// True if any element in the collection matches the selector list.
-    pub fn matches_compiled(&self, selectors: &Selector) -> Result<bool, CSSParserError> {
+    pub fn matches_compiled(&self, selectors: &CssSelector) -> Result<bool, CssParserError> {
         for element in self {
             if selectors.matches(element)? {
                 return Ok(true);

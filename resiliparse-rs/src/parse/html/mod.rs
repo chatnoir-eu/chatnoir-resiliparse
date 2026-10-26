@@ -17,8 +17,8 @@
 //! The Resiliparse HTML5 parsing module implements a near-complete DOM API
 //! on top of the [Lexbor](https://lexbor.com/) parser library.
 
-pub mod css;
 pub mod dom;
+pub mod selector;
 pub mod tree;
 
 mod lexbor;

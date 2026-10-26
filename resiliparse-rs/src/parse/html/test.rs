@@ -2083,7 +2083,7 @@ fn named_attribute_maps_lookup_mutate_and_snapshot() {
 
 #[test]
 fn compiled_selectors_match_detached_subtrees_and_walk_ancestors() {
-    use super::css::Selector;
+    use super::selector::CssSelector;
     let tree = HTMLTree::from_str(
         "<body><section class='outer'><div class='inner'><i></i><b class='hit'></b></div></section></body>",
     )
@@ -2101,7 +2101,7 @@ fn compiled_selectors_match_detached_subtrees_and_walk_ancestors() {
     assert!(hit.closest("body").unwrap().is_none());
     assert_eq!(section.query_selector_all(".hit, b").unwrap().len(), 1);
     assert_eq!(section.query_selector("section, b").unwrap(), Some(hit.clone()));
-    let selector = Selector::new(".hit").unwrap();
+    let selector = CssSelector::new(".hit").unwrap();
     assert!(selector.matches(&hit).unwrap());
     hit.set_class_name("other");
     assert!(!selector.matches(&hit).unwrap());
@@ -2117,8 +2117,8 @@ fn compiled_selectors_match_detached_subtrees_and_walk_ancestors() {
 
 #[test]
 fn compiled_selectors_own_memory_and_are_reusable_across_documents() {
-    use super::css::Selector;
-    let selector = Selector::new("b, .hit").unwrap();
+    use super::selector::CssSelector;
+    let selector = CssSelector::new("b, .hit").unwrap();
     for _ in 0..3 {
         let tree = HTMLTree::from_str("<body><b class='hit'></b><i class='hit'></i></body>").unwrap();
         let body = tree.body().unwrap();
@@ -2126,9 +2126,9 @@ fn compiled_selectors_own_memory_and_are_reusable_across_documents() {
         assert_eq!(selector.query_selector(&body.as_noderef()).unwrap(), body.first_element_child());
         assert!(selector.matches(&body.first_element_child().unwrap()).unwrap());
         // Creating, failing to parse, and dropping other selectors cannot invalidate this one.
-        assert!(Selector::new("[").is_err());
-        assert!(Selector::new("").is_err());
-        let other = Selector::new("i").unwrap();
+        assert!(CssSelector::new("[").is_err());
+        assert!(CssSelector::new("").is_err());
+        let other = CssSelector::new("i").unwrap();
         assert_eq!(other.query_selector_all(&body.as_noderef()).unwrap().len(), 1);
         drop(other);
         assert_eq!(selector.query_selector_all(&body.as_noderef()).unwrap().len(), 2);
@@ -2137,7 +2137,7 @@ fn compiled_selectors_own_memory_and_are_reusable_across_documents() {
 
 #[test]
 fn collection_selectors_deduplicate_in_root_then_tree_order() {
-    use super::css::Selector;
+    use super::selector::CssSelector;
     let tree =
         HTMLTree::from_str("<body><main><b id='a'></b><section><b id='b'></b></section><b id='c'></b></main></body>")
             .unwrap();
@@ -2146,13 +2146,13 @@ fn collection_selectors_deduplicate_in_root_then_tree_order() {
     let other_tree = HTMLTree::from_str("<body><b id='d'></b></body>").unwrap();
     let other_body = other_tree.body().unwrap();
     let roots = ElementNodeList::from(vec![section.clone(), main.clone(), section, other_body]);
-    let selector = Selector::new("b, [id]").unwrap();
+    let selector = CssSelector::new("b, [id]").unwrap();
     let result = roots.query_selector_all_compiled(&selector).unwrap();
     assert_eq!(result.iter().map(|e| e.id().unwrap()).collect::<Vec<_>>(), ["b", "a", "c", "d"]);
     assert_eq!(roots.query_selector_all("b, [id]").unwrap().values(), result.values());
     assert_eq!(roots.query_selector_compiled(&selector).unwrap().as_ref(), result.item(0));
     assert!(roots.matches("main").unwrap());
-    assert!(roots.matches_compiled(&Selector::new("section").unwrap()).unwrap());
+    assert!(roots.matches_compiled(&CssSelector::new("section").unwrap()).unwrap());
     main.remove();
     assert_eq!(roots.query_selector_all_compiled(&selector).unwrap().values(), result.values());
     let empty = ElementNodeList::default();

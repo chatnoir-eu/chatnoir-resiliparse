@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! CSS DOM matching utilities.
+//! DOM element selection utilities.
 
 use std::error::Error;
 use std::ffi::c_void;
@@ -31,17 +31,17 @@ use crate::third_party::lexbor::*;
 
 #[derive(Debug)]
 /// An error returned when a CSS selector cannot be parsed or evaluated.
-pub struct CSSParserError {
+pub struct CssParserError {
     msg: String,
 }
 
-impl Display for CSSParserError {
+impl Display for CssParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "CSS parser error: {}", self.msg)
     }
 }
 
-impl Error for CSSParserError {}
+impl Error for CssParserError {}
 
 /// Controls how selector traversal proceeds after a match callback.
 pub enum TraverseAction {
@@ -60,7 +60,7 @@ struct MatchContextWrapper<'a, T, F> {
     panic: Option<Box<dyn std::any::Any + Send>>,
 }
 
-/// A reusable parsed element selector.
+/// A compiled CSS selector for querying elements in a DOM subtree.
 ///
 /// Accepts a CSS selector expression or list of expressions, and compiles
 /// it into a reusable selector object.
@@ -71,18 +71,18 @@ struct MatchContextWrapper<'a, T, F> {
 /// Queries exclude the root and return unique descendants in tree order.
 ///
 /// ```
-/// use resiliparse::parse::html::css::Selector;
+/// use resiliparse::parse::html::selector::CssSelector;
 /// use resiliparse::parse::html::dom::traits::*;
 /// use resiliparse::parse::html::tree::HTMLTree;
 ///
-/// let selector = Selector::new("a[href]")?;
+/// let selector = CssSelector::new("a[href]")?;
 /// let tree = HTMLTree::parse("<body><a href='/'>link</a></body>").unwrap();
 /// let body = tree.body().unwrap();
 /// let links = selector.query_selector_all(&body.as_noderef())?;
 /// assert!(selector.matches(&links[0])?);
-/// # Ok::<(), resiliparse::parse::html::css::CSSParserError>(())
+/// # Ok::<(), resiliparse::parse::html::selector::CssParserError>(())
 /// ```
-pub struct Selector {
+pub struct CssSelector {
     selector_list: *mut lxb_css_selector_list_t,
     memory: *mut lxb_css_memory_t,
 }
@@ -97,7 +97,7 @@ impl Drop for Matcher {
     }
 }
 
-impl Selector {
+impl CssSelector {
     /// Parse and compile a CSS selector or list of CSS selectors.
     ///
     /// # Arguments
@@ -107,7 +107,7 @@ impl Selector {
     /// # Returns
     ///
     /// A compiled selector list that can be reused for DOM queries, or an error if the selector list is invalid.
-    pub fn new(selectors: &str) -> Result<Self, CSSParserError> {
+    pub fn new(selectors: &str) -> Result<Self, CssParserError> {
         unsafe {
             // Own the arena explicitly, including on parse failures.
             let mut compiled = Self {
@@ -115,19 +115,19 @@ impl Selector {
                 memory: lxb_css_memory_create(),
             };
             if compiled.memory.is_null() || lxb_css_memory_init(compiled.memory, 256) != LXB_STATUS_OK {
-                return Err(CSSParserError {
+                return Err(CssParserError {
                     msg: "Failed to allocate selector memory.".into(),
                 });
             }
             let parser = lxb_css_parser_create();
             if parser.is_null() {
-                return Err(CSSParserError {
+                return Err(CssParserError {
                     msg: "Failed to allocate CSS parser.".into(),
                 });
             }
             if lxb_css_parser_init(parser, ptr::null_mut()) != LXB_STATUS_OK {
                 lxb_css_parser_destroy(parser, true);
-                return Err(CSSParserError {
+                return Err(CssParserError {
                     msg: "Failed to initialize CSS parser.".into(),
                 });
             }
@@ -150,7 +150,7 @@ impl Selector {
                 if msg.is_empty() {
                     msg = "Invalid selector list.".into();
                 }
-                Err(CSSParserError { msg })
+                Err(CssParserError { msg })
             } else {
                 Ok(compiled)
             }
@@ -195,7 +195,7 @@ impl Selector {
         direct: bool,
         cb: F,
         custom_data: &mut T,
-    ) -> Result<(), CSSParserError>
+    ) -> Result<(), CssParserError>
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
@@ -208,7 +208,7 @@ impl Selector {
         unsafe {
             let matcher = Matcher(lxb_selectors_create());
             if matcher.0.is_null() || lxb_selectors_init(matcher.0) != LXB_STATUS_OK {
-                return Err(CSSParserError {
+                return Err(CssParserError {
                     msg: "Failed to initialize selector matching.".into(),
                 });
             }
@@ -229,7 +229,7 @@ impl Selector {
                 resume_unwind(panic);
             }
             if status != LXB_STATUS_OK && status != LXB_STATUS_STOP {
-                return Err(CSSParserError {
+                return Err(CssParserError {
                     msg: format!("Native matching failed with status {status}."),
                 });
             }
@@ -248,7 +248,7 @@ impl Selector {
     /// # Returns
     ///
     /// No value if traversal completes; otherwise an error describing selector evaluation failure.
-    pub fn match_elements<T, F>(&self, root: &NodeRef, cb: F, data: &mut T) -> Result<(), CSSParserError>
+    pub fn match_elements<T, F>(&self, root: &NodeRef, cb: F, data: &mut T) -> Result<(), CssParserError>
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
@@ -267,7 +267,7 @@ impl Selector {
     /// # Returns
     ///
     /// No value if matching completes; otherwise an error describing selector evaluation failure.
-    pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, data: &mut T) -> Result<(), CSSParserError>
+    pub fn match_elements_reverse<T, F>(&self, node: &NodeRef, cb: F, data: &mut T) -> Result<(), CssParserError>
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
@@ -291,7 +291,7 @@ impl Selector {
     /// # Returns
     ///
     /// The first matching descendant element, or `None` if no element matches.
-    pub fn query_selector(&self, root: &NodeRef) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn query_selector(&self, root: &NodeRef) -> Result<Option<ElementNode>, CssParserError> {
         let mut result = None;
         self.match_elements(
             root,
@@ -313,7 +313,7 @@ impl Selector {
     /// # Returns
     ///
     /// All matching descendant elements in tree order.
-    pub fn query_selector_all(&self, root: &NodeRef) -> Result<ElementNodeList, CSSParserError> {
+    pub fn query_selector_all(&self, root: &NodeRef) -> Result<ElementNodeList, CssParserError> {
         let mut result = Vec::new();
         self.match_elements(
             root,
@@ -335,7 +335,7 @@ impl Selector {
     /// # Returns
     ///
     /// True if the element matches this selector list.
-    pub fn matches(&self, element: &ElementNode) -> Result<bool, CSSParserError> {
+    pub fn matches(&self, element: &ElementNode) -> Result<bool, CssParserError> {
         let mut found = false;
         self.match_elements_reverse(
             &element.as_noderef(),
@@ -357,7 +357,7 @@ impl Selector {
     /// # Returns
     ///
     /// The nearest matching element at or above the supplied element, or `None` if none matches.
-    pub fn closest(&self, element: &ElementNode) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn closest(&self, element: &ElementNode) -> Result<Option<ElementNode>, CssParserError> {
         let tree = element.tree_();
         let _guard = tree.doc_ptr();
         let mut current = Some(element.clone());
@@ -371,7 +371,7 @@ impl Selector {
     }
 }
 
-impl Drop for Selector {
+impl Drop for CssSelector {
     fn drop(&mut self) {
         unsafe {
             lxb_css_memory_destroy(self.memory, true);

@@ -16,11 +16,11 @@
 //!
 //! Abstract DOM node type interfaces.
 
-use crate::parse::html::css::{CSSParserError, Selector};
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::*;
 use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
+use crate::parse::html::selector::{CssParserError, CssSelector};
 use std::fmt::{Debug, Display};
 use std::ops::Range;
 use std::ptr::{self, addr_of};
@@ -983,8 +983,8 @@ pub trait ParentNode: NodeInterface {
     /// # Returns
     ///
     /// The first matching descendant element, or `None` if no element matches.
-    fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
-        Selector::new(selectors)?.query_selector(&self.as_noderef())
+    fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CssParserError> {
+        CssSelector::new(selectors)?.query_selector(&self.as_noderef())
     }
 
     /// Return all matching descendant elements in tree order.
@@ -996,8 +996,8 @@ pub trait ParentNode: NodeInterface {
     /// # Returns
     ///
     /// A snapshot of matching descendant elements in tree order.
-    fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
-        Selector::new(selectors)?.query_selector_all(&self.as_noderef())
+    fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CssParserError> {
+        CssSelector::new(selectors)?.query_selector_all(&self.as_noderef())
     }
 }
 
@@ -1314,7 +1314,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// The nearest matching element at or above this element, or `None` if none matches.
-    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CssParserError>;
 
     /// Return whether the element matches this selector list.
     ///
@@ -1325,7 +1325,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// True if this element matches the selector list.
-    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
+    fn matches(&self, selectors: &str) -> Result<bool, CssParserError>;
 
     /// Return a live collection of descendant elements with the given tag name.
     ///
