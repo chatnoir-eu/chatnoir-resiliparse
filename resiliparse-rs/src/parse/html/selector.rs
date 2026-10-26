@@ -34,8 +34,8 @@ use crate::parse::html::tree::HtmlDocument;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
 
-#[derive(Debug)]
 /// An error returned when a CSS selector cannot be parsed or evaluated.
+#[derive(Debug)]
 pub struct CssParserError {
     msg: String,
 }
