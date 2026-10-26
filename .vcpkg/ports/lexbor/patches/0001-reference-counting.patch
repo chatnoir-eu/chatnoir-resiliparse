@@ -1,0 +1,1854 @@
+diff --git a/source/lexbor/dom/interface.c b/source/lexbor/dom/interface.c
+index 55bca6f..b9c1c2f 100644
+--- a/source/lexbor/dom/interface.c
++++ b/source/lexbor/dom/interface.c
+@@ -105,6 +105,10 @@ lxb_dom_interface_destroy(lxb_dom_interface_t *intrfc)
+             return lxb_dom_document_fragment_interface_destroy(intrfc);
+ 
+         default:
++            --node->ref_count;
++            if (node->ref_count > 0) {
++                return intrfc;
++            }
+             return lexbor_mraw_free(node->owner_document->mraw, intrfc);
+     }
+ }
+diff --git a/source/lexbor/dom/interfaces/attr.c b/source/lexbor/dom/interfaces/attr.c
+index d11c420..f87f532 100644
+--- a/source/lexbor/dom/interfaces/attr.c
++++ b/source/lexbor/dom/interfaces/attr.c
+@@ -36,6 +36,7 @@ lxb_dom_attr_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_ATTRIBUTE;
++    node->ref_count = 1;
+ 
+     return attr;
+ }
+@@ -113,9 +114,9 @@ lxb_dom_attr_interface_destroy(lxb_dom_attr_t *attr)
+ 
+     value = attr->value;
+ 
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(attr));
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(attr));
+ 
+-    if (value != NULL) {
++    if (result == NULL && value != NULL) {
+         if (value->data != NULL) {
+             lexbor_mraw_free(doc->text, value->data);
+         }
+@@ -123,7 +124,7 @@ lxb_dom_attr_interface_destroy(lxb_dom_attr_t *attr)
+         lexbor_mraw_free(doc->mraw, value);
+     }
+ 
+-    return NULL;
++    return lxb_dom_interface_attr(result);
+ }
+ 
+ lxb_status_t
+diff --git a/source/lexbor/dom/interfaces/cdata_section.c b/source/lexbor/dom/interfaces/cdata_section.c
+index b1d5d14..62d046e 100644
+--- a/source/lexbor/dom/interfaces/cdata_section.c
++++ b/source/lexbor/dom/interfaces/cdata_section.c
+@@ -23,6 +23,7 @@ lxb_dom_cdata_section_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_CDATA_SECTION;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -50,6 +51,6 @@ lxb_dom_cdata_section_interface_clone(lxb_dom_document_t *document,
+ lxb_dom_cdata_section_t *
+ lxb_dom_cdata_section_interface_destroy(lxb_dom_cdata_section_t *cdata_section)
+ {
+-    (void) lxb_dom_text_interface_destroy(lxb_dom_interface_text(cdata_section));
+-    return NULL;
++    return lxb_dom_interface_cdata_section(
++        lxb_dom_text_interface_destroy(lxb_dom_interface_text(cdata_section)));
+ }
+diff --git a/source/lexbor/dom/interfaces/character_data.c b/source/lexbor/dom/interfaces/character_data.c
+index 12c7dfd..0a399e8 100644
+--- a/source/lexbor/dom/interfaces/character_data.c
++++ b/source/lexbor/dom/interfaces/character_data.c
+@@ -23,6 +23,7 @@ lxb_dom_character_data_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_CHARACTER_DATA;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+diff --git a/source/lexbor/dom/interfaces/comment.c b/source/lexbor/dom/interfaces/comment.c
+index d3c2f3e..1364854 100644
+--- a/source/lexbor/dom/interfaces/comment.c
++++ b/source/lexbor/dom/interfaces/comment.c
+@@ -23,6 +23,7 @@ lxb_dom_comment_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_COMMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+diff --git a/source/lexbor/dom/interfaces/document.c b/source/lexbor/dom/interfaces/document.c
+index 8e7e234..1a541dc 100644
+--- a/source/lexbor/dom/interfaces/document.c
++++ b/source/lexbor/dom/interfaces/document.c
+@@ -103,6 +103,7 @@ lxb_dom_document_init(lxb_dom_document_t *document, lxb_dom_document_t *owner,
+     document->destroy_interface = destroy_interface;
+ 
+     node = lxb_dom_interface_node(document);
++    node->ref_count = 1;
+ 
+     node->type = LXB_DOM_NODE_TYPE_DOCUMENT;
+     node->local_name = LXB_TAG__DOCUMENT;
+@@ -221,6 +222,10 @@ lxb_dom_document_destroy(lxb_dom_document_t *document)
+     if (document == NULL) {
+         return NULL;
+     }
++    --lxb_dom_interface_node(document)->ref_count;
++    if (lxb_dom_interface_node(document)->ref_count > 0) {
++        return document;
++    }
+ 
+     if (lxb_dom_interface_node(document)->owner_document != document) {
+         lxb_dom_document_t *owner;
+diff --git a/source/lexbor/dom/interfaces/document_fragment.c b/source/lexbor/dom/interfaces/document_fragment.c
+index cdb8461..e33d285 100644
+--- a/source/lexbor/dom/interfaces/document_fragment.c
++++ b/source/lexbor/dom/interfaces/document_fragment.c
+@@ -23,6 +23,7 @@ lxb_dom_document_fragment_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,7 +31,6 @@ lxb_dom_document_fragment_interface_create(lxb_dom_document_t *document)
+ lxb_dom_document_fragment_t *
+ lxb_dom_document_fragment_interface_destroy(lxb_dom_document_fragment_t *document_fragment)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(document_fragment));
+-
+-    return NULL;
++    return lxb_dom_interface_document_fragment(
++        lxb_dom_node_interface_destroy(lxb_dom_interface_node(document_fragment)));
+ }
+diff --git a/source/lexbor/dom/interfaces/document_type.c b/source/lexbor/dom/interfaces/document_type.c
+index 4688916..34f47a5 100644
+--- a/source/lexbor/dom/interfaces/document_type.c
++++ b/source/lexbor/dom/interfaces/document_type.c
+@@ -32,6 +32,7 @@ lxb_dom_document_type_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_DOCUMENT_TYPE;
++    node->ref_count = 1;
+ 
+     element->name = LXB_DOM_ATTR_HTML;
+ 
+@@ -103,12 +104,12 @@ lxb_dom_document_type_interface_destroy(lxb_dom_document_type_t *document_type)
+     public_id = document_type->public_id;
+     system_id = document_type->system_id;
+ 
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(document_type));
+-
+-    (void) lexbor_str_destroy(&public_id, text, false);
+-    (void) lexbor_str_destroy(&system_id, text, false);
+-
+-    return NULL;
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(document_type));
++    if (result == NULL) {
++        (void) lexbor_str_destroy(&public_id, text, false);
++        (void) lexbor_str_destroy(&system_id, text, false);
++    }
++    return lxb_dom_interface_document_type(result);
+ }
+ 
+ lxb_dom_document_type_t *
+diff --git a/source/lexbor/dom/interfaces/element.c b/source/lexbor/dom/interfaces/element.c
+index 5ad6bec..f10baa4 100644
+--- a/source/lexbor/dom/interfaces/element.c
++++ b/source/lexbor/dom/interfaces/element.c
+@@ -45,6 +45,7 @@ lxb_dom_element_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -73,9 +74,9 @@ lxb_dom_element_interface_destroy(lxb_dom_element_t *element)
+     lxb_dom_attr_t *attr_next;
+     lxb_dom_attr_t *attr = element->first_attr;
+ 
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(element));
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(element));
+ 
+-    while (attr != NULL) {
++    while (result == NULL && attr != NULL) {
+         attr_next = attr->next;
+ 
+         lxb_dom_attr_interface_destroy(attr);
+@@ -83,7 +84,7 @@ lxb_dom_element_interface_destroy(lxb_dom_element_t *element)
+         attr = attr_next;
+     }
+ 
+-    return NULL;
++    return lxb_dom_interface_element(result);
+ }
+ 
+ lxb_status_t
+diff --git a/source/lexbor/dom/interfaces/event_target.c b/source/lexbor/dom/interfaces/event_target.c
+index a32938c..ea4cadc 100644
+--- a/source/lexbor/dom/interfaces/event_target.c
++++ b/source/lexbor/dom/interfaces/event_target.c
+@@ -20,6 +20,7 @@ lxb_dom_event_target_create(lxb_dom_document_t *document)
+     }
+ 
+     lxb_dom_interface_node(element)->type = LXB_DOM_NODE_TYPE_UNDEF;
++    lxb_dom_interface_node(element)->ref_count = 1;
+ 
+     return element;
+ }
+diff --git a/source/lexbor/dom/interfaces/node.c b/source/lexbor/dom/interfaces/node.c
+index edebf38..e537bc0 100644
+--- a/source/lexbor/dom/interfaces/node.c
++++ b/source/lexbor/dom/interfaces/node.c
+@@ -113,6 +113,7 @@ lxb_dom_node_interface_create(lxb_dom_document_t *document)
+ 
+     element->owner_document = lxb_dom_document_owner(document);
+     element->type = LXB_DOM_NODE_TYPE_UNDEF;
++    element->ref_count = 1;
+ 
+     return element;
+ }
+@@ -139,6 +140,10 @@ lxb_dom_node_t *
+ lxb_dom_node_interface_destroy(lxb_dom_node_t *node)
+ {
+     lxb_dom_document_t *doc = node->owner_document;
++    --node->ref_count;
++    if (node->ref_count > 0) {
++        return node;
++    }
+ 
+     return lexbor_mraw_free(doc->mraw, node);
+ }
+@@ -258,6 +263,9 @@ lxb_dom_node_interface_copy(lxb_dom_node_t *dst,
+ lxb_dom_node_t *
+ lxb_dom_node_destroy(lxb_dom_node_t *node)
+ {
++    if (node == NULL) {
++        return NULL;
++    }
+     lxb_dom_node_remove(node);
+     return lxb_dom_document_destroy_interface(node);
+ }
+@@ -884,6 +892,9 @@ lxb_dom_node_remove_wo_events(lxb_dom_node_t *node)
+ void
+ lxb_dom_node_remove(lxb_dom_node_t *node)
+ {
++    if (node == NULL) {
++        return;
++    }
+     lxb_dom_node_t *parent = node->parent;
+     lxb_dom_document_t *doc = node->owner_document;
+ 
+diff --git a/source/lexbor/dom/interfaces/node.h b/source/lexbor/dom/interfaces/node.h
+index bdd95a4..b71bf9d 100644
+--- a/source/lexbor/dom/interfaces/node.h
++++ b/source/lexbor/dom/interfaces/node.h
+@@ -101,6 +101,8 @@ struct lxb_dom_node {
+ 
+     lxb_dom_node_type_t    type;
+ 
++    size_t                 ref_count;
++
+ #ifdef LXB_DOM_NODE_USER_VARIABLES
+     LXB_DOM_NODE_USER_VARIABLES
+ #endif /* LXB_DOM_NODE_USER_VARIABLES */
+diff --git a/source/lexbor/dom/interfaces/processing_instruction.c b/source/lexbor/dom/interfaces/processing_instruction.c
+index 2c91433..b8e9a1d 100644
+--- a/source/lexbor/dom/interfaces/processing_instruction.c
++++ b/source/lexbor/dom/interfaces/processing_instruction.c
+@@ -23,6 +23,7 @@ lxb_dom_processing_instruction_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -56,12 +57,14 @@ lxb_dom_processing_instruction_interface_destroy(lxb_dom_processing_instruction_
+     text = lxb_dom_interface_node(processing_instruction)->owner_document->text;
+     target = processing_instruction->target;
+ 
+-    (void) lxb_dom_character_data_interface_destroy(
+-                      lxb_dom_interface_character_data(processing_instruction));
++    lxb_dom_character_data_t *result = lxb_dom_character_data_interface_destroy(
++        lxb_dom_interface_character_data(processing_instruction));
+ 
+-    (void) lexbor_str_destroy(&target, text, false);
++    if (result == NULL) {
++        lexbor_str_destroy(&target, text, false);
++    }
+ 
+-    return NULL;
++    return lxb_dom_interface_processing_instruction(result);
+ }
+ 
+ lxb_status_t
+diff --git a/source/lexbor/dom/interfaces/shadow_root.c b/source/lexbor/dom/interfaces/shadow_root.c
+index e2c332d..19e84b9 100644
+--- a/source/lexbor/dom/interfaces/shadow_root.c
++++ b/source/lexbor/dom/interfaces/shadow_root.c
+@@ -23,6 +23,7 @@ lxb_dom_shadow_root_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_SHADOW_ROOT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+diff --git a/source/lexbor/dom/interfaces/text.c b/source/lexbor/dom/interfaces/text.c
+index 9a9dc7d..4c9e9f0 100644
+--- a/source/lexbor/dom/interfaces/text.c
++++ b/source/lexbor/dom/interfaces/text.c
+@@ -23,6 +23,7 @@ lxb_dom_text_interface_create(lxb_dom_document_t *document)
+ 
+     node->owner_document = lxb_dom_document_owner(document);
+     node->type = LXB_DOM_NODE_TYPE_TEXT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -50,9 +51,8 @@ lxb_dom_text_interface_clone(lxb_dom_document_t *document,
+ lxb_dom_text_t *
+ lxb_dom_text_interface_destroy(lxb_dom_text_t *text)
+ {
+-    (void) lxb_dom_character_data_interface_destroy(
+-                                        lxb_dom_interface_character_data(text));
+-    return NULL;
++    return lxb_dom_interface_text(lxb_dom_character_data_interface_destroy(
++        lxb_dom_interface_character_data(text)));
+ }
+ 
+ lxb_status_t
+diff --git a/source/lexbor/html/interfaces/anchor_element.c b/source/lexbor/html/interfaces/anchor_element.c
+index 4dca7d4..c1ede0c 100644
+--- a/source/lexbor/html/interfaces/anchor_element.c
++++ b/source/lexbor/html/interfaces/anchor_element.c
+@@ -23,6 +23,7 @@ lxb_html_anchor_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_anchor_element_interface_create(lxb_html_document_t *document)
+ lxb_html_anchor_element_t *
+ lxb_html_anchor_element_interface_destroy(lxb_html_anchor_element_t *anchor_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(anchor_element));
+-    return NULL;
++    return (lxb_html_anchor_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(anchor_element));
+ }
+diff --git a/source/lexbor/html/interfaces/area_element.c b/source/lexbor/html/interfaces/area_element.c
+index 3bbd0c8..e1187ff 100644
+--- a/source/lexbor/html/interfaces/area_element.c
++++ b/source/lexbor/html/interfaces/area_element.c
+@@ -23,6 +23,7 @@ lxb_html_area_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_area_element_interface_create(lxb_html_document_t *document)
+ lxb_html_area_element_t *
+ lxb_html_area_element_interface_destroy(lxb_html_area_element_t *area_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(area_element));
+-    return NULL;
++    return (lxb_html_area_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(area_element));
+ }
+diff --git a/source/lexbor/html/interfaces/audio_element.c b/source/lexbor/html/interfaces/audio_element.c
+index 27a3613..aa12ab3 100644
+--- a/source/lexbor/html/interfaces/audio_element.c
++++ b/source/lexbor/html/interfaces/audio_element.c
+@@ -23,6 +23,7 @@ lxb_html_audio_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_audio_element_interface_create(lxb_html_document_t *document)
+ lxb_html_audio_element_t *
+ lxb_html_audio_element_interface_destroy(lxb_html_audio_element_t *audio_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(audio_element));
+-    return NULL;
++    return (lxb_html_audio_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(audio_element));
+ }
+diff --git a/source/lexbor/html/interfaces/base_element.c b/source/lexbor/html/interfaces/base_element.c
+index 52f3166..86943d1 100644
+--- a/source/lexbor/html/interfaces/base_element.c
++++ b/source/lexbor/html/interfaces/base_element.c
+@@ -23,6 +23,7 @@ lxb_html_base_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_base_element_interface_create(lxb_html_document_t *document)
+ lxb_html_base_element_t *
+ lxb_html_base_element_interface_destroy(lxb_html_base_element_t *base_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(base_element));
+-    return NULL;
++    return (lxb_html_base_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(base_element));
+ }
+diff --git a/source/lexbor/html/interfaces/body_element.c b/source/lexbor/html/interfaces/body_element.c
+index 648c304..05ce9b3 100644
+--- a/source/lexbor/html/interfaces/body_element.c
++++ b/source/lexbor/html/interfaces/body_element.c
+@@ -23,6 +23,7 @@ lxb_html_body_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_body_element_interface_create(lxb_html_document_t *document)
+ lxb_html_body_element_t *
+ lxb_html_body_element_interface_destroy(lxb_html_body_element_t *body_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(body_element));
+-    return NULL;
++    return (lxb_html_body_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(body_element));
+ }
+diff --git a/source/lexbor/html/interfaces/br_element.c b/source/lexbor/html/interfaces/br_element.c
+index aaa1a02..9a9150e 100644
+--- a/source/lexbor/html/interfaces/br_element.c
++++ b/source/lexbor/html/interfaces/br_element.c
+@@ -23,6 +23,7 @@ lxb_html_br_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_br_element_interface_create(lxb_html_document_t *document)
+ lxb_html_br_element_t *
+ lxb_html_br_element_interface_destroy(lxb_html_br_element_t *br_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(br_element));
+-    return NULL;
++    return (lxb_html_br_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(br_element));
+ }
+diff --git a/source/lexbor/html/interfaces/button_element.c b/source/lexbor/html/interfaces/button_element.c
+index c18e93c..de219ae 100644
+--- a/source/lexbor/html/interfaces/button_element.c
++++ b/source/lexbor/html/interfaces/button_element.c
+@@ -23,6 +23,7 @@ lxb_html_button_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_button_element_interface_create(lxb_html_document_t *document)
+ lxb_html_button_element_t *
+ lxb_html_button_element_interface_destroy(lxb_html_button_element_t *button_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(button_element));
+-    return NULL;
++    return (lxb_html_button_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(button_element));
+ }
+diff --git a/source/lexbor/html/interfaces/canvas_element.c b/source/lexbor/html/interfaces/canvas_element.c
+index 4898a21..6aece7d 100644
+--- a/source/lexbor/html/interfaces/canvas_element.c
++++ b/source/lexbor/html/interfaces/canvas_element.c
+@@ -23,6 +23,7 @@ lxb_html_canvas_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_canvas_element_interface_create(lxb_html_document_t *document)
+ lxb_html_canvas_element_t *
+ lxb_html_canvas_element_interface_destroy(lxb_html_canvas_element_t *canvas_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(canvas_element));
+-    return NULL;
++    return (lxb_html_canvas_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(canvas_element));
+ }
+diff --git a/source/lexbor/html/interfaces/d_list_element.c b/source/lexbor/html/interfaces/d_list_element.c
+index 4236ae4..1e1d2a1 100644
+--- a/source/lexbor/html/interfaces/d_list_element.c
++++ b/source/lexbor/html/interfaces/d_list_element.c
+@@ -23,6 +23,7 @@ lxb_html_d_list_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_d_list_element_interface_create(lxb_html_document_t *document)
+ lxb_html_d_list_element_t *
+ lxb_html_d_list_element_interface_destroy(lxb_html_d_list_element_t *d_list_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(d_list_element));
+-    return NULL;
++    return (lxb_html_d_list_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(d_list_element));
+ }
+diff --git a/source/lexbor/html/interfaces/data_element.c b/source/lexbor/html/interfaces/data_element.c
+index 19d0e94..1e97b4b 100644
+--- a/source/lexbor/html/interfaces/data_element.c
++++ b/source/lexbor/html/interfaces/data_element.c
+@@ -23,6 +23,7 @@ lxb_html_data_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_data_element_interface_create(lxb_html_document_t *document)
+ lxb_html_data_element_t *
+ lxb_html_data_element_interface_destroy(lxb_html_data_element_t *data_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(data_element));
+-    return NULL;
++    return (lxb_html_data_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(data_element));
+ }
+diff --git a/source/lexbor/html/interfaces/data_list_element.c b/source/lexbor/html/interfaces/data_list_element.c
+index ef3787e..d6c4f23 100644
+--- a/source/lexbor/html/interfaces/data_list_element.c
++++ b/source/lexbor/html/interfaces/data_list_element.c
+@@ -23,6 +23,7 @@ lxb_html_data_list_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_data_list_element_interface_create(lxb_html_document_t *document)
+ lxb_html_data_list_element_t *
+ lxb_html_data_list_element_interface_destroy(lxb_html_data_list_element_t *data_list_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(data_list_element));
+-    return NULL;
++    return (lxb_html_data_list_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(data_list_element));
+ }
+diff --git a/source/lexbor/html/interfaces/details_element.c b/source/lexbor/html/interfaces/details_element.c
+index 9622df2..5bb4e82 100644
+--- a/source/lexbor/html/interfaces/details_element.c
++++ b/source/lexbor/html/interfaces/details_element.c
+@@ -23,6 +23,7 @@ lxb_html_details_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_details_element_interface_create(lxb_html_document_t *document)
+ lxb_html_details_element_t *
+ lxb_html_details_element_interface_destroy(lxb_html_details_element_t *details_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(details_element));
+-    return NULL;
++    return (lxb_html_details_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(details_element));
+ }
+diff --git a/source/lexbor/html/interfaces/dialog_element.c b/source/lexbor/html/interfaces/dialog_element.c
+index 4310660..85d27da 100644
+--- a/source/lexbor/html/interfaces/dialog_element.c
++++ b/source/lexbor/html/interfaces/dialog_element.c
+@@ -23,6 +23,7 @@ lxb_html_dialog_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_dialog_element_interface_create(lxb_html_document_t *document)
+ lxb_html_dialog_element_t *
+ lxb_html_dialog_element_interface_destroy(lxb_html_dialog_element_t *dialog_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(dialog_element));
+-    return NULL;
++    return (lxb_html_dialog_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(dialog_element));
+ }
+diff --git a/source/lexbor/html/interfaces/directory_element.c b/source/lexbor/html/interfaces/directory_element.c
+index 51d98fd..fe821a0 100644
+--- a/source/lexbor/html/interfaces/directory_element.c
++++ b/source/lexbor/html/interfaces/directory_element.c
+@@ -23,6 +23,7 @@ lxb_html_directory_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_directory_element_interface_create(lxb_html_document_t *document)
+ lxb_html_directory_element_t *
+ lxb_html_directory_element_interface_destroy(lxb_html_directory_element_t *directory_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(directory_element));
+-    return NULL;
++    return (lxb_html_directory_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(directory_element));
+ }
+diff --git a/source/lexbor/html/interfaces/div_element.c b/source/lexbor/html/interfaces/div_element.c
+index 66d4646..65831ee 100644
+--- a/source/lexbor/html/interfaces/div_element.c
++++ b/source/lexbor/html/interfaces/div_element.c
+@@ -23,6 +23,7 @@ lxb_html_div_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_div_element_interface_create(lxb_html_document_t *document)
+ lxb_html_div_element_t *
+ lxb_html_div_element_interface_destroy(lxb_html_div_element_t *div_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(div_element));
+-    return NULL;
++    return (lxb_html_div_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(div_element));
+ }
+diff --git a/source/lexbor/html/interfaces/element.c b/source/lexbor/html/interfaces/element.c
+index 4b3fcd1..1f7509d 100644
+--- a/source/lexbor/html/interfaces/element.c
++++ b/source/lexbor/html/interfaces/element.c
+@@ -23,6 +23,7 @@ lxb_html_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+diff --git a/source/lexbor/html/interfaces/embed_element.c b/source/lexbor/html/interfaces/embed_element.c
+index a74b5ba..ce233b6 100644
+--- a/source/lexbor/html/interfaces/embed_element.c
++++ b/source/lexbor/html/interfaces/embed_element.c
+@@ -23,6 +23,7 @@ lxb_html_embed_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_embed_element_interface_create(lxb_html_document_t *document)
+ lxb_html_embed_element_t *
+ lxb_html_embed_element_interface_destroy(lxb_html_embed_element_t *embed_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(embed_element));
+-    return NULL;
++    return (lxb_html_embed_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(embed_element));
+ }
+diff --git a/source/lexbor/html/interfaces/field_set_element.c b/source/lexbor/html/interfaces/field_set_element.c
+index 49fbadf..55bbf28 100644
+--- a/source/lexbor/html/interfaces/field_set_element.c
++++ b/source/lexbor/html/interfaces/field_set_element.c
+@@ -23,6 +23,7 @@ lxb_html_field_set_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_field_set_element_interface_create(lxb_html_document_t *document)
+ lxb_html_field_set_element_t *
+ lxb_html_field_set_element_interface_destroy(lxb_html_field_set_element_t *field_set_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(field_set_element));
+-    return NULL;
++    return (lxb_html_field_set_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(field_set_element));
+ }
+diff --git a/source/lexbor/html/interfaces/font_element.c b/source/lexbor/html/interfaces/font_element.c
+index 17f1d50..4c8a25e 100644
+--- a/source/lexbor/html/interfaces/font_element.c
++++ b/source/lexbor/html/interfaces/font_element.c
+@@ -23,6 +23,7 @@ lxb_html_font_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_font_element_interface_create(lxb_html_document_t *document)
+ lxb_html_font_element_t *
+ lxb_html_font_element_interface_destroy(lxb_html_font_element_t *font_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(font_element));
+-    return NULL;
++    return (lxb_html_font_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(font_element));
+ }
+diff --git a/source/lexbor/html/interfaces/form_element.c b/source/lexbor/html/interfaces/form_element.c
+index cd0661c..a0b262c 100644
+--- a/source/lexbor/html/interfaces/form_element.c
++++ b/source/lexbor/html/interfaces/form_element.c
+@@ -23,6 +23,7 @@ lxb_html_form_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_form_element_interface_create(lxb_html_document_t *document)
+ lxb_html_form_element_t *
+ lxb_html_form_element_interface_destroy(lxb_html_form_element_t *form_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(form_element));
+-    return NULL;
++    return (lxb_html_form_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(form_element));
+ }
+diff --git a/source/lexbor/html/interfaces/frame_element.c b/source/lexbor/html/interfaces/frame_element.c
+index 082f1a1..f5c4c83 100644
+--- a/source/lexbor/html/interfaces/frame_element.c
++++ b/source/lexbor/html/interfaces/frame_element.c
+@@ -23,6 +23,7 @@ lxb_html_frame_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_frame_element_interface_create(lxb_html_document_t *document)
+ lxb_html_frame_element_t *
+ lxb_html_frame_element_interface_destroy(lxb_html_frame_element_t *frame_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(frame_element));
+-    return NULL;
++    return (lxb_html_frame_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(frame_element));
+ }
+diff --git a/source/lexbor/html/interfaces/frame_set_element.c b/source/lexbor/html/interfaces/frame_set_element.c
+index 0835ecc..6bcf9c7 100644
+--- a/source/lexbor/html/interfaces/frame_set_element.c
++++ b/source/lexbor/html/interfaces/frame_set_element.c
+@@ -23,6 +23,7 @@ lxb_html_frame_set_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_frame_set_element_interface_create(lxb_html_document_t *document)
+ lxb_html_frame_set_element_t *
+ lxb_html_frame_set_element_interface_destroy(lxb_html_frame_set_element_t *frame_set_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(frame_set_element));
+-    return NULL;
++    return (lxb_html_frame_set_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(frame_set_element));
+ }
+diff --git a/source/lexbor/html/interfaces/head_element.c b/source/lexbor/html/interfaces/head_element.c
+index 604c54a..4214af7 100644
+--- a/source/lexbor/html/interfaces/head_element.c
++++ b/source/lexbor/html/interfaces/head_element.c
+@@ -23,6 +23,7 @@ lxb_html_head_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_head_element_interface_create(lxb_html_document_t *document)
+ lxb_html_head_element_t *
+ lxb_html_head_element_interface_destroy(lxb_html_head_element_t *head_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(head_element));
+-    return NULL;
++    return (lxb_html_head_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(head_element));
+ }
+diff --git a/source/lexbor/html/interfaces/heading_element.c b/source/lexbor/html/interfaces/heading_element.c
+index ca60552..79ad477 100644
+--- a/source/lexbor/html/interfaces/heading_element.c
++++ b/source/lexbor/html/interfaces/heading_element.c
+@@ -23,6 +23,7 @@ lxb_html_heading_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_heading_element_interface_create(lxb_html_document_t *document)
+ lxb_html_heading_element_t *
+ lxb_html_heading_element_interface_destroy(lxb_html_heading_element_t *heading_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(heading_element));
+-    return NULL;
++    return (lxb_html_heading_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(heading_element));
+ }
+diff --git a/source/lexbor/html/interfaces/hr_element.c b/source/lexbor/html/interfaces/hr_element.c
+index db524d7..bbe3aff 100644
+--- a/source/lexbor/html/interfaces/hr_element.c
++++ b/source/lexbor/html/interfaces/hr_element.c
+@@ -23,6 +23,7 @@ lxb_html_hr_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_hr_element_interface_create(lxb_html_document_t *document)
+ lxb_html_hr_element_t *
+ lxb_html_hr_element_interface_destroy(lxb_html_hr_element_t *hr_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(hr_element));
+-    return NULL;
++    return (lxb_html_hr_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(hr_element));
+ }
+diff --git a/source/lexbor/html/interfaces/html_element.c b/source/lexbor/html/interfaces/html_element.c
+index 62bc6f1..f92d3e3 100644
+--- a/source/lexbor/html/interfaces/html_element.c
++++ b/source/lexbor/html/interfaces/html_element.c
+@@ -23,6 +23,7 @@ lxb_html_html_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_html_element_interface_create(lxb_html_document_t *document)
+ lxb_html_html_element_t *
+ lxb_html_html_element_interface_destroy(lxb_html_html_element_t *html_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(html_element));
+-    return NULL;
++    return (lxb_html_html_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(html_element));
+ }
+diff --git a/source/lexbor/html/interfaces/iframe_element.c b/source/lexbor/html/interfaces/iframe_element.c
+index a41fdaf..3b1fbc5 100644
+--- a/source/lexbor/html/interfaces/iframe_element.c
++++ b/source/lexbor/html/interfaces/iframe_element.c
+@@ -23,6 +23,7 @@ lxb_html_iframe_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_iframe_element_interface_create(lxb_html_document_t *document)
+ lxb_html_iframe_element_t *
+ lxb_html_iframe_element_interface_destroy(lxb_html_iframe_element_t *iframe_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(iframe_element));
+-    return NULL;
++    return (lxb_html_iframe_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(iframe_element));
+ }
+diff --git a/source/lexbor/html/interfaces/image_element.c b/source/lexbor/html/interfaces/image_element.c
+index 1346782..f9707c0 100644
+--- a/source/lexbor/html/interfaces/image_element.c
++++ b/source/lexbor/html/interfaces/image_element.c
+@@ -23,6 +23,7 @@ lxb_html_image_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_image_element_interface_create(lxb_html_document_t *document)
+ lxb_html_image_element_t *
+ lxb_html_image_element_interface_destroy(lxb_html_image_element_t *image_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(image_element));
+-    return NULL;
++    return (lxb_html_image_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(image_element));
+ }
+diff --git a/source/lexbor/html/interfaces/input_element.c b/source/lexbor/html/interfaces/input_element.c
+index cd21cf4..b6d9191 100644
+--- a/source/lexbor/html/interfaces/input_element.c
++++ b/source/lexbor/html/interfaces/input_element.c
+@@ -23,6 +23,7 @@ lxb_html_input_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_input_element_interface_create(lxb_html_document_t *document)
+ lxb_html_input_element_t *
+ lxb_html_input_element_interface_destroy(lxb_html_input_element_t *input_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(input_element));
+-    return NULL;
++    return (lxb_html_input_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(input_element));
+ }
+diff --git a/source/lexbor/html/interfaces/label_element.c b/source/lexbor/html/interfaces/label_element.c
+index 351e13b..8d2792a 100644
+--- a/source/lexbor/html/interfaces/label_element.c
++++ b/source/lexbor/html/interfaces/label_element.c
+@@ -23,6 +23,7 @@ lxb_html_label_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_label_element_interface_create(lxb_html_document_t *document)
+ lxb_html_label_element_t *
+ lxb_html_label_element_interface_destroy(lxb_html_label_element_t *label_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(label_element));
+-    return NULL;
++    return (lxb_html_label_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(label_element));
+ }
+diff --git a/source/lexbor/html/interfaces/legend_element.c b/source/lexbor/html/interfaces/legend_element.c
+index 4f6518d..1bbb66c 100644
+--- a/source/lexbor/html/interfaces/legend_element.c
++++ b/source/lexbor/html/interfaces/legend_element.c
+@@ -23,6 +23,7 @@ lxb_html_legend_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_legend_element_interface_create(lxb_html_document_t *document)
+ lxb_html_legend_element_t *
+ lxb_html_legend_element_interface_destroy(lxb_html_legend_element_t *legend_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(legend_element));
+-    return NULL;
++    return (lxb_html_legend_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(legend_element));
+ }
+diff --git a/source/lexbor/html/interfaces/li_element.c b/source/lexbor/html/interfaces/li_element.c
+index 21651cf..0659633 100644
+--- a/source/lexbor/html/interfaces/li_element.c
++++ b/source/lexbor/html/interfaces/li_element.c
+@@ -23,6 +23,7 @@ lxb_html_li_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_li_element_interface_create(lxb_html_document_t *document)
+ lxb_html_li_element_t *
+ lxb_html_li_element_interface_destroy(lxb_html_li_element_t *li_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(li_element));
+-    return NULL;
++    return (lxb_html_li_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(li_element));
+ }
+diff --git a/source/lexbor/html/interfaces/link_element.c b/source/lexbor/html/interfaces/link_element.c
+index ecb7488..d24f8de 100644
+--- a/source/lexbor/html/interfaces/link_element.c
++++ b/source/lexbor/html/interfaces/link_element.c
+@@ -23,6 +23,7 @@ lxb_html_link_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_link_element_interface_create(lxb_html_document_t *document)
+ lxb_html_link_element_t *
+ lxb_html_link_element_interface_destroy(lxb_html_link_element_t *link_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(link_element));
+-    return NULL;
++    return (lxb_html_link_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(link_element));
+ }
+diff --git a/source/lexbor/html/interfaces/map_element.c b/source/lexbor/html/interfaces/map_element.c
+index 3f6cd4a..480731a 100644
+--- a/source/lexbor/html/interfaces/map_element.c
++++ b/source/lexbor/html/interfaces/map_element.c
+@@ -23,6 +23,7 @@ lxb_html_map_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_map_element_interface_create(lxb_html_document_t *document)
+ lxb_html_map_element_t *
+ lxb_html_map_element_interface_destroy(lxb_html_map_element_t *map_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(map_element));
+-    return NULL;
++    return (lxb_html_map_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(map_element));
+ }
+diff --git a/source/lexbor/html/interfaces/marquee_element.c b/source/lexbor/html/interfaces/marquee_element.c
+index 40d39c5..ac8696f 100644
+--- a/source/lexbor/html/interfaces/marquee_element.c
++++ b/source/lexbor/html/interfaces/marquee_element.c
+@@ -23,6 +23,7 @@ lxb_html_marquee_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_marquee_element_interface_create(lxb_html_document_t *document)
+ lxb_html_marquee_element_t *
+ lxb_html_marquee_element_interface_destroy(lxb_html_marquee_element_t *marquee_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(marquee_element));
+-    return NULL;
++    return (lxb_html_marquee_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(marquee_element));
+ }
+diff --git a/source/lexbor/html/interfaces/media_element.c b/source/lexbor/html/interfaces/media_element.c
+index 0c2c6e7..8c2ce62 100644
+--- a/source/lexbor/html/interfaces/media_element.c
++++ b/source/lexbor/html/interfaces/media_element.c
+@@ -23,6 +23,7 @@ lxb_html_media_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_media_element_interface_create(lxb_html_document_t *document)
+ lxb_html_media_element_t *
+ lxb_html_media_element_interface_destroy(lxb_html_media_element_t *media_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(media_element));
+-    return NULL;
++    return (lxb_html_media_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(media_element));
+ }
+diff --git a/source/lexbor/html/interfaces/menu_element.c b/source/lexbor/html/interfaces/menu_element.c
+index 54fb417..029716e 100644
+--- a/source/lexbor/html/interfaces/menu_element.c
++++ b/source/lexbor/html/interfaces/menu_element.c
+@@ -23,6 +23,7 @@ lxb_html_menu_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_menu_element_interface_create(lxb_html_document_t *document)
+ lxb_html_menu_element_t *
+ lxb_html_menu_element_interface_destroy(lxb_html_menu_element_t *menu_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(menu_element));
+-    return NULL;
++    return (lxb_html_menu_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(menu_element));
+ }
+diff --git a/source/lexbor/html/interfaces/meta_element.c b/source/lexbor/html/interfaces/meta_element.c
+index 7e9a86e..c55e2b0 100644
+--- a/source/lexbor/html/interfaces/meta_element.c
++++ b/source/lexbor/html/interfaces/meta_element.c
+@@ -23,6 +23,7 @@ lxb_html_meta_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_meta_element_interface_create(lxb_html_document_t *document)
+ lxb_html_meta_element_t *
+ lxb_html_meta_element_interface_destroy(lxb_html_meta_element_t *meta_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(meta_element));
+-    return NULL;
++    return (lxb_html_meta_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(meta_element));
+ }
+diff --git a/source/lexbor/html/interfaces/meter_element.c b/source/lexbor/html/interfaces/meter_element.c
+index 06f668b..e95936d 100644
+--- a/source/lexbor/html/interfaces/meter_element.c
++++ b/source/lexbor/html/interfaces/meter_element.c
+@@ -23,6 +23,7 @@ lxb_html_meter_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_meter_element_interface_create(lxb_html_document_t *document)
+ lxb_html_meter_element_t *
+ lxb_html_meter_element_interface_destroy(lxb_html_meter_element_t *meter_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(meter_element));
+-    return NULL;
++    return (lxb_html_meter_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(meter_element));
+ }
+diff --git a/source/lexbor/html/interfaces/mod_element.c b/source/lexbor/html/interfaces/mod_element.c
+index 9631080..eecc4dd 100644
+--- a/source/lexbor/html/interfaces/mod_element.c
++++ b/source/lexbor/html/interfaces/mod_element.c
+@@ -23,6 +23,7 @@ lxb_html_mod_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_mod_element_interface_create(lxb_html_document_t *document)
+ lxb_html_mod_element_t *
+ lxb_html_mod_element_interface_destroy(lxb_html_mod_element_t *mod_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(mod_element));
+-    return NULL;
++    return (lxb_html_mod_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(mod_element));
+ }
+diff --git a/source/lexbor/html/interfaces/o_list_element.c b/source/lexbor/html/interfaces/o_list_element.c
+index a1638c9..d5dd1e9 100644
+--- a/source/lexbor/html/interfaces/o_list_element.c
++++ b/source/lexbor/html/interfaces/o_list_element.c
+@@ -23,6 +23,7 @@ lxb_html_o_list_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_o_list_element_interface_create(lxb_html_document_t *document)
+ lxb_html_o_list_element_t *
+ lxb_html_o_list_element_interface_destroy(lxb_html_o_list_element_t *o_list_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(o_list_element));
+-    return NULL;
++    return (lxb_html_o_list_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(o_list_element));
+ }
+diff --git a/source/lexbor/html/interfaces/object_element.c b/source/lexbor/html/interfaces/object_element.c
+index f3b59a0..07c2fa6 100644
+--- a/source/lexbor/html/interfaces/object_element.c
++++ b/source/lexbor/html/interfaces/object_element.c
+@@ -23,6 +23,7 @@ lxb_html_object_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_object_element_interface_create(lxb_html_document_t *document)
+ lxb_html_object_element_t *
+ lxb_html_object_element_interface_destroy(lxb_html_object_element_t *object_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(object_element));
+-    return NULL;
++    return (lxb_html_object_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(object_element));
+ }
+diff --git a/source/lexbor/html/interfaces/opt_group_element.c b/source/lexbor/html/interfaces/opt_group_element.c
+index a3996e9..00a323a 100644
+--- a/source/lexbor/html/interfaces/opt_group_element.c
++++ b/source/lexbor/html/interfaces/opt_group_element.c
+@@ -23,6 +23,7 @@ lxb_html_opt_group_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_opt_group_element_interface_create(lxb_html_document_t *document)
+ lxb_html_opt_group_element_t *
+ lxb_html_opt_group_element_interface_destroy(lxb_html_opt_group_element_t *opt_group_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(opt_group_element));
+-    return NULL;
++    return (lxb_html_opt_group_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(opt_group_element));
+ }
+diff --git a/source/lexbor/html/interfaces/option_element.c b/source/lexbor/html/interfaces/option_element.c
+index 3fd6263..8fab526 100644
+--- a/source/lexbor/html/interfaces/option_element.c
++++ b/source/lexbor/html/interfaces/option_element.c
+@@ -30,6 +30,7 @@ lxb_html_option_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -37,8 +38,7 @@ lxb_html_option_element_interface_create(lxb_html_document_t *document)
+ lxb_html_option_element_t *
+ lxb_html_option_element_interface_destroy(lxb_html_option_element_t *option_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(option_element));
+-    return NULL;
++    return (lxb_html_option_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(option_element));
+ }
+ 
+ lxb_dom_exception_code_t
+diff --git a/source/lexbor/html/interfaces/output_element.c b/source/lexbor/html/interfaces/output_element.c
+index 1ed01e3..a1b822b 100644
+--- a/source/lexbor/html/interfaces/output_element.c
++++ b/source/lexbor/html/interfaces/output_element.c
+@@ -23,6 +23,7 @@ lxb_html_output_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_output_element_interface_create(lxb_html_document_t *document)
+ lxb_html_output_element_t *
+ lxb_html_output_element_interface_destroy(lxb_html_output_element_t *output_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(output_element));
+-    return NULL;
++    return (lxb_html_output_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(output_element));
+ }
+diff --git a/source/lexbor/html/interfaces/paragraph_element.c b/source/lexbor/html/interfaces/paragraph_element.c
+index c0383f9..5959eb8 100644
+--- a/source/lexbor/html/interfaces/paragraph_element.c
++++ b/source/lexbor/html/interfaces/paragraph_element.c
+@@ -23,6 +23,7 @@ lxb_html_paragraph_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_paragraph_element_interface_create(lxb_html_document_t *document)
+ lxb_html_paragraph_element_t *
+ lxb_html_paragraph_element_interface_destroy(lxb_html_paragraph_element_t *paragraph_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(paragraph_element));
+-    return NULL;
++    return (lxb_html_paragraph_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(paragraph_element));
+ }
+diff --git a/source/lexbor/html/interfaces/param_element.c b/source/lexbor/html/interfaces/param_element.c
+index 767b8a2..6359d96 100644
+--- a/source/lexbor/html/interfaces/param_element.c
++++ b/source/lexbor/html/interfaces/param_element.c
+@@ -23,6 +23,7 @@ lxb_html_param_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_param_element_interface_create(lxb_html_document_t *document)
+ lxb_html_param_element_t *
+ lxb_html_param_element_interface_destroy(lxb_html_param_element_t *param_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(param_element));
+-    return NULL;
++    return (lxb_html_param_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(param_element));
+ }
+diff --git a/source/lexbor/html/interfaces/picture_element.c b/source/lexbor/html/interfaces/picture_element.c
+index 8e001a3..e434f31 100644
+--- a/source/lexbor/html/interfaces/picture_element.c
++++ b/source/lexbor/html/interfaces/picture_element.c
+@@ -23,6 +23,7 @@ lxb_html_picture_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_picture_element_interface_create(lxb_html_document_t *document)
+ lxb_html_picture_element_t *
+ lxb_html_picture_element_interface_destroy(lxb_html_picture_element_t *picture_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(picture_element));
+-    return NULL;
++    return (lxb_html_picture_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(picture_element));
+ }
+diff --git a/source/lexbor/html/interfaces/pre_element.c b/source/lexbor/html/interfaces/pre_element.c
+index 1064cb6..e584fbc 100644
+--- a/source/lexbor/html/interfaces/pre_element.c
++++ b/source/lexbor/html/interfaces/pre_element.c
+@@ -23,6 +23,7 @@ lxb_html_pre_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_pre_element_interface_create(lxb_html_document_t *document)
+ lxb_html_pre_element_t *
+ lxb_html_pre_element_interface_destroy(lxb_html_pre_element_t *pre_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(pre_element));
+-    return NULL;
++    return (lxb_html_pre_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(pre_element));
+ }
+diff --git a/source/lexbor/html/interfaces/progress_element.c b/source/lexbor/html/interfaces/progress_element.c
+index 7f7881b..aee35fb 100644
+--- a/source/lexbor/html/interfaces/progress_element.c
++++ b/source/lexbor/html/interfaces/progress_element.c
+@@ -23,6 +23,7 @@ lxb_html_progress_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_progress_element_interface_create(lxb_html_document_t *document)
+ lxb_html_progress_element_t *
+ lxb_html_progress_element_interface_destroy(lxb_html_progress_element_t *progress_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(progress_element));
+-    return NULL;
++    return (lxb_html_progress_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(progress_element));
+ }
+diff --git a/source/lexbor/html/interfaces/quote_element.c b/source/lexbor/html/interfaces/quote_element.c
+index 8714a5e..7234f7b 100644
+--- a/source/lexbor/html/interfaces/quote_element.c
++++ b/source/lexbor/html/interfaces/quote_element.c
+@@ -23,6 +23,7 @@ lxb_html_quote_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_quote_element_interface_create(lxb_html_document_t *document)
+ lxb_html_quote_element_t *
+ lxb_html_quote_element_interface_destroy(lxb_html_quote_element_t *quote_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(quote_element));
+-    return NULL;
++    return (lxb_html_quote_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(quote_element));
+ }
+diff --git a/source/lexbor/html/interfaces/script_element.c b/source/lexbor/html/interfaces/script_element.c
+index c0a3164..2dacb44 100644
+--- a/source/lexbor/html/interfaces/script_element.c
++++ b/source/lexbor/html/interfaces/script_element.c
+@@ -23,6 +23,7 @@ lxb_html_script_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_script_element_interface_create(lxb_html_document_t *document)
+ lxb_html_script_element_t *
+ lxb_html_script_element_interface_destroy(lxb_html_script_element_t *script_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(script_element));
+-    return NULL;
++    return (lxb_html_script_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(script_element));
+ }
+diff --git a/source/lexbor/html/interfaces/search_element.c b/source/lexbor/html/interfaces/search_element.c
+index 00ca2a6..f941a9d 100644
+--- a/source/lexbor/html/interfaces/search_element.c
++++ b/source/lexbor/html/interfaces/search_element.c
+@@ -23,6 +23,7 @@ lxb_html_search_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,6 @@ lxb_html_search_element_interface_create(lxb_html_document_t *document)
+ lxb_html_search_element_t *
+ lxb_html_search_element_interface_destroy(lxb_html_search_element_t *search_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(search_element));
+-    return NULL;
++    return (lxb_html_search_element_t*) lxb_dom_node_interface_destroy(
++        lxb_dom_interface_node(search_element));
+ }
+diff --git a/source/lexbor/html/interfaces/select_element.c b/source/lexbor/html/interfaces/select_element.c
+index e6ce169..0c4b41e 100644
+--- a/source/lexbor/html/interfaces/select_element.c
++++ b/source/lexbor/html/interfaces/select_element.c
+@@ -45,6 +45,7 @@ lxb_html_select_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -52,8 +53,7 @@ lxb_html_select_element_interface_create(lxb_html_document_t *document)
+ lxb_html_select_element_t *
+ lxb_html_select_element_interface_destroy(lxb_html_select_element_t *select_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(select_element));
+-    return NULL;
++    return (lxb_html_select_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(select_element));
+ }
+ 
+ size_t
+diff --git a/source/lexbor/html/interfaces/selectedcontent_element.c b/source/lexbor/html/interfaces/selectedcontent_element.c
+index 356f031..e01f855 100644
+--- a/source/lexbor/html/interfaces/selectedcontent_element.c
++++ b/source/lexbor/html/interfaces/selectedcontent_element.c
+@@ -28,6 +28,7 @@ lxb_html_selectedcontent_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -35,8 +36,8 @@ lxb_html_selectedcontent_element_interface_create(lxb_html_document_t *document)
+ lxb_html_selectedcontent_element_t *
+ lxb_html_selectedcontent_element_interface_destroy(lxb_html_selectedcontent_element_t *selectedcontent_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(selectedcontent_element));
+-    return NULL;
++    return (lxb_html_selectedcontent_element_t*) lxb_dom_node_interface_destroy(
++        lxb_dom_interface_node(selectedcontent_element));
+ }
+ 
+ lxb_dom_exception_code_t
+diff --git a/source/lexbor/html/interfaces/slot_element.c b/source/lexbor/html/interfaces/slot_element.c
+index a407eba..7df2d73 100644
+--- a/source/lexbor/html/interfaces/slot_element.c
++++ b/source/lexbor/html/interfaces/slot_element.c
+@@ -23,6 +23,7 @@ lxb_html_slot_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_slot_element_interface_create(lxb_html_document_t *document)
+ lxb_html_slot_element_t *
+ lxb_html_slot_element_interface_destroy(lxb_html_slot_element_t *slot_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(slot_element));
+-    return NULL;
++    return (lxb_html_slot_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(slot_element));
+ }
+diff --git a/source/lexbor/html/interfaces/source_element.c b/source/lexbor/html/interfaces/source_element.c
+index 37001e4..1fdccf9 100644
+--- a/source/lexbor/html/interfaces/source_element.c
++++ b/source/lexbor/html/interfaces/source_element.c
+@@ -23,6 +23,7 @@ lxb_html_source_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_source_element_interface_create(lxb_html_document_t *document)
+ lxb_html_source_element_t *
+ lxb_html_source_element_interface_destroy(lxb_html_source_element_t *source_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(source_element));
+-    return NULL;
++    return (lxb_html_source_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(source_element));
+ }
+diff --git a/source/lexbor/html/interfaces/span_element.c b/source/lexbor/html/interfaces/span_element.c
+index dd57a2a..71d03b5 100644
+--- a/source/lexbor/html/interfaces/span_element.c
++++ b/source/lexbor/html/interfaces/span_element.c
+@@ -23,6 +23,7 @@ lxb_html_span_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_span_element_interface_create(lxb_html_document_t *document)
+ lxb_html_span_element_t *
+ lxb_html_span_element_interface_destroy(lxb_html_span_element_t *span_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(span_element));
+-    return NULL;
++    return (lxb_html_span_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(span_element));
+ }
+diff --git a/source/lexbor/html/interfaces/style_element.c b/source/lexbor/html/interfaces/style_element.c
+index e5d67e1..59e2970 100644
+--- a/source/lexbor/html/interfaces/style_element.c
++++ b/source/lexbor/html/interfaces/style_element.c
+@@ -6,6 +6,7 @@
+ 
+ #include "lexbor/html/interfaces/style_element.h"
+ #include "lexbor/html/interfaces/document.h"
++#include "lexbor/css/stylesheet.h"
+ 
+ 
+ lxb_html_style_element_t *
+@@ -23,6 +24,7 @@ lxb_html_style_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,7 +32,12 @@ lxb_html_style_element_interface_create(lxb_html_document_t *document)
+ lxb_html_style_element_t *
+ lxb_html_style_element_interface_destroy(lxb_html_style_element_t *style_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(style_element));
++    lxb_css_stylesheet_t *sst = style_element->stylesheet;
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(style_element));
+ 
+-    return NULL;
++    if (result == NULL && sst != NULL) {
++        (void) lxb_css_stylesheet_destroy(sst, true);
++    }
++
++    return (lxb_html_style_element_t*) result;
+ }
+diff --git a/source/lexbor/html/interfaces/table_caption_element.c b/source/lexbor/html/interfaces/table_caption_element.c
+index 932c00b..231d50d 100644
+--- a/source/lexbor/html/interfaces/table_caption_element.c
++++ b/source/lexbor/html/interfaces/table_caption_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_caption_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,6 @@ lxb_html_table_caption_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_caption_element_t *
+ lxb_html_table_caption_element_interface_destroy(lxb_html_table_caption_element_t *table_caption_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_caption_element));
+-    return NULL;
++    return (lxb_html_table_caption_element_t*) lxb_dom_node_interface_destroy(
++        lxb_dom_interface_node(table_caption_element));
+ }
+diff --git a/source/lexbor/html/interfaces/table_cell_element.c b/source/lexbor/html/interfaces/table_cell_element.c
+index 576ed50..297bbfb 100644
+--- a/source/lexbor/html/interfaces/table_cell_element.c
++++ b/source/lexbor/html/interfaces/table_cell_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_cell_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_table_cell_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_cell_element_t *
+ lxb_html_table_cell_element_interface_destroy(lxb_html_table_cell_element_t *table_cell_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_cell_element));
+-    return NULL;
++    return (lxb_html_table_cell_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_cell_element));
+ }
+diff --git a/source/lexbor/html/interfaces/table_col_element.c b/source/lexbor/html/interfaces/table_col_element.c
+index ebfb0c9..340b77a 100644
+--- a/source/lexbor/html/interfaces/table_col_element.c
++++ b/source/lexbor/html/interfaces/table_col_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_col_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_table_col_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_col_element_t *
+ lxb_html_table_col_element_interface_destroy(lxb_html_table_col_element_t *table_col_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_col_element));
+-    return NULL;
++    return (lxb_html_table_col_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_col_element));
+ }
+diff --git a/source/lexbor/html/interfaces/table_element.c b/source/lexbor/html/interfaces/table_element.c
+index 1a51b88..9459836 100644
+--- a/source/lexbor/html/interfaces/table_element.c
++++ b/source/lexbor/html/interfaces/table_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_table_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_element_t *
+ lxb_html_table_element_interface_destroy(lxb_html_table_element_t *table_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_element));
+-    return NULL;
++    return (lxb_html_table_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_element));
+ }
+diff --git a/source/lexbor/html/interfaces/table_row_element.c b/source/lexbor/html/interfaces/table_row_element.c
+index a4c2c3a..41cb3f1 100644
+--- a/source/lexbor/html/interfaces/table_row_element.c
++++ b/source/lexbor/html/interfaces/table_row_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_row_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_table_row_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_row_element_t *
+ lxb_html_table_row_element_interface_destroy(lxb_html_table_row_element_t *table_row_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_row_element));
+-    return NULL;
++    return (lxb_html_table_row_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_row_element));
+ }
+diff --git a/source/lexbor/html/interfaces/table_section_element.c b/source/lexbor/html/interfaces/table_section_element.c
+index e3e5349..5c989ee 100644
+--- a/source/lexbor/html/interfaces/table_section_element.c
++++ b/source/lexbor/html/interfaces/table_section_element.c
+@@ -23,6 +23,7 @@ lxb_html_table_section_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,6 @@ lxb_html_table_section_element_interface_create(lxb_html_document_t *document)
+ lxb_html_table_section_element_t *
+ lxb_html_table_section_element_interface_destroy(lxb_html_table_section_element_t *table_section_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(table_section_element));
+-    return NULL;
++    return (lxb_html_table_section_element_t*) lxb_dom_node_interface_destroy(
++        lxb_dom_interface_node(table_section_element));
+ }
+diff --git a/source/lexbor/html/interfaces/template_element.c b/source/lexbor/html/interfaces/template_element.c
+index 7d1e36e..6d72c74 100644
+--- a/source/lexbor/html/interfaces/template_element.c
++++ b/source/lexbor/html/interfaces/template_element.c
+@@ -23,6 +23,7 @@ lxb_html_template_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     element->content = lxb_dom_document_fragment_interface_create(node->owner_document);
+     if (element->content == NULL) {
+@@ -38,8 +39,11 @@ lxb_html_template_element_interface_create(lxb_html_document_t *document)
+ lxb_html_template_element_t *
+ lxb_html_template_element_interface_destroy(lxb_html_template_element_t *template_element)
+ {
+-    (void) lxb_dom_document_fragment_interface_destroy(template_element->content);
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(template_element));
++    lxb_dom_document_fragment_t *content = template_element->content;
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(template_element));
++    if (result == NULL) {
++        (void) lxb_dom_document_fragment_interface_destroy(content);
++    }
+ 
+-    return NULL;
++    return (lxb_html_template_element_t*) result;
+ }
+diff --git a/source/lexbor/html/interfaces/text_area_element.c b/source/lexbor/html/interfaces/text_area_element.c
+index e72054a..d02a229 100644
+--- a/source/lexbor/html/interfaces/text_area_element.c
++++ b/source/lexbor/html/interfaces/text_area_element.c
+@@ -23,6 +23,7 @@ lxb_html_text_area_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_text_area_element_interface_create(lxb_html_document_t *document)
+ lxb_html_text_area_element_t *
+ lxb_html_text_area_element_interface_destroy(lxb_html_text_area_element_t *text_area_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(text_area_element));
+-    return NULL;
++    return (lxb_html_text_area_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(text_area_element));
+ }
+diff --git a/source/lexbor/html/interfaces/time_element.c b/source/lexbor/html/interfaces/time_element.c
+index d1b3e88..ce2d648 100644
+--- a/source/lexbor/html/interfaces/time_element.c
++++ b/source/lexbor/html/interfaces/time_element.c
+@@ -23,6 +23,7 @@ lxb_html_time_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_time_element_interface_create(lxb_html_document_t *document)
+ lxb_html_time_element_t *
+ lxb_html_time_element_interface_destroy(lxb_html_time_element_t *time_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(time_element));
+-    return NULL;
++    return (lxb_html_time_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(time_element));
+ }
+diff --git a/source/lexbor/html/interfaces/title_element.c b/source/lexbor/html/interfaces/title_element.c
+index 5f51977..98f4f3c 100644
+--- a/source/lexbor/html/interfaces/title_element.c
++++ b/source/lexbor/html/interfaces/title_element.c
+@@ -24,6 +24,7 @@ lxb_html_title_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -36,14 +37,14 @@ lxb_html_title_element_interface_destroy(lxb_html_title_element_t *title)
+ 
+     text = title->strict_text;
+ 
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(title));
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(lxb_dom_interface_node(title));
+ 
+-    if (text != NULL) {
++    if (result == NULL && text != NULL) {
+         lexbor_str_destroy(text, doc->text, false);
+         lxb_dom_document_destroy_struct(doc, text);
+     }
+     
+-    return NULL;
++    return (lxb_html_title_element_t*) result;
+ }
+ 
+ const lxb_char_t *
+diff --git a/source/lexbor/html/interfaces/track_element.c b/source/lexbor/html/interfaces/track_element.c
+index c8179b4..1b22292 100644
+--- a/source/lexbor/html/interfaces/track_element.c
++++ b/source/lexbor/html/interfaces/track_element.c
+@@ -23,6 +23,7 @@ lxb_html_track_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_track_element_interface_create(lxb_html_document_t *document)
+ lxb_html_track_element_t *
+ lxb_html_track_element_interface_destroy(lxb_html_track_element_t *track_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(track_element));
+-    return NULL;
++    return (lxb_html_track_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(track_element));
+ }
+diff --git a/source/lexbor/html/interfaces/u_list_element.c b/source/lexbor/html/interfaces/u_list_element.c
+index e425c9f..28488bb 100644
+--- a/source/lexbor/html/interfaces/u_list_element.c
++++ b/source/lexbor/html/interfaces/u_list_element.c
+@@ -23,6 +23,7 @@ lxb_html_u_list_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_u_list_element_interface_create(lxb_html_document_t *document)
+ lxb_html_u_list_element_t *
+ lxb_html_u_list_element_interface_destroy(lxb_html_u_list_element_t *u_list_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(u_list_element));
+-    return NULL;
++    return (lxb_html_u_list_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(u_list_element));
+ }
+diff --git a/source/lexbor/html/interfaces/unknown_element.c b/source/lexbor/html/interfaces/unknown_element.c
+index dea01b8..8d52fd8 100644
+--- a/source/lexbor/html/interfaces/unknown_element.c
++++ b/source/lexbor/html/interfaces/unknown_element.c
+@@ -23,6 +23,7 @@ lxb_html_unknown_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_unknown_element_interface_create(lxb_html_document_t *document)
+ lxb_html_unknown_element_t *
+ lxb_html_unknown_element_interface_destroy(lxb_html_unknown_element_t *unknown_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(unknown_element));
+-    return NULL;
++    return (lxb_html_unknown_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(unknown_element));
+ }
+diff --git a/source/lexbor/html/interfaces/video_element.c b/source/lexbor/html/interfaces/video_element.c
+index ef34087..29ee1f5 100644
+--- a/source/lexbor/html/interfaces/video_element.c
++++ b/source/lexbor/html/interfaces/video_element.c
+@@ -23,6 +23,7 @@ lxb_html_video_element_interface_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,5 @@ lxb_html_video_element_interface_create(lxb_html_document_t *document)
+ lxb_html_video_element_t *
+ lxb_html_video_element_interface_destroy(lxb_html_video_element_t *video_element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(video_element));
+-    return NULL;
++    return (lxb_html_video_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(video_element));
+ }
+diff --git a/source/lexbor/html/interfaces/window.c b/source/lexbor/html/interfaces/window.c
+index 830b527..47f367a 100644
+--- a/source/lexbor/html/interfaces/window.c
++++ b/source/lexbor/html/interfaces/window.c
+@@ -23,6 +23,7 @@ lxb_html_window_create(lxb_html_document_t *document)
+ 
+     node->owner_document = lxb_html_document_original_ref(document);
+     node->type = LXB_DOM_NODE_TYPE_ELEMENT;
++    node->ref_count = 1;
+ 
+     return element;
+ }
+@@ -30,6 +31,10 @@ lxb_html_window_create(lxb_html_document_t *document)
+ lxb_html_window_t *
+ lxb_html_window_destroy(lxb_html_window_t *window)
+ {
++     --lxb_dom_interface_node(window)->ref_count;
++    if (lxb_dom_interface_node(window)->ref_count > 0) {
++        return window;
++    }
+     return lexbor_mraw_free(
+         lxb_dom_interface_node(window)->owner_document->mraw,
+         window);

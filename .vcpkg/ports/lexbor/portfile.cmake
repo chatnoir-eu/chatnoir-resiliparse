@@ -1,8 +1,10 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO phoerious/lexbor
-    REF 647a0b5
-    SHA512 a8d7c71a197edab5446bf757bfda4653cb839d69c59e0e6dc80ddf5512c94103e3c54c6a52ffc4de882dea3c7901b1103e7b5c835b80403feee48c0c9ef48d83
+    REPO lexbor/lexbor
+    REF v${VERSION}
+    SHA512 d65906504f490a03579eb737fa85007f1e948c4e82f986454d763728e4d71be40fe953a5a7cfda84b322cb99837f482295ee89bc3f07f2ef89ccaeeab39a4acf
+    PATCHES
+        patches/0001-reference-counting.patch
 )
 
 string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" BUILD_STATIC)
