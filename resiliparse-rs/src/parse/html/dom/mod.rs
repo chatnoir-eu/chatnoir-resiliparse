@@ -30,6 +30,7 @@ pub mod iter;
 pub mod node;
 pub mod traits;
 
+/// An error that occurred during DOM operations.
 #[derive(Debug)]
 pub struct DOMError {
     msg: String,

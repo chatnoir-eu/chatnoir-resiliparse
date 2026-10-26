@@ -29,7 +29,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// HTML parser error.
+/// An HTML parser error.
 #[derive(Debug)]
 pub struct HTMLParserError {
     msg: String,
@@ -54,6 +54,14 @@ impl HTMLTree {
     ///
     /// Constructs a DOM tree from the given HTML input string.
     /// Returns an [HTMLParserError] if the input could not be processed.
+    ///
+    /// # Arguments
+    ///
+    /// * `html` - HTML markup to parse into a DOM tree.
+    ///
+    /// # Returns
+    ///
+    /// The parsed HTML document tree.
     pub fn parse(html: &str) -> Result<Self, HTMLParserError> {
         let doc_ptr;
         unsafe {
@@ -134,8 +142,12 @@ impl HTMLTree {
         *self.doc.doc_ptr()
     }
 
-    #[inline]
     /// Get DOM document root node.
+    ///
+    /// # Returns
+    ///
+    /// The document node, if available.
+    #[inline]
     pub fn document(&self) -> Option<DocumentNode> {
         let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
@@ -147,6 +159,10 @@ impl HTMLTree {
     }
 
     /// Get HTML `<head>` element node.
+    ///
+    /// # Returns
+    ///
+    /// The document’s head element, if present.
     pub fn head(&self) -> Option<ElementNode> {
         let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
@@ -158,6 +174,10 @@ impl HTMLTree {
     }
 
     /// Get HTML `<body>` element node.
+    ///
+    /// # Returns
+    ///
+    /// The document’s body element, if present.
     pub fn body(&self) -> Option<ElementNode> {
         let _guard = self.doc.doc_ptr();
         let ptr = self.get_html_document_ptr();
@@ -169,6 +189,10 @@ impl HTMLTree {
     }
 
     /// Get HTML `<title>` contents as string.
+    ///
+    /// # Returns
+    ///
+    /// The document title, if present.
     #[inline]
     pub fn title(&self) -> Option<String> {
         let _guard = self.doc.doc_ptr();

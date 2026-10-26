@@ -73,6 +73,7 @@ impl NodeIteratorRaw {
 /// A lazy traversal was invalidated by mutation of its document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraversalError {
+    /// The document changed after traversal began.
     TreeModified,
 }
 

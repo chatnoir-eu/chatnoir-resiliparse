@@ -38,18 +38,27 @@ pub use crate::parse::html::dom::traits::NodeType;
 // Keep the owned and borrowed node variants and their common dispatch together.
 macro_rules! define_node_enums {
     ($($Variant:ident($Type:ty)),+ $(,)?) => {
-        /// An owned DOM node. Use concrete types' `TryFrom<Node>` implementations
-        /// for checked downcasts; a mismatch returns `Err(original_node)`.
-        /// Borrowed access is available through the `as_*` capability views.
-        /// Common operations and traversal use the shared [`NodeInterface`] trait.
+        /// An owned handle to a generic DOM node.
+        ///
+        /// Concrete types' `TryFrom<Node>` implementations provide checked downcasts; a mismatch
+        /// returns `Err(original_node)`. Borrowed access is available through the `as_*` views,
+        /// while common operations and traversal use [`NodeInterface`].
         #[derive(Clone, PartialEq, Debug)]
-        pub enum Node { $($Variant($Type)),+ }
+        pub enum Node {
+            $(#[doc = concat!("An owned node handle containing a ", stringify!($Variant), " node.")] $Variant($Type)),+
+        }
 
+        /// A borrowed view of an owned DOM node handle.
         #[derive(Clone, PartialEq, Debug)]
-        pub enum NodeRef<'a> { $($Variant(&'a $Type)),+ }
+        pub enum NodeRef<'a> {
+            $(#[doc = concat!("A borrowed ", stringify!($Variant), " node handle.")] $Variant(&'a $Type)),+
+        }
 
+        /// A mutable borrowed view of an owned DOM node handle.
         #[derive(PartialEq, Debug)]
-        pub enum NodeRefMut<'a> { $($Variant(&'a mut $Type)),+ }
+        pub enum NodeRefMut<'a> {
+            $(#[doc = concat!("A mutable borrowed ", stringify!($Variant), " node handle.")] $Variant(&'a mut $Type)),+
+        }
 
         impl NodeInterfaceBaseImpl for Node {
             fn tree_(&self) -> Arc<HTMLDocument> {
@@ -119,8 +128,10 @@ define_node_enums! {
     Notation(NotationNode), // legacy
 }
 
-/// Borrowed parent capability. Constructing or copying this view does not clone
-/// a native handle. Operations use `ParentNode` and the shared document lock.
+/// A borrowed view of a node that can contain children.
+///
+/// Constructing or copying this view does not clone a native handle. Operations use `ParentNode`
+/// and the shared document lock.
 ///
 /// ```
 /// use resiliparse::parse::html::{dom::traits::NodeInterface, tree::HTMLTree};
@@ -133,8 +144,11 @@ define_node_enums! {
 /// ```
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ParentNodeRef<'a> {
+    /// An element, which can contain child nodes.
     Element(&'a ElementNode),
+    /// A document node, which can contain child nodes.
     Document(&'a DocumentNode),
+    /// A document fragment, which can contain child nodes.
     DocumentFragment(&'a DocumentFragmentNode),
 }
 
@@ -150,13 +164,19 @@ impl<'a> Deref for ParentNodeRef<'a> {
     }
 }
 
-/// Borrowed character-data capability. Constructing or copying this view does
-/// not clone a native handle. Operations use `CharacterData`'s scalar indices and the shared document lock.
+/// A borrowed view of character data.
+///
+/// Constructing or copying this view does not clone a native handle.
+/// Operations use `CharacterData`'s scalar indices and the shared document lock.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CharacterDataRef<'a> {
+    /// A text node.
     Text(&'a TextNode),
+    /// A CDATA section node.
     CdataSection(&'a CdataSectionNode),
+    /// A comment node.
     Comment(&'a CommentNode),
+    /// A processing instruction node.
     ProcessingInstruction(&'a ProcessingInstructionNode),
 }
 
@@ -177,16 +197,28 @@ macro_rules! impl_node_views {
     ($($Node:ty),+ $(,)?) => {$(
         impl $Node {
             /// Borrow this node as an element, if it is one.
+            ///
+            /// # Returns
+            ///
+            /// A borrowed element node, or `None` if this node is not an element.
             pub fn as_element(&self) -> Option<&ElementNode> {
                 match self { Self::Element(node) => Some(node), _ => None }
             }
 
             /// Borrow this node as text. CDATA has its own concrete node type.
+            ///
+            /// # Returns
+            ///
+            /// A borrowed text node, or `None` if this node is not a text node.
             pub fn as_text(&self) -> Option<&TextNode> {
                 match self { Self::Text(node) => Some(node), _ => None }
             }
 
-            /// Borrow the parent capability without cloning a node handle.
+            /// Borrow this node as a parent node without cloning its handle.
+            ///
+            /// # Returns
+            ///
+            /// A borrowed parent-node view, or `None` if this node cannot contain children.
             pub fn as_parent(&self) -> Option<ParentNodeRef<'_>> {
                 match self {
                     Self::Element(node) => Some(ParentNodeRef::Element(node)),
@@ -196,7 +228,11 @@ macro_rules! impl_node_views {
                 }
             }
 
-            /// Borrow the character-data capability without cloning a node handle.
+            /// Borrow this node as character data without cloning its handle.
+            ///
+            /// # Returns
+            ///
+            /// A borrowed character-data view, or `None` if this node has no character data.
             pub fn as_character_data(&self) -> Option<CharacterDataRef<'_>> {
                 match self {
                     Self::Text(node) => Some(CharacterDataRef::Text(node)),
@@ -342,6 +378,7 @@ impl PartialEq for NodeHandle {
 macro_rules! define_node_type {
     ($Self: ident, $EnumType: ident) => {
         #[derive(Clone, PartialEq)]
+        #[doc = concat!("A handle to a DOM ", stringify!($Self), ".")]
         pub struct $Self {
             handle: NodeHandle,
         }
@@ -912,11 +949,11 @@ impl Element for ElementNode {
         unsafe { lxb_dom_element_has_attribute(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
-    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, ParserError> {
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
         Selector::new(selectors)?.closest(self)
     }
 
-    fn matches(&self, selectors: &str) -> Result<bool, ParserError> {
+    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
         Selector::new(selectors)?.matches(self)
     }
 

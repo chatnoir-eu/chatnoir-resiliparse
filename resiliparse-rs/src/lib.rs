@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Resiliparse provides HTML parsing and DOM APIs for Rust.
+//!
+//! The [`parse::html`] module exposes document trees, DOM node handles,
+//! traversal, collections, and CSS selector queries.
+
 mod third_party;
 
 pub mod parse;
