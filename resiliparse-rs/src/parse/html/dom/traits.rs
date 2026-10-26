@@ -81,7 +81,7 @@ unsafe fn splice_siblings_unchecked(
 }
 
 pub(crate) trait NodeInterfaceBaseImpl {
-    fn tree_(&self) -> Arc<HTMLDocument>;
+    fn tree_(&self) -> Arc<HtmlDocument>;
     fn node_ptr_(&self) -> *mut lxb_dom_node_t;
     fn reset_node_ptr_(&self);
 
@@ -650,10 +650,10 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     ///
     /// ```
     /// use resiliparse::parse::html::{
-    ///     dom::{node::Node, traits::NodeInterface}, tree::HTMLTree,
+    ///     dom::{node::Node, traits::NodeInterface}, tree::HtmlTree,
     /// };
     ///
-    /// let tree = HTMLTree::parse("<p>Hello <b>DOM</b></p>").unwrap();
+    /// let tree = HtmlTree::parse("<p>Hello <b>DOM</b></p>").unwrap();
     /// let node = Node::from(tree.body().unwrap());
     /// assert_eq!(node.iter().collect::<Result<Vec<_>, _>>().unwrap().len(), 5);
     /// assert_eq!(node.iter_elements().collect::<Result<Vec<_>, _>>().unwrap().len(), 3);
@@ -755,7 +755,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested tag name.
-    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_tag_name(&self, qualified_name: &str) -> HtmlCollection;
 
     /// Return a live collection of descendant elements containing the requested classes.
     ///
@@ -766,7 +766,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// A live collection of descendant elements containing all requested classes.
-    fn get_elements_by_class_name(&self, qualified_name: &str) -> HTMLCollection;
+    fn get_elements_by_class_name(&self, qualified_name: &str) -> HtmlCollection;
 
     /// Return a live collection of descendant elements with the given attribute value.
     ///
@@ -778,7 +778,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested attribute value.
-    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection;
+    fn get_elements_by_attr(&self, qualified_name: &str, value: &str) -> HtmlCollection;
 
     /// Return a live collection of descendants with the given attribute value and comparison mode.
     ///
@@ -791,7 +791,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested attribute value.
-    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
+    fn get_elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HtmlCollection;
 
     /// Create a detached element with the given local name.
     ///
@@ -802,14 +802,14 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached element, or a `DOMError` if creation fails.
-    fn create_element(&self, local_name: &str) -> Result<ElementNode, DOMError>;
+    fn create_element(&self, local_name: &str) -> Result<ElementNode, DomError>;
 
     /// Create an empty document fragment.
     ///
     /// # Returns
     ///
     /// The new empty document fragment, or a `DOMError` if creation fails.
-    fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DOMError>;
+    fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DomError>;
 
     /// Create a detached text node.
     ///
@@ -820,7 +820,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached text node, or a `DOMError` if creation fails.
-    fn create_text_node(&self, data: &str) -> Result<TextNode, DOMError>;
+    fn create_text_node(&self, data: &str) -> Result<TextNode, DomError>;
 
     /// Create a detached CDATA section.
     ///
@@ -831,7 +831,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached CDATA section, or a `DOMError` if creation fails.
-    fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DOMError>;
+    fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DomError>;
     /// Create a detached comment node.
     ///
     /// # Arguments
@@ -841,7 +841,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached comment node, or a `DOMError` if creation fails.
-    fn create_comment(&self, data: &str) -> Result<CommentNode, DOMError>;
+    fn create_comment(&self, data: &str) -> Result<CommentNode, DomError>;
 
     /// Create a detached processing instruction.
     ///
@@ -853,7 +853,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached processing instruction, or a `DOMError` if creation fails.
-    fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError>;
+    fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DomError>;
 
     /// Create a detached attribute node.
     ///
@@ -864,7 +864,7 @@ pub trait Document: DocumentOrShadowRoot + ParentNode + NonElementParentNode {
     /// # Returns
     ///
     /// The new detached attribute node, or a `DOMError` if creation fails.
-    fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DOMError>;
+    fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DomError>;
 }
 
 /// Operations available on a document fragment node.
@@ -877,7 +877,7 @@ pub trait ParentNode: NodeInterface {
     /// # Returns
     ///
     /// A live collection of child elements.
-    fn children(&self) -> HTMLCollection;
+    fn children(&self) -> HtmlCollection;
 
     /// First element child of this DOM node.
     ///
@@ -1178,14 +1178,14 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// A live token-list view of the class attribute.
-    fn class_list(&self) -> DOMTokenList<'_>;
+    fn class_list(&self) -> DomTokenList<'_>;
 
     /// Return a mutable token-list view of the class attribute.
     ///
     /// # Returns
     ///
     /// A mutable token-list view of the class attribute.
-    fn class_list_mut(&self) -> DOMTokenListMut<'_> {
+    fn class_list_mut(&self) -> DomTokenListMut<'_> {
         self.class_list()
     }
 
@@ -1336,7 +1336,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested tag name.
-    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection;
+    fn get_elements_by_tag_name(&self, name: &str) -> HtmlCollection;
 
     /// Return a live collection of descendant elements containing the requested classes.
     ///
@@ -1347,7 +1347,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// A live collection of descendant elements containing all requested classes.
-    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
+    fn get_elements_by_class_name(&self, class_names: &str) -> HtmlCollection;
 
     /// Return a live collection of descendant elements with the given attribute value.
     ///
@@ -1359,7 +1359,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested attribute value.
-    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection;
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HtmlCollection;
 
     /// Return a live collection of descendants with the given attribute value and comparison mode.
     ///
@@ -1372,7 +1372,7 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// A live collection of descendant elements with the requested attribute value.
-    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection;
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HtmlCollection;
 
     /// Serialize this element’s child nodes as markup.
     ///
@@ -1491,12 +1491,12 @@ pub trait Attr: NodeInterface {
 
 /// Convert Unicode scalar indices to UTF-8 byte boundaries. Counts past the
 /// end are clamped; offsets past the end are rejected, including empty edits.
-fn character_data_range(data: &str, offset: usize, count: usize) -> Result<Range<usize>, DOMError> {
+fn character_data_range(data: &str, offset: usize, count: usize) -> Result<Range<usize>, DomError> {
     let mut boundaries = data
         .char_indices()
         .map(|(index, _)| index)
         .chain(std::iter::once(data.len()));
-    let start = boundaries.nth(offset).ok_or_else(|| DOMError {
+    let start = boundaries.nth(offset).ok_or_else(|| DomError {
         msg: "Character-data offset exceeds length".into(),
     })?;
     let end = if count == 0 {
@@ -1569,8 +1569,8 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// The requested substring, or a `DOMError` if `offset` exceeds the data length.
-    fn substring_data(&self, offset: usize, count: usize) -> Result<String, DOMError> {
-        let data = self.data().ok_or_else(|| DOMError {
+    fn substring_data(&self, offset: usize, count: usize) -> Result<String, DomError> {
+        let data = self.data().ok_or_else(|| DomError {
             msg: "Character data is unavailable".into(),
         })?;
         Ok(data[character_data_range(&data, offset, count)?].to_owned())
@@ -1606,7 +1606,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// No value if insertion succeeds; otherwise a `DOMError` if `offset` exceeds the data length.
-    fn insert_data(&self, offset: usize, data: &str) -> Result<(), DOMError> {
+    fn insert_data(&self, offset: usize, data: &str) -> Result<(), DomError> {
         self.replace_data(offset, 0, data)
     }
 
@@ -1620,7 +1620,7 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// No value if deletion succeeds; otherwise a `DOMError` if `offset` exceeds the data length.
-    fn delete_data(&self, offset: usize, count: usize) -> Result<(), DOMError> {
+    fn delete_data(&self, offset: usize, count: usize) -> Result<(), DomError> {
         self.replace_data(offset, count, "")
     }
 
@@ -1635,10 +1635,10 @@ pub trait CharacterData: NodeInterface + ChildNode + NonDocumentTypeChildNode {
     /// # Returns
     ///
     /// No value if replacement succeeds; otherwise a `DOMError` if `offset` exceeds the data length.
-    fn replace_data(&self, offset: usize, count: usize, data: &str) -> Result<(), DOMError> {
+    fn replace_data(&self, offset: usize, count: usize, data: &str) -> Result<(), DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
-        let mut value = self.data().ok_or_else(|| DOMError {
+        let mut value = self.data().ok_or_else(|| DomError {
             msg: "Character data is unavailable".into(),
         })?;
         let range = character_data_range(&value, offset, count)?;

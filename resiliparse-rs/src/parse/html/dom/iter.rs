@@ -26,7 +26,7 @@ use std::iter::FusedIterator;
 use std::ptr;
 use std::sync::Arc;
 
-use crate::parse::html::tree::HTMLDocument;
+use crate::parse::html::tree::HtmlDocument;
 
 // Only the owning TraversalState is Send; an unowned raw cursor is not.
 struct NodeIteratorRaw {
@@ -88,7 +88,7 @@ impl Display for TraversalError {
 impl Error for TraversalError {}
 
 struct TraversalState {
-    document: Arc<HTMLDocument>,
+    document: Arc<HtmlDocument>,
     expected_epoch: u64,
     cursor: NodeIteratorRaw,
     finished: bool,

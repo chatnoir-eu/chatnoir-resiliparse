@@ -25,7 +25,7 @@ use crate::parse::html::dom::coll::ElementNodeList;
 use crate::parse::html::dom::node::{ElementNode, NodeRef};
 use crate::parse::html::dom::traits::{NodeInterface, NodeInterfaceBaseImpl};
 use crate::parse::html::lexbor::*;
-use crate::parse::html::tree::HTMLDocument;
+use crate::parse::html::tree::HtmlDocument;
 use crate::third_party::lexbor::lexbor_status_t::*;
 use crate::third_party::lexbor::*;
 
@@ -55,7 +55,7 @@ pub enum TraverseAction {
 
 struct MatchContextWrapper<'a, T, F> {
     f: F,
-    tree: Arc<HTMLDocument>,
+    tree: Arc<HtmlDocument>,
     custom_data: &'a mut T,
     panic: Option<Box<dyn std::any::Any + Send>>,
 }
@@ -73,10 +73,10 @@ struct MatchContextWrapper<'a, T, F> {
 /// ```
 /// use resiliparse::parse::html::selector::CssSelector;
 /// use resiliparse::parse::html::dom::traits::*;
-/// use resiliparse::parse::html::tree::HTMLTree;
+/// use resiliparse::parse::html::tree::HtmlTree;
 ///
 /// let selector = CssSelector::new("a[href]")?;
-/// let tree = HTMLTree::parse("<body><a href='/'>link</a></body>").unwrap();
+/// let tree = HtmlTree::parse("<body><a href='/'>link</a></body>").unwrap();
 /// let body = tree.body().unwrap();
 /// let links = selector.query_selector_all(&body.as_noderef())?;
 /// assert!(selector.matches(&links[0])?);

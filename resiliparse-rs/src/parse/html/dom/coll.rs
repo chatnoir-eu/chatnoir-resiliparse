@@ -265,7 +265,7 @@ impl<T: Display> Display for LiveCollection<T> {
 pub type ElementNodeList = NodeList<ElementNode>;
 
 /// A live query of element handles.
-pub type HTMLCollection = LiveCollection<ElementNode>;
+pub type HtmlCollection = LiveCollection<ElementNode>;
 
 /// A live attribute map tied to its owning element.
 ///
@@ -399,7 +399,7 @@ impl Display for NamedNodeMap {
     }
 }
 
-impl HTMLCollection {
+impl HtmlCollection {
     /// Return the first element whose `id` or `name` matches the given value.
     ///
     /// # Arguments
@@ -600,10 +600,10 @@ impl ElementNodeList {
     }
 }
 
-// ---------------------------------------- DOMTokenList impl --------------------------------------
+// ---------------------------------------- DomTokenList impl --------------------------------------
 
 /// Read-only operations for a whitespace-separated DOM token list.
-pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + PartialEq {
+pub trait DomTokenListInterface: IntoIterator + PartialEq + Debug + Display + PartialEq {
     /// Return the raw token-list string.
     ///
     /// # Returns
@@ -682,13 +682,13 @@ pub trait DOMTokenListInterface: IntoIterator + PartialEq + Debug + Display + Pa
     }
 }
 
-pub(crate) trait DOMTokenListBaseImpl {
+pub(crate) trait DomTokenListBaseImpl {
     fn element_(&self) -> &ElementNode;
 }
 
 /// Mutation operations for a whitespace-separated DOM token list.
 #[allow(private_bounds)]
-pub trait DOMTokenListMutInterface: DOMTokenListInterface + DOMTokenListBaseImpl {
+pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl {
     /// Replace the raw token-list string.
     ///
     /// # Arguments
@@ -809,19 +809,19 @@ pub trait DOMTokenListMutInterface: DOMTokenListInterface + DOMTokenListBaseImpl
 // Cannot derive default implementations for sub traits (yet)
 macro_rules! dom_token_list_impl {
     ($Self: ty) => {
-        impl DOMTokenListBaseImpl for $Self {
+        impl DomTokenListBaseImpl for $Self {
             fn element_(&self) -> &ElementNode {
                 &self.element
             }
         }
 
-        impl DOMTokenListMutInterface for $Self {
+        impl DomTokenListMutInterface for $Self {
             fn set_value(&self, value: &str) {
                 self.element.set_class_name(value);
             }
         }
 
-        impl DOMTokenListInterface for $Self {
+        impl DomTokenListInterface for $Self {
             #[inline]
             fn value(&self) -> String {
                 self.element.class_name().unwrap_or_default()
@@ -870,37 +870,37 @@ macro_rules! dom_token_list_impl {
 
 /// A live view of an element’s class tokens.
 #[derive(PartialEq)]
-pub struct DOMTokenList<'a> {
+pub struct DomTokenList<'a> {
     element: &'a ElementNode,
 }
 
-impl<'a> DOMTokenList<'a> {
+impl<'a> DomTokenList<'a> {
     pub(crate) fn new(element: &'a ElementNode) -> Self {
         Self { element }
     }
 }
 
-dom_token_list_impl!(DOMTokenList<'_>);
+dom_token_list_impl!(DomTokenList<'_>);
 
 /// Compatibility name for a shared token-list view; mutation is document-locked.
-pub type DOMTokenListMut<'a> = DOMTokenList<'a>;
+pub type DomTokenListMut<'a> = DomTokenList<'a>;
 
 /// An owned view of an element’s class tokens.
 #[derive(PartialEq)]
-pub struct DOMTokenListOwned {
+pub struct DomTokenListOwned {
     element: ElementNode,
 }
 
-impl DOMTokenListOwned {
+impl DomTokenListOwned {
     pub(crate) fn new(element: ElementNode) -> Self {
         Self { element }
     }
 }
 
-dom_token_list_impl!(DOMTokenListOwned);
+dom_token_list_impl!(DomTokenListOwned);
 
-impl From<DOMTokenList<'_>> for DOMTokenListOwned {
-    fn from(value: DOMTokenList<'_>) -> Self {
+impl From<DomTokenList<'_>> for DomTokenListOwned {
+    fn from(value: DomTokenList<'_>) -> Self {
         Self::new(value.element.clone())
     }
 }

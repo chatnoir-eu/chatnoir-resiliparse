@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use crate::parse::html::dom::node::*;
 use crate::parse::html::dom::traits::NodeInterfaceBaseImpl;
-use crate::parse::html::tree::HTMLDocument;
+use crate::parse::html::tree::HtmlDocument;
 use crate::third_party::lexbor::lxb_dom_node_type_t::*;
 use crate::third_party::lexbor::*;
 
@@ -32,21 +32,21 @@ pub mod traits;
 
 /// An error that occurred during DOM operations.
 #[derive(Debug)]
-pub struct DOMError {
+pub struct DomError {
     msg: String,
 }
 
-impl Display for DOMError {
+impl Display for DomError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "DOM error: {}", self.msg)
     }
 }
 
-impl Error for DOMError {}
+impl Error for DomError {}
 
 // -------------------------------------- Crate-public Helpers -------------------------------------
 
-pub(crate) fn wrap_any_raw_node(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
+pub(crate) fn wrap_any_raw_node(tree: &Arc<HtmlDocument>, node: *mut lxb_dom_node_t) -> Option<Node> {
     let _guard = tree.doc_ptr();
     match unsafe { node.as_ref()?.type_ } {
         LXB_DOM_NODE_TYPE_ELEMENT => Some(Node::Element(ElementNode::new(tree, node))),
@@ -89,7 +89,7 @@ unsafe fn move_node_before_unchecked(
     }
 }
 
-unsafe fn next_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
+unsafe fn next_element_unchecked(tree: &Arc<HtmlDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
     unsafe {
         while !child.is_null() {
             if (*child).type_ == LXB_DOM_NODE_TYPE_ELEMENT {
@@ -101,7 +101,7 @@ unsafe fn next_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_d
     }
 }
 
-unsafe fn previous_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
+unsafe fn previous_element_unchecked(tree: &Arc<HtmlDocument>, mut child: *mut lxb_dom_node_t) -> Option<ElementNode> {
     unsafe {
         while !child.is_null() {
             if (*child).type_ == LXB_DOM_NODE_TYPE_ELEMENT {
@@ -113,7 +113,7 @@ unsafe fn previous_element_unchecked(tree: &Arc<HTMLDocument>, mut child: *mut l
     }
 }
 
-unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Result<ElementNode, DOMError> {
+unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Result<ElementNode, DomError> {
     unsafe {
         let element = lxb_dom_document_create_element(
             doc.node_ptr_().cast(),
@@ -122,7 +122,7 @@ unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Resu
             ptr::null_mut(),
         );
         if element.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "ElementNode allocation failed".to_owned(),
             });
         }
@@ -130,11 +130,11 @@ unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Resu
     }
 }
 
-unsafe fn create_document_fragment_unchecked(doc: &DocumentNode) -> Result<DocumentFragmentNode, DOMError> {
+unsafe fn create_document_fragment_unchecked(doc: &DocumentNode) -> Result<DocumentFragmentNode, DomError> {
     unsafe {
         let doc_frag = lxb_dom_document_create_document_fragment(doc.node_ptr_().cast());
         if doc_frag.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "DocumentFragmentNode allocation failed".to_owned(),
             });
         }
@@ -142,11 +142,11 @@ unsafe fn create_document_fragment_unchecked(doc: &DocumentNode) -> Result<Docum
     }
 }
 
-unsafe fn create_text_node_unchecked(doc: &DocumentNode, data: &str) -> Result<TextNode, DOMError> {
+unsafe fn create_text_node_unchecked(doc: &DocumentNode, data: &str) -> Result<TextNode, DomError> {
     unsafe {
         let text = lxb_dom_document_create_text_node(doc.node_ptr_().cast(), data.as_ptr(), data.len());
         if text.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "TextNode allocation failed".to_owned(),
             });
         }
@@ -154,11 +154,11 @@ unsafe fn create_text_node_unchecked(doc: &DocumentNode, data: &str) -> Result<T
     }
 }
 
-unsafe fn create_cdata_section_unchecked(doc: &DocumentNode, data: &str) -> Result<CdataSectionNode, DOMError> {
+unsafe fn create_cdata_section_unchecked(doc: &DocumentNode, data: &str) -> Result<CdataSectionNode, DomError> {
     unsafe {
         let cdata = lxb_dom_document_create_cdata_section(doc.node_ptr_().cast(), data.as_ptr(), data.len());
         if cdata.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "CdataSectionNode allocation failed".to_owned(),
             });
         }
@@ -166,11 +166,11 @@ unsafe fn create_cdata_section_unchecked(doc: &DocumentNode, data: &str) -> Resu
     }
 }
 
-unsafe fn create_comment_unchecked(doc: &DocumentNode, data: &str) -> Result<CommentNode, DOMError> {
+unsafe fn create_comment_unchecked(doc: &DocumentNode, data: &str) -> Result<CommentNode, DomError> {
     unsafe {
         let comment = lxb_dom_document_create_comment(doc.node_ptr_().cast(), data.as_ptr(), data.len());
         if comment.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "CommentNode allocation failed".to_owned(),
             });
         }
@@ -182,7 +182,7 @@ unsafe fn create_processing_instruction_unchecked(
     doc: &DocumentNode,
     target: &str,
     data: &str,
-) -> Result<ProcessingInstructionNode, DOMError> {
+) -> Result<ProcessingInstructionNode, DomError> {
     unsafe {
         let proc = lxb_dom_document_create_processing_instruction(
             doc.node_ptr_().cast(),
@@ -192,7 +192,7 @@ unsafe fn create_processing_instruction_unchecked(
             data.len(),
         );
         if proc.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "ProcessingInstructionNode allocation failed".to_owned(),
             });
         }
@@ -200,18 +200,18 @@ unsafe fn create_processing_instruction_unchecked(
     }
 }
 
-unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Result<AttrNode, DOMError> {
+unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Result<AttrNode, DomError> {
     unsafe {
         let attr = lxb_dom_attr_interface_create(doc.node_ptr_().cast());
         if attr.is_null() {
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "AttrNode allocation failed".to_owned(),
             });
         }
         let status = lxb_dom_attr_set_name(attr, local_name.as_ptr(), local_name.len(), true);
         if status != lexbor_status_t::LXB_STATUS_OK {
             lxb_dom_attr_interface_destroy(attr);
-            return Err(DOMError {
+            return Err(DomError {
                 msg: "Failed to set attribute name".to_owned(),
             });
         }
@@ -294,7 +294,7 @@ unsafe fn get_elements_by_class_name(node: &Node, class_names: &str) -> Vec<Elem
 }
 
 unsafe fn dom_coll_to_vec(
-    tree: &Arc<HTMLDocument>,
+    tree: &Arc<HtmlDocument>,
     coll: *mut lxb_dom_collection_t,
     destroy: bool,
 ) -> Vec<ElementNode> {

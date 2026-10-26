@@ -18,13 +18,13 @@ use pyo3::exceptions::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
 use resiliparse::parse::html::dom::coll as coll_impl;
-use resiliparse::parse::html::dom::coll::{DOMTokenListInterface, DOMTokenListMutInterface};
+use resiliparse::parse::html::dom::coll::{DomTokenListInterface, DomTokenListMutInterface};
 use resiliparse::parse::html::dom::traits::NodeInterface;
 
 pub enum NL {
     NodeList(coll_impl::NodeList),
     LiveNodes(coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>),
-    LiveElements(coll_impl::HTMLCollection),
+    LiveElements(coll_impl::HtmlCollection),
     ElementNodeList(coll_impl::ElementNodeList),
     NamedNodeMap(coll_impl::NamedNodeMap),
 }
@@ -53,8 +53,8 @@ impl From<coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>> 
     }
 }
 
-impl From<coll_impl::HTMLCollection> for NL {
-    fn from(value: coll_impl::HTMLCollection) -> Self {
+impl From<coll_impl::HtmlCollection> for NL {
+    fn from(value: coll_impl::HtmlCollection) -> Self {
         Self::LiveElements(value)
     }
 }
@@ -280,17 +280,17 @@ impl NamedNodeMap {
 #[pyclass(unsendable, subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
 #[derive(PartialEq)]
 pub struct DOMTokenList {
-    list: coll_impl::DOMTokenListOwned,
+    list: coll_impl::DomTokenListOwned,
 }
 
-impl From<coll_impl::DOMTokenListOwned> for DOMTokenList {
-    fn from(list: coll_impl::DOMTokenListOwned) -> Self {
+impl From<coll_impl::DomTokenListOwned> for DOMTokenList {
+    fn from(list: coll_impl::DomTokenListOwned) -> Self {
         Self { list }
     }
 }
 
-impl From<coll_impl::DOMTokenList<'_>> for DOMTokenList {
-    fn from(list: coll_impl::DOMTokenList<'_>) -> Self {
+impl From<coll_impl::DomTokenList<'_>> for DOMTokenList {
+    fn from(list: coll_impl::DomTokenList<'_>) -> Self {
         Self { list: list.into() }
     }
 }

@@ -20,14 +20,14 @@ use resiliparse::parse::html::tree as tree_impl;
 
 #[pyclass(unsendable, module = "resiliparse.parse._html_rs")]
 pub struct HTMLTree {
-    tree: tree_impl::HTMLTree,
+    tree: tree_impl::HtmlTree,
 }
 
 #[pymethods]
 impl HTMLTree {
     #[staticmethod]
     pub fn parse(document: &str) -> PyResult<Self> {
-        match tree_impl::HTMLTree::parse(document) {
+        match tree_impl::HtmlTree::parse(document) {
             Ok(t) => Ok(Self { tree: t }),
             _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
         }
@@ -37,7 +37,7 @@ impl HTMLTree {
     #[staticmethod]
     #[pyo3(signature = (document, encoding="utf-8", errors="ignore"))]
     pub fn parse_from_bytes<'py>(document: &Bound<'py, PyBytes>, encoding: &str, errors: &str) -> PyResult<Self> {
-        match tree_impl::HTMLTree::try_from(document.as_bytes()) {
+        match tree_impl::HtmlTree::try_from(document.as_bytes()) {
             Ok(t) => Ok(Self { tree: t }),
             _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
         }

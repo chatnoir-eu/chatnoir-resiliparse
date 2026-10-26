@@ -31,29 +31,29 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 /// An HTML parser error.
 #[derive(Debug)]
-pub struct HTMLParserError {
+pub struct HtmlParserError {
     msg: String,
 }
 
-impl Display for HTMLParserError {
+impl Display for HtmlParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "HTML parser error: {}.", self.msg)
     }
 }
 
-impl Error for HTMLParserError {}
+impl Error for HtmlParserError {}
 
 /// HTML DOM tree handle.
-pub struct HTMLTree {
-    doc: Arc<HTMLDocument>,
+pub struct HtmlTree {
+    doc: Arc<HtmlDocument>,
     _not_sync: PhantomData<Cell<()>>,
 }
 
-impl HTMLTree {
+impl HtmlTree {
     /// Parse HTML from a Unicode `str` into a DOM tree.
     ///
     /// Constructs a DOM tree from the given HTML input string.
-    /// Returns an [HTMLParserError] if the input could not be processed.
+    /// Returns an [HtmlParserError] if the input could not be processed.
     ///
     /// # Arguments
     ///
@@ -62,81 +62,81 @@ impl HTMLTree {
     /// # Returns
     ///
     /// The parsed HTML document tree.
-    pub fn parse(html: &str) -> Result<Self, HTMLParserError> {
+    pub fn parse(html: &str) -> Result<Self, HtmlParserError> {
         let doc_ptr;
         unsafe {
             doc_ptr = lxb_html_document_create();
             if doc_ptr.is_null() {
-                return Err(HTMLParserError {
+                return Err(HtmlParserError {
                     msg: "Failed to allocate memory.".to_owned(),
                 });
             }
             let status = lxb_html_document_parse(doc_ptr, html.as_ptr(), html.len());
             if status != LXB_STATUS_OK {
                 lxb_html_document_destroy(doc_ptr);
-                return Err(HTMLParserError {
+                return Err(HtmlParserError {
                     msg: format!("Failed to parse document (Error {}).", status),
                 });
             }
         }
 
-        Ok(HTMLTree {
-            doc: Arc::new(HTMLDocument::new(doc_ptr)),
+        Ok(HtmlTree {
+            doc: Arc::new(HtmlDocument::new(doc_ptr)),
             _not_sync: PhantomData,
         })
     }
 }
 
-impl FromStr for HTMLTree {
-    type Err = HTMLParserError;
+impl FromStr for HtmlTree {
+    type Err = HtmlParserError;
 
     /// Parse HTML from a Unicode `str` into a DOM tree.
     ///
-    /// This is an alias for [HTMLTree::parse].
+    /// This is an alias for [HtmlTree::parse].
     #[inline]
     fn from_str(html: &str) -> Result<Self, Self::Err> {
         Self::parse(html)
     }
 }
 
-impl TryFrom<&str> for HTMLTree {
-    type Error = HTMLParserError;
+impl TryFrom<&str> for HtmlTree {
+    type Error = HtmlParserError;
 
     /// Parse HTML from a Unicode `str` into a DOM tree.
     ///
-    /// This is an alias for [HTMLTree::parse].
+    /// This is an alias for [HtmlTree::parse].
     #[inline]
     fn try_from(html: &str) -> Result<Self, Self::Error> {
         Self::parse(html)
     }
 }
 
-impl TryFrom<String> for HTMLTree {
-    type Error = HTMLParserError;
+impl TryFrom<String> for HtmlTree {
+    type Error = HtmlParserError;
 
     /// Parse HTML from a Unicode `String` into a DOM tree.
     ///
-    /// This is an alias for [HTMLTree::parse], but accepts an owned `String`.
+    /// This is an alias for [HtmlTree::parse], but accepts an owned `String`.
     #[inline]
     fn try_from(html: String) -> Result<Self, Self::Error> {
         Self::parse(html.as_str())
     }
 }
 
-impl TryFrom<&[u8]> for HTMLTree {
-    type Error = HTMLParserError;
+impl TryFrom<&[u8]> for HtmlTree {
+    type Error = HtmlParserError;
 
     /// Decode a raw HTML byte string and parse it into a DOM tree.
     /// The bytes must be a valid UTF-8 encoding. Invalid characters will be replaced with `U+FFFD`.
     ///
-    /// This is an alias for [HTMLTree::parse], but accepts raw bytes.
+    /// This is an alias for [HtmlTree::parse], but accepts raw bytes.
     #[inline]
     fn try_from(html: &[u8]) -> Result<Self, Self::Error> {
         Self::parse(String::from_utf8_lossy(html).to_mut())
     }
 }
 
-impl HTMLTree {
+impl HtmlTree {
     /// Get Lexbor raw pointer to HTML document.
     fn get_html_document_ptr(&self) -> *mut lxb_html_document_t {
         *self.doc.doc_ptr()
@@ -206,7 +206,7 @@ impl HTMLTree {
 
 /// Internal heap-allocated and reference-counted HTMLTree.
 #[derive(Debug)]
-pub(crate) struct HTMLDocument {
+pub(crate) struct HtmlDocument {
     html_document: ReentrantMutex<*mut lxb_html_document_t>,
     mutation_epoch: AtomicU64,
 }
@@ -214,10 +214,10 @@ pub(crate) struct HTMLDocument {
 // SAFETY: this internal owner is always accessed through the document lock.
 // Cloneable public handles can be sent separately, so they still need this one
 // shared lock even though the public tree and node handles are deliberately !Sync.
-unsafe impl Send for HTMLDocument {}
-unsafe impl Sync for HTMLDocument {}
+unsafe impl Send for HtmlDocument {}
+unsafe impl Sync for HtmlDocument {}
 
-impl HTMLDocument {
+impl HtmlDocument {
     pub(crate) fn doc_ptr(&self) -> ReentrantMutexGuard<'_, *mut lxb_html_document_t> {
         self.html_document.lock()
     }
@@ -236,14 +236,14 @@ impl HTMLDocument {
     }
 
     pub(crate) fn new(doc: *mut lxb_html_document_t) -> Self {
-        HTMLDocument {
+        HtmlDocument {
             html_document: ReentrantMutex::new(doc),
             mutation_epoch: AtomicU64::new(0),
         }
     }
 }
 
-impl Drop for HTMLDocument {
+impl Drop for HtmlDocument {
     fn drop(&mut self) {
         let doc = self.html_document.get_mut();
         if !doc.is_null() {

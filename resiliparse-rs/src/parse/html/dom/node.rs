@@ -61,7 +61,7 @@ macro_rules! define_node_enums {
         }
 
         impl NodeInterfaceBaseImpl for Node {
-            fn tree_(&self) -> Arc<HTMLDocument> {
+            fn tree_(&self) -> Arc<HtmlDocument> {
                 match self { $(Self::$Variant(node) => node.tree_()),+ }
             }
 
@@ -134,9 +134,9 @@ define_node_enums! {
 /// and the shared document lock.
 ///
 /// ```
-/// use resiliparse::parse::html::{dom::traits::NodeInterface, tree::HTMLTree};
+/// use resiliparse::parse::html::{dom::traits::NodeInterface, tree::HtmlTree};
 ///
-/// let tree = HTMLTree::parse("<a href='/page'>link</a>").unwrap();
+/// let tree = HtmlTree::parse("<a href='/page'>link</a>").unwrap();
 /// let node = tree.body().unwrap().into_node();
 /// if let Some(parent) = node.as_parent() {
 ///     assert_eq!(parent.query_selector_all("a[href]").unwrap().len(), 1);
@@ -306,7 +306,7 @@ pub(crate) use check_nodes;
 /// Decomposition invalidates this handle; clones remain separately retained.
 /// Only live handles have a comparable native identity.
 struct NodeHandle {
-    document: Arc<HTMLDocument>,
+    document: Arc<HtmlDocument>,
     node: Cell<*mut lxb_dom_node_t>,
 }
 
@@ -315,7 +315,7 @@ struct NodeHandle {
 unsafe impl Send for NodeHandle {}
 
 impl NodeHandle {
-    fn new(document: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t, kind: NodeType) -> Self {
+    fn new(document: &Arc<HtmlDocument>, node: *mut lxb_dom_node_t, kind: NodeType) -> Self {
         let _guard = document.doc_ptr();
         if !node.is_null() {
             unsafe {
@@ -384,7 +384,7 @@ macro_rules! define_node_type {
         }
 
         impl $Self {
-            pub(crate) fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self {
+            pub(crate) fn new(tree: &Arc<HtmlDocument>, node: *mut lxb_dom_node_t) -> Self {
                 Self {
                     handle: NodeHandle::new(tree, node, NodeType::$EnumType),
                 }
@@ -393,7 +393,7 @@ macro_rules! define_node_type {
 
         impl NodeInterfaceBaseImpl for $Self {
             #[inline(always)]
-            fn tree_(&self) -> Arc<HTMLDocument> {
+            fn tree_(&self) -> Arc<HtmlDocument> {
                 self.handle.document.clone()
             }
 
@@ -590,26 +590,26 @@ impl Document for DocumentNode {
         self.owner_document()?.first_element_child()
     }
 
-    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
+    fn get_elements_by_tag_name(&self, name: &str) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
             get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0])
         })
     }
 
-    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
+    fn get_elements_by_class_name(&self, class_names: &str) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
             get_elements_by_class_name(n, &cls.unwrap_unchecked()[0])
         })
     }
 
     #[inline(always)]
-    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection {
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HtmlCollection {
         self.get_elements_by_attr_case(name, value, false)
     }
 
-    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HtmlCollection {
         let user_data = Box::new([name.to_owned(), value.to_owned(), case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
+        HtmlCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
             get_elements_by_attr(
                 &n.as_noderef(),
                 &attr.unwrap_unchecked()[0],
@@ -619,85 +619,85 @@ impl Document for DocumentNode {
         })
     }
 
-    fn create_element(&self, local_name: &str) -> Result<ElementNode, DOMError> {
+    fn create_element(&self, local_name: &str) -> Result<ElementNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_element_unchecked(&self, local_name) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DOMError> {
+    fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_document_fragment_unchecked(&self) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_text_node(&self, data: &str) -> Result<TextNode, DOMError> {
+    fn create_text_node(&self, data: &str) -> Result<TextNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_text_node_unchecked(&self, data) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DOMError> {
+    fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_cdata_section_unchecked(&self, data) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_comment(&self, data: &str) -> Result<CommentNode, DOMError> {
+    fn create_comment(&self, data: &str) -> Result<CommentNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_comment_unchecked(&self, data) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DOMError> {
+    fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_processing_instruction_unchecked(&self, target, data) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
     }
 
-    fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DOMError> {
+    fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DomError> {
         let document = self.tree_();
         let _guard = document.doc_ptr();
         if !self.node_ptr_().is_null() {
             unsafe { create_attribute_unchecked(&self, local_name) }
         } else {
-            Err(DOMError {
+            Err(DomError {
                 msg: "Invalid document.".to_owned(),
             })
         }
@@ -707,8 +707,8 @@ impl Document for DocumentNode {
 impl DocumentOrShadowRoot for DocumentNode {}
 
 impl ParentNode for DocumentNode {
-    fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
+    fn children(&self) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Document(d) = n {
                 let mut child = d.first_element_child();
@@ -733,8 +733,8 @@ impl DocumentFragment for DocumentFragmentNode {}
 impl DocumentOrShadowRoot for DocumentFragmentNode {}
 
 impl ParentNode for DocumentFragmentNode {
-    fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
+    fn children(&self) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::DocumentFragment(d) = n {
                 let mut child = d.first_element_child();
@@ -841,8 +841,8 @@ impl Element for ElementNode {
         self.set_attribute("class", class_name);
     }
 
-    fn class_list(&self) -> DOMTokenList<'_> {
-        DOMTokenList::new(self)
+    fn class_list(&self) -> DomTokenList<'_> {
+        DomTokenList::new(self)
     }
 
     fn attribute(&self, qualified_name: &str) -> Option<String> {
@@ -957,25 +957,25 @@ impl Element for ElementNode {
         CssSelector::new(selectors)?.matches(self)
     }
 
-    fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
+    fn get_elements_by_tag_name(&self, name: &str) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
             get_elements_by_tag_name(&n, &qn.unwrap_unchecked()[0])
         })
     }
 
-    fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
+    fn get_elements_by_class_name(&self, class_names: &str) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
             get_elements_by_class_name(&n, &cls.unwrap_unchecked()[0])
         })
     }
 
-    fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection {
+    fn get_elements_by_attr(&self, name: &str, value: &str) -> HtmlCollection {
         self.get_elements_by_attr_case(name, value, false)
     }
 
-    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HtmlCollection {
         let user_data = Box::new([name.to_owned(), value.to_owned(), case_insensitive.to_string()]);
-        HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
+        HtmlCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
             get_elements_by_attr(
                 &n.as_noderef(),
                 &attr.unwrap_unchecked()[0],
@@ -1090,8 +1090,8 @@ impl Element for ElementNode {
 }
 
 impl ParentNode for ElementNode {
-    fn children(&self) -> HTMLCollection {
-        HTMLCollection::new_live(&self.as_noderef(), None, |n, _| {
+    fn children(&self) -> HtmlCollection {
+        HtmlCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes: Vec<ElementNode> = Vec::new();
             if let Node::Element(e) = n {
                 let mut child = e.first_element_child();
