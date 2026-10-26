@@ -14,18 +14,18 @@ license.workspace = true
 crate-type = ["lib"]
 
 [dependencies]
-brotli = "8.0"
+brotli = "9.0"
 data-encoding = "2.10"
 uuid = { version = "1.18", features = ["v4"] }
 encoding = "0.2"
-lz4_flex = { version = "0.13", default-features = false, features = ["frame"] }
+lz4_flex = { version = "0.14", default-features = false, features = ["frame"] }
 memchr.workspace = true
 md-5 = "0.11"
 sha1 = "0.11"
 sha2 = "0.11"
 time.workspace = true
 zlib-rs = "0.6"
-zstd = { version = "0.13", features = ["zstdmt"] }
+zstd = { version = "0.14", features = ["zstdmt"] }
 digest = "0.11"
 
 [dev-dependencies]
