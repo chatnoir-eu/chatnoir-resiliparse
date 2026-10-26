@@ -1,6 +1,8 @@
 name: Build manylinux docker container
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - develop
