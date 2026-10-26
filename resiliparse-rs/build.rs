@@ -47,6 +47,9 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.to_str().unwrap());
     println!("cargo:rustc-link-lib=lexbor");
+    if matches!(env::var("CARGO_CFG_TARGET_OS").as_deref(), Ok("macos" | "linux")) {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}/lib", vcpkg_dir.display());
+    }
     println!("cargo:rerun-if-changed=src/third_party/lexbor.h");
 
     bindgen::Builder::default()
