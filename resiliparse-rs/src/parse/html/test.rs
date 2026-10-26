@@ -1965,7 +1965,20 @@ fn concrete_node_construction_checks_kind_before_retaining() {
     let _guard = document.doc_ptr();
     let pointer = element.node_ptr_();
     let ref_count = unsafe { (*pointer).ref_count };
+
+    // Catch panic output, then restore hook
+    let previous_hook = std::sync::Arc::new(std::panic::take_hook());
+    let fallback_hook = previous_hook.clone();
+    let test_thread = std::thread::current().name().map(str::to_owned);
+    std::panic::set_hook(Box::new(move |info| {
+        if std::thread::current().name() != test_thread.as_deref() {
+            fallback_hook(info);
+        }
+    }));
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| TextNode::new(&document, pointer)));
+    let _ = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| previous_hook(info)));
+
     assert!(result.is_err());
     assert_eq!(unsafe { (*pointer).ref_count }, ref_count);
     assert_eq!(element.tag_name().as_deref(), Some("BODY"));
