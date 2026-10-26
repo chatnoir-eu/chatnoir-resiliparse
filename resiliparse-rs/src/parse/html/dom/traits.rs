@@ -16,7 +16,7 @@
 //!
 //! Abstract DOM node type interfaces.
 
-use crate::parse::html::css::{CSSParserError, Selector};
+use crate::parse::html::css::{ParserError, Selector};
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::*;
@@ -612,11 +612,11 @@ pub trait ParentNode: NodeInterface {
         }
     }
 
-    fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+    fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, ParserError> {
         Selector::new(selectors)?.query_selector(&self.as_noderef())
     }
 
-    fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
+    fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, ParserError> {
         Selector::new(selectors)?.query_selector_all(&self.as_noderef())
     }
 }
@@ -707,8 +707,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn toggle_attribute(&self, qualified_name: &str, force: Option<bool>) -> bool;
     fn has_attribute(&self, qualified_name: &str) -> bool;
 
-    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError>;
-    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError>;
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, ParserError>;
+    fn matches(&self, selectors: &str) -> Result<bool, ParserError>;
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection;
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection;
     fn get_elements_by_attr(&self, name: &str, value: &str) -> HTMLCollection;

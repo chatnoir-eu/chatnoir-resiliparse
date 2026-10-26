@@ -912,11 +912,11 @@ impl Element for ElementNode {
         unsafe { lxb_dom_element_has_attribute(self.node_ptr_().cast(), qualified_name.as_ptr(), qualified_name.len()) }
     }
 
-    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+    fn closest(&self, selectors: &str) -> Result<Option<ElementNode>, ParserError> {
         Selector::new(selectors)?.closest(self)
     }
 
-    fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
+    fn matches(&self, selectors: &str) -> Result<bool, ParserError> {
         Selector::new(selectors)?.matches(self)
     }
 

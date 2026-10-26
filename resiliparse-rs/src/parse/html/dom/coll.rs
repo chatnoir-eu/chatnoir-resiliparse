@@ -28,7 +28,7 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::vec;
 
-use crate::parse::html::css::{CSSParserError, Selector};
+use crate::parse::html::css::{ParserError, Selector};
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{Element, NodeInterface, NodeInterfaceBaseImpl};
 
@@ -288,11 +288,11 @@ impl ElementNodeList {
     }
 
     #[inline(always)]
-    pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, ParserError> {
         self.query_selector_compiled(&Selector::new(selectors)?)
     }
 
-    pub fn query_selector_compiled(&self, selectors: &Selector) -> Result<Option<ElementNode>, CSSParserError> {
+    pub fn query_selector_compiled(&self, selectors: &Selector) -> Result<Option<ElementNode>, ParserError> {
         for root in self {
             if let Some(element) = selectors.query_selector(&root.as_noderef())? {
                 return Ok(Some(element));
@@ -302,11 +302,11 @@ impl ElementNodeList {
     }
 
     #[inline(always)]
-    pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, CSSParserError> {
+    pub fn query_selector_all(&self, selectors: &str) -> Result<ElementNodeList, ParserError> {
         self.query_selector_all_compiled(&Selector::new(selectors)?)
     }
 
-    pub fn query_selector_all_compiled(&self, selectors: &Selector) -> Result<ElementNodeList, CSSParserError> {
+    pub fn query_selector_all_compiled(&self, selectors: &Selector) -> Result<ElementNodeList, ParserError> {
         let mut seen = HashSet::new();
         let mut result = Vec::new();
         for root in self {
@@ -320,11 +320,11 @@ impl ElementNodeList {
     }
 
     #[inline(always)]
-    pub fn matches(&self, selectors: &str) -> Result<bool, CSSParserError> {
+    pub fn matches(&self, selectors: &str) -> Result<bool, ParserError> {
         self.matches_compiled(&Selector::new(selectors)?)
     }
 
-    pub fn matches_compiled(&self, selectors: &Selector) -> Result<bool, CSSParserError> {
+    pub fn matches_compiled(&self, selectors: &Selector) -> Result<bool, ParserError> {
         for element in self {
             if selectors.matches(element)? {
                 return Ok(true);
