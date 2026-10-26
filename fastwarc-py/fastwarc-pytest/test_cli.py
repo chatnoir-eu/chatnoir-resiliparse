@@ -279,6 +279,44 @@ def test_benchmark_file_url_and_missing_input(warc_file):
     assert result.exit_code == 1 and 'No such file or directory' in result.output
 
 
+@pytest.mark.parametrize('python_stream', [False, True])
+def test_benchmark_escaped_file_url(warc_file, python_stream):
+    path = warc_file.with_name('space # percent %.warc')
+    warc_file.rename(path)
+    options = ['--use-python-stream'] if python_stream else []
+    assert 'FastWARC: 2 records read' in invoke('benchmark', path.as_uri(), *options).output
+
+
+def test_windows_file_url(monkeypatch):
+    import nturl2path
+    from unittest.mock import Mock
+
+    isfile = Mock(return_value=True)
+    monkeypatch.setattr(cli.urllib.request, 'url2pathname', nturl2path.url2pathname)
+    monkeypatch.setattr(cli.os.path, 'isfile', isfile)
+    path = cli._get_raw_stream_from_url('file:///C:/data/test%20file.warc')
+    assert path == r'C:\data\test file.warc'
+    isfile.assert_called_once_with(path)
+
+
+@pytest.mark.parametrize('bench_warcio', [False, True])
+@pytest.mark.parametrize('empty', [False, True])
+def test_benchmark_zero_elapsed_time(warc_file, monkeypatch, bench_warcio, empty):
+    options = []
+    if bench_warcio:
+        pytest.importorskip('warcio')
+        options.append('--bench-warcio')
+    if empty:
+        warc_file.write_bytes(b'')
+    monkeypatch.setattr(cli.time, 'perf_counter', lambda: 1.0)
+    result = invoke('benchmark', warc_file, *options)
+    count = 0 if empty else 2
+    assert f'FastWARC: {count} records read' in result.output
+    if bench_warcio:
+        assert f'WARCIO:   {count} records read' in result.output
+        assert 'speedup: 1.00' in result.output
+
+
 def test_benchmark_native_error(warc_file):
     warc_file.write_bytes(b'invalid gzip')
     result = CliRunner().invoke(cli.main, ['benchmark', str(warc_file), '-d', 'gzip'])

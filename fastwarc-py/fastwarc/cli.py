@@ -354,7 +354,7 @@ def _get_raw_stream_from_url(input_url, use_python_stream=False):
 
     else:
         if input_url.startswith('file://'):
-            input_url = input_url[7:]
+            input_url = urllib.request.url2pathname(input_url[7:])
         if not os.path.isfile(input_url):
             click.echo(f"No such file or directory: '{input_url}", err=True)
             sys.exit(1)
@@ -443,7 +443,7 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
 
     def _bench(urls, stream_loader, lib):
         interrupted = False
-        start = time.monotonic()
+        start = time.perf_counter()
         num = 0
 
         try:
@@ -459,7 +459,9 @@ def benchmark(input_url, decompress_alg, endpoint_url, aws_access_key, aws_secre
             click.echo(f'Benchmark interrupted.', err=True)
             interrupted = True
 
-        return num, time.monotonic() - start, interrupted
+        # Short or empty inputs can finish within one clock tick.
+        elapsed = max(time.perf_counter() - start, time.get_clock_info('perf_counter').resolution)
+        return num, elapsed, interrupted
 
     def _fastwarc_iterator(f):
         source = _get_raw_stream_from_url(f, use_python_stream)
