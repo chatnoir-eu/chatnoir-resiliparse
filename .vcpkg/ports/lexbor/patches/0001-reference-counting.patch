@@ -68,7 +68,7 @@ index b1d5d14..62d046e 100644
 +        lxb_dom_text_interface_destroy(lxb_dom_interface_text(cdata_section)));
  }
 diff --git a/source/lexbor/dom/interfaces/character_data.c b/source/lexbor/dom/interfaces/character_data.c
-index 12c7dfd..0a399e8 100644
+index 12c7dfd..0b05d4d 100644
 --- a/source/lexbor/dom/interfaces/character_data.c
 +++ b/source/lexbor/dom/interfaces/character_data.c
 @@ -23,6 +23,7 @@ lxb_dom_character_data_interface_create(lxb_dom_document_t *document)
@@ -79,8 +79,25 @@ index 12c7dfd..0a399e8 100644
  
      return element;
  }
+@@ -56,11 +57,12 @@ lxb_dom_character_data_interface_destroy(lxb_dom_character_data_t *character_dat
+     node = lxb_dom_interface_node(character_data);
+     doc = node->owner_document;
+ 
+-    (void) lxb_dom_node_interface_destroy(node);
++    lxb_dom_node_t *result = lxb_dom_node_interface_destroy(node);
++    if (result == NULL) {
++        lexbor_str_destroy(&data, doc->text, false);
++    }
+ 
+-    lexbor_str_destroy(&data, doc->text, false);
+-
+-    return NULL;
++    return lxb_dom_interface_character_data(result);
+ }
+ 
+ lxb_status_t
 diff --git a/source/lexbor/dom/interfaces/comment.c b/source/lexbor/dom/interfaces/comment.c
-index d3c2f3e..1364854 100644
+index d3c2f3e..1d08bfd 100644
 --- a/source/lexbor/dom/interfaces/comment.c
 +++ b/source/lexbor/dom/interfaces/comment.c
 @@ -23,6 +23,7 @@ lxb_dom_comment_interface_create(lxb_dom_document_t *document)
@@ -91,11 +108,35 @@ index d3c2f3e..1364854 100644
  
      return element;
  }
+@@ -50,9 +51,8 @@ lxb_dom_comment_interface_clone(lxb_dom_document_t *document,
+ lxb_dom_comment_t *
+ lxb_dom_comment_interface_destroy(lxb_dom_comment_t *comment)
+ {
+-    (void) lxb_dom_character_data_interface_destroy(
+-                                     lxb_dom_interface_character_data(comment));
+-    return NULL;
++    return lxb_dom_interface_comment(lxb_dom_character_data_interface_destroy(
++        lxb_dom_interface_character_data(comment)));
+ }
+ 
+ lxb_status_t
 diff --git a/source/lexbor/dom/interfaces/document.c b/source/lexbor/dom/interfaces/document.c
-index 8e7e234..1a541dc 100644
+index 8e7e234..d8ea0e4 100644
 --- a/source/lexbor/dom/interfaces/document.c
 +++ b/source/lexbor/dom/interfaces/document.c
-@@ -103,6 +103,7 @@ lxb_dom_document_init(lxb_dom_document_t *document, lxb_dom_document_t *owner,
+@@ -68,9 +68,8 @@ lxb_dom_document_interface_clone(lxb_dom_document_t *document,
+ lxb_dom_document_t *
+ lxb_dom_document_interface_destroy(lxb_dom_document_t *document)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(document));
+-
+-    return NULL;
++    return lxb_dom_interface_document(
++        lxb_dom_node_interface_destroy(lxb_dom_interface_node(document)));
+ }
+ 
+ lxb_dom_document_t *
+@@ -103,6 +102,7 @@ lxb_dom_document_init(lxb_dom_document_t *document, lxb_dom_document_t *owner,
      document->destroy_interface = destroy_interface;
  
      node = lxb_dom_interface_node(document);
@@ -103,7 +144,7 @@ index 8e7e234..1a541dc 100644
  
      node->type = LXB_DOM_NODE_TYPE_DOCUMENT;
      node->local_name = LXB_TAG__DOCUMENT;
-@@ -221,6 +222,10 @@ lxb_dom_document_destroy(lxb_dom_document_t *document)
+@@ -221,6 +221,10 @@ lxb_dom_document_destroy(lxb_dom_document_t *document)
      if (document == NULL) {
          return NULL;
      }
@@ -635,8 +676,28 @@ index 66d4646..65831ee 100644
 -    return NULL;
 +    return (lxb_html_div_element_t*) lxb_dom_node_interface_destroy(lxb_dom_interface_node(div_element));
  }
+diff --git a/source/lexbor/html/interfaces/document.c b/source/lexbor/html/interfaces/document.c
+index 4cf4425..9f9da4a 100644
+--- a/source/lexbor/html/interfaces/document.c
++++ b/source/lexbor/html/interfaces/document.c
+@@ -109,13 +109,11 @@ lxb_html_document_interface_destroy(lxb_html_document_t *document)
+ 
+     doc = lxb_dom_interface_document(document);
+ 
+-    if (doc->node.owner_document == doc) {
++    if (doc->node.owner_document == doc && doc->node.ref_count == 1) {
+         (void) lxb_html_parser_unref(doc->parser);
+     }
+ 
+-    (void) lxb_dom_document_destroy(doc);
+-
+-    return NULL;
++    return lxb_html_interface_document(lxb_dom_document_destroy(doc));
+ }
+ 
+ lxb_html_document_t *
 diff --git a/source/lexbor/html/interfaces/element.c b/source/lexbor/html/interfaces/element.c
-index 4b3fcd1..1f7509d 100644
+index 4b3fcd1..1124b3b 100644
 --- a/source/lexbor/html/interfaces/element.c
 +++ b/source/lexbor/html/interfaces/element.c
 @@ -23,6 +23,7 @@ lxb_html_element_interface_create(lxb_html_document_t *document)
@@ -647,6 +708,17 @@ index 4b3fcd1..1f7509d 100644
  
      return element;
  }
+@@ -30,8 +31,8 @@ lxb_html_element_interface_create(lxb_html_document_t *document)
+ lxb_html_element_t *
+ lxb_html_element_interface_destroy(lxb_html_element_t *element)
+ {
+-    (void) lxb_dom_node_interface_destroy(lxb_dom_interface_node(element));
+-    return NULL;
++    return (lxb_html_element_t*) lxb_dom_node_interface_destroy(
++        lxb_dom_interface_node(element));
+ }
+ 
+ lxb_html_element_t *
 diff --git a/source/lexbor/html/interfaces/embed_element.c b/source/lexbor/html/interfaces/embed_element.c
 index a74b5ba..ce233b6 100644
 --- a/source/lexbor/html/interfaces/embed_element.c
