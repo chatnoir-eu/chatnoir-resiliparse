@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Node type traits (abstract).
+//! DOM node type generics and shared operations.
 //!
-//! Abstract DOM node type interfaces.
+//! Traits group operations by the kinds of nodes that support them. For example,
+//! [`ParentNode`] provides child queries and insertion, [`Element`] provides
+//! attribute and selector operations, and [`CharacterData`] provides text access
+//! and editing. [`NodeInterface`] contains operations common to all nodes.
 
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;

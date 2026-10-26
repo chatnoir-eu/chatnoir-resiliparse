@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Internal Lexbor helpers.
+//! Internal helpers for converting parser data into Rust strings and values.
+//!
+//! These functions are used by the HTML parser and DOM implementation and are
+//! not part of the public API.
 
 use crate::third_party::lexbor::*;
 use std::ptr::{addr_of, addr_of_mut};

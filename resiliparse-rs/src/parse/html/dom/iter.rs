@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Tree traversal tools.
+//! DOM subtree traversal tools.
 //!
-//! Tools for iterating DOM (sub) trees.
+//! [`NodeIterator`] visits nodes in pre-order, including the root. [`ElementIterator`]
+//! visits only elements. These iterators detect document mutations during traversal
+//! and report them as [`TraversalError`].
 
 use crate::parse::html::dom::node::{ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::NodeInterface;

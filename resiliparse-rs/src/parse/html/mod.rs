@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A high-performance HTML5 parsing library.
+//! Parse HTML into a document tree and work with its nodes.
 //!
-//! The Resiliparse HTML5 parsing module implements a near-complete DOM API
-//! on top of the [Lexbor](https://lexbor.com/) parser library.
+//! [`tree`] provides the parser and owned document handle. [`dom`] exposes node
+//! types, DOM operations, collections, and traversal, while [`selector`] supports
+//! matching elements with CSS selectors.
 
 pub mod dom;
 pub mod selector;

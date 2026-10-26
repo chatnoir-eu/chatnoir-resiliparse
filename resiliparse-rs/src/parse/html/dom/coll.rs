@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Node and element collections.
+//! Collections of DOM nodes, elements, attributes, and class tokens.
 //!
-//! `NodeList<T>` stores snapshot membership in a vector. `query_selector_all`
-//! returns an element snapshot; `child_nodes`, `children`, and `get_elements_by_*`
-//! return live queries. Call [`LiveCollection::snapshot`] to evaluate a live query
-//! once, then borrow its items or consume them without cloning. Attribute access
-//! uses [`NamedNodeMap`], which also supports explicit snapshots.
+//! [`NodeList`] captures its items when it is created. The nodes in the list remain
+//! shared DOM handles, so borrowing a list does not clone them. Selector queries
+//! such as `query_selector_all` return snapshots.
 //!
-//! Snapshot `item` returns `Option<&T>`; use `.cloned()` when an owned handle is
-//! needed. `iter()` and `&list` borrow items, while `into_iter()` moves them.
-//! Collection-level selector helpers return snapshots of their combined results.
+//! [`LiveCollection`] keeps a query and evaluates it each time items are requested.
+//! Use [`LiveCollection::snapshot`] to evaluate it once and work with a stable list.
+//! Child and element collections, including `child_nodes`, `children`, and
+//! `get_elements_by_*`, are live. [`NamedNodeMap`] provides live access to an
+//! element's attributes, while [`DomTokenList`] provides access to its class tokens.
+//!
+//! Snapshot `item` methods return borrowed items; call `.cloned()` when an owned
+//! handle is needed. `iter()` and `&list` borrow items, while `into_iter()` moves
+//! them. Collection-level selector helpers return snapshots of their combined results.
 
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};

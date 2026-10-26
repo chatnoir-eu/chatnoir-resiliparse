@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! DOM element selection utilities.
+//! Match DOM elements with CSS selectors.
+//!
+//! [`CssSelector`] parses a selector once and can then test a node or query its
+//! descendants. Queries return matching elements in document order, without
+//! including the query root. Selector callbacks can stop traversal or report an
+//! error through [`TraverseAction`].
 
 use std::error::Error;
 use std::ffi::c_void;

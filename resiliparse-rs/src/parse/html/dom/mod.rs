@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! DOM API types and methods.
+//! DOM node types and operations for parsed HTML documents.
+//!
+//! [`node`] defines owned node handles and borrowed node views. [`traits`] groups
+//! common operations by node kind, while [`coll`] and [`iter`] provide collection
+//! and traversal types. Mutations and queries are available through the node
+//! handles and their traits.
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};

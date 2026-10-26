@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Node types.
+//! Generic and concrete DOM node types as owned and borrowed views.
 //!
-//! Concrete node type implementations.
+//! [`Node`] represents any node and provides checked conversions to concrete
+//! types such as [`ElementNode`] and [`TextNode`]. Concrete handles share the
+//! underlying node when cloned. Use [`NodeRef`] and [`NodeRefMut`] for borrowed
+//! access, or [`ParentNodeRef`] and [`CharacterDataRef`] when an operation needs
+//! a node with a particular set of DOM operations.
 
 use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;

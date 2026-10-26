@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! HTML parser and DOM tree handle.
+//! Parse HTML and access the resulting document tree.
+//!
+//! [`HtmlTree::parse`] constructs a document from a string of markup. The tree
+//! handle provides access to the document, its head and body elements, and its
+//! title.
 
 use crate::parse::html::dom::node::*;
 use crate::parse::html::lexbor::*;
