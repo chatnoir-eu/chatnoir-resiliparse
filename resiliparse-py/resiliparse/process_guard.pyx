@@ -97,7 +97,10 @@ cdef class _ResiliparseGuard:
     cdef inline bint finish(self) except 0:
         self.gctx.ended.store(True)
         if self.guard_thread is not None:
-            self.guard_thread.join()
+            # Thread.start() may fail before creating a native thread. Joining
+            # an unstarted thread would mask the original startup exception.
+            if self.guard_thread.ident is not None:
+                self.guard_thread.join()
             self.guard_thread = None
 
         global __GUARD_CTX_ACTIVE
@@ -109,12 +112,16 @@ cdef class _ResiliparseGuard:
     def __call__(self, func):
         def guard_wrapper(*args, **kwargs):
             self.setup()
-            self.exec_before()
             try:
+                # The watchdog can interrupt startup, before Thread.start()
+                # returns. Startup must be covered by the cleanup as well.
+                self.exec_before()
                 return func(*args, **kwargs)
             finally:
-                self.exec_after()
-                self.finish()
+                try:
+                    self.exec_after()
+                finally:
+                    self.finish()
 
         # Retain self, but do not bind via __get__() or else func will belong to this class
         guard_wrapper._guard_self = self
@@ -128,12 +135,19 @@ cdef class _ResiliparseGuard:
 
     def __enter__(self):
         self.setup()
-        self.exec_before()
-        return self
+        try:
+            self.exec_before()
+            return self
+        except BaseException:
+            # Python does not call __exit__ when __enter__ raises.
+            self.finish()
+            raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.exec_after()
-        self.finish()
+        try:
+            self.exec_after()
+        finally:
+            self.finish()
 
     cdef void exec_before(self) except *:
         pass
@@ -152,6 +166,9 @@ cdef class _ResiliparseGuard:
         if escalation_level == 0:
             if self.interrupt_type == exception or self.interrupt_type == exception_then_signal:
                 with gil:
+                    # finish() may have run while this thread waited for the GIL.
+                    if self.gctx.ended.load():
+                        return
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
             elif self.interrupt_type == signal:
@@ -164,6 +181,9 @@ cdef class _ResiliparseGuard:
                 pthread_kill(target_thread, SIGINT)
             elif self.interrupt_type == exception:
                 with gil:
+                    # finish() may have run while this thread waited for the GIL.
+                    if self.gctx.ended.load():
+                        return
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
 
@@ -174,6 +194,9 @@ cdef class _ResiliparseGuard:
                 pthread_kill(target_thread, SIGTERM)
             elif self.interrupt_type == exception:
                 with gil:
+                    # finish() may have run while this thread waited for the GIL.
+                    if self.gctx.ended.load():
+                        return
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
             with gil:
@@ -427,7 +450,7 @@ cdef class MemGuard(_ResiliparseGuard):
         return MemoryLimitExceeded
 
     cdef void exec_before(self) except *:
-        if platform.system() != 'Linux' or platform.machine() == 'aarch64':
+        if platform.system() != 'Linux':
             raise RuntimeError(f'Unsupported platform: {platform.system()}')
 
         cdef pthread_t main_thread = pthread_self()

@@ -261,7 +261,7 @@ jobs:
           source <(cargo llvm-cov show-env --sh)
           
           # Build wheels
-          python${PYTHON_VERSION} -m pip install cython setuptools setuptools-rust tomli-w codecov-cli
+          python${PYTHON_VERSION} -m pip install cython setuptools setuptools-rust 'packaging>=24.2' tomli-w codecov-cli
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "fastwarc-py[all,test]"
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "resiliparse-py[all,test]"
 
