@@ -24,7 +24,9 @@ use crate::parse::html::dom::coll::*;
 use crate::parse::html::dom::iter::*;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::dom::*;
-use crate::parse::html::lexbor::{str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_t};
+use crate::parse::html::lexbor::{
+    str_from_lxb_char_t, str_from_lxb_str_cb, str_from_lxb_str_cb_const, str_from_lxb_str_t,
+};
 use crate::parse::html::selector::*;
 use crate::parse::html::serialize::{node_format_visible_text, node_serialize_html};
 use std::cell::Cell;
@@ -799,7 +801,7 @@ impl ElementNode {
             let mut attr = lxb_dom_element_first_attribute_noi(self.node_ptr_().cast());
             let mut name_vec = Vec::new();
             while !attr.is_null() {
-                if let Some(qname) = str_from_lxb_str_cb(attr, lxb_dom_attr_qualified_name) {
+                if let Some(qname) = str_from_lxb_str_cb_const(attr, lxb_dom_attr_qualified_name) {
                     name_vec.push(qname);
                 }
                 attr = lxb_dom_element_next_attribute_noi(attr);
@@ -1120,7 +1122,7 @@ define_node_type!(AttrNode, Attribute);
 // Private native borrows; callers hold the document lock until strings are copied.
 impl AttrNode {
     unsafe fn name_unchecked(&self) -> Option<&str> {
-        unsafe { str_from_lxb_str_cb(self.node_ptr_(), lxb_dom_attr_qualified_name) }
+        unsafe { str_from_lxb_str_cb_const(self.node_ptr_(), lxb_dom_attr_qualified_name) }
     }
 
     unsafe fn local_name_unchecked(&self) -> Option<&str> {

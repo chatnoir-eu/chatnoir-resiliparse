@@ -404,11 +404,8 @@ cdef extern from "<lexbor/css/css.h>" nogil:
     ctypedef struct lxb_css_memory_t
     ctypedef struct lxb_css_selectors_t
 
-    ctypedef struct lxb_selectors_t
     ctypedef struct lxb_css_selector_list_t
-    ctypedef struct lxb_css_selector_specificity_t
-    ctypedef lxb_status_t (*lxb_selectors_cb_f)(lxb_dom_node_t *node, lxb_css_selector_specificity_t *spec,
-                                                void *ctx)
+    ctypedef uint32_t lxb_css_selector_specificity_t
     ctypedef struct lxb_css_log_t
     ctypedef struct lxb_css_syntax_tokenizer_t
     ctypedef struct lxb_css_parser_t:
@@ -440,6 +437,12 @@ cdef extern from "<lexbor/css/css.h>" nogil:
     lxb_css_selector_list_t * lxb_css_selectors_parse(lxb_css_parser_t *parser, const lxb_char_t *data, size_t length)
     lxb_css_selectors_t * lxb_css_selectors_destroy(lxb_css_selectors_t *selectors, bint self_destroy)
     void lxb_css_selector_list_destroy_memory(lxb_css_selector_list_t *list)
+
+
+cdef extern from "<lexbor/selectors/selectors.h>" nogil:
+    ctypedef struct lxb_selectors_t
+    ctypedef lxb_status_t (*lxb_selectors_cb_f)(lxb_dom_node_t *node, lxb_css_selector_specificity_t spec,
+                                                void *ctx)
 
     lxb_selectors_t * lxb_selectors_create()
     lxb_status_t lxb_selectors_init(lxb_selectors_t *selectors)

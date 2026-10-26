@@ -63,3 +63,17 @@ pub unsafe fn str_from_lxb_str_cb<'a, Node, Fn>(
         }
     }
 }
+
+pub unsafe fn str_from_lxb_str_cb_const<'a, Node, Fn>(
+    node: *const Node,
+    lxb_fn: unsafe extern "C" fn(*const Fn, *mut usize) -> *const lxb_char_t,
+) -> Option<&'a str> {
+    unsafe {
+        if node.is_null() {
+            return None;
+        }
+        let mut size = 0;
+        let name = lxb_fn(node.cast(), addr_of_mut!(size));
+        str_from_lxb_char_t(name, size)
+    }
+}

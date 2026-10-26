@@ -294,13 +294,13 @@ cdef lxb_dom_collection_t* get_elements_by_tag_name_impl(lxb_dom_node_t* node, c
     return coll
 
 
-cdef inline lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+cdef inline lxb_status_t css_select_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t spec,
                                              void* ctx) noexcept nogil:
     lxb_dom_collection_append(<lxb_dom_collection_t*>ctx, node)
     return LXB_STATUS_OK
 
 
-cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+cdef inline lxb_status_t css_select_callback_single(lxb_dom_node_t* node, lxb_css_selector_specificity_t spec,
                                                     void* ctx) noexcept nogil:
     (<lxb_dom_node_t**>ctx)[0] = node
     return LXB_STATUS_STOP
@@ -324,7 +324,7 @@ cdef lxb_dom_node_t* query_selector_impl(lxb_dom_node_t* node, HTMLTree tree,
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_node_t* result_node = NULL
-    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_select_callback_single, &result_node)
+    lxb_selectors_find(selectors, node, sel_list, css_select_callback_single, &result_node)
 
     destroy_css_selectors(tree.css_parser)
     lxb_selectors_destroy(selectors, True)
@@ -354,7 +354,7 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef lxb_dom_collection_t* coll = lxb_dom_collection_make(node.owner_document, init_size)
-    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_select_callback, coll)
+    lxb_selectors_find(selectors, node, sel_list, css_select_callback, coll)
 
     destroy_css_selectors(tree.css_parser)
     lxb_selectors_destroy(selectors, True)
@@ -362,7 +362,7 @@ cdef lxb_dom_collection_t* query_selector_all_impl(lxb_dom_node_t* node, HTMLTre
     return coll
 
 
-cdef inline lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t* spec,
+cdef inline lxb_status_t css_match_callback(lxb_dom_node_t* node, lxb_css_selector_specificity_t spec,
                                             void* ctx) noexcept nogil:
     (<bint*>ctx)[0] = True
     return LXB_STATUS_STOP
@@ -385,7 +385,7 @@ cdef bint matches_impl(lxb_dom_node_t* node, HTMLTree tree, const char* selector
     cdef lxb_css_selector_list_t* sel_list = parse_css_selectors(tree.css_parser,
                                                                  <const lxb_char_t*>selector, selector_len)
     cdef bint matches = False
-    lxb_selectors_find(selectors, node, sel_list, <lxb_selectors_cb_f>css_match_callback, <void*>&matches)
+    lxb_selectors_find(selectors, node, sel_list, css_match_callback, <void*>&matches)
 
     destroy_css_selectors(tree.css_parser)
     lxb_selectors_destroy(selectors, True)

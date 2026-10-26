@@ -235,7 +235,7 @@ impl HtmlDocument {
     // Call under the document lock, before changing links or destroying nodes.
     pub(crate) fn mark_mutated(&self) {
         self.mutation_epoch
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |epoch| epoch.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |epoch| epoch.checked_add(1))
             .expect("DOM mutation counter exhausted");
     }
 
