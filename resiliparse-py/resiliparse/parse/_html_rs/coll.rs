@@ -23,6 +23,8 @@ use resiliparse::parse::html::dom::traits::NodeInterface;
 
 pub enum NL {
     NodeList(coll_impl::NodeList),
+    LiveNodes(coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>),
+    LiveElements(coll_impl::HTMLCollection),
     ElementNodeList(coll_impl::ElementNodeList),
     NamedNodeMap(coll_impl::NamedNodeMap),
 }
@@ -45,13 +47,35 @@ impl From<coll_impl::NamedNodeMap> for NL {
     }
 }
 
+impl From<coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>> for NL {
+    fn from(value: coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>) -> Self {
+        Self::LiveNodes(value)
+    }
+}
+
+impl From<coll_impl::HTMLCollection> for NL {
+    fn from(value: coll_impl::HTMLCollection) -> Self {
+        Self::LiveElements(value)
+    }
+}
+
+impl NL {
+    fn elements(&self) -> Option<std::borrow::Cow<'_, coll_impl::ElementNodeList>> {
+        match self {
+            Self::ElementNodeList(l) => Some(std::borrow::Cow::Borrowed(l)),
+            Self::LiveElements(l) => Some(std::borrow::Cow::Owned(l.snapshot())),
+            _ => None,
+        }
+    }
+}
+
 #[pyclass(unsendable, subclass, sequence, frozen, module = "resiliparse.parse._html_rs.coll")]
 pub struct NodeList {
     list: NL,
 }
 
 impl NodeList {
-    pub fn new_bound(py: Python, list: coll_impl::NodeList) -> PyResult<Bound<Self>> {
+    pub fn new_bound(py: Python, list: impl Into<NL>) -> PyResult<Bound<Self>> {
         Bound::new(py, Self { list: list.into() })
     }
 }
@@ -80,8 +104,10 @@ impl NodeList {
         create_upcast_node(
             py,
             match &self.list {
-                NL::NodeList(l) => l.item(index)?,
-                NL::ElementNodeList(l) => l.item(index)?.into_node(),
+                NL::NodeList(l) => l.item(index)?.clone(),
+                NL::LiveNodes(l) => l.item(index)?,
+                NL::LiveElements(l) => l.item(index)?.into_node(),
+                NL::ElementNodeList(l) => l.item(index)?.clone().into_node(),
                 NL::NamedNodeMap(l) => l.item(index)?.into_node(),
             },
         )
@@ -95,7 +121,17 @@ impl NodeList {
                 .into_iter()
                 .map(|n| create_upcast_node(py, n).unwrap())
                 .collect(),
+            NL::LiveNodes(l) => l
+                .values()
+                .into_iter()
+                .map(|n| create_upcast_node(py, n).unwrap())
+                .collect(),
             NL::ElementNodeList(l) => l
+                .values()
+                .into_iter()
+                .map(|n| create_upcast_node(py, n.into_node()).unwrap())
+                .collect(),
+            NL::LiveElements(l) => l
                 .values()
                 .into_iter()
                 .map(|n| create_upcast_node(py, n.into_node()).unwrap())
@@ -112,6 +148,8 @@ impl NodeList {
     pub fn __len__(&self) -> usize {
         match &self.list {
             NL::NodeList(l) => l.len(),
+            NL::LiveNodes(l) => l.len(),
+            NL::LiveElements(l) => l.len(),
             NL::ElementNodeList(l) => l.len(),
             NL::NamedNodeMap(l) => l.len(),
         }
@@ -119,7 +157,9 @@ impl NodeList {
 
     pub fn __contains__<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
         node.cast::<Node>().map_or(false, |n| match &self.list {
-            NL::NodeList(l) => l.iter().any(|i| i == n.borrow().node),
+            NL::NodeList(l) => l.iter().any(|i| *i == n.borrow().node),
+            NL::LiveNodes(l) => l.iter().any(|i| i == n.borrow().node),
+            NL::LiveElements(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
             NL::ElementNodeList(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
             NL::NamedNodeMap(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
         })
@@ -139,7 +179,7 @@ impl NodeList {
 pub struct ElementNodeList {}
 
 impl ElementNodeList {
-    pub fn new_bound(py: Python, list: coll_impl::ElementNodeList) -> PyResult<Bound<Self>> {
+    pub fn new_bound(py: Python, list: impl Into<NL>) -> PyResult<Bound<Self>> {
         Bound::new(py, (Self {}, NodeList { list: list.into() }))
     }
 }
@@ -152,10 +192,11 @@ impl ElementNodeList {
         element_id: &str,
         case_insensitive: bool,
     ) -> PyResult<Option<Bound<'py, ElementNode>>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
+        if let Some(l) = slf.as_super().list.elements() {
             let res = l
                 .elements_by_attr_case("id", element_id, case_insensitive)
                 .item(0)
+                .cloned()
                 .map(|n| ElementNode::new_bound(slf.py(), n).unwrap());
             return Ok(res);
         }
@@ -169,11 +210,8 @@ impl ElementNodeList {
         attr_value: &str,
         case_insensitive: bool,
     ) -> PyResult<Bound<'py, ElementNodeList>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
-            return Ok(Self::new_bound(
-                slf.py(),
-                l.elements_by_attr_case(attr_name, attr_value, case_insensitive).into(),
-            )?);
+        if let Some(l) = slf.as_super().list.elements() {
+            return Ok(Self::new_bound(slf.py(), l.elements_by_attr_case(attr_name, attr_value, case_insensitive))?);
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
@@ -182,8 +220,8 @@ impl ElementNodeList {
         slf: PyRef<'py, Self>,
         class_name: &str,
     ) -> PyResult<Bound<'py, ElementNodeList>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
-            return Ok(Self::new_bound(slf.py(), l.elements_by_class_name(class_name).into())?);
+        if let Some(l) = slf.as_super().list.elements() {
+            return Ok(Self::new_bound(slf.py(), l.elements_by_class_name(class_name))?);
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
@@ -192,15 +230,15 @@ impl ElementNodeList {
         slf: PyRef<'py, Self>,
         tag_name: &str,
     ) -> PyResult<Bound<'py, ElementNodeList>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
-            return Ok(Self::new_bound(slf.py(), l.elements_by_tag_name(tag_name).into())?);
+        if let Some(l) = slf.as_super().list.elements() {
+            return Ok(Self::new_bound(slf.py(), l.elements_by_tag_name(tag_name))?);
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 
     //noinspection DuplicatedCode
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
+        if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector(selectors).map_or_else(
                 |e| Err(CSSParserException::new_err(e.to_string())),
                 |e| e.map_or(Ok(None), |e_| Ok(Some(ElementNode::new_bound(slf.py(), e_)?))),
@@ -211,7 +249,7 @@ impl ElementNodeList {
 
     //noinspection DuplicatedCode
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
+        if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector_all(selectors).map_or_else(
                 |e| Err(CSSParserException::new_err(e.to_string())),
                 |e| Ok(ElementNodeList::new_bound(slf.py(), e)?),
@@ -221,7 +259,7 @@ impl ElementNodeList {
     }
 
     pub fn matches(slf: PyRef<Self>, selectors: &str) -> PyResult<bool> {
-        if let NL::ElementNodeList(l) = &slf.as_super().list {
+        if let Some(l) = slf.as_super().list.elements() {
             return l
                 .matches(selectors)
                 .or_else(|e| Err(CSSParserException::new_err(e.to_string())));

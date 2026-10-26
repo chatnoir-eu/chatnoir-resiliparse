@@ -14,7 +14,15 @@
 
 //! Node and element collections.
 //!
-//! Node and element collection types for storing the results of DOM matching operations.
+//! `NodeList<T>` stores snapshot membership in a vector. `query_selector_all`
+//! returns an element snapshot; `child_nodes`, `children`, and `get_elements_by_*`
+//! return live queries. Call [`LiveCollection::snapshot`] to evaluate a live query
+//! once, then borrow its items or consume them without cloning. Attribute access
+//! uses [`NamedNodeMap`], which also supports explicit snapshots.
+//!
+//! Snapshot `item` returns `Option<&T>`; use `.cloned()` when an owned handle is
+//! needed. `iter()` and `&list` borrow items, while `into_iter()` moves them.
+//! Collection-level selector helpers return snapshots of their combined results.
 
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
@@ -24,151 +32,259 @@ use crate::parse::html::css::CSSParserError;
 use crate::parse::html::dom::node::{AttrNode, ElementNode, Node, NodeRef};
 use crate::parse::html::dom::traits::{Element, NodeInterfaceBaseImpl, ParentNode};
 
-#[derive(Clone)]
-pub(crate) struct NodeListClosure<T: Clone> {
-    n: Node,
-    d: Option<Box<[String]>>,
-    f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
-}
-
-pub struct NodeListGeneric<T: Clone> {
-    live: Option<NodeListClosure<T>>,
+/// A snapshot of collection membership. Nodes themselves remain shared DOM handles.
+/// Length, indexing and borrowed iteration never clone items or re-run a query.
+#[derive(Clone, Debug)]
+pub struct NodeList<T = Node> {
     items: Vec<T>,
 }
 
-impl<T: Clone> Default for NodeListGeneric<T> {
+impl<T> Default for NodeList<T> {
     fn default() -> Self {
-        NodeListGeneric {
-            live: None,
-            items: Vec::default(),
-        }
+        Self { items: Vec::new() }
     }
 }
 
-impl<T: Clone> From<&[T]> for NodeListGeneric<T> {
+impl<T: Clone> From<&[T]> for NodeList<T> {
     fn from(items: &[T]) -> Self {
-        Self {
-            live: None,
-            items: Vec::from(items),
-        }
+        Self { items: items.to_vec() }
     }
 }
 
-impl<T: Clone> From<Vec<T>> for NodeListGeneric<T> {
+impl<T> From<Vec<T>> for NodeList<T> {
     fn from(items: Vec<T>) -> Self {
-        Self { live: None, items }
+        Self { items }
     }
 }
 
-impl<'a, T: Clone> NodeListGeneric<T> {
-    #[inline]
-    pub fn item(&self, index: usize) -> Option<T> {
-        Some(self.iter().skip(index).next()?)
+impl<T> NodeList<T> {
+    pub fn item(&self, index: usize) -> Option<&T> {
+        self.items.get(index)
     }
-
-    #[inline]
-    pub fn values(&self) -> Vec<T> {
-        self.iter().collect()
-    }
-
-    #[inline]
     pub fn len(&self) -> usize {
-        self.iter().count()
+        self.items.len()
     }
-
-    pub(crate) fn new_live(
-        node: &NodeRef,
-        user_data: Option<Box<[String]>>,
-        f: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
-    ) -> Self {
-        Self {
-            live: Some(NodeListClosure {
-                n: node.as_node(),
-                d: user_data,
-                f,
-            }),
-            items: Vec::default(),
-        }
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
-
-    pub fn iter(&self) -> vec::IntoIter<T> {
-        if let Some(closure) = &self.live {
-            (closure.f)(&closure.n, closure.d.as_ref()).into_iter()
-        } else {
-            self.items.clone().into_iter()
-        }
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.items.iter()
+    }
+    pub fn as_slice(&self) -> &[T] {
+        &self.items
+    }
+    pub fn into_vec(self) -> Vec<T> {
+        self.items
+    }
+    /// Clone the snapshot's items into a new vector.
+    pub fn values(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        self.items.clone()
     }
 }
 
-impl<T: Clone> IntoIterator for &NodeListGeneric<T> {
-    type Item = T;
-    type IntoIter = vec::IntoIter<T>;
+impl<T> std::ops::Index<usize> for NodeList<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &T {
+        &self.items[index]
+    }
+}
 
+impl<'a, T> IntoIterator for &'a NodeList<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl<T: Clone + Debug> Debug for NodeListGeneric<T> {
+impl<T> IntoIterator for NodeList<T> {
+    type Item = T;
+    type IntoIter = vec::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+impl<T: Display> Display for NodeList<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
-        for (i, n) in self.iter().enumerate() {
-            if i > 0 {
-                f.write_str(", ")?;
-            }
-            Debug::fmt(&n, f)?;
+        self.iter().map(|n| Display::fmt(n, f)).collect::<Result<_, _>>()
+    }
+}
+
+/// A retained DOM query. Each access evaluates the query and allocates its results.
+/// Use `snapshot()` once when making several accesses to the same results.
+pub struct LiveCollection<T> {
+    node: Node,
+    data: Option<Box<[String]>>,
+    query: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
+}
+
+impl<T> LiveCollection<T> {
+    pub(crate) fn new_live(
+        node: &NodeRef,
+        data: Option<Box<[String]>>,
+        query: fn(&Node, Option<&Box<[String]>>) -> Vec<T>,
+    ) -> Self {
+        Self {
+            node: node.as_node(),
+            data,
+            query,
         }
-        write!(f, "]")
+    }
+    /// Evaluate the query once and freeze its membership, without cloning results.
+    pub fn snapshot(&self) -> NodeList<T> {
+        let document = self.node.tree_();
+        let _guard = document.doc_ptr();
+        if self.node.node_ptr_().is_null() {
+            return NodeList::default();
+        }
+        (self.query)(&self.node, self.data.as_ref()).into()
+    }
+    pub fn item(&self, index: usize) -> Option<T> {
+        self.iter().nth(index)
+    }
+    pub fn values(&self) -> Vec<T> {
+        self.snapshot().into_vec()
+    }
+    pub fn len(&self) -> usize {
+        self.snapshot().len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.snapshot().is_empty()
+    }
+    /// Evaluate once; the iterator owns that snapshot's items.
+    pub fn iter(&self) -> vec::IntoIter<T> {
+        self.snapshot().into_iter()
     }
 }
 
-impl<T: Clone + Display> Display for NodeListGeneric<T> {
+impl<T> IntoIterator for &LiveCollection<T> {
+    type Item = T;
+    type IntoIter = vec::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<T: Debug> Debug for LiveCollection<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.iter().map(|n| Display::fmt(&n, f)).collect::<Result<_, _>>()
+        Debug::fmt(&self.snapshot(), f)
     }
 }
 
-pub type NodeList = NodeListGeneric<Node>;
-pub type ElementNodeList = NodeListGeneric<ElementNode>;
-pub type HTMLCollection = ElementNodeList;
-pub type NamedNodeMap = NodeListGeneric<AttrNode>;
+impl<T: Display> Display for LiveCollection<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.snapshot(), f)
+    }
+}
+
+pub type ElementNodeList = NodeList<ElementNode>;
+pub type HTMLCollection = LiveCollection<ElementNode>;
+
+/// A live attribute map tied to its owning element.
+/// Name lookup and mutation use the element's attribute API directly.
+pub struct NamedNodeMap {
+    element: ElementNode,
+    attributes: LiveCollection<AttrNode>,
+}
+
+impl NamedNodeMap {
+    pub(crate) fn new(element: ElementNode, attributes: LiveCollection<AttrNode>) -> Self {
+        Self { element, attributes }
+    }
+    pub fn get_named_item(&self, name: &str) -> Option<AttrNode> {
+        self.element.attribute_node(name)
+    }
+    pub fn set(&self, name: &str, value: &str) {
+        self.element.set_attribute(name, value);
+    }
+    pub fn remove(&self, name: &str) {
+        self.element.remove_attribute(name);
+    }
+    pub fn snapshot(&self) -> NodeList<AttrNode> {
+        self.attributes.snapshot()
+    }
+    pub fn item(&self, index: usize) -> Option<AttrNode> {
+        self.attributes.item(index)
+    }
+    pub fn values(&self) -> Vec<AttrNode> {
+        self.attributes.values()
+    }
+    pub fn len(&self) -> usize {
+        self.attributes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.attributes.is_empty()
+    }
+    pub fn iter(&self) -> vec::IntoIter<AttrNode> {
+        self.attributes.iter()
+    }
+}
+
+impl IntoIterator for &NamedNodeMap {
+    type Item = AttrNode;
+    type IntoIter = vec::IntoIter<AttrNode>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl Debug for NamedNodeMap {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.snapshot(), f)
+    }
+}
+
+impl Display for NamedNodeMap {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.snapshot(), f)
+    }
+}
+
+impl HTMLCollection {
+    pub fn named_item(&self, name: &str) -> Option<ElementNode> {
+        self.iter()
+            .find(|e| e.id().as_deref() == Some(name) || e.attribute("name").as_deref() == Some(name))
+    }
+}
 
 impl ElementNodeList {
-    pub fn named_item(&self, name: &str) -> Option<ElementNode> {
+    pub fn named_item(&self, name: &str) -> Option<&ElementNode> {
         self.iter()
             .find(|e| e.id().filter(|i| i == name).is_some() || e.attribute("name").filter(|n| n == name).is_some())
     }
 
-    pub fn elements_by_tag_name(&self, qualified_name: &str) -> HTMLCollection {
+    pub fn elements_by_tag_name(&self, qualified_name: &str) -> ElementNodeList {
         let mut coll = Vec::default();
         self.iter()
-            .for_each(|e| coll.append(&mut e.get_elements_by_tag_name(qualified_name).iter().collect()));
-        HTMLCollection::from(coll)
+            .for_each(|e| coll.extend(e.get_elements_by_tag_name(qualified_name).snapshot()));
+        ElementNodeList::from(coll)
     }
 
-    pub fn elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
+    pub fn elements_by_class_name(&self, class_names: &str) -> ElementNodeList {
         let mut coll = Vec::default();
         self.iter()
-            .for_each(|e| coll.append(&mut e.get_elements_by_class_name(class_names).iter().collect()));
-        HTMLCollection::from(coll)
+            .for_each(|e| coll.extend(e.get_elements_by_class_name(class_names).snapshot()));
+        ElementNodeList::from(coll)
     }
 
     #[inline(always)]
-    pub fn elements_by_attr(&self, qualified_name: &str, value: &str) -> HTMLCollection {
+    pub fn elements_by_attr(&self, qualified_name: &str, value: &str) -> ElementNodeList {
         self.elements_by_attr_case(qualified_name, value, false)
     }
 
-    pub fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
+    pub fn elements_by_attr_case(&self, qualified_name: &str, value: &str, case_insensitive: bool) -> ElementNodeList {
         let mut coll = Vec::default();
         self.iter().for_each(|e| {
-            coll.append(
-                &mut e
-                    .get_elements_by_attr_case(qualified_name, value, case_insensitive)
-                    .iter()
-                    .collect(),
+            coll.extend(
+                e.get_elements_by_attr_case(qualified_name, value, case_insensitive)
+                    .snapshot(),
             )
         });
-        HTMLCollection::from(coll)
+        ElementNodeList::from(coll)
     }
 
     pub fn query_selector(&self, selectors: &str) -> Result<Option<ElementNode>, CSSParserError> {
@@ -186,7 +302,7 @@ impl ElementNodeList {
         let mut coll = Vec::default();
         for item in self.iter() {
             match item.query_selector_all(selectors) {
-                Ok(e) => coll.append(&mut e.iter().collect()),
+                Ok(e) => coll.extend(e),
                 Err(e) => return Err(e),
             }
         }

@@ -397,8 +397,8 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
     }
 
     /// List of child nodes.
-    fn child_nodes(&self) -> NodeList {
-        NodeList::new_live(&self.as_noderef(), None, |n, _| {
+    fn child_nodes(&self) -> LiveCollection<Node> {
+        LiveCollection::new_live(&self.as_noderef(), None, |n, _| {
             let mut nodes = Vec::new();
             let mut child = n.first_child();
             while let Some(c) = child {

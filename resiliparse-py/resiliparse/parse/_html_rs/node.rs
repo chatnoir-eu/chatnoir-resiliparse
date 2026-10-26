@@ -85,7 +85,7 @@ trait _NodeAccessorMixin<T: NodeInterface>: pyo3::PyClass<Frozen = pyo3::pyclass
 
 trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
     fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
-        ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children().into())
+        ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children())
     }
 
     fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {

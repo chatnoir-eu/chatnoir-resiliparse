@@ -1995,3 +1995,75 @@ fn token_list_updates_are_serialized_across_sent_aliases() {
         }
     }
 }
+
+#[test]
+fn snapshots_access_and_consume_without_cloning() {
+    #[derive(Debug, PartialEq)]
+    struct NoClone(usize);
+    let list = NodeList::from(vec![NoClone(1), NoClone(2)]);
+    assert_eq!(list.len(), 2);
+    assert!(!list.is_empty());
+    assert!(std::ptr::eq(list.item(0).unwrap(), &list[0]));
+    assert!(list.item(2).is_none());
+    assert!(list.item(usize::MAX).is_none());
+    assert_eq!(list.iter().map(|n| n.0).collect::<Vec<_>>(), [1, 2]);
+    assert_eq!((&list).into_iter().count(), 2);
+    assert_eq!(list.into_iter().map(|n| n.0).collect::<Vec<_>>(), [1, 2]);
+    assert!(NodeList::<NoClone>::default().is_empty());
+
+    struct MustNotClone;
+    impl Clone for MustNotClone {
+        fn clone(&self) -> Self {
+            panic!("snapshot access cloned an item")
+        }
+    }
+    let list = NodeList::from(vec![MustNotClone, MustNotClone]);
+    assert_eq!(list.len(), 2);
+    assert!(list.item(0).is_some());
+    assert_eq!(list.iter().count(), 2);
+    assert_eq!(list.into_iter().count(), 2);
+}
+
+#[test]
+fn live_collections_have_explicit_membership_snapshots() {
+    let tree = HTMLTree::from_str("<body><div class='match'></div></body>").unwrap();
+    let body = tree.body().unwrap();
+    let children = body.child_nodes();
+    let elements = body.get_elements_by_class_name("match");
+    let child_snapshot = children.snapshot();
+    let element_snapshot = elements.snapshot();
+    let selector_snapshot = body.query_selector_all(".match").unwrap();
+    let div = body.first_element_child().unwrap();
+    div.set_class_name("other");
+    let new_child = tree.document().unwrap().create_element("span").unwrap();
+    body.append(&[new_child.as_noderef()]);
+    assert_eq!(children.len(), 2);
+    assert_eq!(child_snapshot.len(), 1);
+    assert!(elements.is_empty());
+    assert_eq!(element_snapshot.len(), 1);
+    assert_eq!(selector_snapshot.len(), 1);
+    // Membership is frozen, but handles still refer to the live nodes.
+    assert_eq!(element_snapshot[0].class_name().as_deref(), Some("other"));
+}
+
+#[test]
+fn named_attribute_maps_lookup_mutate_and_snapshot() {
+    let tree = HTMLTree::from_str("<body id='original'></body>").unwrap();
+    let body = tree.body().unwrap();
+    let attributes = body.attributes();
+    let snapshot = attributes.snapshot();
+    assert_eq!(attributes.get_named_item("id").unwrap().value().as_deref(), Some("original"));
+    attributes.set("title", "added");
+    assert_eq!(body.attribute("title").as_deref(), Some("added"));
+    assert_eq!(attributes.len(), 2);
+    assert_eq!(snapshot.len(), 1);
+    attributes.set("title", "updated");
+    assert_eq!(attributes.len(), 2);
+    assert_eq!(attributes.get_named_item("title").unwrap().value().as_deref(), Some("updated"));
+    attributes.remove("title");
+    attributes.remove("missing");
+    assert!(attributes.get_named_item("title").is_none());
+    assert_eq!(attributes.len(), 1);
+    attributes.remove("id");
+    assert!(attributes.is_empty());
+}

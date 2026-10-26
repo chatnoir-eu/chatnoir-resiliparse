@@ -554,14 +554,12 @@ impl Document for DocumentNode {
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HTMLCollection {
-        check_node!(self);
         HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([name.to_owned()])), |n, qn| unsafe {
             get_elements_by_tag_name(n, &qn.unwrap_unchecked()[0])
         })
     }
 
     fn get_elements_by_class_name(&self, class_names: &str) -> HTMLCollection {
-        check_node!(self);
         HTMLCollection::new_live(&self.as_noderef(), Some(Box::new([class_names.to_owned()])), |n, cls| unsafe {
             get_elements_by_class_name(n, &cls.unwrap_unchecked()[0])
         })
@@ -573,7 +571,6 @@ impl Document for DocumentNode {
     }
 
     fn get_elements_by_attr_case(&self, name: &str, value: &str, case_insensitive: bool) -> HTMLCollection {
-        check_node!(self);
         let user_data = Box::new([name.to_owned(), value.to_owned(), case_insensitive.to_string()]);
         HTMLCollection::new_live(&self.as_noderef(), Some(user_data), |n, attr| unsafe {
             get_elements_by_attr(
@@ -848,20 +845,22 @@ impl Element for ElementNode {
     }
 
     fn attributes(&self) -> NamedNodeMap {
-        check_node!(self);
-        NamedNodeMap::new_live(&self.as_noderef(), None, |n, _| {
-            let document = n.tree_();
-            let _guard = document.doc_ptr();
-            let mut v = Vec::new();
-            unsafe {
-                let mut attr = lxb_dom_element_first_attribute_noi(n.node_ptr_().cast());
-                while !attr.is_null() {
-                    v.push(AttrNode::new(&n.tree_(), attr.cast()));
-                    attr = lxb_dom_element_next_attribute_noi(attr);
-                }
-            };
-            v
-        })
+        NamedNodeMap::new(
+            self.clone(),
+            LiveCollection::new_live(&self.as_noderef(), None, |n, _| {
+                let document = n.tree_();
+                let _guard = document.doc_ptr();
+                let mut v = Vec::new();
+                unsafe {
+                    let mut attr = lxb_dom_element_first_attribute_noi(n.node_ptr_().cast());
+                    while !attr.is_null() {
+                        v.push(AttrNode::new(&n.tree_(), attr.cast()));
+                        attr = lxb_dom_element_next_attribute_noi(attr);
+                    }
+                };
+                v
+            }),
+        )
     }
 
     fn set_attribute(&self, qualified_name: &str, value: &str) {
