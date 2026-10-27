@@ -120,6 +120,7 @@ pub mod _node {
     #[pymodule_init]
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
         // Export constants
+        m.setattr("_node_cache", m.py().import("weakref")?.getattr("WeakValueDictionary")?.call0()?)?;
         let node_type = m.getattr("NodeType")?;
         for name in [
             "ELEMENT",

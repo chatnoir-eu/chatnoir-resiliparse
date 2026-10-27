@@ -317,7 +317,6 @@ impl NamedNodeMapPy {
     name = "DOMTokenList",
     unsendable,
     subclass,
-    eq,
     sequence,
     module = "resiliparse.parse.html.coll"
 )]
@@ -340,6 +339,13 @@ impl From<coll::DomTokenList<'_>> for DOMTokenListPy {
 
 #[pymethods]
 impl DOMTokenListPy {
+    pub fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if let Ok(other) = other.extract::<PyRef<'_, Self>>() {
+            return Ok(self.list == other.list);
+        }
+        self.values(other.py())?.eq(other)
+    }
+
     /// The node value.
     #[getter]
     pub fn value(&self) -> String {

@@ -18,7 +18,7 @@ use pyo3::exceptions::*;
 create_exception!(
     resiliparse.parse.html.exception,
     DOMException,
-    PyException,
+    PyValueError,
     "Base exception for errors raised by the HTML DOM API."
 );
 pub use CSSParserException as CSSParserExceptionPy;

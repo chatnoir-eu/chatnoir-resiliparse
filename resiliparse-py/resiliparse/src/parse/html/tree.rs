@@ -21,7 +21,7 @@ use resiliparse::parse::html::tree;
 /// HTML DOM tree parser.
 #[pyclass(name = "HTMLTree", unsendable, module = "resiliparse.parse.html")]
 pub struct HTMLTreePy {
-    tree: tree::HtmlTree,
+    pub(crate) tree: tree::HtmlTree,
 }
 
 #[pymethods]
@@ -59,11 +59,13 @@ impl HTMLTreePy {
         encoding: &str,
         errors: &str,
     ) -> PyResult<Self> {
-        let encoding: String = py
-            .import("resiliparse.parse.encoding")?
+        let encoding_module = py.import("resiliparse.parse.encoding")?;
+        let encoding: String = encoding_module
             .call_method1("map_encoding_to_html5", (encoding,))?
             .extract()?;
-        let decoded: String = document.call_method1("decode", (encoding, errors))?.extract()?;
+        let decoded: String = encoding_module
+            .call_method1("bytes_to_str", (document, encoding, errors))?
+            .extract()?;
         match tree::HtmlTree::parse(&decoded) {
             Ok(t) => Ok(Self { tree: t }),
             _ => Err(HTMLParserExceptionPy::new_err("Failed to parse HTML document.")),
@@ -110,8 +112,8 @@ impl HTMLTreePy {
 
     /// The HTML document title.
     #[getter]
-    pub fn title(slf: PyRef<'_, Self>) -> Option<String> {
-        slf.tree.title()
+    pub fn title(slf: PyRef<'_, Self>) -> String {
+        slf.tree.title().unwrap_or_default()
     }
 
     /// Return the serialized HTML document.

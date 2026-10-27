@@ -62,6 +62,7 @@ pub enum NodeTypePy {
 #[pyclass(
     name = "Node",
     eq,
+    weakref,
     unsendable,
     subclass,
     module = "resiliparse.parse.html.node",
@@ -70,11 +71,15 @@ pub enum NodeTypePy {
 #[derive(Clone, PartialEq)]
 pub struct NodePy {
     pub(crate) node: node::Node,
+    identity: Option<(usize, usize)>,
 }
 
 impl From<node::Node> for NodePy {
     fn from(value: node::Node) -> Self {
-        NodePy { node: value }
+        NodePy {
+            identity: value.identity(),
+            node: value,
+        }
     }
 }
 pub(crate) fn create_upcast_node(py: Python, node: node::Node) -> PyResult<Bound<PyAny>> {
@@ -354,7 +359,21 @@ macro_rules! define_node_type {
 
         impl $Self {
             pub fn new_bound(py: Python, node: $Base) -> PyResult<Bound<$Self>> {
-                Bound::new(py, (Self {}, node.into()))
+                let cache = py.import("resiliparse.parse.html.node")?.getattr("_node_cache")?;
+                let key = node.identity();
+                if let Some(key) = key {
+                    let cached = cache.call_method1("get", (key,))?;
+                    if let Ok(cached) = cached.cast::<$Self>() {
+                        if cached.borrow().as_super().node == node.as_node() {
+                            return Ok(cached.clone());
+                        }
+                    }
+                }
+                let result = Bound::new(py, (Self {}, NodePy::from(node)))?;
+                if let Some(key) = key {
+                    cache.set_item(key, &result)?;
+                }
+                Ok(result)
             }
         }
 
@@ -370,6 +389,7 @@ macro_rules! define_node_type {
         impl From<$Base> for NodePy {
             fn from(value: $Base) -> NodePy {
                 NodePy {
+                    identity: value.identity(),
                     node: value.as_node(),
                 }
             }
@@ -396,6 +416,13 @@ define_node_type!(NotationNodePy, "NotationNode", Notation, node::NotationNode);
 //noinspection DuplicatedCode
 #[pymethods]
 impl NodePy {
+    pub fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.identity.hash(&mut hasher);
+        hasher.finish()
+    }
+
     /// The type of this DOM node.
     #[getter]
     pub fn node_type(&self) -> Option<NodeTypePy> {
@@ -782,6 +809,7 @@ impl ElementNodePy {
     ///
     /// :param qualified_name: Qualified attribute name.
     /// :param default_value: Value returned when the attribute is absent.
+    #[pyo3(signature = (qualified_name, default_value=None))]
     pub fn get_attribute(slf: PyRef<'_, Self>, qualified_name: &str, default_value: Option<&str>) -> Option<String> {
         Self::raw_node(&slf)
             .attribute(qualified_name)

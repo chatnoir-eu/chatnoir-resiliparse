@@ -275,6 +275,14 @@ pub(crate) trait NodeInterfaceBaseImpl {
 /// an exclusive Rust borrow of a wrapper does not imply exclusive node access.
 #[allow(private_bounds)]
 pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
+    /// Identity of a live node for wrapper caches. The key is valid while a
+    /// handle retains the node; it must not be used to access native memory.
+    fn identity(&self) -> Option<(usize, usize)> {
+        let _guard = self.tree().doc_ptr();
+        let node = self.node_ptr();
+        (!node.is_null()).then(|| (Arc::as_ptr(self.tree()) as usize, node as usize))
+    }
+
     /// Return this node’s DOM node type, if the handle is valid.
     ///
     /// # Returns

@@ -780,7 +780,8 @@ impl ElementNode {
                 addr_of_mut!(size),
             );
             if name.is_null() {
-                None
+                // A boolean attribute has no value buffer, but is still present.
+                self.has_attribute(qualified_name).then_some("")
             } else {
                 str_from_lxb_char_t(name, size)
             }
