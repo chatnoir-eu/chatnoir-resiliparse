@@ -17,18 +17,10 @@ RUN set -x \
 ENV VCPKG_DISABLE_METRICS="1"
 ENV VCPKG_FORCE_SYSTEM_BINARIES="1"
 
-COPY .vcpkg  /tmp/build/.vcpkg
-COPY vcpkg.json vcpkg-configuration.json /tmp/build/
-
 RUN set -x \
-  && (cd /tmp/build \
-      && TRIPLET=$(uname -m | sed s/x86_64/x64/)-linux \
-      && git clone https://github.com/Microsoft/vcpkg \
-      && ./vcpkg/bootstrap-vcpkg.sh \
-      && ./vcpkg/vcpkg install --triplet=${TRIPLET} \
-      && mkdir /opt/libs \
-      && mv vcpkg_installed/${TRIPLET}/* /opt/libs/) \
-  && rm -rf /tmp/build
+  && git clone --depth=1 https://github.com/Microsoft/vcpkg /opt/vcpkg \
+  && (cd /opt/vcpkg && ./bootstrap-vcpkg.sh) \
+  && ln -nfs /opt/vcpkg/vcpkg /usr/local/bin
 
 ENV RUSTUP_HOME=/opt/rust/rustup
 ENV CARGO_HOME=/opt/rust/cargo
@@ -37,7 +29,4 @@ RUN set -x \
     && curl --proto '=https' --tlsv1.2 -Ssf https://sh.rustup.rs | sh -s -- -y \
     && cargo install cargo-llvm-cov
 
-ENV CPATH="/opt/libs/include"
-ENV LIBRARY_PATH="/opt/libs/lib"
-ENV LD_LIBRARY_PATH="/opt/libs/lib"
 ENV FORCE_COLOR="1"

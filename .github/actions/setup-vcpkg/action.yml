@@ -1,0 +1,51 @@
+name: Set up vcpkg
+description: Cache and install vcpkg dependencies
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Vcpkg
+      uses: actions/cache@v5
+      if: "!startsWith(github.ref, 'refs/tags/v')"
+      with:
+        path: |
+          ~/.cache/vcpkg/archives
+          ~/AppData/Local/vcpkg/archives
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-
+
+    - name: Install Vcpkg Dependencies
+      shell: bash
+      run: |
+        set -xe
+
+        if [ -d /c/vcpkg ] || [ "$(uname -s)" == "Linux" ]; then
+          vcpkg install --triplet="${RUNNER_ARCH,,}-${RUNNER_OS,,}"
+
+        elif [ "$(uname -s)" == "Darwin" ]; then
+          git clone https://github.com/Microsoft/vcpkg "$GITHUB_WORKSPACE/vcpkg"
+          "$GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.sh"
+          echo "$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_PATH"
+
+          "$GITHUB_WORKSPACE/vcpkg/vcpkg" install --triplet=x64-osx
+          "$GITHUB_WORKSPACE/vcpkg/vcpkg" --triplet=arm64-osx --x-install-root vcpkg_installed2
+          cp -a vcpkg_installed2/* vcpkg_installed/
+          rm -r vcpkg_installed2
+
+        else
+          echo "Unsupported platform." >&2
+          exit 1
+        fi
+
+    - name: Add vcpkg tools to PATH
+      shell: bash
+      run: |
+        set -e
+        os="${RUNNER_OS,,}"
+        [[ "$os" == "macos" ]] && os=osx
+        
+        tool_dir="$GITHUB_WORKSPACE/vcpkg_installed/${RUNNER_ARCH,,}-$os/tools"
+        for t in "$tool_dir"/*/; do
+          [[ -d "$t" ]] && echo "$t" >> "$GITHUB_PATH"
+        done

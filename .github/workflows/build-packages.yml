@@ -15,6 +15,9 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: read
+
 env:
   PYTHON_VERSION: "3.14"
   FORCE_COLOR: "1"
@@ -40,6 +43,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up vcpkg
+        uses: ./.github/actions/setup-vcpkg
+
       - name: Cache Cargo
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/cache@v5
@@ -50,24 +56,11 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install protoc
-        shell: pwsh
-        run: |
-          Invoke-WebRequest `
-            -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v$env:PROTOC_VERSION/protoc-$env:PROTOC_VERSION-${{ matrix.protoc_platform }}.zip" `
-            -OutFile "$env:RUNNER_TEMP/protoc.zip"
-          Expand-Archive "$env:RUNNER_TEMP/protoc.zip" -DestinationPath "$env:RUNNER_TEMP/protoc"
-          "$env:RUNNER_TEMP/protoc/bin" | Out-File -Append -FilePath $env:GITHUB_PATH
-          "PROTOC_INCLUDE=$env:RUNNER_TEMP/protoc/include" | Out-File -Append -FilePath $env:GITHUB_ENV
-
-      # Build only FastWARC and its gRPC service at this time. Resiliparse
-      # needs additional vcpkg dependencies.
-      # TODO: Fix this!
-      - name: Build
-        run: cargo build --verbose --color always --package fastwarc --package fastwarc-grpc
+      - name: Build workspace
+        run: cargo build --verbose --color always --workspace --exclude '*-py'
 
       - name: Run tests
-        run: cargo test --verbose --color always --package fastwarc --package fastwarc-grpc
+        run: cargo test --verbose --color always --workspace --exclude '*-py'
 
   build-wheels:
     runs-on: ${{ matrix.os }}
@@ -91,43 +84,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Cache Vcpkg
-        uses: actions/cache@v5
-        id: cache-vcpkg
-        if: "!startsWith(github.ref, 'refs/tags/v') && (runner.os == 'macOS' || runner.os == 'Windows')"
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          path: |
-            ~/.cache/vcpkg/archives
-            ~/AppData/Local/vcpkg/archives
-          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Vcpkg Dependencies
-        if: runner.os == 'macOS' || runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -xe
-
-          # Windows
-          if [ -d /c/vcpkg ]; then
-            vcpkg install --triplet=x64-windows
-
-          # MacOS
-          elif [ "$(uname -s)" == "Darwin" ]; then
-            git clone https://github.com/Microsoft/vcpkg
-            ./vcpkg/bootstrap-vcpkg.sh
-
-            # Use to two install roots and merge manually, otherwise the second install clears out the previous
-            ./vcpkg/vcpkg install --triplet=x64-osx
-            ./vcpkg/vcpkg install --triplet=arm64-osx --x-install-root vcpkg_installed2
-            cp -a vcpkg_installed2/* vcpkg_installed/
-            rm -r vcpkg_installed2
-
-          else
-            echo "Unsupported platform." >&2
-            exit 1
-          fi
+      - name: Set up vcpkg
+        uses: ./.github/actions/setup-vcpkg
 
       - name: Install Rust Cross-compilation Targets
         if: runner.os == 'macOS'
@@ -135,11 +98,6 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Build FastWARC
         uses: pypa/cibuildwheel@v4.3
@@ -262,7 +220,7 @@ jobs:
           source <(cargo llvm-cov show-env --sh)
           
           # Build wheels
-          python${PYTHON_VERSION} -m pip install cython setuptools setuptools-rust 'packaging>=24.2' tomli-w codecov-cli
+          python${PYTHON_VERSION} -m pip install cython setuptools setuptools-rust packaging tomli-w codecov-cli
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "fastwarc-py[all,test]"
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "resiliparse-py[all,test]"
 

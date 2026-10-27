@@ -15,6 +15,7 @@
 
 # Keep Python package versions in sync with Rust workspace version
 
+import json
 from pathlib import Path
 import tomllib
 import re
@@ -27,6 +28,13 @@ print(f'Updating Python package versions to {cargo_ver}.')
 
 run(['poetry', 'version', '--project=fastwarc-py', cargo_ver], check=True, cwd=base_path)
 run(['poetry', 'version', '--project=resiliparse-py', cargo_ver], check=True, cwd=base_path)
+
+with open(base_path / 'vcpkg.json', 'r') as f:
+    vcpkg_json = json.load(f)
+with open(base_path / 'vcpkg.json', 'w') as f:
+    vcpkg_json['version-string'] = cargo_ver
+    json.dump(vcpkg_json, f, ensure_ascii=False, indent=2)
+    f.write('\n')
 
 # Patch fastwarc dependency (cannot use `poetry add` for this if fastwarc is not yet published)
 with open(base_path / 'resiliparse-py/pyproject.toml', 'r') as f:
