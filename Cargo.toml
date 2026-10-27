@@ -1,12 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
+    "resiliparse-rs",
+    "resiliparse-py/resiliparse",
     "fastwarc-rs",
-    # Not a default member: building fastwarc-grpc requires protoc on the PATH.
     "fastwarc-grpc",
     "fastwarc-py/fastwarc",
-    "resiliparse-rs",
-    "resiliparse-py/resiliparse/parse/_html_rs",
 ]
 default-members = [
     "fastwarc-rs",

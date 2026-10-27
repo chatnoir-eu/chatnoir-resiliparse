@@ -1,4 +1,4 @@
-// Copyright 2024 Janek Bevendorff
+// Copyright 2026 Janek Bevendorff
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::coll::*;
-use crate::exception::*;
+use super::coll::*;
+use super::exception::*;
 use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use resiliparse::parse::html::dom::iter as iter_impl;
-use resiliparse::parse::html::dom::node as node_impl;
 use resiliparse::parse::html::dom::traits::*;
+use resiliparse::parse::html::dom::{iter, node};
 
-/// The kind of a DOM node.
+/// The type of DOM node.
 #[pyclass(
+    name = "NodeType",
     eq,
     eq_int,
     rename_all = "SCREAMING_SNAKE_CASE",
-    module = "resiliparse.parse._html_rs.node"
+    module = "resiliparse.parse.html.node"
 )]
 #[derive(PartialEq, Eq)]
-pub enum NodeType {
+pub enum NodeTypePy {
     /// An element node.
     Element = 0x01,
     /// An attribute node.
@@ -59,30 +59,37 @@ pub enum NodeType {
 /// A DOM node.
 ///
 /// A node exposes DOM navigation, content access, and tree-editing operations.
-#[pyclass(eq, unsendable, subclass, module = "resiliparse.parse._html_rs.node", from_py_object)]
+#[pyclass(
+    name = "Node",
+    eq,
+    unsendable,
+    subclass,
+    module = "resiliparse.parse.html.node",
+    from_py_object
+)]
 #[derive(Clone, PartialEq)]
-pub struct Node {
-    pub(crate) node: node_impl::Node,
+pub struct NodePy {
+    pub(crate) node: node::Node,
 }
 
-impl From<node_impl::Node> for Node {
-    fn from(value: node_impl::Node) -> Self {
-        Node { node: value }
+impl From<node::Node> for NodePy {
+    fn from(value: node::Node) -> Self {
+        NodePy { node: value }
     }
 }
-pub(crate) fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<Bound<PyAny>> {
+pub(crate) fn create_upcast_node(py: Python, node: node::Node) -> PyResult<Bound<PyAny>> {
     Ok(match node {
         // TODO: Replace with Bound::into_super() in PyO3 0.23
-        node_impl::Node::Element(e) => ElementNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Attribute(e) => AttrNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Text(e) => TextNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::CdataSection(e) => CDATASectionNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::ProcessingInstruction(e) => ProcessingInstructionNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Comment(e) => CommentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Document(e) => DocumentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::DocumentType(e) => DocumentTypeNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::DocumentFragment(e) => DocumentFragmentNode::new_bound(py, e)?.into_any(),
-        node_impl::Node::Notation(e) => NotationNode::new_bound(py, e)?.into_any(),
+        node::Node::Element(e) => ElementNodePy::new_bound(py, e)?.into_any(),
+        node::Node::Attribute(e) => AttrNodePy::new_bound(py, e)?.into_any(),
+        node::Node::Text(e) => TextNodePy::new_bound(py, e)?.into_any(),
+        node::Node::CdataSection(e) => CDATASectionNodePy::new_bound(py, e)?.into_any(),
+        node::Node::ProcessingInstruction(e) => ProcessingInstructionNodePy::new_bound(py, e)?.into_any(),
+        node::Node::Comment(e) => CommentNodePy::new_bound(py, e)?.into_any(),
+        node::Node::Document(e) => DocumentNodePy::new_bound(py, e)?.into_any(),
+        node::Node::DocumentType(e) => DocumentTypeNodePy::new_bound(py, e)?.into_any(),
+        node::Node::DocumentFragment(e) => DocumentFragmentNodePy::new_bound(py, e)?.into_any(),
+        node::Node::Notation(e) => NotationNodePy::new_bound(py, e)?.into_any(),
     })
 }
 
@@ -90,7 +97,7 @@ pub(crate) fn create_upcast_node(py: Python, node: node_impl::Node) -> PyResult<
 
 macro_rules! get_elements_by_x {
     ($slf: ident, $func_name: ident $(, $args: ident)*) => {
-        ElementNodeList::new_bound($slf.py(), Self::raw_node(&$slf).$func_name($($args),*))
+        ElementNodeListPy::new_bound($slf.py(), Self::raw_node(&$slf).$func_name($($args),*))
     };
 }
 
@@ -99,20 +106,20 @@ trait _NodeAccessorMixin<T: NodeInterface>: pyo3::PyClass<Frozen = pyo3::pyclass
 }
 
 trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
-    fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
-        ElementNodeList::new_bound(slf.py(), Self::raw_node(&slf).children())
+    fn children_(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeListPy>> {
+        ElementNodeListPy::new_bound(slf.py(), Self::raw_node(&slf).children())
     }
 
-    fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    fn first_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf)
             .first_element_child()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 
-    fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    fn last_element_child_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf)
             .last_element_child()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 
     #[inline]
@@ -121,33 +128,33 @@ trait _ParentNodeMixin<T: ParentNode>: _NodeAccessorMixin<T> {
     }
 
     fn prepend_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = node.extract::<Vec<Node>>()?;
+        let n = node.extract::<Vec<NodePy>>()?;
         Ok(Self::raw_node(&slf).prepend(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
     fn append_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = node.extract::<Vec<Node>>()?;
+        let n = node.extract::<Vec<NodePy>>()?;
         Ok(Self::raw_node(&slf).append(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
     fn replace_children_(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let n = node.extract::<Vec<Node>>()?;
+        let n = node.extract::<Vec<NodePy>>()?;
         Ok(Self::raw_node(&slf).replace_children(&n.iter().map(|n_| n_.node.as_noderef()).collect::<Vec<_>>()))
     }
 
     //noinspection DuplicatedCode
-    fn query_selector_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    fn query_selector_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::raw_node(&slf).query_selector(selectors).map_or_else(
-            |e| Err(CSSParserException::new_err(e.to_string())),
-            |e| e.map_or(Ok(None), |e_| Ok(Some(ElementNode::new_bound(slf.py(), e_)?))),
+            |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
+            |e| e.map_or(Ok(None), |e_| Ok(Some(ElementNodePy::new_bound(slf.py(), e_)?))),
         )
     }
 
     //noinspection DuplicatedCode
-    fn query_selector_all_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    fn query_selector_all_<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::raw_node(&slf).query_selector_all(selectors).map_or_else(
-            |e| Err(CSSParserException::new_err(e.to_string())),
-            |e| Ok(ElementNodeList::new_bound(slf.py(), e)?),
+            |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
+            |e| Ok(ElementNodeListPy::new_bound(slf.py(), e)?),
         )
     }
 }
@@ -157,17 +164,17 @@ trait _NonElementParentNodeMixin<T: NonElementParentNode>: _NodeAccessorMixin<T>
         slf: PyRef<'py, Self>,
         element_id: &str,
         case_insensitive: bool,
-    ) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    ) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::raw_node(&slf)
             .get_element_by_id_case(element_id, case_insensitive)
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 }
 
 macro_rules! child_node_funcs {
     ($func_name: ident, $call_func_name: ident) => {
         fn $func_name(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
-            let n = node.extract::<Vec<Node>>()?;
+            let n = node.extract::<Vec<NodePy>>()?;
             let r: Vec<_> = n.iter().map(|n_| n_.node.as_noderef()).collect();
             Self::raw_node(&slf).$call_func_name(&r);
             Ok(())
@@ -187,16 +194,16 @@ trait _ChildNodeMixin<T: ChildNode>: _NodeAccessorMixin<T> {
 }
 
 trait _NonDocumentTypeChildNodeMixin<T: NonDocumentTypeChildNode>: _NodeAccessorMixin<T> {
-    fn next_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    fn next_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf)
             .next_element_sibling()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 
-    fn previous_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    fn previous_element_sibling_(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf)
             .previous_element_sibling()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 }
 
@@ -238,7 +245,7 @@ macro_rules! character_data_node {
             /// :param count: Number of characters to read or remove.
             #[inline(always)]
             pub fn substring_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<String> {
-                Self::raw_node(&slf).substring_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
+                Self::raw_node(&slf).substring_data(offset, count).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
             }
 
             /// Append text to the character data.
@@ -255,7 +262,7 @@ macro_rules! character_data_node {
             /// :param data: Character data to store in the node.
             #[inline(always)]
             pub fn insert_data(slf: PyRef<'_, Self>, offset: usize, data: &str) -> PyResult<()> {
-                Self::raw_node(&slf).insert_data(offset, data).map_err(|error| DOMException::new_err(error.to_string()))
+                Self::raw_node(&slf).insert_data(offset, data).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
             }
 
             /// Delete a portion of the character data.
@@ -264,7 +271,7 @@ macro_rules! character_data_node {
             /// :param count: Number of characters to read or remove.
             #[inline(always)]
             pub fn delete_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<()> {
-                Self::raw_node(&slf).delete_data(offset, count).map_err(|error| DOMException::new_err(error.to_string()))
+                Self::raw_node(&slf).delete_data(offset, count).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
             }
 
             /// Replace a portion of the character data.
@@ -274,7 +281,7 @@ macro_rules! character_data_node {
             /// :param data: Character data to store in the node.
             #[inline(always)]
             pub fn replace_data(slf: PyRef<'_, Self>, offset: usize, count: usize, data: &str) -> PyResult<()> {
-                Self::raw_node(&slf).replace_data(offset, count, data).map_err(|error| DOMException::new_err(error.to_string()))
+                Self::raw_node(&slf).replace_data(offset, count, data).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
             }
 
             $(/// The target of this node.
@@ -320,14 +327,14 @@ macro_rules! character_data_node {
             /// The next sibling element, if one exists.
             #[inline(always)]
             #[getter]
-            pub fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+            pub fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
                 Self::next_element_sibling_(slf)
             }
 
             /// The previous sibling element, if one exists.
             #[getter]
             #[inline(always)]
-            pub fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+            pub fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
                 Self::previous_element_sibling_(slf)
             }
         }
@@ -340,8 +347,8 @@ macro_rules! character_data_node {
 // ------------------------------------------ Node Types -------------------------------------------
 
 macro_rules! define_node_type {
-    ($Self: ident, $BaseEnum: ident, $Base: ty) => {
-        #[pyclass(unsendable, extends=Node, module = "resiliparse.parse._html_rs.node", from_py_object)]
+    ($Self: ident, $py_name: literal, $BaseEnum: ident, $Base: ty) => {
+        #[pyclass(name = $py_name, unsendable, extends=NodePy, module = "resiliparse.parse.html.node", from_py_object)]
         #[derive(Clone)]
         pub struct $Self;
 
@@ -354,15 +361,15 @@ macro_rules! define_node_type {
         impl _NodeAccessorMixin<$Base> for $Self {
             fn raw_node<'py, 'a>(slf: &'a PyRef<'py, Self>) -> &'a $Base {
                 match &slf.as_super().node {
-                    node_impl::Node::$BaseEnum(n) => n,
+                    node::Node::$BaseEnum(n) => n,
                     _ => unreachable!(),
                 }
             }
         }
 
-        impl From<$Base> for Node {
-            fn from(value: $Base) -> Node {
-                Node {
+        impl From<$Base> for NodePy {
+            fn from(value: $Base) -> NodePy {
+                NodePy {
                     node: value.as_node(),
                 }
             }
@@ -370,43 +377,48 @@ macro_rules! define_node_type {
     };
 }
 
-define_node_type!(ElementNode, Element, node_impl::ElementNode);
-define_node_type!(AttrNode, Attribute, node_impl::AttrNode);
-define_node_type!(TextNode, Text, node_impl::TextNode);
-define_node_type!(CDATASectionNode, CdataSection, node_impl::CdataSectionNode);
-define_node_type!(ProcessingInstructionNode, ProcessingInstruction, node_impl::ProcessingInstructionNode);
-define_node_type!(CommentNode, Comment, node_impl::CommentNode);
-define_node_type!(DocumentNode, Document, node_impl::DocumentNode);
-define_node_type!(DocumentTypeNode, DocumentType, node_impl::DocumentTypeNode);
-define_node_type!(DocumentFragmentNode, DocumentFragment, node_impl::DocumentFragmentNode);
-define_node_type!(NotationNode, Notation, node_impl::NotationNode);
+define_node_type!(ElementNodePy, "ElementNode", Element, node::ElementNode);
+define_node_type!(AttrNodePy, "AttrNode", Attribute, node::AttrNode);
+define_node_type!(TextNodePy, "TextNode", Text, node::TextNode);
+define_node_type!(CDATASectionNodePy, "CDATASectionNode", CdataSection, node::CdataSectionNode);
+define_node_type!(
+    ProcessingInstructionNodePy,
+    "ProcessingInstructionNode",
+    ProcessingInstruction,
+    node::ProcessingInstructionNode
+);
+define_node_type!(CommentNodePy, "CommentNode", Comment, node::CommentNode);
+define_node_type!(DocumentNodePy, "DocumentNode", Document, node::DocumentNode);
+define_node_type!(DocumentTypeNodePy, "DocumentTypeNode", DocumentType, node::DocumentTypeNode);
+define_node_type!(DocumentFragmentNodePy, "DocumentFragmentNode", DocumentFragment, node::DocumentFragmentNode);
+define_node_type!(NotationNodePy, "NotationNode", Notation, node::NotationNode);
 
 //noinspection DuplicatedCode
 #[pymethods]
-impl Node {
+impl NodePy {
     /// The type of this DOM node.
     #[getter]
-    pub fn node_type(&self) -> Option<NodeType> {
+    pub fn node_type(&self) -> Option<NodeTypePy> {
         Some(match self.node.node_type()? {
-            node_impl::NodeType::Element => NodeType::Element,
-            node_impl::NodeType::Attribute => NodeType::Attribute,
-            node_impl::NodeType::Text => NodeType::Text,
-            node_impl::NodeType::CdataSection => NodeType::CdataSection,
-            node_impl::NodeType::EntityReference => NodeType::EntityReference,
-            node_impl::NodeType::Entity => NodeType::Entity,
-            node_impl::NodeType::ProcessingInstruction => NodeType::ProcessingInstruction,
-            node_impl::NodeType::Comment => NodeType::Comment,
-            node_impl::NodeType::Document => NodeType::Document,
-            node_impl::NodeType::DocumentType => NodeType::DocumentType,
-            node_impl::NodeType::DocumentFragment => NodeType::DocumentFragment,
-            node_impl::NodeType::Notation => NodeType::Notation,
+            node::NodeType::Element => NodeTypePy::Element,
+            node::NodeType::Attribute => NodeTypePy::Attribute,
+            node::NodeType::Text => NodeTypePy::Text,
+            node::NodeType::CdataSection => NodeTypePy::CdataSection,
+            node::NodeType::EntityReference => NodeTypePy::EntityReference,
+            node::NodeType::Entity => NodeTypePy::Entity,
+            node::NodeType::ProcessingInstruction => NodeTypePy::ProcessingInstruction,
+            node::NodeType::Comment => NodeTypePy::Comment,
+            node::NodeType::Document => NodeTypePy::Document,
+            node::NodeType::DocumentType => NodeTypePy::DocumentType,
+            node::NodeType::DocumentFragment => NodeTypePy::DocumentFragment,
+            node::NodeType::Notation => NodeTypePy::Notation,
         })
     }
 
     /// The node type, using the legacy DOM API name.
     #[getter]
     #[pyo3(name = "type")]
-    pub fn type_(&self) -> Option<NodeType> {
+    pub fn type_(&self) -> Option<NodeTypePy> {
         self.node_type()
     }
 
@@ -498,7 +510,7 @@ impl Node {
     #[setter]
     pub fn set_html(&self, html: &str) -> PyResult<()> {
         match &self.node {
-            node_impl::Node::Element(element) => {
+            node::Node::Element(element) => {
                 element.set_inner_html(html);
                 Ok(())
             }
@@ -508,8 +520,8 @@ impl Node {
 
     /// The document that owns this node.
     #[getter]
-    pub fn owner_document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNode>> {
-        DocumentNode::new_bound(py, self.node.owner_document()?).ok()
+    pub fn owner_document<'py>(&self, py: Python<'py>) -> Option<Bound<'py, DocumentNodePy>> {
+        DocumentNodePy::new_bound(py, self.node.owner_document()?).ok()
     }
 
     /// Parent of this node.
@@ -526,9 +538,9 @@ impl Node {
 
     /// The parent element, if one exists.
     #[getter]
-    pub fn parent_element<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNode>> {
-        if let node_impl::Node::Element(e) = self.node.parent_node()? {
-            ElementNode::new_bound(py, e).ok()
+    pub fn parent_element<'py>(&self, py: Python<'py>) -> Option<Bound<'py, ElementNodePy>> {
+        if let node::Node::Element(e) = self.node.parent_node()? {
+            ElementNodePy::new_bound(py, e).ok()
         } else {
             None
         }
@@ -542,14 +554,14 @@ impl Node {
     /// Check whether this node contains the given node.
     ///
     /// :param node: Node to append as a child.
-    pub fn contains<'py>(&self, node: &Bound<'py, Node>) -> bool {
+    pub fn contains<'py>(&self, node: &Bound<'py, NodePy>) -> bool {
         self.node.contains(&node.borrow().node.as_noderef())
     }
 
     /// List of child nodes.
     #[getter]
-    pub fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, NodeList>> {
-        NodeList::new_bound(py, self.node.child_nodes())
+    pub fn child_nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, NodeListPy>> {
+        NodeListPy::new_bound(py, self.node.child_nodes())
     }
 
     /// First child node of this DOM node.
@@ -598,11 +610,11 @@ impl Node {
 
     /// Next sibling element node.
     #[getter]
-    pub fn next_element<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn next_element<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         let mut sibling = self.node.next_sibling();
         while let Some(node) = sibling {
             match node {
-                node_impl::Node::Element(element) => return ElementNode::new_bound(py, element).map(Some),
+                node::Node::Element(element) => return ElementNodePy::new_bound(py, element).map(Some),
                 node => sibling = node.next_sibling(),
             }
         }
@@ -611,11 +623,11 @@ impl Node {
 
     /// Previous sibling element node.
     #[getter]
-    pub fn prev_element<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn prev_element<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         let mut sibling = self.node.previous_sibling();
         while let Some(node) = sibling {
             match node {
-                node_impl::Node::Element(element) => return ElementNode::new_bound(py, element).map(Some),
+                node::Node::Element(element) => return ElementNodePy::new_bound(py, element).map(Some),
                 node => sibling = node.previous_sibling(),
             }
         }
@@ -639,9 +651,9 @@ impl Node {
     #[pyo3(signature = (node, reference=None))]
     pub fn insert_before<'py>(
         &self,
-        node: Bound<'py, Node>,
-        reference: Option<Bound<'py, Node>>,
-    ) -> Option<Bound<'py, Node>> {
+        node: Bound<'py, NodePy>,
+        reference: Option<Bound<'py, NodePy>>,
+    ) -> Option<Bound<'py, NodePy>> {
         let b;
         let refnode = if let Some(r) = &reference {
             b = r.borrow();
@@ -657,7 +669,7 @@ impl Node {
     /// Append a new child node and return the appended node.
     ///
     /// :param node: Node to append as a child.
-    pub fn append_child<'a, 'py>(&self, node: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+    pub fn append_child<'a, 'py>(&self, node: Bound<'py, NodePy>) -> Option<Bound<'py, NodePy>> {
         self.node.append_child(&node.borrow().node.as_noderef()).and(Some(node))
     }
 
@@ -667,9 +679,9 @@ impl Node {
     /// :param old_child: Existing child node to replace.
     pub fn replace_child<'py>(
         &self,
-        new_child: Bound<'py, Node>,
-        old_child: Bound<'py, Node>,
-    ) -> Option<Bound<'py, Node>> {
+        new_child: Bound<'py, NodePy>,
+        old_child: Bound<'py, NodePy>,
+    ) -> Option<Bound<'py, NodePy>> {
         self.node
             .replace_child(&new_child.borrow().node.as_noderef(), &old_child.borrow().node.as_noderef())
             .and(Some(old_child))
@@ -678,7 +690,7 @@ impl Node {
     /// Remove the child node from the DOM tree and return it.
     ///
     /// :param child: Child node to remove.
-    pub fn remove_child<'py>(&self, child: Bound<'py, Node>) -> Option<Bound<'py, Node>> {
+    pub fn remove_child<'py>(&self, child: Bound<'py, NodePy>) -> Option<Bound<'py, NodePy>> {
         self.node
             .remove_child(&child.borrow().node.as_noderef())
             .and(Some(child))
@@ -690,10 +702,10 @@ impl Node {
     }
 
     /// Traverse this subtree in pre-order, starting at this node.
-    pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIter>> {
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NodeIterPy>> {
         Bound::new(
             slf.py(),
-            NodeIter {
+            NodeIterPy {
                 iter: slf.node.clone().into_iter(),
             },
         )
@@ -703,7 +715,7 @@ impl Node {
     ///
     /// :param node: Node whose containment is checked.
     pub fn __contains__(&self, node: &Bound<'_, PyAny>) -> bool {
-        node.cast::<Node>().map_or(false, |n| self.contains(n))
+        node.cast::<NodePy>().map_or(false, |n| self.contains(n))
     }
 
     /// Return the serialized HTML document.
@@ -719,7 +731,7 @@ impl Node {
 
 // noinspection DuplicatedCode
 #[pymethods]
-impl ElementNode {
+impl ElementNodePy {
     /// The qualified tag name of this element.
     #[getter]
     pub fn tag_name(slf: PyRef<'_, Self>) -> Option<String> {
@@ -762,8 +774,8 @@ impl ElementNode {
 
     /// List of class names set on this element.
     #[getter]
-    pub fn class_list(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, DOMTokenList>> {
-        Bound::new(slf.py(), DOMTokenList::from(Self::raw_node(&slf).class_list()))
+    pub fn class_list(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, DOMTokenListPy>> {
+        Bound::new(slf.py(), DOMTokenListPy::from(Self::raw_node(&slf).class_list()))
     }
 
     /// Get the value of an attribute, or ``default_value`` if it is unset.
@@ -795,8 +807,8 @@ impl ElementNode {
 
     /// The attributes of this element as a named map.
     #[getter]
-    pub fn attributes(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NamedNodeMap>> {
-        NamedNodeMap::new_bound(slf.py(), Self::raw_node(&slf).attributes())
+    pub fn attributes(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, NamedNodeMapPy>> {
+        NamedNodeMapPy::new_bound(slf.py(), Self::raw_node(&slf).attributes())
     }
 
     /// Check whether this element has an attribute with the given name.
@@ -906,7 +918,7 @@ impl ElementNode {
     /// :param selectors: CSS selector expression.
     pub fn closest<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::raw_node(&slf).closest(selectors).map_or_else(
-            |e| Err(CSSParserException::new_err(e.to_string())),
+            |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
             |n| n.map_or(Ok(None), |n_| Ok(Some(create_upcast_node(slf.py(), n_.into_node())?))),
         )
     }
@@ -918,13 +930,13 @@ impl ElementNode {
     pub fn matches<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<bool> {
         Self::raw_node(&slf)
             .matches(selectors)
-            .map_or_else(|e| Err(CSSParserException::new_err(e.to_string())), |n| Ok(n))
+            .map_or_else(|e| Err(CSSParserExceptionPy::new_err(e.to_string())), |n| Ok(n))
     }
 
     /// Find all descendant elements with the given tag name.
     ///
     /// :param name: Attribute name to match.
-    pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_tag_name, name)
     }
 
@@ -937,7 +949,7 @@ impl ElementNode {
         slf: PyRef<'py, Self>,
         class_names: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         let _ = case_insensitive;
         get_elements_by_x!(slf, get_elements_by_class_name, class_names)
     }
@@ -954,7 +966,7 @@ impl ElementNode {
         name: &str,
         value: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
     }
 
@@ -968,12 +980,12 @@ impl ElementNode {
         slf: PyRef<'py, Self>,
         element_id: &str,
         case_insensitive: bool,
-    ) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    ) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::raw_node(&slf)
             .get_elements_by_attr_case("id", element_id, case_insensitive)
             .into_iter()
             .next()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 
     /// The serialized HTML inside this element.
@@ -1067,35 +1079,35 @@ impl ElementNode {
     /// The next sibling element, if one exists.
     #[getter]
     #[inline(always)]
-    pub fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn next_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::next_element_sibling_(slf)
     }
 
     /// The previous sibling element, if one exists.
     #[getter]
     #[inline(always)]
-    pub fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn previous_element_sibling(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::previous_element_sibling_(slf)
     }
 
     /// The child elements of this node.
     #[getter]
     #[inline(always)]
-    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeListPy>> {
         Self::children_(slf)
     }
 
     /// First element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::first_element_child_(slf)
     }
 
     /// Last element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::last_element_child_(slf)
     }
 
@@ -1138,7 +1150,7 @@ impl ElementNode {
     /// :param selectors: CSS selector expression.
     /// :return: The first matching element, or ``None`` if no element matches.
     #[inline(always)]
-    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
     }
 
@@ -1147,18 +1159,18 @@ impl ElementNode {
     /// :param selectors: CSS selector expression.
     /// :return: All matching elements.
     #[inline(always)]
-    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
     }
 }
 
-impl _ChildNodeMixin<node_impl::ElementNode> for ElementNode {}
-impl _NonDocumentTypeChildNodeMixin<node_impl::ElementNode> for ElementNode {}
-impl _ParentNodeMixin<node_impl::ElementNode> for ElementNode {}
+impl _ChildNodeMixin<node::ElementNode> for ElementNodePy {}
+impl _NonDocumentTypeChildNodeMixin<node::ElementNode> for ElementNodePy {}
+impl _ParentNodeMixin<node::ElementNode> for ElementNodePy {}
 
 // noinspection DuplicatedCode
 #[pymethods]
-impl AttrNode {
+impl AttrNodePy {
     /// The local name of this node.
     #[getter]
     pub fn local_name(slf: PyRef<'_, Self>) -> Option<String> {
@@ -1187,18 +1199,18 @@ impl AttrNode {
 
     /// The element that owns this attribute, if present.
     #[getter]
-    pub fn owner_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn owner_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf)
             .owner_element()
-            .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+            .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
     }
 }
 
-impl _ChildNodeMixin<node_impl::DocumentTypeNode> for DocumentTypeNode {}
+impl _ChildNodeMixin<node::DocumentTypeNode> for DocumentTypeNodePy {}
 
 // noinspection DuplicatedCode
 #[pymethods]
-impl DocumentTypeNode {
+impl DocumentTypeNodePy {
     /// The name of this node.
     #[getter]
     pub fn name(slf: PyRef<'_, Self>) -> Option<String> {
@@ -1254,7 +1266,7 @@ impl DocumentTypeNode {
 macro_rules! doc_create_x {
     ($slf: ident, $func_name: ident $(, $args: ident)*) => {
         Self::raw_node(&$slf).$func_name($($args),*).map_or_else(
-            |e| Err(DOMException::new_err(e.to_string())),
+            |e| Err(DOMExceptionPy::new_err(e.to_string())),
             |e| Ok(Some(create_upcast_node($slf.py(), e.into_node())?))
         )
     };
@@ -1262,24 +1274,24 @@ macro_rules! doc_create_x {
 
 // noinspection DuplicatedCode
 #[pymethods]
-impl DocumentNode {
+impl DocumentNodePy {
     /// The document type node, if present.
     #[getter]
     pub fn doctype(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         Self::raw_node(&slf).doctype().map_or_else(
-            || Err(DOMException::new_err("No Document node")),
+            || Err(DOMExceptionPy::new_err("No Document node")),
             |d| Ok(Some(create_upcast_node(slf.py(), d.into_node())?)),
         )
     }
 
     /// The root element of this document, if present.
     #[getter]
-    pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf).document_element().map_or_else(
-            || Err(DOMException::new_err("No Document node")),
+            || Err(DOMExceptionPy::new_err("No Document node")),
             |d| {
                 d.first_element_child()
-                    .map_or(Ok(None), |e| Ok(Some(ElementNode::new_bound(slf.py(), e)?)))
+                    .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
             },
         )
     }
@@ -1287,7 +1299,7 @@ impl DocumentNode {
     /// Find all descendant elements with the given tag name.
     ///
     /// :param name: Attribute name to match.
-    pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_tag_name, name)
     }
 
@@ -1301,7 +1313,7 @@ impl DocumentNode {
         slf: PyRef<'py, Self>,
         class_names: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         let _ = case_insensitive;
         get_elements_by_x!(slf, get_elements_by_class_name, class_names)
     }
@@ -1318,7 +1330,7 @@ impl DocumentNode {
         name: &str,
         value: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_attr_case, name, value, case_insensitive)
     }
 
@@ -1377,21 +1389,21 @@ impl DocumentNode {
     /// The child elements of this node.
     #[getter]
     #[inline(always)]
-    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeListPy>> {
         Self::children_(slf)
     }
 
     /// First element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::first_element_child_(slf)
     }
 
     /// Last element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::last_element_child_(slf)
     }
 
@@ -1433,7 +1445,7 @@ impl DocumentNode {
     ///
     /// :param selectors: CSS selector expression.
     #[inline(always)]
-    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
     }
 
@@ -1441,7 +1453,7 @@ impl DocumentNode {
     ///
     /// :param selectors: CSS selector expression.
     #[inline(always)]
-    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
     }
 
@@ -1455,35 +1467,35 @@ impl DocumentNode {
         slf: PyRef<'py, Self>,
         element_id: &str,
         case_insensitive: bool,
-    ) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    ) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::get_element_by_id_(slf, element_id, case_insensitive)
     }
 }
 
-impl _ParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
-impl _NonElementParentNodeMixin<node_impl::DocumentNode> for DocumentNode {}
+impl _ParentNodeMixin<node::DocumentNode> for DocumentNodePy {}
+impl _NonElementParentNodeMixin<node::DocumentNode> for DocumentNodePy {}
 
 // noinspection DuplicatedCode
 #[pymethods]
-impl DocumentFragmentNode {
+impl DocumentFragmentNodePy {
     /// The child elements of this node.
     #[getter]
     #[inline(always)]
-    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeList>> {
+    pub fn children(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, ElementNodeListPy>> {
         Self::children_(slf)
     }
 
     /// First element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn first_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::first_element_child_(slf)
     }
 
     /// Last element child of this DOM node.
     #[getter]
     #[inline(always)]
-    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNode>>> {
+    pub fn last_element_child(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::last_element_child_(slf)
     }
 
@@ -1525,7 +1537,7 @@ impl DocumentFragmentNode {
     ///
     /// :param selectors: CSS selector expression.
     #[inline(always)]
-    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
     }
 
@@ -1533,7 +1545,7 @@ impl DocumentFragmentNode {
     ///
     /// :param selectors: CSS selector expression.
     #[inline(always)]
-    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
     }
 
@@ -1547,27 +1559,27 @@ impl DocumentFragmentNode {
         slf: PyRef<'py, Self>,
         element_id: &str,
         case_insensitive: bool,
-    ) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    ) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::get_element_by_id_(slf, element_id, case_insensitive)
     }
 }
 
-impl _ParentNodeMixin<node_impl::DocumentFragmentNode> for DocumentFragmentNode {}
-impl _NonElementParentNodeMixin<node_impl::DocumentFragmentNode> for DocumentFragmentNode {}
+impl _ParentNodeMixin<node::DocumentFragmentNode> for DocumentFragmentNodePy {}
+impl _NonElementParentNodeMixin<node::DocumentFragmentNode> for DocumentFragmentNodePy {}
 
-character_data_node!(TextNode, node_impl::TextNode);
-character_data_node!(CDATASectionNode, node_impl::CdataSectionNode);
-character_data_node!(ProcessingInstructionNode, node_impl::ProcessingInstructionNode, target, Option<String>);
-character_data_node!(CommentNode, node_impl::CommentNode);
+character_data_node!(TextNodePy, node::TextNode);
+character_data_node!(CDATASectionNodePy, node::CdataSectionNode);
+character_data_node!(ProcessingInstructionNodePy, node::ProcessingInstructionNode, target, Option<String>);
+character_data_node!(CommentNodePy, node::CommentNode);
 
 /// An iterator over a node’s descendants.
-#[pyclass(unsendable, module = "resiliparse.parse._html_rs.node")]
-pub struct NodeIter {
-    iter: iter_impl::NodeIteratorOwned,
+#[pyclass(name = "NodeIter", unsendable, module = "resiliparse.parse.html.node")]
+pub struct NodeIterPy {
+    iter: iter::NodeIteratorOwned,
 }
 
 #[pymethods]
-impl NodeIter {
+impl NodeIterPy {
     /// Return this iterator.
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
@@ -1578,7 +1590,7 @@ impl NodeIter {
         slf.iter
             .next()
             .map(|node| {
-                let node = node.map_err(|error| DOMException::new_err(error.to_string()))?;
+                let node = node.map_err(|error| DOMExceptionPy::new_err(error.to_string()))?;
                 create_upcast_node(slf.py(), node)
             })
             .transpose()
@@ -1587,8 +1599,8 @@ impl NodeIter {
 
 /// Mutable state shared with DOM traversal callbacks.
 /// State shared with DOM traversal callbacks.
-#[pyclass(unsendable, dict, module = "resiliparse.parse._html_rs")]
-pub struct DOMContext {
+#[pyclass(name = "DOMContext", unsendable, dict, module = "resiliparse.parse.html")]
+pub struct DOMContextPy {
     /// The node currently being visited, or ``None`` outside a callback.
     #[pyo3(get, set)]
     node: Option<Py<PyAny>>,
@@ -1599,7 +1611,7 @@ pub struct DOMContext {
 }
 
 #[pymethods]
-impl DOMContext {
+impl DOMContextPy {
     /// Create a traversal context with no current node and depth zero.
     #[new]
     fn new() -> Self {
@@ -1621,24 +1633,24 @@ impl DOMContext {
 #[pyo3(signature = (base_node, start_callback, end_callback=None, context=None, elements_only=false))]
 pub fn traverse_dom(
     py: Python<'_>,
-    base_node: PyRef<'_, Node>,
+    base_node: PyRef<'_, NodePy>,
     start_callback: &Bound<'_, PyAny>,
     end_callback: Option<&Bound<'_, PyAny>>,
-    context: Option<Py<DOMContext>>,
+    context: Option<Py<DOMContextPy>>,
     elements_only: bool,
 ) -> PyResult<()> {
-    if elements_only && base_node.node.node_type() != Some(node_impl::NodeType::Element) {
+    if elements_only && base_node.node.node_type() != Some(node::NodeType::Element) {
         return Ok(());
     }
 
     let context = match context {
         Some(context) => context,
-        None => Py::new(py, DOMContext::new())?,
+        None => Py::new(py, DOMContextPy::new())?,
     };
     let root = base_node.node.clone();
     let mut iter = root.clone().into_iter();
 
-    let invoke = |node: &node_impl::Node, depth: usize, callback: &Bound<'_, PyAny>| -> PyResult<()> {
+    let invoke = |node: &node::Node, depth: usize, callback: &Bound<'_, PyAny>| -> PyResult<()> {
         let wrapped = create_upcast_node(py, node.clone())?.unbind();
         {
             let mut state = context.bind(py).borrow_mut();
@@ -1649,9 +1661,9 @@ pub fn traverse_dom(
         Ok(())
     };
 
-    let mut open_nodes: Vec<(node_impl::Node, usize)> = Vec::new();
+    let mut open_nodes: Vec<(node::Node, usize)> = Vec::new();
     while let Some(node) = iter.next() {
-        let node = node.map_err(|error| DOMException::new_err(error.to_string()))?;
+        let node = node.map_err(|error| DOMExceptionPy::new_err(error.to_string()))?;
         let parent = node.parent_node();
         while open_nodes
             .last()
@@ -1659,8 +1671,7 @@ pub fn traverse_dom(
         {
             let (closing_node, closing_depth) = open_nodes.pop().unwrap();
             if let Some(callback) = end_callback {
-                if closing_node != root
-                    && (!elements_only || closing_node.node_type() == Some(node_impl::NodeType::Element))
+                if closing_node != root && (!elements_only || closing_node.node_type() == Some(node::NodeType::Element))
                 {
                     invoke(&closing_node, closing_depth, callback)?;
                 }
@@ -1668,7 +1679,7 @@ pub fn traverse_dom(
         }
 
         let depth = open_nodes.len();
-        if !elements_only || node.node_type() == Some(node_impl::NodeType::Element) {
+        if !elements_only || node.node_type() == Some(node::NodeType::Element) {
             invoke(&node, depth, start_callback)?;
         }
         if node.has_child_nodes() {
@@ -1679,7 +1690,7 @@ pub fn traverse_dom(
     while open_nodes.len() > 1 {
         let (closing_node, closing_depth) = open_nodes.pop().unwrap();
         if let Some(callback) = end_callback {
-            if !elements_only || closing_node.node_type() == Some(node_impl::NodeType::Element) {
+            if !elements_only || closing_node.node_type() == Some(node::NodeType::Element) {
                 invoke(&closing_node, closing_depth, callback)?;
             }
         }

@@ -1185,7 +1185,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "resiliparse-parse-html"
+name = "resiliparse-py"
 version = "0.0.0"
 dependencies = [
  "pyo3",

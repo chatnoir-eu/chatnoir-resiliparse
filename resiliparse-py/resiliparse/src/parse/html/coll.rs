@@ -1,4 +1,4 @@
-// Copyright 2024 Janek Bevendorff
+// Copyright 2026 Janek Bevendorff
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,56 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::exception::CSSParserExceptionPy;
 use super::node::*;
-use crate::exception::CSSParserException;
 use pyo3::exceptions::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use resiliparse::parse::html::dom::coll as coll_impl;
-use resiliparse::parse::html::dom::coll::{DomTokenListInterface, DomTokenListMutInterface};
+use resiliparse::parse::html::dom::coll::{self, DomTokenListInterface, DomTokenListMutInterface};
 use resiliparse::parse::html::dom::traits::NodeInterface;
 
 /// NL exposed by the HTML DOM API.
 pub enum NL {
-    NodeList(coll_impl::NodeList),
-    LiveNodes(coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>),
-    LiveElements(coll_impl::HtmlCollection),
-    ElementNodeList(coll_impl::ElementNodeList),
-    NamedNodeMap(coll_impl::NamedNodeMap),
+    NodeList(coll::NodeList),
+    LiveNodes(coll::LiveCollection<resiliparse::parse::html::dom::node::Node>),
+    LiveElements(coll::HtmlCollection),
+    ElementNodeList(coll::ElementNodeList),
+    NamedNodeMap(coll::NamedNodeMap),
 }
 
-impl From<coll_impl::NodeList> for NL {
-    fn from(value: coll_impl::NodeList) -> Self {
+impl From<coll::NodeList> for NL {
+    fn from(value: coll::NodeList) -> Self {
         NL::NodeList(value)
     }
 }
 
-impl From<coll_impl::ElementNodeList> for NL {
-    fn from(value: coll_impl::ElementNodeList) -> Self {
+impl From<coll::ElementNodeList> for NL {
+    fn from(value: coll::ElementNodeList) -> Self {
         NL::ElementNodeList(value)
     }
 }
 
-impl From<coll_impl::NamedNodeMap> for NL {
-    fn from(value: coll_impl::NamedNodeMap) -> Self {
+impl From<coll::NamedNodeMap> for NL {
+    fn from(value: coll::NamedNodeMap) -> Self {
         NL::NamedNodeMap(value)
     }
 }
 
-impl From<coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>> for NL {
-    fn from(value: coll_impl::LiveCollection<resiliparse::parse::html::dom::node::Node>) -> Self {
+impl From<coll::LiveCollection<resiliparse::parse::html::dom::node::Node>> for NL {
+    fn from(value: coll::LiveCollection<resiliparse::parse::html::dom::node::Node>) -> Self {
         Self::LiveNodes(value)
     }
 }
 
-impl From<coll_impl::HtmlCollection> for NL {
-    fn from(value: coll_impl::HtmlCollection) -> Self {
+impl From<coll::HtmlCollection> for NL {
+    fn from(value: coll::HtmlCollection) -> Self {
         Self::LiveElements(value)
     }
 }
 
 impl NL {
-    fn elements(&self) -> Option<std::borrow::Cow<'_, coll_impl::ElementNodeList>> {
+    fn elements(&self) -> Option<std::borrow::Cow<'_, coll::ElementNodeList>> {
         match self {
             Self::ElementNodeList(l) => Some(std::borrow::Cow::Borrowed(l)),
             Self::LiveElements(l) => Some(std::borrow::Cow::Owned(l.snapshot())),
@@ -71,12 +70,19 @@ impl NL {
 }
 
 /// An ordered collection of DOM nodes.
-#[pyclass(unsendable, subclass, sequence, frozen, module = "resiliparse.parse._html_rs.coll")]
-pub struct NodeList {
+#[pyclass(
+    name = "NodeList",
+    unsendable,
+    subclass,
+    sequence,
+    frozen,
+    module = "resiliparse.parse.html.coll"
+)]
+pub struct NodeListPy {
     list: NL,
 }
 
-impl NodeList {
+impl NodeListPy {
     pub fn new_bound(py: Python, list: impl Into<NL>) -> PyResult<Bound<Self>> {
         Bound::new(py, Self { list: list.into() })
     }
@@ -86,7 +92,7 @@ fn get_tuple_slice<'py>(tup: &Bound<'py, PyTuple>, index_or_slice: &Bound<'py, P
 }
 
 #[pymethods]
-impl NodeList {
+impl NodeListPy {
     /// Return the item at the given index, or ``None`` if it is out of range.
     ///
     /// :param index: Zero-based item index.
@@ -151,7 +157,7 @@ impl NodeList {
     ///
     /// :param node: Node to check for containment.
     pub fn __contains__<'py>(&self, node: &Bound<'py, PyAny>) -> bool {
-        node.cast::<Node>().map_or(false, |n| match &self.list {
+        node.cast::<NodePy>().map_or(false, |n| match &self.list {
             NL::NodeList(l) => l.iter().any(|i| *i == n.borrow().node),
             NL::LiveNodes(l) => l.iter().any(|i| i == n.borrow().node),
             NL::LiveElements(l) => l.iter().any(|i| i.as_node() == n.borrow().node),
@@ -175,17 +181,17 @@ impl NodeList {
 }
 
 /// An ordered collection of element nodes.
-#[pyclass(unsendable, subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
-pub struct ElementNodeList {}
+#[pyclass(name = "ElementNodeList", unsendable, subclass, sequence, frozen, extends = NodeListPy, module = "resiliparse.parse.html.coll")]
+pub struct ElementNodeListPy {}
 
-impl ElementNodeList {
+impl ElementNodeListPy {
     pub fn new_bound(py: Python, list: impl Into<NL>) -> PyResult<Bound<Self>> {
-        Bound::new(py, (Self {}, NodeList { list: list.into() }))
+        Bound::new(py, (Self {}, NodeListPy { list: list.into() }))
     }
 }
 
 #[pymethods]
-impl ElementNodeList {
+impl ElementNodeListPy {
     /// Find the element in this collection whose ID attribute matches ``element_id``.
     ///
     /// :param element_id: ID value to search for.
@@ -195,13 +201,13 @@ impl ElementNodeList {
         slf: PyRef<'py, Self>,
         element_id: &str,
         case_insensitive: bool,
-    ) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    ) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         if let Some(l) = slf.as_super().list.elements() {
             let res = l
                 .elements_by_attr_case("id", element_id, case_insensitive)
                 .item(0)
                 .cloned()
-                .map(|n| ElementNode::new_bound(slf.py(), n).unwrap());
+                .map(|n| ElementNodePy::new_bound(slf.py(), n).unwrap());
             return Ok(res);
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
@@ -218,7 +224,7 @@ impl ElementNodeList {
         attr_name: &str,
         attr_value: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         if let Some(l) = slf.as_super().list.elements() {
             return Ok(Self::new_bound(slf.py(), l.elements_by_attr_case(attr_name, attr_value, case_insensitive))?);
         }
@@ -234,7 +240,7 @@ impl ElementNodeList {
         slf: PyRef<'py, Self>,
         class_name: &str,
         case_insensitive: bool,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         let _ = case_insensitive;
         if let Some(l) = slf.as_super().list.elements() {
             return Ok(Self::new_bound(slf.py(), l.elements_by_class_name(class_name))?);
@@ -248,7 +254,7 @@ impl ElementNodeList {
     pub fn get_elements_by_tag_name<'py>(
         slf: PyRef<'py, Self>,
         tag_name: &str,
-    ) -> PyResult<Bound<'py, ElementNodeList>> {
+    ) -> PyResult<Bound<'py, ElementNodeListPy>> {
         if let Some(l) = slf.as_super().list.elements() {
             return Ok(Self::new_bound(slf.py(), l.elements_by_tag_name(tag_name))?);
         }
@@ -259,11 +265,11 @@ impl ElementNodeList {
     /// Find the first matching element in this collection. This is more efficient than calling :meth:`query_selector_all` and discarding additional results.
     ///
     /// :param selectors: CSS selector expression.
-    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNode>>> {
+    pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector(selectors).map_or_else(
-                |e| Err(CSSParserException::new_err(e.to_string())),
-                |e| e.map_or(Ok(None), |e_| Ok(Some(ElementNode::new_bound(slf.py(), e_)?))),
+                |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
+                |e| e.map_or(Ok(None), |e_| Ok(Some(ElementNodePy::new_bound(slf.py(), e_)?))),
             );
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
@@ -273,11 +279,11 @@ impl ElementNodeList {
     /// Find all matching elements in this collection and return an :class:`ElementNodeList`.
     ///
     /// :param selectors: CSS selector expression.
-    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeList>> {
+    pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector_all(selectors).map_or_else(
-                |e| Err(CSSParserException::new_err(e.to_string())),
-                |e| Ok(ElementNodeList::new_bound(slf.py(), e)?),
+                |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
+                |e| Ok(ElementNodeListPy::new_bound(slf.py(), e)?),
             );
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
@@ -290,43 +296,50 @@ impl ElementNodeList {
         if let Some(l) = slf.as_super().list.elements() {
             return l
                 .matches(selectors)
-                .or_else(|e| Err(CSSParserException::new_err(e.to_string())));
+                .or_else(|e| Err(CSSParserExceptionPy::new_err(e.to_string())));
         }
         Err(PyValueError::new_err("Invalid DOM collection type"))
     }
 }
 
 /// A collection of named attributes.
-#[pyclass(unsendable, subclass, sequence, frozen, extends = NodeList, module = "resiliparse.parse._html_rs.coll")]
-pub struct NamedNodeMap {}
+#[pyclass(name = "NamedNodeMap", unsendable, subclass, sequence, frozen, extends = NodeListPy, module = "resiliparse.parse.html.coll")]
+pub struct NamedNodeMapPy {}
 
-impl NamedNodeMap {
-    pub fn new_bound(py: Python, list: coll_impl::NamedNodeMap) -> PyResult<Bound<Self>> {
-        Bound::new(py, (Self {}, NodeList { list: list.into() }))
+impl NamedNodeMapPy {
+    pub fn new_bound(py: Python, list: coll::NamedNodeMap) -> PyResult<Bound<Self>> {
+        Bound::new(py, (Self {}, NodeListPy { list: list.into() }))
     }
 }
 
 /// Class name list of an element DOM node.
-#[pyclass(unsendable, subclass, eq, sequence, module = "resiliparse.parse._html_rs.coll")]
+#[pyclass(
+    name = "DOMTokenList",
+    unsendable,
+    subclass,
+    eq,
+    sequence,
+    module = "resiliparse.parse.html.coll"
+)]
 #[derive(PartialEq)]
-pub struct DOMTokenList {
-    list: coll_impl::DomTokenListOwned,
+pub struct DOMTokenListPy {
+    list: coll::DomTokenListOwned,
 }
 
-impl From<coll_impl::DomTokenListOwned> for DOMTokenList {
-    fn from(list: coll_impl::DomTokenListOwned) -> Self {
+impl From<coll::DomTokenListOwned> for DOMTokenListPy {
+    fn from(list: coll::DomTokenListOwned) -> Self {
         Self { list }
     }
 }
 
-impl From<coll_impl::DomTokenList<'_>> for DOMTokenList {
-    fn from(list: coll_impl::DomTokenList<'_>) -> Self {
+impl From<coll::DomTokenList<'_>> for DOMTokenListPy {
+    fn from(list: coll::DomTokenList<'_>) -> Self {
         Self { list: list.into() }
     }
 }
 
 #[pymethods]
-impl DOMTokenList {
+impl DOMTokenListPy {
     /// The node value.
     #[getter]
     pub fn value(&self) -> String {

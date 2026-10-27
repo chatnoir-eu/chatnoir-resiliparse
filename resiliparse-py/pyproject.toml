@@ -1,6 +1,5 @@
 [build-system]
-requires = ["setuptools>=77.0", "packaging>=24.2", "Cython>=0.29.33"]
-#requires = ["setuptools>=75.0.0", "Cython>=0.29.33", "setuptools-rust>=1.10"]
+requires = ["setuptools>=77.0", "packaging>=24.2", "Cython>=0.29.33", "setuptools-rust>=1.10"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -52,14 +51,20 @@ test = [
 resiliparse = "resiliparse.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["resiliparse*"]
+include = ["resiliparse", "resiliparse.parse*", "resiliparse.extract*", "resiliparse.beam", "resiliparse.legacy*"]
 
-#[[tool.setuptools-rust.ext-modules]]
-#path = "resiliparse/parse/_html_rs/Cargo.toml"
-#target = "resiliparse.parse._html_rs"
+[tool.setuptools.package-data]
+"*" = ["*.pyi", "py.typed"]
 
 [tool.cibuildwheel]
 archs = "native"
 build = "cp3*"
 build-frontend = "build"
 test-extras = ["all", "test"]
+
+[tool.mypy]
+exclude = ["resiliparse/legacy/.*"]
+
+[[tool.mypy.overrides]]
+module = ["apache_beam.*"]
+ignore_missing_imports = true

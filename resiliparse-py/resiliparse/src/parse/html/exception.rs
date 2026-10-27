@@ -1,4 +1,4 @@
-// Copyright 2024 Janek Bevendorff
+// Copyright 2026 Janek Bevendorff
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,20 +16,25 @@ use pyo3::create_exception;
 use pyo3::exceptions::*;
 
 create_exception!(
-    resiliparse.parse._html_rs.exception,
+    resiliparse.parse.html.exception,
     DOMException,
     PyException,
     "Base exception for errors raised by the HTML DOM API."
 );
+pub use CSSParserException as CSSParserExceptionPy;
+
 create_exception!(
-    resiliparse.parse._html_rs.exception,
+    resiliparse.parse.html.exception,
     HTMLParserException,
     DOMException,
     "Exception raised when an HTML document cannot be parsed."
 );
+pub use DOMException as DOMExceptionPy;
+
 create_exception!(
-    resiliparse.parse._html_rs.exception,
+    resiliparse.parse.html.exception,
     CSSParserException,
     DOMException,
     "Exception raised when a CSS selector cannot be parsed."
 );
+pub use HTMLParserException as HTMLParserExceptionPy;

@@ -23,7 +23,7 @@ from libcpp.vector cimport vector
 
 from resiliparse_common.string_util cimport lstrip_str, rstrip_str, strip_str, strip_sv
 from resiliparse_inc.cctype cimport isspace
-from resiliparse.parse.html cimport *
+from resiliparse.legacy.parse.html cimport *
 from resiliparse_inc.lexbor cimport *
 from resiliparse_inc.re2 cimport Options as RE2Options, RE2Stack as RE2, PartialMatch
 from resiliparse_inc.string_view cimport string_view

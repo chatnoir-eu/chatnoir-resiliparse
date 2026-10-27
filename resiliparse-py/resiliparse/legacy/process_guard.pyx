@@ -41,6 +41,7 @@ __all__ = [
     'MemGuard',
     'MemoryLimitExceeded',
     'TimeGuard',
+    'InterruptType',
 ]
 
 class ResiliparseGuardException(BaseException):

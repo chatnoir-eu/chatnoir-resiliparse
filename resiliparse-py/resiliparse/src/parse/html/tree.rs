@@ -1,4 +1,4 @@
-// Copyright 2024 Janek Bevendorff
+// Copyright 2026 Janek Bevendorff
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::exception::*;
-use crate::node::*;
+use super::exception::*;
+use super::node::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use resiliparse::parse::html::tree as tree_impl;
+use resiliparse::parse::html::tree;
 
 /// HTML DOM tree parser.
-#[pyclass(unsendable, module = "resiliparse.parse._html_rs")]
-pub struct HTMLTree {
-    tree: tree_impl::HtmlTree,
+#[pyclass(name = "HTMLTree", unsendable, module = "resiliparse.parse.html")]
+pub struct HTMLTreePy {
+    tree: tree::HtmlTree,
 }
 
 #[pymethods]
-impl HTMLTree {
+impl HTMLTreePy {
     /// Parse HTML from a Unicode string into a DOM tree.
     ///
     /// :param document: Unicode HTML document to parse.
@@ -34,9 +34,9 @@ impl HTMLTree {
     /// :raises ValueError: If parsing fails.
     #[staticmethod]
     pub fn parse(document: &str) -> PyResult<Self> {
-        match tree_impl::HtmlTree::parse(document) {
+        match tree::HtmlTree::parse(document) {
             Ok(t) => Ok(Self { tree: t }),
-            _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
+            _ => Err(HTMLParserExceptionPy::new_err("Failed to parse HTML document.")),
         }
     }
 
@@ -64,9 +64,9 @@ impl HTMLTree {
             .call_method1("map_encoding_to_html5", (encoding,))?
             .extract()?;
         let decoded: String = document.call_method1("decode", (encoding, errors))?.extract()?;
-        match tree_impl::HtmlTree::parse(&decoded) {
+        match tree::HtmlTree::parse(&decoded) {
             Ok(t) => Ok(Self { tree: t }),
-            _ => Err(HTMLParserException::new_err("Failed to parse HTML document.")),
+            _ => Err(HTMLParserExceptionPy::new_err("Failed to parse HTML document.")),
         }
     }
 
@@ -75,8 +75,8 @@ impl HTMLTree {
     /// :param tag_name: Tag name for the new element.
     pub fn create_element<'py>(slf: PyRef<'py, Self>, tag_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
-            || Err(DOMException::new_err("No document node.")),
-            |d| DocumentNode::create_element(d.borrow(), tag_name),
+            || Err(DOMExceptionPy::new_err("No document node.")),
+            |d| DocumentNodePy::create_element(d.borrow(), tag_name),
         )
     }
 
@@ -85,27 +85,27 @@ impl HTMLTree {
     /// :param text: Text to store in the node.
     pub fn create_text_node<'py>(slf: PyRef<'py, Self>, text: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
-            || Err(DOMException::new_err("No document node.")),
-            |d| DocumentNode::create_text_node(d.borrow(), text),
+            || Err(DOMExceptionPy::new_err("No document node.")),
+            |d| DocumentNodePy::create_text_node(d.borrow(), text),
         )
     }
 
     /// The document node.
     #[getter]
-    pub fn document(slf: PyRef<'_, Self>) -> Option<Bound<'_, DocumentNode>> {
-        DocumentNode::new_bound(slf.py(), slf.tree.document()?).ok()
+    pub fn document(slf: PyRef<'_, Self>) -> Option<Bound<'_, DocumentNodePy>> {
+        DocumentNodePy::new_bound(slf.py(), slf.tree.document()?).ok()
     }
 
     /// HTML head element or ``None`` if the document has no head.
     #[getter]
-    pub fn head(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNode>> {
-        ElementNode::new_bound(slf.py(), slf.tree.head()?).ok()
+    pub fn head(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNodePy>> {
+        ElementNodePy::new_bound(slf.py(), slf.tree.head()?).ok()
     }
     /// HTML body element or ``None`` if the document has no body.
 
     #[getter]
-    pub fn body(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNode>> {
-        ElementNode::new_bound(slf.py(), slf.tree.body()?).ok()
+    pub fn body(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNodePy>> {
+        ElementNodePy::new_bound(slf.py(), slf.tree.body()?).ok()
     }
 
     /// The HTML document title.

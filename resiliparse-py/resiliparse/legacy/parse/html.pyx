@@ -22,7 +22,7 @@ from cpython.ref cimport PyObject
 from libcpp.set cimport set as unordered_set
 
 from resiliparse_inc.lexbor cimport *
-from resiliparse.parse.encoding cimport bytes_to_str, map_encoding_to_html5
+from resiliparse.legacy.parse.encoding cimport bytes_to_str, map_encoding_to_html5
 
 __all__ = [
     'DOMCollection',

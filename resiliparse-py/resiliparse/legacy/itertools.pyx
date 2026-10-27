@@ -28,7 +28,7 @@ def progress_loop(it, ctx=None):
     .. deprecated:: 0.12.0
        Use :func:`resiliparse.process_guard.progress_loop` instead.
     """
-    from resiliparse.process_guard import progress_loop as pl
+    from resiliparse.legacy.process_guard import progress_loop as pl
     import warnings
     warnings.warn('progress_loop() has moved to resiliparse.progress_guard.', DeprecationWarning)
     yield from pl(it, ctx)

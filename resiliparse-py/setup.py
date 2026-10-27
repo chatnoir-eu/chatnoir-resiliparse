@@ -21,6 +21,7 @@ import sys
 from Cython.Build import cythonize
 from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import Extension, setup
+from setuptools_rust import Binding, RustExtension
 
 TRACE = bool(int(os.getenv('TRACE', 0)))
 DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
@@ -108,23 +109,23 @@ def get_cython_args():
 
 def get_ext_modules():
     resiliparse_extensions = [
-        Extension('resiliparse.itertools',
-                  sources=[f'resiliparse/itertools.pyx']),
-        Extension('resiliparse.extract.html2text',
-                  sources=[f'resiliparse/extract/html2text.pyx'], libraries=['lexbor', 're2']),
-        Extension('resiliparse.parse.encoding',
-                  sources=[f'resiliparse/parse/encoding.pyx'], libraries=['uchardet', 'lexbor']),
-        Extension('resiliparse.parse.html',
-                  sources=[f'resiliparse/parse/html.pyx'], libraries=['lexbor']),
-        Extension('resiliparse.parse.http',
-                  sources=[f'resiliparse/parse/http.pyx']),
-        Extension('resiliparse.parse.lang',
-                  sources=[f'resiliparse/parse/lang.pyx']),
+        Extension('resiliparse.legacy.itertools',
+                  sources=['resiliparse/legacy/itertools.pyx']),
+        Extension('resiliparse.legacy.extract.html2text',
+                  sources=['resiliparse/legacy/extract/html2text.pyx'], libraries=['lexbor', 're2']),
+        Extension('resiliparse.legacy.parse.encoding',
+                  sources=['resiliparse/legacy/parse/encoding.pyx'], libraries=['uchardet', 'lexbor']),
+        Extension('resiliparse.legacy.parse.html',
+                  sources=['resiliparse/legacy/parse/html.pyx'], libraries=['lexbor']),
+        Extension('resiliparse.legacy.parse.http',
+                  sources=['resiliparse/legacy/parse/http.pyx']),
+        Extension('resiliparse.legacy.parse.lang',
+                  sources=['resiliparse/legacy/parse/lang.pyx']),
     ]
     if os.name == 'posix':
         # Process Guards are unsupported on Windows
         resiliparse_extensions.append(
-            Extension('resiliparse.process_guard', sources=[f'resiliparse/process_guard.pyx'],
+            Extension('resiliparse.legacy.process_guard', sources=['resiliparse/legacy/process_guard.pyx'],
                       libraries=['pthread'])
         )
 
@@ -140,6 +141,13 @@ def main():
 
     setup(
         ext_modules=get_ext_modules(),
+        rust_extensions=[
+            RustExtension(
+                target='resiliparse._resiliparse',
+                path='resiliparse/Cargo.toml',
+                binding=Binding.PyO3,
+            )
+        ],
         cmdclass=dict(build_ext=resiliparse_build_ext),
         exclude_package_data={
             '': [] if 'sdist' in sys.argv else ['*.pxd', '*.pxi', '*.pyx', '*.h', '*.cpp']

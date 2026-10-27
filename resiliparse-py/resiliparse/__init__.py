@@ -1,4 +1,4 @@
-# Copyright 2024 Janek Bevendorff
+# Copyright 2026 Janek Bevendorff
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,3 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import importlib
+
+_native = importlib.import_module("._resiliparse", __name__)
+
+import resiliparse.parse as parse  # noqa: F401
+import resiliparse.beam as beam  # noqa: F401
+
+__all__ = [*_native.__all__]
