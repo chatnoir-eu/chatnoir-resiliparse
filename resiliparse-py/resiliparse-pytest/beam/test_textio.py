@@ -9,7 +9,7 @@ from resiliparse.beam import textio
 from .util import TestPipeline
 
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 
 @pytest.mark.slow

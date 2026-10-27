@@ -6,7 +6,7 @@ from apache_beam.testing.util import assert_that, equal_to
 from resiliparse.beam import fileio
 from .util import TestPipeline
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 
 @pytest.mark.slow

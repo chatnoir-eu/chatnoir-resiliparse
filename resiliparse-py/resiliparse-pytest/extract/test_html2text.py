@@ -5,7 +5,7 @@ from fastwarc.warc import *
 from resiliparse.parse.html import *
 from resiliparse.extract.html2text import *
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 html = """<!doctype html>
 <head>

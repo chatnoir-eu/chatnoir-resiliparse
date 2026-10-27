@@ -8,7 +8,7 @@ from resiliparse.parse.encoding import detect_encoding
 from resiliparse.parse.html import *
 
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 html = """<!doctype html>
 <html lang="en">

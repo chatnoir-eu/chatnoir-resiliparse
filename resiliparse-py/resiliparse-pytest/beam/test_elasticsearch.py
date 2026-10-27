@@ -9,7 +9,7 @@ from resiliparse.beam import elasticsearch as es
 from .util import TestPipeline
 
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 
 MOCK_RETURN_CODE = 200

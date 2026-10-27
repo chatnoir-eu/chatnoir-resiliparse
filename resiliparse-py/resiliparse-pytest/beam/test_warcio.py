@@ -10,7 +10,7 @@ from resiliparse.beam import warcio
 from .util import TestPipeline
 
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 FILE_PATH = os.path.join(DATA_DIR, 'warcfile.warc')
 
 

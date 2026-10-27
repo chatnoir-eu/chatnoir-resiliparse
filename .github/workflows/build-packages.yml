@@ -158,7 +158,7 @@ jobs:
           CIBW_BEFORE_TEST: >-
             python -c "import glob, platform, re, sysconfig; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/fastwarc-*-cp*-cp' + re.match(r'^.*(?:cpython|cp)-?(3\d+t?)', sysconfig.get_config_var('EXT_SUFFIX'))[1] + '-*_' + platform.machine().lower() + '.whl')[0])" &&
             python -m pip install -r fastwarc.txt
-          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/resiliparse
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/resiliparse-py/resiliparse-pytest
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -237,7 +237,8 @@ jobs:
       - name: Run Tests
         run: |
           export LD_PRELOAD="$(ldconfig -p | grep libasan | head -n1 | awk '{print $4}')"
-          python${PYTHON_VERSION} -m pytest --capture=sys --verbose tests fastwarc-py/fastwarc-pytest
+          python${PYTHON_VERSION} -m pytest --capture=sys --verbose fastwarc-py/fastwarc-pytest
+          python${PYTHON_VERSION} -m pytest --capture=sys --verbose resiliparse-py/resiliparse-pytest
 
   build-coverage:
     runs-on: ubuntu-latest
@@ -281,7 +282,6 @@ jobs:
           python${PYTHON_VERSION} -m pytest --cov \
             --cov-report xml:pytest-coverage.xml \
             --junitxml=pytest-report.junit.xml \
-            tests \
             fastwarc-py/fastwarc-pytest
           
           # Generate Rust coverage report
