@@ -36,6 +36,7 @@ MANIFEST
 *.bz2
 *.xz
 *.lz4
+*.zst
 *.warc
 
 # Shared test assets are versioned, including compressed archives.
