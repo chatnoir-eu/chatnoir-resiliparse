@@ -107,10 +107,10 @@ unsafe impl Send for TraversalState {}
 
 impl TraversalState {
     fn new(root: NodeRef<'_>) -> Self {
-        let document = root.tree_();
+        let document = root.tree();
         let (expected_epoch, cursor) = {
             let _guard = document.doc_ptr();
-            (document.mutation_epoch(), NodeIteratorRaw::new(root.node_ptr_()))
+            (document.mutation_epoch(), NodeIteratorRaw::new(root.node_ptr()))
         };
         Self {
             document,

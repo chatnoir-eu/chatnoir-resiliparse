@@ -192,9 +192,9 @@ impl<T> LiveCollection<T> {
     ///
     /// A snapshot containing the query results at the time of this call.
     pub fn snapshot(&self) -> NodeList<T> {
-        let document = self.node.tree_();
+        let document = self.node.tree();
         let _guard = document.doc_ptr();
-        if self.node.node_ptr_().is_null() {
+        if self.node.node_ptr().is_null() {
             return NodeList::default();
         }
         (self.query)(&self.node, self.data.as_ref()).into()
@@ -563,7 +563,7 @@ impl ElementNodeList {
         let mut result = Vec::new();
         for root in self {
             for element in selectors.query_selector_all(&root.as_noderef())? {
-                if seen.insert(element.node_ptr_()) {
+                if seen.insert(element.node_ptr()) {
                     result.push(element);
                 }
             }
@@ -714,7 +714,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// No value is returned.
     fn add(&self, tokens: &[&str]) {
-        let document = self.element_().tree_();
+        let document = self.element_().tree();
         let _guard = document.doc_ptr();
         let mut values = self.values();
         tokens.iter().for_each(|t: &&str| {
@@ -736,7 +736,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// No value is returned.
     fn remove(&self, tokens: &[&str]) {
-        let document = self.element_().tree_();
+        let document = self.element_().tree();
         let _guard = document.doc_ptr();
         self.set_value(
             &self
@@ -758,7 +758,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// True if `old_token` was present and replaced.
     fn replace(&self, old_token: &str, new_token: &str) -> bool {
-        let document = self.element_().tree_();
+        let document = self.element_().tree();
         let _guard = document.doc_ptr();
         let mut repl = false;
         self.set_value(
@@ -789,7 +789,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// True if `token` is present after the operation.
     fn toggle(&self, token: &str, force: Option<bool>) -> bool {
-        let document = self.element_().tree_();
+        let document = self.element_().tree();
         let _guard = document.doc_ptr();
         if let Some(f) = force {
             if f {

@@ -1078,10 +1078,10 @@ fn iterator_construction_is_lazy() {
     let tree = HtmlTree::parse("<div><span>text</span></div>").unwrap();
     let root = tree.body().unwrap().first_element_child().unwrap();
     let child = root.first_child().unwrap();
-    let references = unsafe { (*child.node_ptr_()).ref_count };
+    let references = unsafe { (*child.node_ptr()).ref_count };
     let iter = root.iter();
     // A snapshot would have retained every descendant at construction.
-    assert_eq!(unsafe { (*child.node_ptr_()).ref_count }, references);
+    assert_eq!(unsafe { (*child.node_ptr()).ref_count }, references);
     assert_eq!(iter.collect::<Result<Vec<_>, _>>().unwrap().len(), 3);
 }
 
@@ -1164,7 +1164,7 @@ fn dropping_an_orphan_subtree_invalidates_traversal() {
     let orphan = root.first_child().unwrap();
     // Release Lexbor's reference to the retained descendant.
     root.clone().decompose();
-    assert_eq!(unsafe { (*orphan.node_ptr_()).ref_count }, 1);
+    assert_eq!(unsafe { (*orphan.node_ptr()).ref_count }, 1);
     let other = tree.body().unwrap().last_element_child().unwrap();
     let mut iter = other.iter();
     drop(orphan);
@@ -1382,18 +1382,18 @@ fn node_reference_counting() {
     let grandchild = doc.first_element_child().unwrap().first_element_child().unwrap();
 
     // Minimum reference count should be 2 (1 Lexbor + 1 Resiliparse)
-    assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 2);
+    assert_eq!(unsafe { *(grandchild.node_ptr()) }.ref_count, 2);
 
     // Create a few more clones
     let grandchild2 = grandchild.clone();
     assert!(grandchild2.has_child_nodes());
-    assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 3);
-    assert_eq!(unsafe { *(grandchild2.node_ptr_()) }.ref_count, 3);
+    assert_eq!(unsafe { *(grandchild.node_ptr()) }.ref_count, 3);
+    assert_eq!(unsafe { *(grandchild2.node_ptr()) }.ref_count, 3);
 
     let grandchild3 = grandchild.clone();
     assert!(grandchild2.has_child_nodes());
-    assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 4);
-    assert_eq!(unsafe { *(grandchild3.node_ptr_()) }.ref_count, 4);
+    assert_eq!(unsafe { *(grandchild.node_ptr()) }.ref_count, 4);
+    assert_eq!(unsafe { *(grandchild3.node_ptr()) }.ref_count, 4);
 
     // Check parent state
     assert!(doc.first_element_child().is_some());
@@ -1402,9 +1402,9 @@ fn node_reference_counting() {
     // Decompose parent
     doc.first_element_child().unwrap().decompose();
     assert!(!doc.first_element_child().is_some());
-    assert_eq!(unsafe { *(grandchild.node_ptr_()) }.ref_count, 3);
-    assert_eq!(unsafe { *(grandchild2.node_ptr_()) }.ref_count, 3);
-    assert_eq!(unsafe { *(grandchild3.node_ptr_()) }.ref_count, 3);
+    assert_eq!(unsafe { *(grandchild.node_ptr()) }.ref_count, 3);
+    assert_eq!(unsafe { *(grandchild2.node_ptr()) }.ref_count, 3);
+    assert_eq!(unsafe { *(grandchild3.node_ptr()) }.ref_count, 3);
 
     // Test that grandchild is still valid, but empty.
     // Thanks to reference counting, this should not cause segfaults!
@@ -1419,11 +1419,11 @@ fn node_reference_counting() {
     grandchild.decompose();
     assert!(grandchild.node_name().is_none());
 
-    assert!(grandchild.node_ptr_().is_null());
-    assert!(!grandchild2.node_ptr_().is_null());
-    assert!(!grandchild3.node_ptr_().is_null());
-    assert_eq!(unsafe { *(grandchild2.node_ptr_()) }.ref_count, 2);
-    assert_eq!(unsafe { *(grandchild3.node_ptr_()) }.ref_count, 2);
+    assert!(grandchild.node_ptr().is_null());
+    assert!(!grandchild2.node_ptr().is_null());
+    assert!(!grandchild3.node_ptr().is_null());
+    assert_eq!(unsafe { *(grandchild2.node_ptr()) }.ref_count, 2);
+    assert_eq!(unsafe { *(grandchild3.node_ptr()) }.ref_count, 2);
 
     // Drop tree and document in the "wrong" order
     drop(tree);
@@ -1432,9 +1432,9 @@ fn node_reference_counting() {
 
     // Decompose dangling grandchild2
     grandchild2.decompose();
-    assert!(grandchild2.node_ptr_().is_null());
-    assert!(!grandchild3.node_ptr_().is_null());
-    assert_eq!(unsafe { *(grandchild3.node_ptr_()) }.ref_count, 1);
+    assert!(grandchild2.node_ptr().is_null());
+    assert!(!grandchild3.node_ptr().is_null());
+    assert_eq!(unsafe { *(grandchild3.node_ptr()) }.ref_count, 1);
 }
 
 #[test]
@@ -1717,9 +1717,9 @@ fn node_capability_views_cover_supported_node_kinds_without_cloning() {
         (doc.doctype().unwrap().as_node(), false, false, false, false),
     ];
     for (mut node, parent, character_data, element, text) in cases {
-        let document = node.tree_();
+        let document = node.tree();
         let _guard = document.doc_ptr();
-        let ref_count = unsafe { (*node.node_ptr_()).ref_count };
+        let ref_count = unsafe { (*node.node_ptr()).ref_count };
         let parent_view = node.as_parent();
         let data_view = node.as_character_data();
         assert_eq!(parent_view.is_some(), parent);
@@ -1729,7 +1729,7 @@ fn node_capability_views_cover_supported_node_kinds_without_cloning() {
         // Views are Copy; retaining another view must not retain a native handle.
         let _parent_copy = parent_view;
         let _data_copy = data_view;
-        assert_eq!(unsafe { (*node.node_ptr_()).ref_count }, ref_count);
+        assert_eq!(unsafe { (*node.node_ptr()).ref_count }, ref_count);
         if let Some(data) = data_view {
             assert_eq!(data.len(), 2);
             assert_eq!(data.substring_data(1, 1).unwrap(), "🙂");
@@ -1750,7 +1750,7 @@ fn node_capability_views_cover_supported_node_kinds_without_cloning() {
         assert_eq!(borrowed_mut.as_character_data().is_some(), character_data);
         assert_eq!(borrowed_mut.as_element().is_some(), element);
         assert_eq!(borrowed_mut.as_text().is_some(), text);
-        assert_eq!(unsafe { (*node.node_ptr_()).ref_count }, ref_count);
+        assert_eq!(unsafe { (*node.node_ptr()).ref_count }, ref_count);
     }
 }
 
@@ -1787,9 +1787,9 @@ fn parent_views_support_queries_and_live_collections() {
 #[test]
 fn checked_downcasts_preserve_ownership_on_success_and_failure() {
     fn check<T: NodeInterface + TryFrom<Node, Error = Node>>(node: Node, target: NodeType) {
-        let document = node.tree_();
+        let document = node.tree();
         let _guard = document.doc_ptr();
-        let pointer = node.node_ptr_();
+        let pointer = node.node_ptr();
         let ref_count = unsafe { (*pointer).ref_count };
         let expected_success = node.node_type() == Some(target);
         let recovered = match T::try_from(node) {
@@ -1802,7 +1802,7 @@ fn checked_downcasts_preserve_ownership_on_success_and_failure() {
                 original
             }
         };
-        assert_eq!(recovered.node_ptr_(), pointer);
+        assert_eq!(recovered.node_ptr(), pointer);
         assert_eq!(unsafe { (*pointer).ref_count }, ref_count);
     }
 
@@ -1961,9 +1961,9 @@ fn shared_handle_identity_and_owner_survive_moves_and_tree_drop() {
 fn concrete_node_construction_checks_kind_before_retaining() {
     let tree = HtmlTree::parse("<div></div>").unwrap();
     let element = tree.body().unwrap();
-    let document = element.tree_();
+    let document = element.tree();
     let _guard = document.doc_ptr();
-    let pointer = element.node_ptr_();
+    let pointer = element.node_ptr();
     let ref_count = unsafe { (*pointer).ref_count };
 
     // Catch panic output, then restore hook

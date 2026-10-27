@@ -204,9 +204,9 @@ impl CssSelector {
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
-        let tree = node.tree_();
+        let tree = node.tree();
         let _guard = tree.doc_ptr();
-        let node = node.node_ptr_();
+        let node = node.node_ptr();
         if node.is_null() {
             return Ok(());
         }
@@ -276,10 +276,10 @@ impl CssSelector {
     where
         F: Fn(ElementNode, u32, &mut T) -> TraverseAction,
     {
-        let tree = node.tree_();
+        let tree = node.tree();
         let _guard = tree.doc_ptr();
         unsafe {
-            if node.node_ptr_().is_null() || (*node.node_ptr_()).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
+            if node.node_ptr().is_null() || (*node.node_ptr()).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
             {
                 return Ok(());
             }
@@ -363,7 +363,7 @@ impl CssSelector {
     ///
     /// The nearest matching element at or above the supplied element, or `None` if none matches.
     pub fn closest(&self, element: &ElementNode) -> Result<Option<ElementNode>, CssParserError> {
-        let tree = element.tree_();
+        let tree = element.tree();
         let _guard = tree.doc_ptr();
         let mut current = Some(element.clone());
         while let Some(element) = current {
