@@ -59,9 +59,15 @@ The document root element node can be accessed through the :attr:`.HTMLTree.docu
 * :meth:`~.DOMNode.get_elements_by_class_name`
 * :meth:`~.DOMNode.query_selector`
 * :meth:`~.DOMNode.query_selector_all`
-* :meth:`~.DOMNode.matches`
+* :meth:`~.ElementNode.matches`
 
-These element selectors behave just like you would expect from other languages or libraries and return either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The only exception is :meth:`~.DOMNode.matches`, which returns a boolean value indicating whether the subtree contains any element matching the given CSS selector. In addition to these standard DOM functions, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names and values.
+These element selectors behave just like you would expect from other languages or libraries and return either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The exception is :meth:`~.ElementNode.matches`, which returns a boolean value indicating whether the element itself matches the given CSS selector, following DOM ``Element.matches()`` semantics. In addition to these standard DOM functions, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names and values.
+
+.. versionchanged:: 1.2.0
+
+   ``node.matches(selector)`` checks the element itself instead of searching its
+   descendants. To retain the previous descendant-search behavior, use
+   ``node.query_selector(selector) is not None``.
 
 .. note::
 
@@ -91,8 +97,14 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     print(repr(tree.body.query_selector_all('main *')))
     # >>> {<p id="a">, <span class="bar">, <p id="b" class="dom">, <span class="bar baz">}
 
-    # Check whether there is any element matching this CSS selector:
+    # Check whether the element itself matches this CSS selector:
+    print(tree.body.matches('body'))
+    # >>> True
     print(tree.body.matches('.bar'))
+    # >>> False
+
+    # Check whether any descendant matches this CSS selector:
+    print(tree.body.query_selector('.bar') is not None)
     # >>> True
 
 :class:`.DOMCollection` objects are iterable, indexable, and slicable. The size of a collection can be checked with ``len()``. If a slice is requested, the returned object will be another :class:`.DOMCollection`:
@@ -122,6 +134,14 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     # Only matches within the subtrees of elements in `coll`:
     print(repr(coll.get_elements_by_class_name('bar')))
     # >>> {<span class="bar baz">}
+
+
+.. versionchanged:: 1.2.0
+
+   ``collection.matches(selector)`` checks whether any of the collection's
+   elements themselves match, instead of searching their descendants. Use
+   ``collection.query_selector(selector) is not None`` for the previous behavior.
+   Collection ``matches()`` is a Resiliparse extension, not a standard DOM method.
 
 
 .. _parse-html-attributes:

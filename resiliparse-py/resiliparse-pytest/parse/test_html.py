@@ -7,7 +7,6 @@ from fastwarc.stream_io import FileStream
 from resiliparse.parse.encoding import detect_encoding
 from resiliparse.parse.html import *
 
-
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'test-data'))
 
 html = """<!doctype html>
@@ -29,26 +28,26 @@ html = """<!doctype html>
 def validate_document(tree):
     assert tree is not None
 
-    assert type(tree.document) is DOMNode
+    assert type(tree.document) is DocumentNode
     assert tree.document.type == DOCUMENT
     assert tree.document.tag == '#document'
-    assert repr(tree.document) == '[HTML Document]'
+    assert repr(tree.document) == 'Document(#document)'
     assert tree.document.first_child.type == DOCUMENT_TYPE
-    assert repr(tree.document.first_child) == '<!DOCTYPE html>'
+    assert repr(tree.document.first_child) == 'DocumentType(html)'
     assert str(tree) == tree.document.html
 
-    assert type(tree.head) is DOMNode
+    assert type(tree.head) is ElementNode
     assert tree.head.type == ELEMENT
     assert tree.head.tag == 'head'
-    assert repr(tree.head) == '<head>'
+    assert repr(tree.head) == 'Element(<head>)'
     assert str(tree.head) == tree.head.html
     assert str(tree.head).startswith('<head>')
     assert str(tree.head).endswith('</head>')
 
-    assert type(tree.body) is DOMNode
+    assert type(tree.body) is ElementNode
     assert tree.body.type == ELEMENT
     assert tree.body.tag == 'body'
-    assert repr(tree.body) == '<body>'
+    assert repr(tree.body) == 'Element(<body>)'
     assert str(tree.body) == tree.body.html
     assert str(tree.body).startswith('<body>')
     assert str(tree.body).endswith('</body>')
@@ -92,13 +91,13 @@ def test_parse_quirks():
     tree_quirk = HTMLTree.parse(html_no_title)
     assert tree_quirk.head is not None
     assert len(tree_quirk.head.child_nodes) == 0
-    assert tree_quirk.title == ''
+    assert tree_quirk.title is None
     assert tree_quirk.body is not None
     assert len(tree_quirk.body.child_nodes) == 0
 
     tree_quirk = HTMLTree.parse(html_no_title_svg)
     assert tree_quirk.head is not None
-    assert tree_quirk.title == ''
+    assert tree_quirk.title is None
     assert tree_quirk.body is not None
 
     tree_quirk = HTMLTree.parse(html_unclosed_head)
@@ -143,28 +142,28 @@ def test_selection():
     assert tree.body.get_element_by_id('foo').tag == 'main'
 
     meta = tree.head.get_elements_by_tag_name('meta')
-    assert type(meta) is DOMCollection
+    assert isinstance(meta, DOMCollection)
     assert len(meta) == 1
     assert meta[0].tag == 'meta'
 
     bar_class = tree.body.get_elements_by_class_name('bar')
-    assert type(bar_class) is DOMCollection
+    assert isinstance(bar_class, DOMCollection)
     assert len(bar_class) == 2
     assert bar_class[0].tag == 'span'
     assert bar_class[1].tag == 'a'
 
     lang_en = tree.document.get_elements_by_attr('lang', 'en')
-    assert (type(lang_en)) is DOMCollection
+    assert isinstance(lang_en, DOMCollection)
     assert len(lang_en) == 1
     assert lang_en[0].hasattr('lang')
     assert lang_en[0].tag == 'html'
 
     match_css = tree.document.query_selector('body > main p:last-child')
-    assert type(match_css) is DOMNode
+    assert type(match_css) is ElementNode
     assert match_css.tag == 'p'
 
     match_css_all = tree.body.query_selector_all('main *')
-    assert type(match_css_all) is DOMCollection
+    assert isinstance(match_css_all, DOMCollection)
     assert len(match_css_all) == 4
     assert match_css_all[0].tag == 'p'
     assert match_css_all[1].tag == 'span'
@@ -172,8 +171,10 @@ def test_selection():
     assert match_css_all[3].tag == 'a'
 
     # Check whether there is any element matching this CSS selector:
-    assert tree.body.matches('.bar')
-    assert not tree.body.matches('.barbaz')
+    assert tree.body.matches('body')
+    assert not tree.body.matches('.bar')
+    assert tree.body.query_selector('.bar') is not None
+    assert tree.body.query_selector('.barbaz') is None
 
     # Invalid CSS selector
     with pytest.raises(ValueError):
@@ -215,8 +216,10 @@ def test_collection():
     assert coll.query_selector('.bar').tag == 'span'
     assert len(coll.query_selector_all('span, a')) == 2
 
-    assert coll.matches('.bar.baz')
-    assert not coll.matches('.foo.bar.baz')
+    assert coll.matches('p.dom')
+    assert not coll.matches('.bar.baz')
+    assert coll.query_selector('.bar.baz') is not None
+    assert coll.query_selector('.foo.bar.baz') is None
 
 
 def test_attributes():
@@ -238,7 +241,7 @@ def test_attributes():
 
     assert a.getattr('id') is None
     assert a.getattr('id', 'default') == 'default'
-    assert a.id == ''
+    assert a.id is None
     a.id = 'abc'
     assert a.id == 'abc'
     assert a['id'] == 'abc'
@@ -254,7 +257,7 @@ def test_attributes():
     assert a.getattr('lang') == 'en'
 
     assert len(a.attrs) == 4
-    assert a.attrs == ['href', 'class', 'id', 'lang']
+    assert a.attrs == ('href', 'class', 'id', 'lang')
 
     del a['lang']
     assert a.getattr('lang') is None
@@ -293,7 +296,7 @@ def test_empty_attributes():
     assert input_tree.body.get_element_by_id('foo') is not None
     assert input_tree.body.get_element_by_id('foox') is None
     assert len(input_tree.body.get_elements_by_class_name('foo')) == 1
-    assert len(input_tree.body.get_elements_by_class_name('')) == 0     # This doesn't match anything
+    assert len(input_tree.body.get_elements_by_class_name('')) == 0  # This doesn't match anything
     assert len(input_tree.body.get_elements_by_attr('class', 'foo')) == 1
     assert len(input_tree.body.get_elements_by_attr('class', '')) == 2
     assert len(input_tree.body.get_elements_by_attr('id', '')) == 2
@@ -307,17 +310,19 @@ def test_serialization():
     assert tree.body.get_element_by_id('a').html == '<p id="a">Hello <span class="bar">world</span>!</p>'
 
     assert str(tree.head) == tree.head.html
-    assert repr(tree.head) == '<head>'
-    assert repr(tree.head.query_selector('title')) == '<title>'
+    assert repr(tree.head) == 'Element(<head>)'
+    assert repr(tree.head.query_selector('title')) == 'Element(<title>)'
     assert str(tree.head.query_selector('title')) == '<title>Example page</title>'
 
     assert str(tree.body) == tree.body.html
-    assert repr(tree.body) == '<body>'
-    assert repr(tree.body.query_selector('main')) == '<main id="foo">'
+    assert repr(tree.body) == 'Element(<body>)'
+    assert repr(tree.body.query_selector('main')) == 'Element(<main id="foo">)'
 
     text = tree.body.query_selector('#b').first_child
     assert text.type == TEXT
-    assert repr(text) == str(text) == text.text
+    assert isinstance(text, TextNode)
+    assert repr(text) == 'Text("Hello ")'
+    assert str(text) == text.text
 
 
 def test_traversal():
@@ -479,7 +484,8 @@ def test_dom_manipulation():
     assert main_element.remove_child(main_element.last_child) is new_element
 
     new_element.decompose()
-    assert repr(new_element) == '<INVALID ELEMENT>'
+    assert new_element.type is None
+    assert repr(new_element) == 'Element(<#undef>)'
 
 
 def test_node_value():
@@ -528,3 +534,21 @@ def test_real_world_data():
         count += 1
 
     assert count == 16
+
+
+@pytest.mark.parametrize('document, expected', [
+    ('<head></head>', None),
+    ('<title></title>', None),
+    ('<title> </title>', ''),
+    ('<title>Example</title>', 'Example'),
+])
+def test_title_missing_vs_empty(document, expected):
+    assert HTMLTree.parse(document).title == expected
+
+
+@pytest.mark.parametrize('attribute, property_name', [('id', 'id'), ('class', 'class_name')])
+def test_attribute_missing_vs_empty(attribute, property_name):
+    tree = HTMLTree.parse(f'<div></div><div {attribute}=""></div>')
+    elements = tree.body.query_selector_all('div')
+    assert getattr(elements[0], property_name) is None
+    assert getattr(elements[1], property_name) == ''

@@ -51,14 +51,6 @@ pub mod _resiliparse {
         modules.set_item("resiliparse.parse", parse)?;
         modules.set_item("resiliparse.extract", extract)?;
 
-        // Keep the original uniform-node API at the historical entry point.
-        // The native submodules retain their typed DOM classes.
-        let compat = py.import("resiliparse.parse.html._compat")?;
-        let html = parse.getattr("html")?;
-        for name in compat.getattr("__all__")?.extract::<Vec<String>>()? {
-            html.setattr(&name, compat.getattr(&name)?)?;
-        }
-
         Ok(())
     }
 }

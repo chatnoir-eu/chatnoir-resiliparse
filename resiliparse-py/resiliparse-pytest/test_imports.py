@@ -43,6 +43,14 @@ def test_native_package_paths():
     root = Path(resiliparse.__file__).parent
     assert resiliparse.parse.__path__ == [str(root / 'parse')]
     assert html.__path__ == [str(root / 'parse' / 'html')]
-    # TODO: Fix
-    # assert html.HTMLTree is html.tree.HTMLTree
-    # assert html.Node is html.node.Node
+    assert html.HTMLTree is html.tree.HTMLTree
+    assert html.Node is html.node.Node
+    assert html.DOMNode is html.Node
+    assert html.DOMCollection is html.coll.ElementNodeList
+    assert html.traverse_dom is html.node.traverse_dom
+
+    tree = html.HTMLTree.parse('<p>Example</p>')
+    assert type(tree.document) is html.DocumentNode
+    assert type(tree.body) is html.ElementNode
+    text = tree.body.query_selector('p').first_child
+    assert type(text) is html.TextNode

@@ -15,13 +15,12 @@
 from typing import Iterable, Literal, Optional, Union
 
 from ..parse.html import HTMLTree
-from ..parse.html.tree import HTMLTree as NativeHTMLTree
 
 __all__ = ["extract_plain_text"]
 
 
 def extract_plain_text(
-    html: Union[str, HTMLTree, NativeHTMLTree],
+    html: Union[str, HTMLTree],
     preserve_formatting: Union[bool, Literal["minimal_html"]] = True,
     main_content: bool = False,
     list_bullets: bool = True,

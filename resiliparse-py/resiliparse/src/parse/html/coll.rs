@@ -291,6 +291,14 @@ impl ElementNodeListPy {
 
     /// Check whether any element in this collection matches the given CSS selector.
     ///
+    /// .. versionchanged:: 1.2.0
+    ///    Test the collection's elements themselves. This is a Resiliparse extension,
+    ///    not a standard DOM method.
+    ///
+    /// .. warning::
+    ///    Before 1.2.0, this method searched descendants of the collection's elements.
+    ///    To preserve that behavior, use ``collection.query_selector(selectors) is not None``.
+    ///
     /// :param selectors: CSS selector expression.
     pub fn matches(slf: PyRef<Self>, selectors: &str) -> PyResult<bool> {
         if let Some(l) = slf.as_super().list.elements() {

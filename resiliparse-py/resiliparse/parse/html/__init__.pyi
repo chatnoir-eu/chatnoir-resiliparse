@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Callable
-from typing import Optional
-
 from .coll import (
+    DOMCollection as DOMCollection,
     DOMElementClassList,
     DOMTokenList,
     ElementNodeList,
@@ -23,9 +21,11 @@ from .coll import (
     NamedNodeMap,
     NodeList,
 )
-from ._compat import DOMCollection as DOMCollection, DOMNode as DOMNode
 from .exception import CSSParserException, DOMException, HTMLParserException
 from .node import (
+    DOMNode as DOMNode,
+    DOMContext as DOMContext,
+    traverse_dom as traverse_dom,
     AttrNode,
     CDATASectionNode,
     CommentNode,
@@ -40,47 +40,7 @@ from .node import (
     TextNode,
 )
 
-
-class HTMLTree:
-    @staticmethod
-    def parse(document: str) -> HTMLTree: ...
-
-    @staticmethod
-    def parse_from_bytes(document: bytes, encoding: str = "utf-8", errors: str = "ignore") -> HTMLTree: ...
-
-    def create_element(self, tag_name: str) -> Optional[DOMNode]: ...
-
-    def create_text_node(self, text: str) -> Optional[DOMNode]: ...
-
-    @property
-    def document(self) -> Optional[DOMNode]: ...
-
-    @property
-    def head(self) -> Optional[DOMNode]: ...
-
-    @property
-    def body(self) -> Optional[DOMNode]: ...
-
-    @property
-    def title(self) -> str: ...
-
-    def __str__(self) -> str: ...
-
-
-class DOMContext:
-    node: Optional[DOMNode]
-    depth: int
-
-    def __init__(self) -> None: ...
-
-
-def traverse_dom(
-        base_node: DOMNode,
-        start_callback: Callable[[DOMContext], object],
-        end_callback: Optional[Callable[[DOMContext], object]] = None,
-        context: Optional[DOMContext] = None,
-        elements_only: bool = False,
-) -> None: ...
+from .tree import HTMLTree as HTMLTree
 
 
 ELEMENT: NodeType

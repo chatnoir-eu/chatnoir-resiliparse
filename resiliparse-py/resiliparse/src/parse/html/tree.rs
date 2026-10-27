@@ -111,9 +111,17 @@ impl HTMLTreePy {
     }
 
     /// The HTML document title.
+    ///
+    /// A missing or empty HTML title element returns ``None``. Whitespace-only
+    /// title text is normalized to an empty string by the parser.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Return ``None`` instead of an empty string for missing or empty title elements.
+    ///
+    /// :type: str or None
     #[getter]
-    pub fn title(slf: PyRef<'_, Self>) -> String {
-        slf.tree.title().unwrap_or_default()
+    pub fn title(slf: PyRef<'_, Self>) -> Option<String> {
+        slf.tree.title()
     }
 
     /// Return the serialized HTML document.

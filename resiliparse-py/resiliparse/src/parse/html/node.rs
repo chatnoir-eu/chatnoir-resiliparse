@@ -489,9 +489,14 @@ impl NodePy {
         self.node.set_node_value(value)
     }
 
-    /// Text contents of this DOM node and its children.
+    /// Text contents of this DOM node and its children, or ``None`` if unavailable.
     ///
     /// The text can be changed by assigning to this property.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Return ``None`` instead of an empty string when text content is unavailable.
+    ///
+    /// :type: str or None
     #[getter]
     pub fn text(&self) -> Option<String> {
         self.text_content()
@@ -505,9 +510,14 @@ impl NodePy {
         self.set_text_content(text)
     }
 
-    /// Text contents of this DOM node and its children.
+    /// Text contents of this DOM node and its children, or ``None`` if unavailable.
     ///
     /// The text can be changed by assigning to this property.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Return ``None`` instead of an empty string when text content is unavailable.
+    ///
+    /// :type: str or None
     #[getter]
     pub fn text_content(&self) -> Option<String> {
         self.node.text_content()
@@ -771,7 +781,13 @@ impl ElementNodePy {
         Self::raw_node(&slf).local_name()
     }
 
-    /// ID attribute of this element (empty string if unset).
+    /// ID attribute of this element, or ``None`` if the attribute is absent.
+    /// An existing attribute with an empty value returns an empty string.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Return ``None`` instead of an empty string when the attribute is absent.
+    ///
+    /// :type: str or None
     #[getter]
     pub fn id(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).id()
@@ -785,7 +801,13 @@ impl ElementNodePy {
         Self::raw_node(&slf).set_id(id)
     }
 
-    /// Class name attribute of this element (empty string if unset).
+    /// Class name attribute of this element, or ``None`` if the attribute is absent.
+    /// An existing attribute with an empty value returns an empty string.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Return ``None`` instead of an empty string when the attribute is absent.
+    ///
+    /// :type: str or None
     #[getter]
     pub fn class_name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).class_name()
@@ -952,6 +974,13 @@ impl ElementNodePy {
     }
 
     /// Return whether this element matches the selector.
+    ///
+    /// .. versionchanged:: 1.2.0
+    ///    Follow DOM ``Element.matches()`` semantics by testing the element itself.
+    ///
+    /// .. warning::
+    ///    Before 1.2.0, this method searched descendants. To preserve that behavior,
+    ///    use ``node.query_selector(selectors) is not None``.
     ///
     /// :param selectors: CSS selector expression.
     /// :return: Whether this element matches the selector.

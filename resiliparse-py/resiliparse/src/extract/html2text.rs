@@ -126,17 +126,8 @@ pub fn extract_plain_text(
         let tree = HtmlTree::parse(&document).map_err(|err| HTMLParserExceptionPy::new_err(err.to_string()))?;
         return extract(&tree);
     }
-    let native = if html.is_instance_of::<HTMLTreePy>() {
-        html.clone()
-    } else if html.is_instance(
-        &html
-            .py()
-            .import("resiliparse.parse.html._compat")?
-            .getattr("HTMLTree")?,
-    )? {
-        html.getattr("_native")?
-    } else {
-        return Err(PyTypeError::new_err("Parameter \"html\" is neither string nor HTMLTree."));
-    };
-    extract(&native.extract::<PyRef<'_, HTMLTreePy>>()?.tree)
+    let tree = html
+        .extract::<PyRef<'_, HTMLTreePy>>()
+        .map_err(|_| PyTypeError::new_err("Parameter \"html\" is neither string nor HTMLTree."))?;
+    extract(&tree.tree)
 }
