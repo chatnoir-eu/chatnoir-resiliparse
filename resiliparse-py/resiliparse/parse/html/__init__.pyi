@@ -25,7 +25,6 @@ from .exception import CSSParserException, DOMException, HTMLParserException
 from .node import (
     DOMNode as DOMNode,
     DOMContext as DOMContext,
-    traverse_dom as traverse_dom,
     AttrNode,
     CDATASectionNode,
     CommentNode,
@@ -38,10 +37,10 @@ from .node import (
     NotationNode,
     ProcessingInstructionNode,
     TextNode,
+    traverse_dom as traverse_dom,
 )
 
 from .tree import HTMLTree as HTMLTree
-
 
 ELEMENT: NodeType
 ATTRIBUTE: NodeType

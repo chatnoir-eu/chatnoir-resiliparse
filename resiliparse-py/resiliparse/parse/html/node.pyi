@@ -141,6 +141,10 @@ class Node(Iterable[Node], Container[Node]):
     def __repr__(self) -> str: ...
 
 
+# Legacy name.
+DOMNode = Node
+
+
 class _ParentNode(Node):
     @property
     def children(self) -> ElementNodeList: ...
@@ -412,7 +416,3 @@ class DocumentFragmentNode(_DocumentFragment): ...
 
 
 class NotationNode(Node): ...
-
-
-# Compatibility name used by the Cython DOM API.
-DOMNode = Node
