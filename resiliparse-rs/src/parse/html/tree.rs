@@ -226,13 +226,13 @@ impl HtmlDocument {
         self.html_document.lock()
     }
 
-    // The document lock must cover checking this counter AND using native
-    // pointers. Atomicity alone cannot prevent destruction between those steps.
+    /// The document lock must cover checking this counter AND using native
+    /// pointers. Atomicity alone cannot prevent destruction between those steps.
     pub(crate) fn mutation_epoch(&self) -> u64 {
         self.mutation_epoch.load(Ordering::Relaxed)
     }
 
-    // Call under the document lock, before changing links or destroying nodes.
+    /// Call under the document lock, before changing links or destroying nodes.
     pub(crate) fn mark_mutated(&self) {
         self.mutation_epoch
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |epoch| epoch.checked_add(1))

@@ -30,7 +30,8 @@ use std::sync::Arc;
 
 use crate::parse::html::tree::HtmlDocument;
 
-// Only the owning TraversalState is Send; an unowned raw cursor is not.
+/// Tracks the root and next node during a pre-order traversal.
+/// Only the owning TraversalState is Send; an unowned raw cursor is not.
 struct NodeIteratorRaw {
     root: *mut lxb_dom_node_t,
     next_node: *mut lxb_dom_node_t,
@@ -89,6 +90,9 @@ impl Display for TraversalError {
 
 impl Error for TraversalError {}
 
+/// Holds the document and cursor state for lazy DOM traversal.
+///
+/// The saved mutation epoch determines whether the traversal can continue.
 struct TraversalState {
     document: Arc<HtmlDocument>,
     expected_epoch: u64,
