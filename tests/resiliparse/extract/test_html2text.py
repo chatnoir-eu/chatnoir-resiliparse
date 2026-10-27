@@ -219,6 +219,39 @@ def test_main_content_extraction():
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
+@pytest.mark.parametrize('class_name', [
+    'hidden', 'visually-hidden', 'navigation', 'related', 'sidebar',
+    'skip-to-content', 'sign-in', 'sponsored', 'social',
+])
+def test_main_content_class_filters(class_name):
+    document = (f'<main><section><p>Article text</p>'
+                f'<div id="widget" class="{class_name}">Junk</div></section></main>')
+    assert extract_plain_text(document) == 'Article text\n\nJunk'
+    assert extract_plain_text(document, main_content=True) == 'Article text'
+
+
+def test_hidden_content_option():
+    document = '<main><p>Article text</p><div class="hidden">More text</div></main>'
+    assert extract_plain_text(document, main_content=True, hidden_elements=True) == \
+           'Article text\n\nMore text'
+
+
+def test_native_extraction_module():
+    import importlib
+    import inspect
+    import resiliparse
+    from resiliparse.parse.html.tree import HTMLTree as NativeHTMLTree
+
+    package = importlib.import_module('resiliparse.extract')
+    module = importlib.import_module('resiliparse.extract.html2text')
+    assert resiliparse.extract is package
+    assert package.html2text is module
+    assert package.__all__ == []
+    assert module.__all__ == ['extract_plain_text']
+    assert inspect.isbuiltin(module.extract_plain_text)
+    assert extract_plain_text(NativeHTMLTree.parse('<p>Native tree</p>')) == 'Native tree'
+
+
 def test_inline_after_block():
     html = """<body>
 <div>A</div>B

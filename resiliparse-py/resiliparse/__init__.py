@@ -17,6 +17,7 @@ import importlib
 _native = importlib.import_module("._resiliparse", __name__)
 
 import resiliparse.parse as parse  # noqa: F401
+import resiliparse.extract as extract  # noqa: F401
 import resiliparse.beam as beam  # noqa: F401
 
 __all__ = [*_native.__all__]

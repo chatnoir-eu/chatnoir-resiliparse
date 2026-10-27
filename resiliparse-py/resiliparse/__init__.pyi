@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import parse as parse
+from . import extract as extract
 from . import beam as beam
 
 __all__ = []

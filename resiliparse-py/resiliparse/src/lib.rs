@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod extract;
 mod parse;
 
 use pyo3::prelude::*;
@@ -41,10 +42,14 @@ pub mod _resiliparse {
         let parse = pyo3::wrap_pymodule!(parse::_parse)(py);
         let parse = parse.bind(py);
 
+        let extract = pyo3::wrap_pymodule!(extract::_extract)(py);
+        let extract = extract.bind(py);
+
         // Register submodules to make them importable.
         let sys = PyModule::import(py, "sys")?;
         let modules = sys.getattr("modules")?;
         modules.set_item("resiliparse.parse", parse)?;
+        modules.set_item("resiliparse.extract", extract)?;
 
         // Keep the original uniform-node API at the historical entry point.
         // The native submodules retain their typed DOM classes.
