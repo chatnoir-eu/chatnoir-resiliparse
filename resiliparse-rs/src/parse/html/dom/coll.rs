@@ -192,8 +192,7 @@ impl<T> LiveCollection<T> {
     ///
     /// A snapshot containing the query results at the time of this call.
     pub fn snapshot(&self) -> NodeList<T> {
-        let document = self.node.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.node.tree().doc_ptr();
         if self.node.node_ptr().is_null() {
             return NodeList::default();
         }
@@ -714,8 +713,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// No value is returned.
     fn add(&self, tokens: &[&str]) {
-        let document = self.element_().tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.element_().tree().doc_ptr();
         let mut values = self.values();
         tokens.iter().for_each(|t: &&str| {
             let t_owned = (*t).to_owned();
@@ -736,8 +734,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// No value is returned.
     fn remove(&self, tokens: &[&str]) {
-        let document = self.element_().tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.element_().tree().doc_ptr();
         self.set_value(
             &self
                 .iter()
@@ -758,8 +755,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// True if `old_token` was present and replaced.
     fn replace(&self, old_token: &str, new_token: &str) -> bool {
-        let document = self.element_().tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.element_().tree().doc_ptr();
         let mut repl = false;
         self.set_value(
             &self
@@ -789,8 +785,7 @@ pub trait DomTokenListMutInterface: DomTokenListInterface + DomTokenListBaseImpl
     ///
     /// True if `token` is present after the operation.
     fn toggle(&self, token: &str, force: Option<bool>) -> bool {
-        let document = self.element_().tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.element_().tree().doc_ptr();
         if let Some(f) = force {
             if f {
                 self.add(&[token]);

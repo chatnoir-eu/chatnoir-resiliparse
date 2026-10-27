@@ -131,7 +131,7 @@ unsafe fn create_element_unchecked(doc: &DocumentNode, local_name: &str) -> Resu
                 msg: "ElementNode allocation failed".to_owned(),
             });
         }
-        Ok(ElementNode::new(&doc.tree(), element.cast()))
+        Ok(ElementNode::new(doc.tree(), element.cast()))
     }
 }
 
@@ -143,7 +143,7 @@ unsafe fn create_document_fragment_unchecked(doc: &DocumentNode) -> Result<Docum
                 msg: "DocumentFragmentNode allocation failed".to_owned(),
             });
         }
-        Ok(DocumentFragmentNode::new(&doc.tree(), doc_frag.cast()))
+        Ok(DocumentFragmentNode::new(doc.tree(), doc_frag.cast()))
     }
 }
 
@@ -155,7 +155,7 @@ unsafe fn create_text_node_unchecked(doc: &DocumentNode, data: &str) -> Result<T
                 msg: "TextNode allocation failed".to_owned(),
             });
         }
-        Ok(TextNode::new(&doc.tree(), text.cast()))
+        Ok(TextNode::new(doc.tree(), text.cast()))
     }
 }
 
@@ -167,7 +167,7 @@ unsafe fn create_cdata_section_unchecked(doc: &DocumentNode, data: &str) -> Resu
                 msg: "CdataSectionNode allocation failed".to_owned(),
             });
         }
-        Ok(CdataSectionNode::new(&doc.tree(), cdata.cast()))
+        Ok(CdataSectionNode::new(doc.tree(), cdata.cast()))
     }
 }
 
@@ -179,7 +179,7 @@ unsafe fn create_comment_unchecked(doc: &DocumentNode, data: &str) -> Result<Com
                 msg: "CommentNode allocation failed".to_owned(),
             });
         }
-        Ok(CommentNode::new(&doc.tree(), comment.cast()))
+        Ok(CommentNode::new(doc.tree(), comment.cast()))
     }
 }
 
@@ -201,7 +201,7 @@ unsafe fn create_processing_instruction_unchecked(
                 msg: "ProcessingInstructionNode allocation failed".to_owned(),
             });
         }
-        Ok(ProcessingInstructionNode::new(&doc.tree(), proc.cast()))
+        Ok(ProcessingInstructionNode::new(doc.tree(), proc.cast()))
     }
 }
 
@@ -220,13 +220,12 @@ unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Re
                 msg: "Failed to set attribute name".to_owned(),
             });
         }
-        Ok(AttrNode::new(&doc.tree(), attr.cast()))
+        Ok(AttrNode::new(doc.tree(), attr.cast()))
     }
 }
 
 unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) -> Option<ElementNode> {
-    let document = node.tree();
-    let _guard = document.doc_ptr();
+    let _guard = node.tree().doc_ptr();
     if node.node_ptr().is_null() {
         return None;
     }
@@ -247,7 +246,7 @@ unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) ->
         let matched_node = lxb_dom_collection_node_noi(coll, 0);
         lxb_dom_collection_destroy(coll, true);
         if !matched_node.is_null() {
-            Some(ElementNode::new(&node.tree(), matched_node))
+            Some(ElementNode::new(node.tree(), matched_node))
         } else {
             None
         }
@@ -255,8 +254,7 @@ unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) ->
 }
 
 unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
-    let document = node.tree();
-    let _guard = document.doc_ptr();
+    let _guard = node.tree().doc_ptr();
     if node.node_ptr().is_null() {
         return Vec::default();
     }
@@ -274,13 +272,12 @@ unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_ins
             value.len(),
             case_insensitive,
         );
-        dom_coll_to_vec(&node.tree(), coll, true)
+        dom_coll_to_vec(node.tree(), coll, true)
     }
 }
 
 unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> {
-    let document = node.tree();
-    let _guard = document.doc_ptr();
+    let _guard = node.tree().doc_ptr();
     if node.node_ptr().is_null() {
         return Vec::default();
     }
@@ -290,13 +287,12 @@ unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> 
             return Vec::default();
         }
         lxb_dom_node_by_tag_name(node.node_ptr(), coll, name.as_ptr(), name.len());
-        dom_coll_to_vec(&node.tree(), coll, true)
+        dom_coll_to_vec(node.tree(), coll, true)
     }
 }
 
 unsafe fn get_elements_by_class_name(node: &Node, class_names: &str) -> Vec<ElementNode> {
-    let document = node.tree();
-    let _guard = document.doc_ptr();
+    let _guard = node.tree().doc_ptr();
     if node.node_ptr().is_null() {
         return Vec::default();
     }
@@ -306,7 +302,7 @@ unsafe fn get_elements_by_class_name(node: &Node, class_names: &str) -> Vec<Elem
             return Vec::default();
         }
         lxb_dom_elements_by_class_name(node.node_ptr().cast(), coll, class_names.as_ptr(), class_names.len());
-        dom_coll_to_vec(&node.tree(), coll, true)
+        dom_coll_to_vec(node.tree(), coll, true)
     }
 }
 

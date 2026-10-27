@@ -113,7 +113,7 @@ impl TraversalState {
             (document.mutation_epoch(), NodeIteratorRaw::new(root.node_ptr()))
         };
         Self {
-            document,
+            document: document.clone(),
             expected_epoch,
             cursor,
             finished: false,

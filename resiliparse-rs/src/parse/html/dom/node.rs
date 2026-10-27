@@ -67,7 +67,7 @@ macro_rules! define_node_enums {
         }
 
         impl NodeInterfaceBaseImpl for Node {
-            fn tree(&self) -> Arc<HtmlDocument> {
+            fn tree(&self) -> &Arc<HtmlDocument> {
                 match self { $(Self::$Variant(node) => node.tree()),+ }
             }
 
@@ -281,8 +281,7 @@ macro_rules! check_node {
     ($node: expr) => {
         // Hold the document lock for the caller's entire operation, before
         // accessing native memory or changing a handle's validity.
-        let document = $node.tree();
-        let _document_guard = document.doc_ptr();
+        let _document_guard = $node.tree().doc_ptr();
         if $node.node_ptr().is_null() {
             return Default::default();
         }
@@ -294,11 +293,10 @@ macro_rules! check_nodes {
     ($node1: expr, $node2: expr) => {
         // Identity is valid for some operations (e.g. contains and replacement).
         // Only validate handles and document ownership here.
-        if !Arc::ptr_eq(&$node1.tree(), &$node2.tree()) {
+        if !Arc::ptr_eq($node1.tree(), $node2.tree()) {
             return Default::default();
         }
-        let document = $node1.tree();
-        let _document_guard = document.doc_ptr();
+        let _document_guard = $node1.tree().doc_ptr();
         if ($node1.node_ptr()).is_null() || ($node2.node_ptr()).is_null() {
             return Default::default();
         }
@@ -399,8 +397,8 @@ macro_rules! define_node_type {
 
         impl NodeInterfaceBaseImpl for $Self {
             #[inline(always)]
-            fn tree(&self) -> Arc<HtmlDocument> {
-                self.handle.document.clone()
+            fn tree(&self) -> &Arc<HtmlDocument> {
+                &self.handle.document
             }
 
             #[inline(always)]
@@ -588,7 +586,7 @@ impl Document for DocumentNode {
         check_node!(self);
         unsafe {
             let doctype = self.doc_ptr_unchecked().as_ref()?.doctype;
-            Some(DocumentTypeNode::new(&self.tree(), doctype.cast()))
+            Some(DocumentTypeNode::new(self.tree(), doctype.cast()))
         }
     }
 
@@ -626,8 +624,7 @@ impl Document for DocumentNode {
     }
 
     fn create_element(&self, local_name: &str) -> Result<ElementNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_element_unchecked(&self, local_name) }
         } else {
@@ -638,8 +635,7 @@ impl Document for DocumentNode {
     }
 
     fn create_document_fragment(&self) -> Result<DocumentFragmentNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_document_fragment_unchecked(&self) }
         } else {
@@ -650,8 +646,7 @@ impl Document for DocumentNode {
     }
 
     fn create_text_node(&self, data: &str) -> Result<TextNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_text_node_unchecked(&self, data) }
         } else {
@@ -662,8 +657,7 @@ impl Document for DocumentNode {
     }
 
     fn create_cdata_section(&self, data: &str) -> Result<CdataSectionNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_cdata_section_unchecked(&self, data) }
         } else {
@@ -674,8 +668,7 @@ impl Document for DocumentNode {
     }
 
     fn create_comment(&self, data: &str) -> Result<CommentNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_comment_unchecked(&self, data) }
         } else {
@@ -686,8 +679,7 @@ impl Document for DocumentNode {
     }
 
     fn create_processing_instruction(&self, target: &str, data: &str) -> Result<ProcessingInstructionNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_processing_instruction_unchecked(&self, target, data) }
         } else {
@@ -698,8 +690,7 @@ impl Document for DocumentNode {
     }
 
     fn create_attribute(&self, local_name: &str) -> Result<AttrNode, DomError> {
-        let document = self.tree();
-        let _guard = document.doc_ptr();
+        let _guard = self.tree().doc_ptr();
         if !self.node_ptr().is_null() {
             unsafe { create_attribute_unchecked(&self, local_name) }
         } else {
@@ -874,7 +865,7 @@ impl Element for ElementNode {
         if attr.is_null() {
             return None;
         }
-        Some(AttrNode::new(&self.tree(), attr.cast()))
+        Some(AttrNode::new(self.tree(), attr.cast()))
     }
 
     fn attribute_names(&self) -> Vec<String> {
@@ -891,13 +882,12 @@ impl Element for ElementNode {
         NamedNodeMap::new(
             self.clone(),
             LiveCollection::new_live(&self.as_noderef(), None, |n, _| {
-                let document = n.tree();
-                let _guard = document.doc_ptr();
+                let _guard = n.tree().doc_ptr();
                 let mut v = Vec::new();
                 unsafe {
                     let mut attr = lxb_dom_element_first_attribute_noi(n.node_ptr().cast());
                     while !attr.is_null() {
-                        v.push(AttrNode::new(&n.tree(), attr.cast()));
+                        v.push(AttrNode::new(n.tree(), attr.cast()));
                         attr = lxb_dom_element_next_attribute_noi(attr);
                     }
                 };
@@ -1169,7 +1159,7 @@ impl Attr for AttrNode {
             if attr.is_null() || (*attr).owner.is_null() {
                 return None;
             }
-            Some(ElementNode::new(&self.tree(), (*attr).owner.cast()))
+            Some(ElementNode::new(self.tree(), (*attr).owner.cast()))
         }
     }
 }

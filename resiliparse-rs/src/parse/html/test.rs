@@ -1717,7 +1717,7 @@ fn node_capability_views_cover_supported_node_kinds_without_cloning() {
         (doc.doctype().unwrap().as_node(), false, false, false, false),
     ];
     for (mut node, parent, character_data, element, text) in cases {
-        let document = node.tree();
+        let document = node.tree().clone();
         let _guard = document.doc_ptr();
         let ref_count = unsafe { (*node.node_ptr()).ref_count };
         let parent_view = node.as_parent();
@@ -1787,7 +1787,7 @@ fn parent_views_support_queries_and_live_collections() {
 #[test]
 fn checked_downcasts_preserve_ownership_on_success_and_failure() {
     fn check<T: NodeInterface + TryFrom<Node, Error = Node>>(node: Node, target: NodeType) {
-        let document = node.tree();
+        let document = node.tree().clone();
         let _guard = document.doc_ptr();
         let pointer = node.node_ptr();
         let ref_count = unsafe { (*pointer).ref_count };
@@ -1961,7 +1961,7 @@ fn shared_handle_identity_and_owner_survive_moves_and_tree_drop() {
 fn concrete_node_construction_checks_kind_before_retaining() {
     let tree = HtmlTree::parse("<div></div>").unwrap();
     let element = tree.body().unwrap();
-    let document = element.tree();
+    let document = element.tree().clone();
     let _guard = document.doc_ptr();
     let pointer = element.node_ptr();
     let ref_count = unsafe { (*pointer).ref_count };
