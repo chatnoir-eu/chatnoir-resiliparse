@@ -227,6 +227,9 @@ unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Re
 unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) -> Option<ElementNode> {
     let document = node.tree_();
     let _guard = document.doc_ptr();
+    if node.node_ptr_().is_null() {
+        return None;
+    }
     unsafe {
         let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
         if coll.is_null() {
@@ -254,6 +257,9 @@ unsafe fn get_element_by_id(node: &NodeRef, id: &str, case_insensitive: bool) ->
 unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_insensitive: bool) -> Vec<ElementNode> {
     let document = node.tree_();
     let _guard = document.doc_ptr();
+    if node.node_ptr_().is_null() {
+        return Vec::default();
+    }
     unsafe {
         let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
         if coll.is_null() {
@@ -275,6 +281,9 @@ unsafe fn get_elements_by_attr(node: &NodeRef, name: &str, value: &str, case_ins
 unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> {
     let document = node.tree_();
     let _guard = document.doc_ptr();
+    if node.node_ptr_().is_null() {
+        return Vec::default();
+    }
     unsafe {
         let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
         if coll.is_null() {
@@ -288,6 +297,9 @@ unsafe fn get_elements_by_tag_name(node: &Node, name: &str) -> Vec<ElementNode> 
 unsafe fn get_elements_by_class_name(node: &Node, class_names: &str) -> Vec<ElementNode> {
     let document = node.tree_();
     let _guard = document.doc_ptr();
+    if node.node_ptr_().is_null() {
+        return Vec::default();
+    }
     unsafe {
         let coll = lxb_dom_collection_create(node.doc_ptr_unchecked());
         if coll.is_null() {

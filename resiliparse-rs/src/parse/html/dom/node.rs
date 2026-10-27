@@ -937,6 +937,7 @@ impl Element for ElementNode {
     }
 
     fn toggle_attribute(&self, qualified_name: &str, force: Option<bool>) -> bool {
+        check_node!(self);
         let on = match force {
             Some(f) => f,
             None => !self.has_attribute(qualified_name),
