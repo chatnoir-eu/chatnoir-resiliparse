@@ -37,6 +37,103 @@ pub mod _html_rs {
     #[pymodule_export]
     pub use crate::tree::HTMLTree;
 
+    #[pymodule_export]
+    pub use crate::node::Node;
+
+    #[pymodule_export]
+    pub use crate::node::Node as DOMNode;
+
+    #[pymodule_export]
+    pub use crate::node::DOMContext;
+
+    #[pymodule_export]
+    pub use crate::node::traverse_dom;
+
+    #[pymodule_export]
+    pub use crate::node::NodeType;
+
+    #[pymodule_export]
+    pub use crate::node::ElementNode;
+
+    #[pymodule_export]
+    pub use crate::node::AttrNode;
+
+    #[pymodule_export]
+    pub use crate::node::TextNode;
+
+    #[pymodule_export]
+    pub use crate::node::CDATASectionNode;
+
+    #[pymodule_export]
+    pub use crate::node::ProcessingInstructionNode;
+
+    #[pymodule_export]
+    pub use crate::node::CommentNode;
+
+    #[pymodule_export]
+    pub use crate::node::DocumentNode;
+
+    #[pymodule_export]
+    pub use crate::node::DocumentTypeNode;
+
+    #[pymodule_export]
+    pub use crate::node::DocumentFragmentNode;
+
+    #[pymodule_export]
+    pub use crate::node::NotationNode;
+
+    #[pymodule_export]
+    pub use crate::coll::NodeList;
+
+    #[pymodule_export]
+    pub use crate::coll::ElementNodeList;
+
+    #[pymodule_export]
+    pub use crate::coll::ElementNodeList as DOMCollection;
+
+    #[pymodule_export]
+    pub use crate::coll::ElementNodeList as HTMLCollection;
+
+    #[pymodule_export]
+    pub use crate::coll::NamedNodeMap;
+
+    #[pymodule_export]
+    pub use crate::coll::DOMTokenList;
+
+    #[pymodule_export]
+    pub use crate::coll::DOMTokenList as DOMElementClassList;
+
+    #[pymodule_export]
+    pub use crate::exception::CSSParserException;
+
+    #[pymodule_export]
+    pub use crate::exception::DOMException;
+
+    #[pymodule_export]
+    pub use crate::exception::HTMLParserException;
+
+    #[pymodule_init]
+    fn export_cython_node_type_constants(module: &Bound<'_, PyModule>) -> PyResult<()> {
+        let node_type = module.getattr("NodeType")?;
+        for name in [
+            "ELEMENT",
+            "ATTRIBUTE",
+            "TEXT",
+            "CDATA_SECTION",
+            "ENTITY_REFERENCE",
+            "ENTITY",
+            "PROCESSING_INSTRUCTION",
+            "COMMENT",
+            "DOCUMENT",
+            "DOCUMENT_TYPE",
+            "DOCUMENT_FRAGMENT",
+            "NOTATION",
+        ] {
+            module.add(name, node_type.getattr(name)?)?;
+        }
+        Ok(())
+    }
+
     #[pymodule]
     pub mod node {
         use super::*;
@@ -51,6 +148,9 @@ pub mod _html_rs {
 
         #[pymodule_export]
         pub use crate::node::Node;
+
+        #[pymodule_export]
+        pub use crate::node::Node as DOMNode;
 
         #[pymodule_export]
         pub use crate::node::ElementNode;
@@ -78,6 +178,9 @@ pub mod _html_rs {
 
         #[pymodule_export]
         pub use crate::node::DocumentFragmentNode;
+
+        #[pymodule_export]
+        pub use crate::node::NotationNode;
     }
 
     #[pymodule]
@@ -96,10 +199,19 @@ pub mod _html_rs {
         pub use crate::coll::ElementNodeList;
 
         #[pymodule_export]
+        pub use crate::coll::ElementNodeList as DOMCollection;
+
+        #[pymodule_export]
+        pub use crate::coll::ElementNodeList as HTMLCollection;
+
+        #[pymodule_export]
         pub use crate::coll::NamedNodeMap;
 
         #[pymodule_export]
         pub use crate::coll::DOMTokenList;
+
+        #[pymodule_export]
+        pub use crate::coll::DOMTokenList as DOMElementClassList;
     }
 
     #[pymodule]

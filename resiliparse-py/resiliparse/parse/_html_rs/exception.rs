@@ -15,6 +15,21 @@
 use pyo3::create_exception;
 use pyo3::exceptions::*;
 
-create_exception!(resiliparse.parse._html_rs.exception, DOMException, PyException);
-create_exception!(resiliparse.parse._html_rs.exception, HTMLParserException, DOMException);
-create_exception!(resiliparse.parse._html_rs.exception, CSSParserException, DOMException);
+create_exception!(
+    resiliparse.parse._html_rs.exception,
+    DOMException,
+    PyException,
+    "Base exception for errors raised by the HTML DOM API."
+);
+create_exception!(
+    resiliparse.parse._html_rs.exception,
+    HTMLParserException,
+    DOMException,
+    "Exception raised when an HTML document cannot be parsed."
+);
+create_exception!(
+    resiliparse.parse._html_rs.exception,
+    CSSParserException,
+    DOMException,
+    "Exception raised when a CSS selector cannot be parsed."
+);

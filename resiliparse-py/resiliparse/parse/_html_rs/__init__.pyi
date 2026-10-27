@@ -12,25 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
-from typing_extensions import deprecated
+from collections.abc import Callable
+from typing import Optional
 
-from .coll import DOMCollection, DOMElementClassList
-from .exception import DOMException
-from .node import DocumentNode, ElementNode, Node, NodeType, TextNode
+from .coll import (
+    DOMCollection,
+    DOMElementClassList,
+    DOMTokenList,
+    ElementNodeList,
+    HTMLCollection,
+    NamedNodeMap,
+    NodeList,
+)
+from .exception import CSSParserException, DOMException, HTMLParserException
+from .node import (
+    AttrNode,
+    CDATASectionNode,
+    CommentNode,
+    DocumentFragmentNode,
+    DocumentNode,
+    DocumentTypeNode,
+    DOMNode,
+    ElementNode,
+    Node,
+    NodeType,
+    NotationNode,
+    ProcessingInstructionNode,
+    TextNode,
+)
 
 
 class HTMLTree:
     @staticmethod
-    def parse(document: str) -> Optional[HTMLTree]: ...
+    def parse(document: str) -> HTMLTree: ...
     @staticmethod
-    def parse_from_bytes(document: bytes, encoding: str = 'utf-8', errors: str = 'ignore') -> Optional[HTMLTree]: ...
-
-    @deprecated('Use HTMLTree.document.create_element() instead.')
-    def create_element(self, tag_name: str) -> Optional[ElementNode]: ...
-    @deprecated('Use HTMLTree.document.create_text_node() instead.')
-    def create_text_node(self, text: str) -> Optional[TextNode]: ...
-
+    def parse_from_bytes(document: bytes, encoding: str = "utf-8", errors: str = "ignore") -> HTMLTree: ...
+    def create_element(self, tag_name: str) -> Optional[Node]: ...
+    def create_text_node(self, text: str) -> Optional[Node]: ...
     @property
     def document(self) -> Optional[DocumentNode]: ...
     @property
@@ -39,16 +57,33 @@ class HTMLTree:
     def body(self) -> Optional[ElementNode]: ...
     @property
     def title(self) -> Optional[str]: ...
+    def __str__(self) -> str: ...
 
 
 class DOMContext:
-    def __init__(self):
-        self.node: Optional[Node] = None
-        self.depth: int = 0
+    node: Optional[Node]
+    depth: int
+    def __init__(self) -> None: ...
 
 
-def traverse_dom(base_node: Node,
-                 start_callback: Callable[[DOMContext], None],
-                 end_callback: Optional[Callable[[DOMContext], None]] = None,
-                 context: Optional[DOMContext] = None,
-                 elements_only: bool = False): ...
+def traverse_dom(
+    base_node: Node,
+    start_callback: Callable[[DOMContext], object],
+    end_callback: Optional[Callable[[DOMContext], object]] = None,
+    context: Optional[DOMContext] = None,
+    elements_only: bool = False,
+) -> None: ...
+
+
+ELEMENT: NodeType
+ATTRIBUTE: NodeType
+TEXT: NodeType
+CDATA_SECTION: NodeType
+ENTITY_REFERENCE: NodeType
+ENTITY: NodeType
+PROCESSING_INSTRUCTION: NodeType
+COMMENT: NodeType
+DOCUMENT: NodeType
+DOCUMENT_TYPE: NodeType
+DOCUMENT_FRAGMENT: NodeType
+NOTATION: NodeType
