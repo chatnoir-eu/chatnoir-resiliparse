@@ -21,6 +21,8 @@ from .coll import (
     NamedNodeMap,
     NodeList,
 )
+
+__all__: list[str]
 from .exception import CSSParserException, DOMException, HTMLParserException
 from .node import (
     DOMNode as DOMNode,
@@ -41,6 +43,47 @@ from .node import (
 )
 
 from .tree import HTMLTree as HTMLTree
+
+__all__ = [
+    "HTMLTree",
+    "NodeType",
+    "Node",
+    "DOMNode",
+    "ElementNode",
+    "AttrNode",
+    "TextNode",
+    "CDATASectionNode",
+    "ProcessingInstructionNode",
+    "CommentNode",
+    "DocumentNode",
+    "DocumentTypeNode",
+    "DocumentFragmentNode",
+    "NotationNode",
+    "DOMContext",
+    "traverse_dom",
+    "ELEMENT",
+    "ATTRIBUTE",
+    "TEXT",
+    "CDATA_SECTION",
+    "ENTITY_REFERENCE",
+    "ENTITY",
+    "PROCESSING_INSTRUCTION",
+    "COMMENT",
+    "DOCUMENT",
+    "DOCUMENT_TYPE",
+    "DOCUMENT_FRAGMENT",
+    "NOTATION",
+    "NodeList",
+    "ElementNodeList",
+    "DOMCollection",
+    "HTMLCollection",
+    "NamedNodeMap",
+    "DOMTokenList",
+    "DOMElementClassList",
+    "DOMException",
+    "HTMLParserException",
+    "CSSParserException",
+]
 
 ELEMENT: NodeType
 ATTRIBUTE: NodeType

@@ -131,11 +131,19 @@ jobs:
       - name: Build FastWARC
         run: python${PYTHON_VERSION} -m pip install -e "fastwarc-py[all,test]"
 
+      - name: Build Resiliparse
+        run: python${PYTHON_VERSION} -m pip install -e "resiliparse-py[all,test]"
+
       - name: Check stubs
         run: |
           set -ex
-          cd fastwarc-py
-          python${PYTHON_VERSION} -m mypy.stubtest fastwarc --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt
+          (cd fastwarc-py &&
+            python${PYTHON_VERSION} -m mypy.stubtest fastwarc \
+              --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt)
+
+          (cd ../resiliparse-py &&
+            python${PYTHON_VERSION} -m mypy.stubtest resiliparse \
+              --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt)
 
   build-sdist:
     runs-on: ubuntu-latest

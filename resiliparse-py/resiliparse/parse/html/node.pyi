@@ -12,28 +12,78 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 from collections.abc import Container, Iterable, Iterator
-from typing import Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, final
+from typing_extensions import disjoint_base
 
 from .coll import DOMTokenList, ElementNodeList, NamedNodeMap, NodeList
 
+__all__ = [
+    "DOMTokenList",
+    "ElementNodeList",
+    "NamedNodeMap",
+    "NodeList",
+    "NodeType",
+    "AttrNode",
+    "CDATASectionNode",
+    "CommentNode",
+    "DocumentFragmentNode",
+    "DocumentNode",
+    "DocumentTypeNode",
+    "DOMContext",
+    "ElementNode",
+    "Node",
+    "NotationNode",
+    "ProcessingInstructionNode",
+    "TextNode",
+    "traverse_dom",
+    "ELEMENT",
+    "ATTRIBUTE",
+    "TEXT",
+    "CDATA_SECTION",
+    "ENTITY_REFERENCE",
+    "ENTITY",
+    "PROCESSING_INSTRUCTION",
+    "COMMENT",
+    "DOCUMENT",
+    "DOCUMENT_TYPE",
+    "DOCUMENT_FRAGMENT",
+    "NOTATION",
+    "DOMNode",
+]
 
-class NodeType(enum.Enum):
-    ELEMENT: int
-    ATTRIBUTE: int
-    TEXT: int
-    CDATA_SECTION: int
-    ENTITY_REFERENCE: int
-    ENTITY: int
-    PROCESSING_INSTRUCTION: int
-    COMMENT: int
-    DOCUMENT: int
-    DOCUMENT_TYPE: int
-    DOCUMENT_FRAGMENT: int
-    NOTATION: int
+
+@final
+class NodeType:
+    ELEMENT: NodeType
+    ATTRIBUTE: NodeType
+    TEXT: NodeType
+    CDATA_SECTION: NodeType
+    ENTITY_REFERENCE: NodeType
+    ENTITY: NodeType
+    PROCESSING_INSTRUCTION: NodeType
+    COMMENT: NodeType
+    DOCUMENT: NodeType
+    DOCUMENT_TYPE: NodeType
+    DOCUMENT_FRAGMENT: NodeType
+    NOTATION: NodeType
 
 
+ELEMENT: NodeType
+ATTRIBUTE: NodeType
+TEXT: NodeType
+CDATA_SECTION: NodeType
+ENTITY_REFERENCE: NodeType
+ENTITY: NodeType
+PROCESSING_INSTRUCTION: NodeType
+COMMENT: NodeType
+DOCUMENT: NodeType
+DOCUMENT_TYPE: NodeType
+DOCUMENT_FRAGMENT: NodeType
+NOTATION: NodeType
+
+
+@disjoint_base
 class Node(Iterable[Node], Container[Node]):
     @property
     def node_type(self) -> Optional[NodeType]: ...
@@ -134,11 +184,26 @@ class Node(Iterable[Node], Container[Node]):
 
     def __iter__(self) -> Iterator[Node]: ...
 
-    def __contains__(self, node: object) -> bool: ...
+    def __contains__(self, node: object, /) -> bool: ...
 
     def __str__(self) -> str: ...
 
     def __repr__(self) -> str: ...
+
+
+@final
+class DOMContext:
+    node: object | None
+    depth: int
+
+
+def traverse_dom(
+    base_node: Node,
+    start_callback: Callable[[DOMContext], Any],
+    end_callback: Callable[[DOMContext], Any] | None = None,
+    context: DOMContext | None = None,
+    elements_only: bool = False,
+) -> None: ...
 
 
 # Legacy name.
@@ -238,17 +303,17 @@ class _Element(_ParentNode, _ChildNode, _NonDocumentTypeChildNode):
 
     def getattr(self, qualified_name: str, default_value: Optional[str] = None) -> Optional[str]: ...
 
-    def __contains__(self, qualified_name: str) -> bool: ...
+    def __contains__(self, qualified_name: object, /) -> bool: ...
 
-    def __getitem__(self, qualified_name: str) -> str: ...
+    def __getitem__(self, qualified_name: str, /) -> str: ...
 
     def setattr(self, qualified_name: str, value: str) -> None: ...
 
-    def __setitem__(self, qualified_name: str, value: str) -> None: ...
+    def __setitem__(self, qualified_name: str, value: str, /) -> None: ...
 
     def delattr(self, qualified_name: str) -> None: ...
 
-    def __delitem__(self, qualified_name: str) -> None: ...
+    def __delitem__(self, qualified_name: str, /) -> None: ...
 
     def closest(self, selectors: str) -> Optional[ElementNode]: ...
 
@@ -321,7 +386,7 @@ class _Document(_ParentNode, _NonElementParentNode):
 
     def create_comment(self, data: str) -> CommentNode: ...
 
-    def create_processing_instruction(self, target: str, data: str) -> ProcessingInstructionNode: ...
+    def create_processing_instruction(self, target: str, local_name: str) -> ProcessingInstructionNode: ...
 
     def create_attribute(self, local_name: str) -> AttrNode: ...
 
@@ -388,31 +453,41 @@ class _ProcessingInstruction(_CharacterData):
 class _Comment(_CharacterData): ...
 
 
+@final
 class ElementNode(_Element): ...
 
 
+@final
 class AttrNode(_Attr): ...
 
 
+@final
 class TextNode(_Text): ...
 
 
+@final
 class CDATASectionNode(_CDATASection): ...
 
 
+@final
 class ProcessingInstructionNode(_ProcessingInstruction): ...
 
 
+@final
 class CommentNode(_Comment): ...
 
 
+@final
 class DocumentNode(_Document): ...
 
 
+@final
 class DocumentTypeNode(_DocumentType): ...
 
 
+@final
 class DocumentFragmentNode(_DocumentFragment): ...
 
 
+@final
 class NotationNode(Node): ...

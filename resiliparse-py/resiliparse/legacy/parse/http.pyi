@@ -1,0 +1,6 @@
+from collections.abc import Iterable
+from typing import BinaryIO
+
+
+def read_http_chunk(reader: BinaryIO) -> bytes: ...
+def iterate_http_chunks(reader: BinaryIO) -> Iterable[bytes]: ...

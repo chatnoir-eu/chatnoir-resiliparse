@@ -12,32 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Container, Iterator, Sequence
+from collections.abc import Container, Sequence
 from typing import Generic, Optional, TypeVar, overload
+from typing_extensions import disjoint_base, final
 
 from .node import AttrNode, ElementNode, Node
 
 _T = TypeVar("_T", covariant=True)
 
+__all__ = [
+    "DOMTokenList",
+    "ElementNodeList",
+    "NamedNodeMap",
+    "NodeList",
+    "DOMCollection",
+    "HTMLCollection",
+    "DOMElementClassList",
+]
 
+
+@disjoint_base
 class NodeList(Sequence[_T], Container[_T], Generic[_T]):
     def item(self, index: int) -> Optional[_T]: ...
 
     def values(self) -> list[_T]: ...
 
     @overload
-    def __getitem__(self, index: int) -> _T: ...
+    def __getitem__(self, index: int, /) -> _T: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[_T]: ...
+    def __getitem__(self, index: slice, /) -> Sequence[_T]: ...
 
     def __len__(self) -> int: ...
 
-    def __iter__(self) -> Iterator[_T]: ...
-
-    def __contains__(self, item: object) -> bool: ...
+    def __contains__(self, item: object, /) -> bool: ...
 
 
+@final
 class ElementNodeList(NodeList[ElementNode]):
     def get_element_by_id(self, element_id: str, case_insensitive: bool = False) -> Optional[ElementNode]: ...
 
@@ -55,9 +66,11 @@ class ElementNodeList(NodeList[ElementNode]):
     def matches(self, selectors: str) -> bool: ...
 
 
+@final
 class NamedNodeMap(NodeList[AttrNode]): ...
 
 
+@final
 class DOMTokenList(Sequence[str], Container[str]):
     @property
     def value(self) -> str: ...
@@ -80,16 +93,14 @@ class DOMTokenList(Sequence[str], Container[str]):
     def toggle(self, token: str, force: Optional[bool] = None) -> bool: ...
 
     @overload
-    def __getitem__(self, index: int) -> str: ...
+    def __getitem__(self, index: int, /) -> str: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[str]: ...
+    def __getitem__(self, index: slice, /) -> Sequence[str]: ...
 
     def __len__(self) -> int: ...
 
-    def __iter__(self) -> Iterator[str]: ...
-
-    def __contains__(self, token: object) -> bool: ...
+    def __contains__(self, token: object, /) -> bool: ...
 
 
 # Names retained for source compatibility with the Cython DOM API.

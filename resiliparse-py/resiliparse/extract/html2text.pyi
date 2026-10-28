@@ -21,7 +21,7 @@ __all__ = ["extract_plain_text"]
 
 def extract_plain_text(
     html: Union[str, HTMLTree],
-    preserve_formatting: Union[bool, Literal["minimal_html"]] = True,
+    preserve_formatting: Union[bool, Literal["minimal_html"]] = ...,
     main_content: bool = False,
     list_bullets: bool = True,
     alt_texts: bool = True,

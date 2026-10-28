@@ -63,8 +63,18 @@ build-frontend = "build"
 test-extras = ["all", "test"]
 
 [tool.mypy]
-exclude = ["resiliparse/legacy/.*"]
+exclude = [
+    "resiliparse/cli\\.py",
+    "resiliparse/beam/.*",
+    "resiliparse/itertools\\.py", # itertools includes legacy FastWARC
+    "resiliparse/legacy/.*"
+]
 
 [[tool.mypy.overrides]]
 module = ["apache_beam.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["resiliparse.legacy.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
