@@ -143,7 +143,7 @@ jobs:
 
           (cd resiliparse-py &&
             python${PYTHON_VERSION} -m mypy.stubtest resiliparse \
-              --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt)
+              --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt --ignore-unused-allowlist)
 
   build-sdist:
     runs-on: ubuntu-latest
