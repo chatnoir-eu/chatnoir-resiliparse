@@ -263,6 +263,18 @@ def test_attributes():
     assert a.getattr('lang') is None
 
 
+@pytest.mark.parametrize('markup, expected', [
+    ('<input>', None),
+    ('<input checked>', ''),
+    ('<input checked="">', ''),
+    ('<input checked="checked">', 'checked'),
+])
+def test_get_attribute_boolean_value(markup, expected):
+    element = HTMLTree.parse(markup).body.query_selector('input')
+    assert element.get_attribute('checked') == expected
+    assert element.get_attribute('checked', 'fallback') == (expected if expected is not None else 'fallback')
+
+
 def test_empty_attributes():
     input_tree = HTMLTree.parse('''<div>
     <input type="checkbox" checked>

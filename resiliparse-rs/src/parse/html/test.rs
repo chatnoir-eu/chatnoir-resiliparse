@@ -799,12 +799,17 @@ fn test_empty_attribute() {
     assert_eq!(input_element.attribute("type").unwrap(), "checkbox");
 
     assert!(input_element.has_attribute("checked"));
-    assert!(input_element.attribute("checked").is_none());
+    assert_eq!(input_element.attribute("checked").as_deref(), Some(""));
+    assert_eq!(input_element.attribute_or("checked", "fallback"), "");
     assert!(!input_element.has_attribute("checkedx"));
     assert!(input_element.attribute("checkedx").is_none());
+    assert_eq!(input_element.attribute_or("checkedx", "fallback"), "fallback");
 
     // Test empty attribute selection
     // There used to be a Lexbor crash with this: https://github.com/lexbor/lexbor/pull/148
+    for element in tree.body().unwrap().query_selector_all("[foo]").unwrap() {
+        assert_eq!(element.attribute("foo").as_deref(), Some(""));
+    }
     assert_eq!(tree.body().unwrap().query_selector_all(".foo").unwrap().len(), 1);
     assert_eq!(tree.body().unwrap().query_selector_all("#foo").unwrap().len(), 1);
     assert_eq!(tree.body().unwrap().query_selector_all("[class]").unwrap().len(), 3);

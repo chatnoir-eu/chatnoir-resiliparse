@@ -1189,6 +1189,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
 
     /// Return the named attribute value, if present.
     ///
+    /// Attributes without a value (e.g., `<input checked>`) return an empty string.
+    ///
     /// # Arguments
     ///
     /// * `qualified_name` - The qualified attribute name to read.

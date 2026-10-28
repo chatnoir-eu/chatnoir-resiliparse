@@ -829,6 +829,8 @@ impl ElementNodePy {
 
     /// Get the value of an attribute, or ``default_value`` if it is unset.
     ///
+    /// Attributes without a value (e.g., ``<input checked>``) return an empty string.
+    ///
     /// :param qualified_name: Qualified attribute name.
     /// :param default_value: Value returned when the attribute is absent.
     #[pyo3(signature = (qualified_name, default_value=None))]
