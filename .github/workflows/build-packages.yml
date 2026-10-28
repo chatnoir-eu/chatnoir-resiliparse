@@ -253,7 +253,8 @@ jobs:
           # Run Rust tests (excluding PyO3 wrappers)
           cargo test --workspace --exclude '*-py'
 
-          # Run Python tests
+          # Run Python tests (install apache_beam manually, which is skipped in 3.14)
+          python${PYTHON_VERSION} -m pip install apache_beam
           python${PYTHON_VERSION} -m pytest \
             --cov=fastwarc --cov=resiliparse \
             --cov-report xml:pytest-coverage.xml \
