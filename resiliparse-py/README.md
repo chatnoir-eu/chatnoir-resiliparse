@@ -29,7 +29,7 @@ git clone https://github.com/Microsoft/vcpkg
 ```
 
 Replace the triplet value with one suitable for your platform. Valid values are: `x64-windows`, `x64-osx`, `arm64-osx`,
-`aarch64-linux` (or any of the vcpkg default triplets).
+`arm64-linux` (or any of the vcpkg default triplets).
 
 After installing the dependencies, you can build the actual Python packages:
 

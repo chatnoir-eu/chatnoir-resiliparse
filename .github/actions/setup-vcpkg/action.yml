@@ -12,7 +12,6 @@ runs:
         os="$(printf '%s' "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')"
         arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
         [[ "$os" != macos ]] || os=osx
-        if [[ "$os" == linux && "$arch" == arm64 ]]; then arch=aarch64; fi
         echo "triplet=$arch-$os" >> "$GITHUB_OUTPUT"
         echo "VCPKG_DEFAULT_TRIPLET=$arch-$os" >> "$GITHUB_ENV"
         environment="$os"
@@ -73,7 +72,7 @@ runs:
           exit 1
         fi
 
-    - name: Add vcpkg libraries to the runtime search path
+    - name: Add vcpkg to library search path
       if: runner.os == 'Linux'
       shell: bash
       run: |

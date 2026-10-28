@@ -63,8 +63,6 @@ jobs:
       CIBW_SKIP: "*cp39* *-musllinux*"
       CIBW_TEST_SKIP: "*-macosx_x86_64"   # x86_64 tests are flaky on arm64
       CIBW_ARCHS_MACOS: "x86_64 arm64"
-      CIBW_ENVIRONMENT_LINUX: >-
-        VCPKG_DEFAULT_TRIPLET="$(uname -m | sed 's/x86_64/x64/')-linux"
       CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_x86_64:latest
       CIBW_MANYLINUX_AARCH64_IMAGE: ghcr.io/chatnoir-eu/resiliparse-manylinux_2_28_aarch64:latest
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-

@@ -36,7 +36,7 @@ In either case, you need to install all required build-time dependencies listed 
     # Install dependencies to vcpkg_installed (must be run from sources root)
     ./vcpkg/vcpkg install --triplet=x64-linux
 
-Replace the triplet value with one suitable for your platform. Valid values are: ``x64-windows``, ``x64-osx``, ``arm64-osx``, ``aarch64-linux`` (or any of the vcpkg default triplets).
+Replace the triplet value with one suitable for your platform. Valid values are: ``x64-windows``, ``x64-osx``, ``arm64-osx``, ``arm64-linux`` (or any of the vcpkg default triplets).
 
 After installing the dependencies, you can build the actual Python packages:
 

@@ -52,9 +52,7 @@ class resiliparse_build_ext(build_ext):
         arch = platform.machine().lower()
         if os.environ.get('_PYTHON_HOST_PLATFORM', '').startswith('macosx-'):
             arch = os.environ['_PYTHON_HOST_PLATFORM'].split('-')[-1]
-        elif osname == 'linux' and arch == 'arm64':
-            arch = 'aarch64'
-        arch = arch.replace('x86_64', 'x64').replace('amd64', 'x64')
+        arch = arch.replace('x86_64', 'x64').replace('amd64', 'x64').replace('aarch64', 'arm64')
         triplet = f'{arch}-{osname}'
 
         if os.environ.get('RESILIPARSE_VCPKG_PATH'):
