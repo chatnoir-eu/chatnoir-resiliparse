@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::env;
-use std::env::consts;
+use std::env::{consts, VarError};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -53,9 +53,11 @@ fn main() {
     println!("cargo:rustc-link-lib=lexbor");
     if let Some(vcpkg_dir) = &vcpkg_dir {
         println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.display());
-        if matches!(env::var("CARGO_CFG_TARGET_OS").as_deref(), Ok("macos" | "linux")) {
-            println!("cargo:rustc-link-arg=-Wl,-rpath,{}/lib", vcpkg_dir.display());
-        }
+        match env::var("CARGO_CFG_TARGET_OS").as_deref() {
+            Ok("macos" | "linux") => { println!("cargo:rustc-link-arg=-Wl,-rpath,{}/lib", vcpkg_dir.display()); }
+            Ok("windows") => { println!("cargo:rustc-link-search=native={}/bin", vcpkg_dir.display()); }
+            _ => {}
+        };
     }
     println!("cargo:rerun-if-changed=src/third_party/lexbor.h");
 
