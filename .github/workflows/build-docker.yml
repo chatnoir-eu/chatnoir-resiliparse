@@ -10,6 +10,9 @@ on:
     paths:
       - Dockerfile
       - .github/workflows/build-docker.yml
+      - .vcpkg/**
+      - vcpkg.json
+      - vcpkg-configuration.json
 
   pull_request:
     types:
@@ -19,6 +22,10 @@ on:
       - develop
     paths:
       - Dockerfile
+      - .github/workflows/build-docker.yml
+      - .vcpkg/**
+      - vcpkg.json
+      - vcpkg-configuration.json
 
 env:
   REGISTRY: ghcr.io

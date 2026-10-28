@@ -31,6 +31,9 @@ git clone https://github.com/Microsoft/vcpkg
 Replace the triplet value with one suitable for your platform. Valid values are: `x64-windows`, `x64-osx`, `arm64-osx`,
 `arm64-linux` (or any of the vcpkg default triplets).
 
+By default, Resiliparse uses `vcpkg` to build and install native dependencies. You can set
+`RESILIPARSE_USE_SYSTEM_LIBS=1` to skip `vcpkg` and use dependencies already present on your system.
+
 After installing the dependencies, you can build the actual Python packages:
 
 ```bash
@@ -55,8 +58,8 @@ directory:
 export RESILIPARSE_VCPKG_PATH="$(pwd)/vcpkg_installed"
 ```
 
-**NOTE:** Unless you fix up the wheels to embed the linked shared libraries (
-via [auditwheel](https://github.com/pypa/auditwheel) on
+**NOTE:** Unless you fix up the wheels to embed the linked shared libraries
+(via [auditwheel](https://github.com/pypa/auditwheel) on
 Linux, [delocate-wheel](https://github.com/matthew-brett/delocate) on macOS,
 or [delvewheel](https://github.com/adang1345/delvewheel) on Windows), you will have to add the vcpkg library directory (
 `vcpkg_installed/TRIPLET/lib`) to your library search path to use them. On Linux, add the directory path to the
