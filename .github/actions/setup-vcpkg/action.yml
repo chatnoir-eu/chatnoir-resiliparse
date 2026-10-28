@@ -11,7 +11,7 @@ runs:
         path: |
           ~/.cache/vcpkg/archives
           ~/AppData/Local/vcpkg/archives
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json') }}
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
         restore-keys: |
           ${{ runner.os }}-vcpkg-
 
@@ -29,7 +29,7 @@ runs:
           echo "$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_PATH"
 
           "$GITHUB_WORKSPACE/vcpkg/vcpkg" install --triplet=x64-osx
-          "$GITHUB_WORKSPACE/vcpkg/vcpkg" --triplet=arm64-osx --x-install-root vcpkg_installed2
+          "$GITHUB_WORKSPACE/vcpkg/vcpkg" install --triplet=arm64-osx --x-install-root vcpkg_installed2
           cp -a vcpkg_installed2/* vcpkg_installed/
           rm -r vcpkg_installed2
 

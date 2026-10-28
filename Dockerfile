@@ -3,6 +3,7 @@ FROM quay.io/pypa/manylinux_2_28_${TARGET_ARCH}:latest
 
 RUN set -x \
     && yum install -y \
+        clang-devel \
         curl \
         git \
         gcc-toolset-14-libasan-devel \
