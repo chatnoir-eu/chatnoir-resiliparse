@@ -51,7 +51,9 @@ test = [
 resiliparse = "resiliparse.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["resiliparse", "resiliparse.parse*", "resiliparse.extract*", "resiliparse.beam", "resiliparse.legacy*"]
+include = ["resiliparse*"]
+exclude = ["resiliparse.src*"]
+namespaces = true
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi", "py.typed"]
