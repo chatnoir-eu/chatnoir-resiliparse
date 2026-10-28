@@ -283,9 +283,19 @@ fn link_cluster(node: &Node, ratio: f64, max_length: usize) -> bool {
 pub(super) fn is_main_content(node: &Node, depth: usize, opts: &ExtractOptions) -> bool {
     if node.node_type() == Some(NodeType::Text) {
         let text = node.node_value().unwrap_or_default();
-        let mut chars = trim(&text).chars();
-        let first = chars.next();
-        return !(chars.next().is_none() && first.is_some_and(|c| c == '¶' || ('\u{e000}'..='\u{f8ff}').contains(&c)));
+        let text = trim(&text);
+        if text == "¶" {
+            return false;
+        }
+        // Match the legacy extractor's byte-level test. It interprets three
+        // UTF-8 bytes as a little-endian integer, so this intentionally
+        // preserves its historical classification, including some symbols
+        // outside the private-use area.
+        if let [a, b, c] = text.as_bytes() {
+            let code = u32::from_le_bytes([*a, *b, *c, 0]);
+            return !(0x8080ee..=0xbfa3ef).contains(&code);
+        }
+        return true;
     }
     if node.as_element().is_none() {
         return true;

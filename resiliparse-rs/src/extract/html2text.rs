@@ -482,9 +482,36 @@ pub fn extract_plain_text(tree: &HtmlTree, opts: &ExtractOptions) -> Result<Stri
     let _guard = owner.doc_ptr();
     let mut root = body.as_node();
     if opts.main_content {
-        let candidates = body.query_selector_all(".article-body, .articleBody, .contentBody, .article-text, .main-content, .postcontent, .post-content, .single-post, [role=main]")?;
-        if candidates.len() == 1 {
-            root = candidates.item(0).unwrap().as_node();
+        // The legacy selector-list query counts an element once for every
+        // selector it matches. Query selectors separately to preserve that
+        // behavior when one element matches, for example, both `.main-content`
+        // and `[role=main]`.
+        let selectors = [
+            ".article-body",
+            ".articleBody",
+            ".contentBody",
+            ".article-text",
+            ".main-content",
+            ".postcontent",
+            ".post-content",
+            ".single-post",
+            "[role=main]",
+        ];
+        let mut candidate = None;
+        let mut candidate_count = 0;
+        for selector in selectors {
+            let matches = body.query_selector_all(selector)?;
+            if matches.is_empty() {
+                continue;
+            }
+            candidate_count += matches.len();
+            if candidate_count > 1 {
+                break;
+            }
+            candidate = Some(matches.item(0).unwrap().as_node());
+        }
+        if candidate_count == 1 {
+            root = candidate.unwrap();
         }
     }
     let mut selectors = opts.skip_elements.clone();
