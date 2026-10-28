@@ -138,7 +138,7 @@ impl CssSelector {
             }
             (*parser).memory = compiled.memory;
             compiled.selector_list = lxb_css_selectors_parse(parser, selectors.as_ptr(), selectors.len());
-            let failed = (*parser).status != LXB_STATUS_OK || compiled.selector_list.is_null();
+            let failed = (*parser).status != LXB_STATUS_OK as lxb_status_t || compiled.selector_list.is_null();
             let mut msg = String::new();
             if failed {
                 lxb_css_log_serialize(

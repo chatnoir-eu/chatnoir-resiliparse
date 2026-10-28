@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::env;
-use std::env::{consts, VarError};
+use std::env::consts;
 use std::path::PathBuf;
 use std::process::Command;
 
