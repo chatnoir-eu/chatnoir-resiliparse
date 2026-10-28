@@ -47,6 +47,9 @@ test = [
 [project.scripts]
 fastwarc = "fastwarc.cli:main"
 
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
 include = ["fastwarc", "fastwarc.legacy"]
 
