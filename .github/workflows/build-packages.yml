@@ -141,7 +141,7 @@ jobs:
             python${PYTHON_VERSION} -m mypy.stubtest fastwarc \
               --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt)
 
-          (cd ../resiliparse-py &&
+          (cd resiliparse-py &&
             python${PYTHON_VERSION} -m mypy.stubtest resiliparse \
               --mypy-config-file pyproject.toml --allowlist=stubtest-allowlist.txt)
 

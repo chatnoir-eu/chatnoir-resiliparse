@@ -214,7 +214,7 @@ unsafe fn create_attribute_unchecked(doc: &DocumentNode, local_name: &str) -> Re
             });
         }
         let status = lxb_dom_attr_set_name(attr, local_name.as_ptr(), local_name.len(), true);
-        if status != lexbor_status_t::LXB_STATUS_OK {
+        if status != lexbor_status_t::LXB_STATUS_OK as lxb_status_t {
             lxb_dom_attr_interface_destroy(attr);
             return Err(DomError {
                 msg: "Failed to set attribute name".to_owned(),

@@ -119,7 +119,7 @@ impl CssSelector {
                 selector_list: ptr::null_mut(),
                 memory: lxb_css_memory_create(),
             };
-            if compiled.memory.is_null() || lxb_css_memory_init(compiled.memory, 256) != LXB_STATUS_OK {
+            if compiled.memory.is_null() || lxb_css_memory_init(compiled.memory, 256) != LXB_STATUS_OK as lxb_status_t {
                 return Err(CssParserError {
                     msg: "Failed to allocate selector memory.".into(),
                 });
@@ -130,7 +130,7 @@ impl CssSelector {
                     msg: "Failed to allocate CSS parser.".into(),
                 });
             }
-            if lxb_css_parser_init(parser, ptr::null_mut()) != LXB_STATUS_OK {
+            if lxb_css_parser_init(parser, ptr::null_mut()) != LXB_STATUS_OK as lxb_status_t {
                 lxb_css_parser_destroy(parser, true);
                 return Err(CssParserError {
                     msg: "Failed to initialize CSS parser.".into(),
@@ -167,7 +167,7 @@ impl CssSelector {
             if let Some(s) = str_from_lxb_char_t(data, size) {
                 (*(ctx as *mut String)).push_str(s);
             }
-            LXB_STATUS_OK
+            LXB_STATUS_OK as lxb_status_t
         }
     }
 
@@ -183,12 +183,12 @@ impl CssSelector {
             let ctx = &mut *ctx.cast::<MatchContextWrapper<T, F>>();
             // Never unwind through native frames.
             match catch_unwind(AssertUnwindSafe(|| (ctx.f)(ElementNode::new(&ctx.tree, node), spec, ctx.custom_data))) {
-                Ok(TraverseAction::Ok) => LXB_STATUS_OK,
-                Ok(TraverseAction::Stop) => LXB_STATUS_STOP,
-                Ok(TraverseAction::Err) => LXB_STATUS_ERROR,
+                Ok(TraverseAction::Ok) => LXB_STATUS_OK as lxb_status_t,
+                Ok(TraverseAction::Stop) => LXB_STATUS_STOP as lxb_status_t,
+                Ok(TraverseAction::Err) => LXB_STATUS_ERROR as lxb_status_t,
                 Err(panic) => {
                     ctx.panic = Some(panic);
-                    LXB_STATUS_STOP
+                    LXB_STATUS_STOP as lxb_status_t
                 }
             }
         }
@@ -212,7 +212,7 @@ impl CssSelector {
         }
         unsafe {
             let matcher = Matcher(lxb_selectors_create());
-            if matcher.0.is_null() || lxb_selectors_init(matcher.0) != LXB_STATUS_OK {
+            if matcher.0.is_null() || lxb_selectors_init(matcher.0) != LXB_STATUS_OK as lxb_status_t {
                 return Err(CssParserError {
                     msg: "Failed to initialize selector matching.".into(),
                 });
@@ -233,7 +233,7 @@ impl CssSelector {
             if let Some(panic) = ctx.panic {
                 resume_unwind(panic);
             }
-            if status != LXB_STATUS_OK && status != LXB_STATUS_STOP {
+            if status != LXB_STATUS_OK as lxb_status_t && status != LXB_STATUS_STOP as lxb_status_t {
                 return Err(CssParserError {
                     msg: format!("Native matching failed with status {status}."),
                 });
@@ -279,8 +279,7 @@ impl CssSelector {
         let tree = node.tree();
         let _guard = tree.doc_ptr();
         unsafe {
-            if node.node_ptr().is_null() || (*node.node_ptr()).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT
-            {
+            if node.node_ptr().is_null() || (*node.node_ptr()).type_ != lxb_dom_node_type_t::LXB_DOM_NODE_TYPE_ELEMENT {
                 return Ok(());
             }
         }

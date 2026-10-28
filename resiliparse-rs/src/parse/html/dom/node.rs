@@ -323,7 +323,7 @@ impl NodeHandle {
         let _guard = document.doc_ptr();
         if !node.is_null() {
             unsafe {
-                assert_eq!((*node).type_, kind as u32, "Incorrect concrete DOM node kind");
+                assert_eq!((*node).type_ as u32, kind as u32, "Incorrect concrete DOM node kind");
                 (*node).ref_count += 1;
             }
         }

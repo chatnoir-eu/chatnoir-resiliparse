@@ -76,7 +76,7 @@ impl HtmlTree {
                 });
             }
             let status = lxb_html_document_parse(doc_ptr, html.as_ptr(), html.len());
-            if status != LXB_STATUS_OK {
+            if status != LXB_STATUS_OK as lxb_status_t {
                 lxb_html_document_destroy(doc_ptr);
                 return Err(HtmlParserError {
                     msg: format!("Failed to parse document (Error {}).", status),
