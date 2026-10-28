@@ -6,7 +6,6 @@
     "lexbor",
     "lz4",
     "re2",
-    "protobuf",
     "uchardet",
     "zlib"
   ]

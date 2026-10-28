@@ -35,6 +35,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: ${{ env.PROTOC_VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up vcpkg
         uses: ./.github/actions/setup-vcpkg
 

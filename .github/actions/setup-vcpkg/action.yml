@@ -78,11 +78,3 @@ runs:
       shell: bash
       run: |
         echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/vcpkg_installed/$VCPKG_DEFAULT_TRIPLET/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
-
-    - name: Add vcpkg tools to PATH
-      shell: bash
-      run: |
-        set -e
-        for t in "$GITHUB_WORKSPACE/vcpkg_installed/$VCPKG_DEFAULT_TRIPLET/tools"/*/; do
-          if [[ -d "$t" ]]; then echo "$t" >> "$GITHUB_PATH"; fi
-        done
