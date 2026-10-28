@@ -23,7 +23,7 @@ pub mod _parse {
     #[pymodule_init]
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let py = m.py();
-        crate::set_package_path(m, "parse")?;
+        crate::set_package_path(m, std::path::PathBuf::from("parse"))?;
         m.setattr("__all__", Vec::<String>::new())?;
 
         // Load submodules.

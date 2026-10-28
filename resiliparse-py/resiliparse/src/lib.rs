@@ -16,14 +16,24 @@ mod extract;
 mod parse;
 
 use pyo3::prelude::*;
+use std::path::PathBuf;
 
-/// Let native packages discover Python modules alongside the extension.
-fn set_package_path(m: &Bound<'_, PyModule>, subpath: &str) -> PyResult<()> {
+/// Set a native module's `__path__` to the matching directory in the Python package.
+///
+/// PyO3 creates these native modules separately from their Python packages. Extending
+/// their package paths lets Python find sibling modules. The `subpath` is a `PathBuf`
+/// so callers can build it from components and preserve platform-native separators.
+fn set_package_path(m: &Bound<'_, PyModule>, subpath: PathBuf) -> PyResult<()> {
     let package = PyModule::import(m.py(), "resiliparse")?;
     let paths: Vec<String> = package.getattr("__path__")?.extract()?;
     let paths: Vec<_> = paths
         .into_iter()
-        .map(|path| std::path::Path::new(&path).join(subpath).to_string_lossy().into_owned())
+        .map(|path| {
+            std::path::Path::new(&path)
+                .join(&subpath)
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     m.setattr("__path__", paths)
 }

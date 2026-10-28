@@ -26,7 +26,7 @@ pub mod _html {
     #[pymodule_init]
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let py = m.py();
-        crate::set_package_path(m, "parse/html")?;
+        crate::set_package_path(m, std::path::PathBuf::from("parse").join("html"))?;
 
         // Load submodules.
         // Don't add with add_submodule(), otherwise they end up in __all__.
