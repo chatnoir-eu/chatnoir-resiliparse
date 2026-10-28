@@ -15,14 +15,6 @@ RUN set -x \
    && yum clean all \
    && rm -rf /var/cache/yum
 
-ENV VCPKG_DISABLE_METRICS="1"
-ENV VCPKG_FORCE_SYSTEM_BINARIES="1"
-
-RUN set -x \
-  && git clone --depth=1 https://github.com/Microsoft/vcpkg /opt/vcpkg \
-  && (cd /opt/vcpkg && ./bootstrap-vcpkg.sh) \
-  && ln -nfs /opt/vcpkg/vcpkg /usr/local/bin
-
 ENV RUSTUP_HOME=/opt/rust/rustup
 ENV CARGO_HOME=/opt/rust/cargo
 ENV PATH=/opt/rust/cargo/bin:$PATH

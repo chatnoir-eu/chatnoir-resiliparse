@@ -4,32 +4,67 @@ description: Cache and install vcpkg dependencies
 runs:
   using: composite
   steps:
-    - name: Cache Vcpkg
+    - name: Select vcpkg platform
+      id: select-platform
+      shell: bash
+      run: |
+        set -ex
+        os="$(printf '%s' "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')"
+        arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+        [[ "$os" != macos ]] || os=osx
+        if [[ "$os" == linux && "$arch" == arm64 ]]; then arch=aarch64; fi
+        echo "triplet=$arch-$os" >> "$GITHUB_OUTPUT"
+        echo "VCPKG_DEFAULT_TRIPLET=$arch-$os" >> "$GITHUB_ENV"
+        environment="$os"
+        if [[ "$os" == linux ]]; then
+          . /etc/os-release
+          environment="$ID-$VERSION_ID"
+        fi
+        echo "cache-prefix=$environment-$arch-vcpkg" >> "$GITHUB_OUTPUT"
+
+    - name: Cache vcpkg
+      id: cache-vcpkg
       uses: actions/cache@v5
-      if: "!startsWith(github.ref, 'refs/tags/v')"
       with:
         path: |
+          ~/.vcpkg-inst
           ~/.cache/vcpkg/archives
           ~/AppData/Local/vcpkg/archives
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
+        key: ${{ steps.select-platform.outputs.cache-prefix }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
         restore-keys: |
-          ${{ runner.os }}-vcpkg-
+          ${{ steps.select-platform.outputs.cache-prefix }}-
 
-    - name: Install Vcpkg Dependencies
+    - name: Install vcpkg
+      shell: bash
+      if: steps.cache-vcpkg.outputs.cache-hit != 'true'
+      run: |
+        set -xe
+        if [[ ! -x "$HOME/.vcpkg-inst/vcpkg" && ! -x "$HOME/.vcpkg-inst/vcpkg.exe" ]]; then
+          if [[ ! -d "$HOME/.vcpkg-inst/.git" ]]; then
+            git clone --depth=1 https://github.com/Microsoft/vcpkg "$HOME/.vcpkg-inst"
+          fi
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            cmd.exe /c "$(cygpath -w "$HOME/.vcpkg-inst/bootstrap-vcpkg.bat")"
+          else
+            "$HOME/.vcpkg-inst/bootstrap-vcpkg.sh"
+          fi
+        fi
+
+    - name: Add vcpkg to PATH
+      shell: bash
+      run: echo "$HOME/.vcpkg-inst" >> "$GITHUB_PATH"
+
+    - name: Install vcpkg Dependencies
       shell: bash
       run: |
         set -xe
 
         if [ -d /c/vcpkg ] || [ "$(uname -s)" == "Linux" ]; then
-          vcpkg install --triplet="${RUNNER_ARCH,,}-${RUNNER_OS,,}"
+          vcpkg install --triplet="$VCPKG_DEFAULT_TRIPLET"
 
         elif [ "$(uname -s)" == "Darwin" ]; then
-          git clone https://github.com/Microsoft/vcpkg "$GITHUB_WORKSPACE/vcpkg"
-          "$GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.sh"
-          echo "$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_PATH"
-
-          "$GITHUB_WORKSPACE/vcpkg/vcpkg" install --triplet=x64-osx
-          "$GITHUB_WORKSPACE/vcpkg/vcpkg" install --triplet=arm64-osx --x-install-root vcpkg_installed2
+          vcpkg install --triplet=x64-osx
+          vcpkg install --triplet=arm64-osx --x-install-root vcpkg_installed2
           cp -a vcpkg_installed2/* vcpkg_installed/
           rm -r vcpkg_installed2
 
@@ -42,10 +77,6 @@ runs:
       shell: bash
       run: |
         set -e
-        os="${RUNNER_OS,,}"
-        [[ "$os" == "macos" ]] && os=osx
-        
-        tool_dir="$GITHUB_WORKSPACE/vcpkg_installed/${RUNNER_ARCH,,}-$os/tools"
-        for t in "$tool_dir"/*/; do
-          [[ -d "$t" ]] && echo "$t" >> "$GITHUB_PATH"
+        for t in "$GITHUB_WORKSPACE/vcpkg_installed/$VCPKG_DEFAULT_TRIPLET/tools"/*/; do
+          if [[ -d "$t" ]]; then echo "$t" >> "$GITHUB_PATH"; fi
         done
