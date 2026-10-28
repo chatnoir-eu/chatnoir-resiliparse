@@ -26,32 +26,33 @@ runs:
       uses: actions/cache@v5
       with:
         path: |
-          ~/.vcpkg-inst
+          .vcpkg-inst
           ~/.cache/vcpkg/archives
           ~/AppData/Local/vcpkg/archives
-        key: ${{ steps.select-platform.outputs.cache-prefix }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
+        key: workspace-${{ steps.select-platform.outputs.cache-prefix }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
         restore-keys: |
-          ${{ steps.select-platform.outputs.cache-prefix }}-
+          workspace-${{ steps.select-platform.outputs.cache-prefix }}-
 
     - name: Install vcpkg
       shell: bash
       if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
         set -xe
-        if [[ ! -x "$HOME/.vcpkg-inst/vcpkg" && ! -x "$HOME/.vcpkg-inst/vcpkg.exe" ]]; then
-          if [[ ! -d "$HOME/.vcpkg-inst/.git" ]]; then
-            git clone --depth=1 https://github.com/Microsoft/vcpkg "$HOME/.vcpkg-inst"
+        vcpkg_root="$GITHUB_WORKSPACE/.vcpkg-inst"
+        if [[ ! -x "$vcpkg_root/vcpkg" && ! -x "$vcpkg_root/vcpkg.exe" ]]; then
+          if [[ ! -d "$vcpkg_root/.git" ]]; then
+            git clone --depth=1 https://github.com/Microsoft/vcpkg "$vcpkg_root"
           fi
           if [[ "$RUNNER_OS" == Windows ]]; then
-            cmd.exe /c "$(cygpath -w "$HOME/.vcpkg-inst/bootstrap-vcpkg.bat")"
+            cmd.exe /c "$(cygpath -w "$vcpkg_root/bootstrap-vcpkg.bat")"
           else
-            "$HOME/.vcpkg-inst/bootstrap-vcpkg.sh"
+            "$vcpkg_root/bootstrap-vcpkg.sh"
           fi
         fi
 
     - name: Add vcpkg to PATH
       shell: bash
-      run: echo "$HOME/.vcpkg-inst" >> "$GITHUB_PATH"
+      run: echo "$GITHUB_WORKSPACE/.vcpkg-inst" >> "$GITHUB_PATH"
 
     - name: Install vcpkg Dependencies
       shell: bash
