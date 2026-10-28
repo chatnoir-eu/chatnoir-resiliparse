@@ -76,9 +76,11 @@ impl Default for ExtractOptions {
     }
 }
 
-/// Whether a character is ASCII white space, as used by extraction normalization.
+/// Whether a character is ASCII white space for extraction normalization.
 pub(super) fn is_space(c: char) -> bool {
-    c.is_ascii_whitespace()
+    // Include vertical tab characters to maintain compatibility with the
+    // previous Cython implementation.
+    c.is_ascii_whitespace() || c == '\u{000b}'
 }
 
 /// Remove leading and trailing ASCII white space without allocating.
