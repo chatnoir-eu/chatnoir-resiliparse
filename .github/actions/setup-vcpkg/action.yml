@@ -73,6 +73,12 @@ runs:
           exit 1
         fi
 
+    - name: Add vcpkg libraries to the runtime search path
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/vcpkg_installed/$VCPKG_DEFAULT_TRIPLET/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
     - name: Add vcpkg tools to PATH
       shell: bash
       run: |
