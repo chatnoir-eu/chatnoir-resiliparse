@@ -26,7 +26,7 @@ all = [
     "resiliparse[beam,cli]"
 ]
 beam = [
-    # apache_beam on 3.14t requires building grpcio
+    # apache_beam has no free-threaded Python wheels: exclude for 3.14 and up
     "apache_beam[aws]>=2.37.0; python_version<'3.14'",
     "boto3>=1.9",
     "elasticsearch>=7.0.0"

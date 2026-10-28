@@ -13,11 +13,29 @@
 # limitations under the License.
 
 import importlib
+import sys
 
-_native = importlib.import_module("._resiliparse", __name__)
-
-import resiliparse.parse as parse  # noqa: F401
-import resiliparse.extract as extract  # noqa: F401
-import resiliparse.beam as beam  # noqa: F401
+_native = importlib.import_module('._resiliparse', __name__)
 
 __all__ = [*_native.__all__]
+
+
+def __getattr__(name):
+    # Lazily bind submodules already initialized and registered in sys.modules.
+    try:
+        value = sys.modules[f"{__name__}.{name}"]
+    except KeyError:
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}') from None
+    else:
+        globals()[name] = value
+        return value
+
+
+# Lazy sub package loader.
+def _load_native_package(name, namespace):
+    native_package = getattr(_native, f'_load_{name}')()
+    namespace.update({
+        key: value
+        for key, value in vars(native_package).items()
+        if key not in {'__name__', '__loader__', '__package__', '__spec__', '__file__'}
+    })

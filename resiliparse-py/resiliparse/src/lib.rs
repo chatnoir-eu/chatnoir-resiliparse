@@ -28,29 +28,28 @@ fn set_package_path(m: &Bound<'_, PyModule>, subpath: &str) -> PyResult<()> {
     m.setattr("__path__", paths)
 }
 
+/// Add lazy loader functions for submodules.
+macro_rules! native_package_loader {
+    ($loader:ident, $module:path) => {
+        #[pyfunction]
+        fn $loader(py: Python<'_>) -> Py<PyModule> {
+            pyo3::wrap_pymodule!($module)(py)
+        }
+    };
+}
+
+native_package_loader!(_load_parse, parse::_parse);
+native_package_loader!(_load_extract, extract::_extract);
+
 #[pymodule]
 pub mod _resiliparse {
     use super::*;
 
     #[pymodule_init]
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
-        let py = m.py();
+        m.add_function(wrap_pyfunction!(_load_parse, m)?)?;
+        m.add_function(wrap_pyfunction!(_load_extract, m)?)?;
         m.setattr("__all__", Vec::<String>::new())?;
-
-        // Load submodules.
-        // Don't add with add_submodule(), otherwise they end up in __all__.
-        let parse = pyo3::wrap_pymodule!(parse::_parse)(py);
-        let parse = parse.bind(py);
-
-        let extract = pyo3::wrap_pymodule!(extract::_extract)(py);
-        let extract = extract.bind(py);
-
-        // Register submodules to make them importable.
-        let sys = PyModule::import(py, "sys")?;
-        let modules = sys.getattr("modules")?;
-        modules.set_item("resiliparse.parse", parse)?;
-        modules.set_item("resiliparse.extract", extract)?;
-
         Ok(())
     }
 }
