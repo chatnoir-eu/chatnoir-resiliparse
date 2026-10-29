@@ -51,7 +51,7 @@ tree = HTMLTree.parse(html)
 
 
 def test_basic_extraction():
-    for inp in [html, tree]:    # Run twice, once with string input, once with HTML tree
+    for inp in [html, tree]:  # Run twice, once with string input, once with HTML tree
         assert extract_plain_text(inp, alt_texts=False, preserve_formatting=False) == \
                "Nav 1 Nav 2 Nav 3 foo bar baz bar Copyright (C) 2021 Foo Bar"
 
@@ -219,6 +219,82 @@ def test_main_content_extraction():
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
+# Edge cases tested to preserve compatibility to legacy Cython implementation.
+LEGACY_COMPATIBILITY_HTML = """<html><body>
+<header class="page-header">Header</header>
+<main class="main-content" role="main">
+<h1>Title</h1>
+<p>Visible <a href="/x">link</a>!</p>
+<p>■</p><p>\ue123</p>
+<ul><li>One</li><li>Two</li></ul>
+<img alt="Picture">
+<form><input type="text" value="Search"><button>Go</button></form>
+<noscript>Fallback</noscript>
+<div><div>
+<div class="hidden">Hidden</div>
+<div class="skip">Skip</div>
+<div class="post-meta">By me</div>
+<div class="comments">Comments</div>
+</div></div>
+</main>
+<footer class="global-footer">Footer</footer>
+</body></html>"""
+
+
+@pytest.mark.parametrize(('options', 'expected'), [
+    ({},
+     "Header\n\nTitle\n\nVisible link!\n\n■\n\n\ue123\n\n  • One\n  • Two\nPicture\nHidden\nSkip\nBy me\nComments\nFooter"),
+    ({'preserve_formatting': False},
+     "Header Title Visible link! ■ \ue123 One Two Picture Hidden Skip By me Comments Footer"),
+    ({'preserve_formatting': 'minimal_html'},
+     "Header\n\n<h1>Title</h1>\n\n<p>Visible link!</p>\n\n<p>■</p>\n\n<p>\ue123</p>\n\n<ul>\n  <li>One</li>\n  <li>Two</li>\n</ul>\nPicture\nHidden\nSkip\nBy me\nComments\nFooter"),
+    ({'main_content': True}, "Header\n\nTitle\n\nVisible link!\n\nPicture\nBy me\nComments"),
+    ({'main_content': True, 'comments': False, 'post_meta': False, 'hidden_elements': True,
+      'skip_elements': ['.skip']}, "Header\n\nTitle\n\nVisible link!\n\nPicture\nHidden\nComments"),
+    ({'links': True, 'form_fields': True, 'noscript': True, 'list_bullets': False},
+     "Header\n\nTitle\n\nVisible link (/x)!\n\n■\n\n\ue123\n\n  One\n  Two\nPicture\n[ Search ] [ Go ]\nFallback\nHidden\nSkip\nBy me\nComments\nFooter"),
+    ({'alt_texts': False},
+     "Header\n\nTitle\n\nVisible link!\n\n■\n\n\ue123\n\n  • One\n  • Two\nHidden\nSkip\nBy me\nComments\nFooter"),
+])
+def test_synthetic_legacy_compatibility(options, expected):
+    actual = extract_plain_text(LEGACY_COMPATIBILITY_HTML, **options)
+    assert actual.encode('utf-8') == expected.encode('utf-8')
+
+
+SYNTHETIC_EDGE_CASE_HTML = '''<body><main>
+<p>Alpha <span>beta</span>   gamma<br>delta</p>
+<pre> x
+  y </pre>
+<ol><li>First<ul><li>Nested</li></ul></li><li>Second</li></ol>
+<p><a href="/a?x=1&amp;y=2">Link</a></p>
+<img alt="Diagram">
+<input type="text" placeholder="Find">
+<input type="checkbox" value="ignored">
+<textarea>Note</textarea>
+<div class="skip-me">Skip</div>
+</main></body>'''
+
+
+@pytest.mark.parametrize(('options', 'expected'), [
+    ({}, "Alpha beta gamma\ndelta\n\n x\n  y\n  1. First\n    • Nested\n  2. Second\n\nLink\n\nDiagram\nSkip"),
+    ({'preserve_formatting': False},
+     "Alpha beta gamma delta x y First Nested Second Link Diagram Skip"),
+    ({'list_bullets': False},
+     "Alpha beta gamma\ndelta\n\n x\n  y\n  First\n    Nested\n  Second\n\nLink\n\nDiagram\nSkip"),
+    ({'preserve_formatting': 'minimal_html'},
+     "<p>Alpha beta gamma<br>\ndelta</p>\n\n<pre> x\n  y </pre>\n<ol>\n  <li>First\n  <ul>\n    <li>Nested</li>\n  </ul></li>\n  <li>Second</li>\n</ol>\n\n<p>Link</p>\n\nDiagram\nSkip"),
+    ({'preserve_formatting': 'minimal_html', 'links': True},
+     "<p>Alpha beta gamma<br>\ndelta</p>\n\n<pre> x\n  y </pre>\n<ol>\n  <li>First\n  <ul>\n    <li>Nested</li>\n  </ul></li>\n  <li>Second</li>\n</ol>\n\n<p><a href=\"/a?x=1&amp;y=2\">Link</a></p>\n\nDiagram\nSkip"),
+    ({'form_fields': True},
+     "Alpha beta gamma\ndelta\n\n x\n  y\n  1. First\n    • Nested\n  2. Second\n\nLink\n\nDiagram [ Find ] [ Note ]\nSkip"),
+    ({'skip_elements': ['.skip-me']},
+     "Alpha beta gamma\ndelta\n\n x\n  y\n  1. First\n    • Nested\n  2. Second\n\nLink\n\nDiagram"),
+])
+def test_synthetic_legacy_edge_cases(options, expected):
+    actual = extract_plain_text(SYNTHETIC_EDGE_CASE_HTML, **options)
+    assert actual.encode('utf-8') == expected.encode('utf-8')
+
+
 @pytest.mark.parametrize('class_name', [
     'hidden', 'visually-hidden', 'navigation', 'related', 'sidebar',
     'skip-to-content', 'sign-in', 'sponsored', 'social',
@@ -349,14 +425,14 @@ J</pre></li>
     assert extract_plain_text(tree, list_bullets=False) == expected_without_bullets
     assert extract_plain_text(tree, list_bullets=True) == expected_with_bullets
 
-
     assert extract_plain_text(tree, list_bullets=False, form_fields=True) == \
            expected_without_bullets + expected_textarea
     assert extract_plain_text(tree, list_bullets=True, form_fields=True) == \
            expected_with_bullets + expected_textarea
 
     assert extract_plain_text(tree, list_bullets=True, preserve_formatting='minimal_html') == expected_html_with_bullets
-    assert extract_plain_text(tree, list_bullets=False, preserve_formatting='minimal_html') == expected_html_without_bullets
+    assert extract_plain_text(tree, list_bullets=False,
+                              preserve_formatting='minimal_html') == expected_html_without_bullets
 
     assert extract_plain_text(tree, list_bullets=True, preserve_formatting='minimal_html', form_fields=True) == \
            expected_html_with_bullets + expected_textarea
@@ -498,12 +574,12 @@ Some code
     link_expected = 'link'
     textarea_expected = ''
     assert extract_plain_text(html, preserve_formatting='minimal_html') == \
-            expected.format(link=link_expected, textarea=textarea_expected)
+           expected.format(link=link_expected, textarea=textarea_expected)
 
     link_expected = '<a href="https://example.com/?foo=bar&amp;bar=baz">link</a>'
     textarea_expected = '\n[ &lt;html&gt;&amp; ]'
     assert extract_plain_text(html, preserve_formatting='minimal_html', links=True, form_fields=True) == \
-            expected.format(link=link_expected, textarea=textarea_expected)
+           expected.format(link=link_expected, textarea=textarea_expected)
 
     expected = """\
 Hello World
@@ -523,14 +599,14 @@ foo
 
     link_expected = 'link'
     assert extract_plain_text(html, preserve_formatting=True, links=False, form_fields=True) == \
-        expected.format(link=link_expected)
+           expected.format(link=link_expected)
 
     link_expected = 'link (https://example.com/?foo=bar&bar=baz)'
     assert extract_plain_text(html, preserve_formatting=True, links=True, form_fields=True) == \
-        expected.format(link=link_expected)
+           expected.format(link=link_expected)
 
     assert extract_plain_text(html, preserve_formatting=False, links=True, form_fields=True) == \
-        "Hello World link (https://example.com/?foo=bar&bar=baz) Some code <html>& foo <html> <html>& <html>& [ <html>& ]"
+           "Hello World link (https://example.com/?foo=bar&bar=baz) Some code <html>& foo <html> <html>& <html>& [ <html>& ]"
 
 
 def test_margin_collapsing():
