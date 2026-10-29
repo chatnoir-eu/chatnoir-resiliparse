@@ -1188,6 +1188,7 @@ dependencies = [
 name = "resiliparse-py"
 version = "0.0.0"
 dependencies = [
+ "libc",
  "pyo3",
  "resiliparse",
 ]

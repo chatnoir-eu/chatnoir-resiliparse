@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 resiliparse = { path = "../../resiliparse-rs" }
 pyo3 = { workspace = true, features = ["extension-module"] }
+libc = "0.2"

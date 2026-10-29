@@ -13,7 +13,9 @@
 // limitations under the License.
 
 mod extract;
+mod itertools;
 mod parse;
+mod process_guard;
 
 use pyo3::prelude::*;
 use std::path::PathBuf;
@@ -50,6 +52,7 @@ macro_rules! native_package_loader {
 
 native_package_loader!(_load_parse, parse::_parse);
 native_package_loader!(_load_extract, extract::_extract);
+native_package_loader!(_load_process_guard, process_guard::_process_guard);
 
 #[pymodule]
 pub mod _resiliparse {
@@ -59,6 +62,13 @@ pub mod _resiliparse {
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(_load_parse, m)?)?;
         m.add_function(wrap_pyfunction!(_load_extract, m)?)?;
+        m.add_function(wrap_pyfunction!(_load_process_guard, m)?)?;
+        let py = m.py();
+        let sys = PyModule::import(py, "sys")?;
+        let modules = sys.getattr("modules")?;
+        let itertools = pyo3::wrap_pymodule!(itertools::_itertools)(py);
+        modules.set_item("resiliparse.itertools", itertools.bind(py))?;
+        PyModule::import(py, "resiliparse")?.setattr("itertools", itertools)?;
         m.setattr("__all__", Vec::<String>::new())?;
         Ok(())
     }
