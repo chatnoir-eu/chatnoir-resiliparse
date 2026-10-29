@@ -139,9 +139,9 @@ dependencies = [
 
 [[package]]
 name = "brotli"
-version = "9.1.0"
+version = "9.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6737ce8b81460bf9407909f73ff50bf13f7cb8577e1e76715f57ed0eba58ba44"
+checksum = "627b7cfb0578f0eafce087a90fcd40add1231900b69e4d4de2d456260a4f5d81"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -385,7 +385,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fastwarc"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "brotli",
  "data-encoding",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-grpc"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "cap-std",
  "fastwarc",
@@ -1177,7 +1177,7 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "resiliparse"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "bindgen",
  "parking_lot",
@@ -1236,9 +1236,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags",
  "errno",
@@ -1487,9 +1487,9 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
+checksum = "cd1fa9b1a51188f3266a823208078315811269d06d272c3a61be0b9a194194ff"
 dependencies = [
  "async-trait",
  "axum",
@@ -1508,6 +1508,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
@@ -1516,9 +1517,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c68f61875ac5293cf72e6c8cf0158086428c82c37229e98c840878f1706b0322"
+checksum = "2c07bd4e9f99e2a3ed8bebad596ae02a94e53745b68acc6900e22c3475c8bc44"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -1528,9 +1529,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-health"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcfab99db777fba2802f0dfa861d1628d1ae916fb199d29819941f139ae85082"
+checksum = "78ca1afa8326cc0dc9999e4f2861ff8532c6edacdb6cf775ab3984dcb3299529"
 dependencies = [
  "prost",
  "tokio",
@@ -1541,9 +1542,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-prost"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50849f68853be452acf590cde0b146665b8d507b3b8af17261df47e02c209ea0"
+checksum = "f63c616ffaa648f7c5dd5657e97d9a285fcb44ff3b70da761d436f5a13ff7be6"
 dependencies = [
  "bytes",
  "prost",
@@ -1552,9 +1553,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-prost-build"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "654e5643eff75d7f8c99197ce1440ed19a3474eada74c12bbac488b2cafdae27"
+checksum = "4a05d8957fac6b3542999796cb4449d45da790751962f974a457e5e00c43d78c"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -1568,9 +1569,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-reflection"
-version = "0.14.6"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acccd136a4bf19810a1fde9c74edc6129b42a66b44d0c1c8aaa67aeb49a146a7"
+checksum = "c89a7f3d7134b1878c4d3084427b963c8c823f92320b6b20b820198ec54cde27"
 dependencies = [
  "prost",
  "prost-types",
