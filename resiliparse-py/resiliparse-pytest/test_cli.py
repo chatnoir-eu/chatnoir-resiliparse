@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -34,7 +35,8 @@ def test_cli_train_rust_profiles(tmp_path):
     expected = cli.rlang.train_language_examples(['abc\n'])
     assert rows == [f'    ("en", {expected!r}),', f'    ("zz", {expected!r}),']
     assert CliRunner().invoke(cli.main, ['lang', 'train-vectors', str(tmp_path), '-l', '0']).exit_code == 2
-    assert CliRunner().invoke(cli.main, ['lang', 'train-vectors', str(tmp_path), '-f', 'rust', '-l', '8']).exit_code == 2
+    assert CliRunner().invoke(cli.main,
+                              ['lang', 'train-vectors', str(tmp_path), '-f', 'rust', '-l', '8']).exit_code == 2
 
 
 def test_cli_html_benchmark_counts_responses():
@@ -92,7 +94,7 @@ def test_cli_dataset_and_evaluation(tmp_path):
     dataset = tmp_path / 'dataset'
     runner = CliRunner()
     result = runner.invoke(cli.main, ['lang', 'create-dataset', str(raw.parent), str(dataset),
-                                     '--min-examples', '10', '--val-size', '20', '--test-size', '20', '-j', '1'])
+                                      '--min-examples', '10', '--val-size', '20', '--test-size', '20', '-j', '1'])
     assert result.exit_code == 0, result.output
     for split, count in [('train', 12), ('val', 4), ('test', 4)]:
         assert len((dataset / 'en' / f'{split}.txt').read_text().splitlines()) == count
@@ -115,7 +117,7 @@ def test_cli_generated_rust_profiles_compile(tmp_path):
 
     target = tmp_path / 'lang_profiles.rs'
     result = CliRunner().invoke(cli.main, ['lang', 'train-vectors', str(dataset),
-                                          '--out-format', 'rust', '--output', str(target)])
+                                           '--out-format', 'rust', '--output', str(target)])
     assert result.exit_code == 0, result.output
     assert result.output == ''
     source = target.read_text(encoding='utf-8')
@@ -135,10 +137,12 @@ def test_cli_generated_rust_profiles_compile(tmp_path):
         '    }\n'
         '}\n', encoding='utf-8')
     binary = tmp_path / 'check.exe'
+    rust_env = os.environ.copy()
+    rust_env.pop('LD_PRELOAD', None)
     compiled = subprocess.run(['rustc', '--edition=2024', str(check), '-o', str(binary)],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, env=rust_env, timeout=60)
     assert compiled.returncode == 0, compiled.stderr
-    subprocess.run([str(binary)], check=True)
+    subprocess.run([str(binary)], check=True, env=rust_env, timeout=30)
 
 
 def test_cli_training_failure_preserves_output(tmp_path):

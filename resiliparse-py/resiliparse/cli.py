@@ -364,7 +364,8 @@ _WIKI_BIAS = ['en', 'es', 'fr', 'de', 'zh', 'ru', 'pt', 'it', 'ar', 'ja', 'tr', 
               type=click.Choice(['train', 'test', 'val']), show_default=True)
 @click.option('-f', '--out-format', help='Output format (raw vectors or Rust code)', default='raw',
               type=click.Choice(['raw', 'rust']), show_default=True)
-@click.option('-l', '--vector-size', help='Output vector size', default=256, type=click.IntRange(min=1), show_default=True)
+@click.option('-l', '--vector-size', help='Output vector size', default=256, type=click.IntRange(min=1),
+              show_default=True)
 @click.option('-o', '--output', type=click.Path(dir_okay=False), help='Write profiles to this file instead of stdout')
 def train_vectors(indir, split, out_format, vector_size, output):
     """
@@ -396,14 +397,16 @@ def train_vectors(indir, split, out_format, vector_size, output):
         raise click.BadParameter('Rust language profiles require 256 bins', param_hint='--vector-size')
     if out_format == 'rust' and any(re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', language) is None
                                     for language in langs):
-        raise click.ClickException('Rust profile language codes must contain only letters, digits, hyphens, or underscores')
+        raise click.ClickException(
+            'Rust profile language codes must contain only letters, digits, hyphens, or underscores')
     rendered = io.StringIO()
 
     def echo(text='', nl=True):
         click.echo(text, file=rendered, nl=nl)
 
     if out_format == 'rust':
-        echo(f'// Generated automatically, do not modify.\n\n#[rustfmt::skip]\npub(super) const LANGS: &[(&str, [u8; {vector_size}])] = &[')
+        echo(
+            f'// Generated automatically, do not modify.\n\n#[rustfmt::skip]\npub(super) const LANGS: &[(&str, [u8; {vector_size}])] = &[')
     else:
         echo('# (lang, vec)')
 
@@ -560,7 +563,9 @@ def benchmark(infile, rounds, fasttext_model):
         click.echo('Run "pip install langid" to install it.', err=True)
         bench_langid = False
 
-    in_data = bytes_to_str(open(infile, 'rb').read().replace(b'\n', b' '))
+    with open(infile, 'rb') as source:
+        data = source.read()
+    in_data = bytes_to_str(re.sub(b'\r?\n', b' ', data))
     # Keep lazy model initialization outside the measured prediction loops.
     rlang.detect_fast(in_data)
     if fasttext_model:
