@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod encoding;
 pub mod html;
+pub mod http;
+pub mod lang;
 
 use pyo3::prelude::*;
 
@@ -26,16 +29,25 @@ pub mod _parse {
         crate::set_package_path(m, std::path::PathBuf::from("parse"))?;
         m.setattr("__all__", Vec::<String>::new())?;
 
-        // Load submodules.
-        // Don't add with add_submodule(), otherwise they end up in __all__.
-        let html = pyo3::wrap_pymodule!(html::_html)(py);
-        let html = html.bind(py);
-
         // Register submodules to make them importable.
         let sys = PyModule::import(py, "sys")?;
         let modules = sys.getattr("modules")?;
-        modules.set_item("resiliparse.parse.html", html)?;
+
+        let html = pyo3::wrap_pymodule!(html::_html)(py);
+        modules.set_item("resiliparse.parse.html", html.bind(py))?;
         m.setattr("html", html)?;
+
+        let encoding = pyo3::wrap_pymodule!(encoding::_encoding)(py);
+        modules.set_item("resiliparse.parse.encoding", encoding.bind(py))?;
+        m.setattr("encoding", encoding.bind(py))?;
+
+        let http = pyo3::wrap_pymodule!(http::_http)(py);
+        modules.set_item("resiliparse.parse.http", http.bind(py))?;
+        m.setattr("http", http.bind(py))?;
+
+        let lang = pyo3::wrap_pymodule!(lang::_lang)(py);
+        modules.set_item("resiliparse.parse.lang", lang.bind(py))?;
+        m.setattr("lang", lang.bind(py))?;
 
         Ok(())
     }

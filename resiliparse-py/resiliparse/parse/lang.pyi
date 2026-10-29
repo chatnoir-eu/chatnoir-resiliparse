@@ -1,0 +1,13 @@
+from collections.abc import Iterable
+from typing import Literal, overload
+
+__all__ = ["detect_fast", "supported_langs", "train_language_examples"]
+
+@overload
+def detect_fast(text: str, cutoff: int = 1200, n_results: Literal[1] = 1,
+                langs: Iterable[str] | None = None) -> tuple[str, int]: ...
+@overload
+def detect_fast(text: str, cutoff: int = 1200, n_results: int = 1,
+                langs: Iterable[str] | None = None) -> tuple[str, int] | list[tuple[str, int]]: ...
+def supported_langs() -> list[str]: ...
+def train_language_examples(examples: Iterable[str], vec_len: int = 256) -> list[int]: ...

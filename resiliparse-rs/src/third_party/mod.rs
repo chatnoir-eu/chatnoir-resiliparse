@@ -20,3 +20,7 @@
 pub(crate) mod lexbor {
     include!(concat!(env!("OUT_DIR"), "/lexbor.rs"));
 }
+
+pub(crate) mod uchardet {
+    include!(concat!(env!("OUT_DIR"), "/uchardet.rs"));
+}

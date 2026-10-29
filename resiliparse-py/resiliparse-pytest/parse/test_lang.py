@@ -1,3 +1,5 @@
+import pytest
+
 from resiliparse.parse import lang
 
 # Source: Wikipedia front page articles of the day
@@ -84,7 +86,11 @@ SAMPLES = dict(
 
 
 def test_lang_detect_fast():
-    assert len(lang.supported_langs()) > 0
+    supported = lang.supported_langs()
+    assert supported == sorted(set(supported))
+    assert set(SAMPLES) <= set(supported)
+    lang.supported_langs().clear()
+    assert lang.supported_langs() == supported
 
     for l in SAMPLES:
         assert lang.detect_fast(SAMPLES[l])[0] == l
@@ -107,3 +113,77 @@ def test_lang_detect_fast_train_examples():
             for pv in trained_vecs:
                 assert vec != pv
             trained_vecs.append(vec)
+
+
+def test_lang_detect_fast_cutoff():
+    language, rank = lang.detect_fast(SAMPLES['en'])
+    assert lang.detect_fast(SAMPLES['en'], cutoff=rank) == (language, rank)
+    assert lang.detect_fast(SAMPLES['en'], cutoff=rank - 1) == ('unknown', 0)
+    assert lang.detect_fast(SAMPLES['en'], cutoff=rank - 1, n_results=3) == []
+    assert lang.detect_fast(SAMPLES['en'], n_results=0) == []
+
+
+@pytest.mark.parametrize('factory', [list, tuple, set, iter])
+def test_lang_detect_fast_filter_iterables(factory):
+    candidates = ['en', 'de', 'fr']
+    results = lang.detect_fast(SAMPLES['en'], cutoff=10000, n_results=200,
+                               langs=factory(candidates))
+    assert results[0][0] == 'en'
+    assert {code for code, _ in results} == set(candidates)
+    assert [rank for _, rank in results] == sorted(rank for _, rank in results)
+
+
+@pytest.mark.parametrize('candidates', [[], ['xx']])
+def test_lang_detect_fast_no_candidates(candidates):
+    assert lang.detect_fast(SAMPLES['en'], langs=candidates) == ('unknown', 0)
+    assert lang.detect_fast(SAMPLES['en'], langs=candidates, n_results=3) == []
+
+
+@pytest.mark.parametrize('options', [{'cutoff': -1}, {'n_results': -1}])
+def test_lang_detect_fast_negative_parameters(options):
+    with pytest.raises(OverflowError):
+        lang.detect_fast(SAMPLES['en'], **options)
+
+
+@pytest.mark.parametrize('examples, expected', [
+    (['abc'], [85, 0, 85, 85, 0, 85, 85, 85]),
+    (['abc', ''], [42, 0, 42, 42, 0, 42, 42, 42]),
+    ([''], [0] * 8),
+])
+def test_lang_train_example_normalization(examples, expected):
+    # Empty texts count toward the average; fractions are truncated.
+    assert lang.train_language_examples(iter(examples), vec_len=8) == expected
+
+
+@pytest.mark.parametrize('vec_len', [1, 255, 256, 260])
+def test_lang_train_vector_length(vec_len):
+    vector = lang.train_language_examples([SAMPLES['en']], vec_len)
+    assert isinstance(vector, list)
+    assert len(vector) == vec_len
+    assert all(type(value) is int and 0 <= value <= 255 for value in vector)
+    if vec_len > 256:
+        assert vector[256:] == [0] * (vec_len - 256)
+    if vec_len == 256:
+        assert vector == lang.train_language_examples([SAMPLES['en']])
+
+
+def test_lang_train_character_handling():
+    def vector(text):
+        return lang.train_language_examples([text])
+
+    assert vector('a \t\n b') == vector('a b')
+    assert vector('a! b') == vector('a b')
+    assert vector('a ! b') != vector('a b')
+    assert vector('A a') != vector('a a')
+    assert vector('a\ud800b\udfff') == vector('ab')
+
+
+@pytest.mark.parametrize('examples, vec_len', [([], 256), (['abc'], 0)])
+def test_lang_train_invalid_input(examples, vec_len):
+    with pytest.raises(ValueError):
+        lang.train_language_examples(examples, vec_len)
+
+
+def test_lang_train_negative_vector_length():
+    with pytest.raises(OverflowError):
+        lang.train_language_examples(['abc'], -1)

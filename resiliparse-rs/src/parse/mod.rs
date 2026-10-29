@@ -14,4 +14,9 @@
 
 //! Resiliparse text and content parsing utilities.
 
+pub mod encoding;
+mod encoding_tables;
 pub mod html;
+pub mod http;
+pub mod lang;
+mod lang_profiles;
