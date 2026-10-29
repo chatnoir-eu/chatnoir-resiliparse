@@ -144,6 +144,7 @@ def main():
                 target='resiliparse._resiliparse',
                 path='resiliparse/Cargo.toml',
                 binding=Binding.PyO3,
+                debug=DEBUG,
             )
         ],
         cmdclass=dict(build_ext=resiliparse_build_ext),

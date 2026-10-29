@@ -48,6 +48,11 @@ except ModuleNotFoundError:
     MISSING_DEPS = True
 
 
+def _fasttext_native_predict(model, text):
+    """Return FastText's raw native predictions for a single line of text."""
+    return model.f.predict(text.replace('\n', ' ') + '\n', 1, 0.0, 'strict')
+
+
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def main():
     """Resiliparse Command Line Interface."""
@@ -477,8 +482,8 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
             plang = rlang.detect_fast(line, cutoff=cutoff, langs=langs)[0]
             if plang == 'unknown':
                 if fasttext_model:
-                    ft_pred = fasttext_model.predict(line.replace('\n', ' '))
-                    plang = ft_pred[0][0].replace('__label__', '') if ft_pred else '-'
+                    ft_pred = _fasttext_native_predict(fasttext_model, line)
+                    plang = ft_pred[0][1].replace('__label__', '') if ft_pred else '-'
                 else:
                     plang = '-'
             recall_matrix[lang].append(plang == lang)
@@ -571,9 +576,12 @@ def benchmark(infile, rounds, fasttext_model):
     print(f'Resiliparse: {time.monotonic() - start:.1f}s')
 
     if fasttext_model:
+        fasttext_predict = fasttext_model.f.predict
+        fasttext_input = in_data + '\n'
+        fasttext_predict(fasttext_input, 1, 0.0, 'strict')
         start = time.monotonic()
         for _ in tqdm(range(rounds), desc='Benchmarking FastText', unit=' rounds', leave=False, miniters=0.3):
-            fasttext_model.predict(in_data)
+            fasttext_predict(fasttext_input, 1, 0.0, 'strict')
         print(f'FastText:    {time.monotonic() - start:.1f}s')
 
     if bench_langid:

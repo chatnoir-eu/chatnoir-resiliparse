@@ -496,7 +496,7 @@ An easier, but less efficient way of manipulating the DOM is to assign a string 
 Benchmarks
 ----------
 
-The :ref:`resiliparse-cli` parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax <https://github.com/rushter/selectolax>`__ (both the old MyHTML and the new Lexbor engine) and `BeautifulSoup4 <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`__ (lxml engine only, which is the fastest BS4 backend).
+The :ref:`resiliparse-cli` parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax <https://github.com/rushter/selectolax>`__ (Lexbor engine) and `BeautifulSoup4 <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`__ (lxml engine only, which is the fastest BS4 backend).
 
 Here are the results of extracting the titles from all web pages in an uncompressed 42,015-document WARC file on a Ryzen Threadripper 2920X machine:
 
@@ -508,7 +508,6 @@ Here are the results of extracting the titles from all web pages in an uncompres
     =========================================
     Resiliparse (Lexbor):  42015 documents in 36.55s (1149.56 documents/s)
     Selectolax (Lexbor):   42015 documents in 37.46s (1121.52 documents/s)
-    Selectolax (MyHTML):   42015 documents in 53.82s (780.72 documents/s)
     BeautifulSoup4 (lxml): 42015 documents in 874.40s (48.05 documents/s)
 
 Not surprisingly, the two parsers based on the Lexbor engine perform almost identically, whereas lxml is by far the slowest by a factor of 24x.
