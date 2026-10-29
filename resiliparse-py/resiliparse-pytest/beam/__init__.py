@@ -1,6 +1,6 @@
 import pytest
 
 try:
-    import apache_beam as beam
-except ModuleNotFoundError:
-    pytest.skip("Dependency apache_beam not installed.", allow_module_level=True)
+    import apache_beam.io
+except ModuleNotFoundError as exc:
+    pytest.skip(f"Apache Beam test dependencies unavailable: {exc.name}", allow_module_level=True)
