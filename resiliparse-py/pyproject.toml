@@ -72,7 +72,8 @@ exclude = [
     "resiliparse/cli\\.py",
     "resiliparse/beam/.*",
     "resiliparse/itertools\\.py", # itertools includes legacy FastWARC
-    "resiliparse/legacy/.*"
+    "resiliparse/legacy/.*",
+    "resiliparse-pytest/.*",
 ]
 
 [[tool.mypy.overrides]]

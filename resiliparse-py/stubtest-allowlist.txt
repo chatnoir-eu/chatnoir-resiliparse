@@ -1,5 +1,4 @@
 resiliparse.cli
 resiliparse.beam
 resiliparse.beam.*
-resiliparse.itertools.*
 resiliparse.legacy.*

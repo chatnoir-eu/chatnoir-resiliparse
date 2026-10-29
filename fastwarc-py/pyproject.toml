@@ -63,7 +63,11 @@ build-frontend = "build"
 test-extras = ["all", "test"]
 
 [tool.mypy]
-exclude = ["fastwarc/cli\\.py", "fastwarc/legacy/.*"]
+exclude = [
+    "fastwarc/cli\\.py",
+    "fastwarc/legacy/.*",
+    "fastwarc-pytest/.*",
+]
 
 [[tool.mypy.overrides]]
 module = ["fsspec.*"]

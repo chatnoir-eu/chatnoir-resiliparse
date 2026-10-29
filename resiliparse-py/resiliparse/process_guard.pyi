@@ -1,5 +1,20 @@
 from typing import Any, Callable, Iterator, Optional, TypeVar
+from typing_extensions import final
 
+__all__ = [
+    "mem_guard",
+    "progress",
+    "progress_loop",
+    "time_guard",
+    "ExecutionTimeout",
+    "ResiliparseGuardException",
+    "MemGuard",
+    "MemoryLimitExceeded",
+    "TimeGuard",
+    "InterruptType",
+]
+
+@final
 class InterruptType:
     exception: InterruptType
     signal: InterruptType
