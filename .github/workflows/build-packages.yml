@@ -256,6 +256,7 @@ jobs:
           # Run Python tests (install apache_beam manually, which is skipped in 3.14)
           python${PYTHON_VERSION} -m pip install apache_beam
           python${PYTHON_VERSION} -m pytest \
+            --import-mode=importlib \
             --cov=fastwarc --cov=resiliparse \
             --cov-report xml:pytest-coverage.xml \
             --junitxml=pytest-report.junit.xml
