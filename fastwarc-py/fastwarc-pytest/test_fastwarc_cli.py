@@ -288,14 +288,15 @@ def test_benchmark_escaped_file_url(warc_file, python_stream):
 
 
 def test_windows_file_url(monkeypatch):
-    import nturl2path
     from unittest.mock import Mock
 
     isfile = Mock(return_value=True)
-    monkeypatch.setattr(cli.urllib.request, 'url2pathname', nturl2path.url2pathname)
+    url2pathname = Mock(return_value=r'C:\data\test file.warc')
+    monkeypatch.setattr(cli.urllib.request, 'url2pathname', url2pathname)
     monkeypatch.setattr(cli.os.path, 'isfile', isfile)
     path = cli._get_raw_stream_from_url('file:///C:/data/test%20file.warc')
     assert path == r'C:\data\test file.warc'
+    url2pathname.assert_called_once_with('/C:/data/test%20file.warc')
     isfile.assert_called_once_with(path)
 
 

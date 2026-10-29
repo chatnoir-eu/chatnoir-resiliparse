@@ -532,7 +532,7 @@ def test_inner_html_and_text():
 
 def test_real_world_data():
     count = 0
-    for rec in ArchiveIterator(FileStream(os.path.join(DATA_DIR, 'warcfile.warc')),
+    for rec in ArchiveIterator(os.path.join(DATA_DIR, 'warcfile.warc'),
                                parse_http=True, record_types=WarcRecordType.response):
         content = rec.reader.read()
         tree = HTMLTree.parse_from_bytes(content, rec.http_charset or detect_encoding(content))

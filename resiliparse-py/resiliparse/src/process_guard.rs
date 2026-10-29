@@ -216,7 +216,7 @@ fn interrupt(
         }
         _ => {}
     }
-    if escalation_level == 2 {
+    if escalation_level == 2 && send_kill && interrupt_type != InterruptType::Exception {
         warn_unresponsive_thread();
     }
 }

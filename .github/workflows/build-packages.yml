@@ -105,7 +105,7 @@ jobs:
           package-dir: fastwarc-py
           output-dir: wheelhouse
         env:
-          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/fastwarc-py/fastwarc-pytest
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/fastwarc-py
 
       - name: Build Resiliparse
         uses: pypa/cibuildwheel@v4.3
@@ -116,7 +116,7 @@ jobs:
           CIBW_BEFORE_TEST: >-
             python -c "import glob, platform, re, sysconfig; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/fastwarc-*-cp*-cp' + re.match(r'^.*(?:cpython|cp)-?(3\d+t?)', sysconfig.get_config_var('EXT_SUFFIX'))[1] + '-*_' + platform.machine().lower() + '.whl')[0])" &&
             python -m pip install -r fastwarc.txt
-          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/resiliparse-py/resiliparse-pytest
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/resiliparse-py
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -206,8 +206,8 @@ jobs:
       - name: Run Tests
         run: |
           export LD_PRELOAD="$(ldconfig -p | grep libasan | head -n1 | awk '{print $4}')"
-          python${PYTHON_VERSION} -m pytest --capture=sys --verbose fastwarc-py/fastwarc-pytest
-          python${PYTHON_VERSION} -m pytest --capture=sys --verbose resiliparse-py/resiliparse-pytest
+          python${PYTHON_VERSION} -m pytest --capture=sys --verbose fastwarc-py
+          python${PYTHON_VERSION} -m pytest --capture=sys --verbose resiliparse-py
 
   build-coverage:
     runs-on: ubuntu-latest
@@ -256,8 +256,6 @@ jobs:
           # Run Python tests (install apache_beam manually, which is skipped in 3.14)
           python${PYTHON_VERSION} -m pip install apache_beam
           python${PYTHON_VERSION} -m pytest \
-            --import-mode=importlib \
-            --cov=fastwarc --cov=resiliparse \
             --cov-report xml:pytest-coverage.xml \
             --junitxml=pytest-report.junit.xml
 

@@ -200,8 +200,9 @@ cdef class _ResiliparseGuard:
                         return
                     self.exc_type = self.get_exception_type()
                     PyThreadState_SetAsyncExc(<unsigned long>target_thread, <PyObject*>self.exc_type)
-            with gil:
-                warnings.warn('ERROR: Guarded thread did not respond to TERM signal.', RuntimeWarning)
+            if self.send_kill and self.interrupt_type != exception:
+                with gil:
+                    warnings.warn('ERROR: Guarded thread did not respond to TERM signal.', RuntimeWarning)
 
 
 @cython.auto_pickle(False)

@@ -15,6 +15,7 @@
 # Legacy shims for making the new Rust extension work with the old type names
 
 import sys
+import warnings
 
 if sys.version_info >= (3, 13):
     from warnings import deprecated
@@ -85,8 +86,14 @@ class BufferedReader:
         return self._stream.tell()
 
 
-@deprecated("Use the new Reader and Writer classes from stream_io instead.")
 class IOStream:
+    __deprecated__ = "Use the new Reader and Writer classes from stream_io instead."
+
+    def __new__(cls, *args, **kwargs):
+        if cls is IOStream:
+            warnings.warn(cls.__deprecated__, DeprecationWarning, stacklevel=2)
+        return super().__new__(cls)
+
     def __init__(self, *_, _reader_factory=None, _writer_factory=None, **__):
         self._reader_factory = _reader_factory
         self._writer_factory = _writer_factory
