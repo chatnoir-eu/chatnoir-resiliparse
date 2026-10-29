@@ -12,8 +12,8 @@ import warnings
 
 import pytest
 
-if platform.system() == 'Windows':
-    pytest.skip('Process Guards are not supported on Windows.', allow_module_level=True)
+if os.name != 'posix':
+    pytest.skip('Process Guards are only available on Unix.', allow_module_level=True)
 
 # GitHub's macOS VM is too slow, so we often get race conditions with short timeouts.
 if platform.system() == 'Darwin' and 'CIBUILDWHEEL' in os.environ:

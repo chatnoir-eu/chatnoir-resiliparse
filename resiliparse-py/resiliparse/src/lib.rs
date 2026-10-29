@@ -15,6 +15,7 @@
 mod extract;
 mod itertools;
 mod parse;
+#[cfg(unix)]
 mod process_guard;
 
 use pyo3::prelude::*;
@@ -52,6 +53,7 @@ macro_rules! native_package_loader {
 
 native_package_loader!(_load_parse, parse::_parse);
 native_package_loader!(_load_extract, extract::_extract);
+#[cfg(unix)]
 native_package_loader!(_load_process_guard, process_guard::_process_guard);
 
 #[pymodule]
@@ -62,7 +64,9 @@ pub mod _resiliparse {
     pub fn __init__(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(_load_parse, m)?)?;
         m.add_function(wrap_pyfunction!(_load_extract, m)?)?;
+        #[cfg(unix)]
         m.add_function(wrap_pyfunction!(_load_process_guard, m)?)?;
+
         let py = m.py();
         let sys = PyModule::import(py, "sys")?;
         let modules = sys.getattr("modules")?;

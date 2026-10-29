@@ -18,7 +18,11 @@ from typing import Any, Callable, Iterator, Optional, TypeVar
 
 from . import _native
 
-_process_guard = _native._load_process_guard()
+try:
+    _process_guard = _native._load_process_guard()
+except AttributeError:
+    raise ImportError('resiliparse.process_guard is available only on Unix') from None
+
 from . import itertools as _itertools
 
 __all__ = [

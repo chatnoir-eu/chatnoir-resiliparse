@@ -156,9 +156,6 @@ fn send_signal(target: TargetThread, signal: libc::c_int) {
     }
 }
 
-#[cfg(not(unix))]
-fn send_signal(_target: TargetThread, _signal: libc::c_int) {}
-
 fn send_exception(context: &GuardContext, target: TargetThread, exception_name: &'static str) {
     if context.ended.load(Ordering::Acquire) {
         return;
