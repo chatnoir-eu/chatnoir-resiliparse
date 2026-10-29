@@ -96,10 +96,6 @@ impl From<WarcRecordType> for WarcRecordTypePy {
 
 #[pymethods]
 impl WarcRecordTypePy {
-    pub fn __int__(&self) -> u16 {
-        *self as u16
-    }
-
     pub fn __index__(&self) -> u16 {
         *self as u16
     }
@@ -132,7 +128,7 @@ impl WarcRecordTypePy {
         !(*self as u16)
     }
 
-    pub fn __repr__(&self) -> &'static str {
+    pub fn __str__(&self) -> &'static str {
         WarcRecordType::from(*self).as_str()
     }
 }
@@ -202,10 +198,6 @@ impl From<WarcHeaderPy> for WarcHeader {
 
 #[pymethods]
 impl WarcHeaderPy {
-    pub fn __repr__(&self) -> String {
-        format!("WarcHeader.{self:?}")
-    }
-
     pub fn __str__(&self) -> &'static str {
         WarcHeader::from(*self).as_str()
     }

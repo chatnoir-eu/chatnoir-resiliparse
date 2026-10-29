@@ -7,6 +7,7 @@ Resiliparse Process Guard API documentation.
 
 .. automodule:: resiliparse.process_guard
    :members:
+   :exclude-members: InterruptType
    :show-inheritance:
 
    .. autoclass:: InterruptType
