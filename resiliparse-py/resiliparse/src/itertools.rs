@@ -203,8 +203,9 @@ impl WarcRetry {
     }
 
     fn initialize(&mut self, py: Python<'_>) -> PyResult<()> {
-        let reader = self.archive_iterator.bind(py).getattr("reader")?;
-        let pos = reader.call_method0("tell")?.extract::<usize>()?;
+        // A fresh iterator starts at the stream's beginning. Its current
+        // position is otherwise unavailable until it yields its first record.
+        let pos = 0;
         self.pos = Some(pos);
         self.first_pos = Some(pos);
         self.iterator = Some(make_iterator(self.archive_iterator.bind(py))?);
@@ -256,9 +257,11 @@ impl WarcRetry {
             }
         };
 
-        self.archive_iterator
+        self.archive_iterator = self
+            .archive_iterator
             .bind(py)
-            .call_method1("_set_stream", (stream.bind(py),))?;
+            .call_method1("restart", (stream.bind(py),))?
+            .unbind();
         self.iterator = Some(make_iterator(self.archive_iterator.bind(py))?);
         self.skip_next = self.pos.unwrap() > self.first_pos.unwrap();
         Ok(true)

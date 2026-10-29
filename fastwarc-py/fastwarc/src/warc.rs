@@ -1343,6 +1343,7 @@ fn http_datetime_to_py<'py>(py: Python<'py>, value: Option<&str>) -> PyResult<Op
 pub struct ArchiveIteratorPy {
     inner: Box<dyn ArchiveIteratorTrait<Arc<Mutex<WarcRecord>>> + Send + Sync>,
     py_func_filter: Option<Py<PyAny>>,
+    restart_factory: Py<PyAny>,
     inplace: bool,
     current_record: Option<Py<WarcRecordPy>>,
 }
@@ -1433,6 +1434,7 @@ impl ArchiveIteratorPy {
             .and_then(|f| f.cast_bound::<PyBool>(py).ok())
             .map(|b| b.is_true())
             .unwrap_or(true);
+        let restart_fsspec_args = fsspec_args.as_ref().map(|args| args.clone_ref(py));
 
         let mut iterator;
         if !use_fsspec && let Ok(path) = path_like_to_string(stream.bind(py)) {
@@ -1459,6 +1461,7 @@ impl ArchiveIteratorPy {
             .with_verify_digests(verify_digests)
             .with_decode_http_payload(auto_decode_str_to_enum(auto_decode)?)
             .with_inplace(inplace);
+        let restart_func_filter = func_filter.as_ref().map(|filter| filter.clone_ref(py));
         let func_filter = extract_func_filter(py, func_filter)?;
         let native_filter_kind = func_filter.0;
         let native_func_filter = move |r: &mut WarcRecord| -> bool {
@@ -1485,9 +1488,33 @@ impl ArchiveIteratorPy {
             native_func_filter(r)
         };
 
+        // Keep the constructor options so a retry can replace the source stream
+        // without losing filters or parsing configuration.
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("record_types", record_types)?;
+        kwargs.set_item("parse_http", parse_http)?;
+        kwargs.set_item("min_content_length", min_content_length)?;
+        kwargs.set_item("max_content_length", max_content_length)?;
+        kwargs.set_item("func_filter", restart_func_filter)?;
+        kwargs.set_item("verify_digests", verify_digests)?;
+        kwargs.set_item("quirks_mode", quirks_mode)?;
+        kwargs.set_item("auto_decode", auto_decode)?;
+        kwargs.set_item("max_header_len", max_header_len)?;
+        kwargs.set_item("stream_detect", stream_detect)?;
+        kwargs.set_item("buffer_size", buffer_size)?;
+        kwargs.set_item("inplace", inplace)?;
+        kwargs.set_item("fsspec_args", restart_fsspec_args)?;
+        kwargs.set_item("strict_mode", strict_mode)?;
+        let class = PyModule::import(py, "fastwarc.warc")?.getattr("ArchiveIterator")?;
+        let restart_factory = PyModule::import(py, "functools")?
+            .getattr("partial")?
+            .call((class,), Some(&kwargs))?
+            .unbind();
+
         Ok(Self {
             inner: Box::new(iterator.with_filter(filter)),
             py_func_filter: func_filter.1,
+            restart_factory,
             inplace,
             current_record: None,
         })
@@ -1496,6 +1523,14 @@ impl ArchiveIteratorPy {
     /// Return :class:`WarcRecord` iterator.
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
+    }
+
+    /// Create a new iterator over a replacement stream with the same parsing options.
+    ///
+    /// This is useful when resuming archive iteration after a stream failure. The returned iterator
+    /// starts at the beginning of `stream`.
+    pub fn restart(&self, stream: Py<PyAny>, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.restart_factory.bind(py).call1((stream,)).map(Bound::unbind)
     }
 
     /// Return the next :class:`WarcRecord` from the stream.

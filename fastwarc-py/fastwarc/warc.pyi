@@ -386,6 +386,8 @@ class ArchiveIterator(Iterable[WarcRecord]):
 
     def __next__(self) -> WarcRecord: ...
 
+    def restart(self, stream: _ReaderInput) -> ArchiveIterator: ...
+
 
 # ArchiveIterator filter predicates
 

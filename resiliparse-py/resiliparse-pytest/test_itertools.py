@@ -2,8 +2,7 @@ import io
 import os
 import pytest
 
-from fastwarc.legacy.warc import *
-from fastwarc.legacy.stream_io import *
+from fastwarc.warc import ArchiveIterator
 from resiliparse.itertools import *
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'test-data'))
@@ -67,12 +66,14 @@ def test_warc_retry():
         stream.seek(offset)
         return stream
 
-    rec_ids = [rec.record_id for rec in ArchiveIterator(FileStream(in_file))]
+    with open(in_file, 'rb') as warc_file:
+        rec_ids = [rec.record_id for rec in ArchiveIterator(warc_file)]
     assert len(rec_ids) == 50
 
     # Errors in stream
     prev_stream_pos = -1
-    for i, rec in enumerate(warc_retry(ArchiveIterator(stream_factory(reset=True)), stream_factory, retry_count=5)):
+    for i, rec in enumerate(warc_retry(ArchiveIterator(stream_factory(reset=True)), stream_factory,
+                                       retry_count=5)):
         assert rec.stream_pos > prev_stream_pos
         prev_stream_pos = rec.stream_pos
         assert rec_ids[i] == rec.record_id
@@ -116,6 +117,7 @@ def test_warc_retry():
     factory_has_raised = False
     prev_stream_pos = -1
     with pytest.raises(RandomException):
-        for rec in warc_retry(ArchiveIterator(stream_factory(reset=True)), err_factory, retry_count=5, seek=False):
+        for rec in warc_retry(ArchiveIterator(stream_factory(reset=True)), err_factory,
+                               retry_count=5, seek=False):
             assert rec.stream_pos > prev_stream_pos
             prev_stream_pos = rec.stream_pos
