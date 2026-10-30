@@ -180,3 +180,34 @@ fn article_pattern_requires_content_marker() {
         assert!(ARTICLE_CLS_REGEX.is_match(value), "{value:?}");
     }
 }
+
+#[test]
+fn explicit_boilerplate_classes_still_match() {
+    let opts = ExtractOptions::default();
+    for class in [
+        "navigation",
+        "navbar",
+        "nav-bar",
+        "main-menu",
+        "links-list",
+        "sidebar",
+        "search",
+        "search-box",
+        "gallery",
+        "carousel",
+        "modal",
+        "modal-window",
+        "popup",
+        "lightbox",
+        "site-footer",
+        "footer-wrapper",
+        "copyright",
+        "cookie-banner",
+        "related-posts",
+        "recommended",
+    ] {
+        let html = format!("<div class='{class}'>Boilerplate</div>");
+        assert!(!main_content(&html, 3, &opts), "{class}");
+    }
+    assert!(!main_content("<article><a href='/'>Related article</a></article>", 3, &opts));
+}

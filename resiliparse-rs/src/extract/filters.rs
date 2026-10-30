@@ -37,9 +37,9 @@ static ARTICLE_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// Class or ID names suggesting navigation menus, breadcrumbs, or link collections.
 static NAV_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     RegexBuilder::new(concat!(
-        r"(?:^|\s)(?:(?:l|m|wp|main|site|page|sub|article|global|sticky|main)[_-]*)?",
-        r"(?:nav(?:igation)?|menu(?:[_-]item)?|drop[_-]?down|bread[_-]?crumbs?)|(?:links?[_-]?",
-        r"(?:bar|box|list|container|section|wrapp(?:er))?)(?:$|[\s_-])",
+        r"(?:^|\s)(?:(?:l|m|wp|main|site|page|sub|article|global|sticky)[_-]*)?",
+        r"(?:nav(?:igation|bar)?(?:[_-](?:bar|menu|container|wrapper))?|menu(?:[_-]item)?",
+        r"|drop[_-]?down|bread[_-]?crumbs?|links?[_-]?(?:bar|box|list|container|section|wrapper))(?:$|\s)",
     ))
     .case_insensitive(true)
     .unicode(false)
@@ -51,7 +51,7 @@ static NAV_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 static RECOMMENDED_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     RegexBuilder::new(concat!(
         r"(?:^|[\s_-])(?:trends|trending|recommended|featured|popular|editors?[_-]picks",
-        r"|related|read-next|(?:related|more|other)[_-]?(?:links|articles|posts|guides|stories))(?:$|[\s_-])",
+        r"|related|read-next|related[_-]?(?:links|articles|posts|guides|stories))(?:$|[\s_-])",
     ))
     .case_insensitive(true)
     .unicode(false)
@@ -79,9 +79,10 @@ static HEADER_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Class or ID names identifying footers, copyright notices, and consent content.
 static FOOTER_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    RegexBuilder::new(
-        r"(?:^|[\s_-])(?:global|page|site|copyright)?(?:footer|copyright|cookie|consent|legal|fcontainer)(?:$|[\s_-])",
-    )
+    RegexBuilder::new(concat!(
+        r"(?:^|\s)(?:(?:global|page|site)[_-]?)?(?:footer|copyright|cookie|consent|legal|fcontainer)",
+        r"(?:[_-](?:wrap(?:per)?|container|banner|notice|bar|consent))?(?:$|\s)",
+    ))
     .case_insensitive(true)
     .unicode(false)
     .build()
@@ -107,8 +108,8 @@ static POST_META_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// Class or ID names identifying sidebars and narrow side columns.
 static SIDEBAR_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     RegexBuilder::new(concat!(
-        r"(?:^|\s)(?:(?:l|wp|right|left|global|sticky)[_-]*)?(?:(?:side|sticky)[_-]?(?:bars?|box)",
-        r"|one-third)(?:$|[\s_-])",
+        r"(?:^|\s)(?:(?:l|wp|global|sticky)[_-]*)?(?:(?:side|sticky)[_-]?(?:bars?|box)",
+        r"|one-third)(?:$|\s)",
     ))
     .case_insensitive(true)
     .unicode(false)
@@ -118,7 +119,7 @@ static SIDEBAR_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Class or ID names identifying search controls.
 static SEARCH_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    RegexBuilder::new(r"(?:^|[\s_-])search(?:[_-]?(?:bar|facility|box))?(?:$|\s)")
+    RegexBuilder::new(r"(?:^|\s)search(?:[_-]?(?:bar|facility|box))?(?:$|\s)")
         .case_insensitive(true)
         .unicode(false)
         .build()
@@ -160,16 +161,16 @@ static DISPLAY_CSS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Class or ID names identifying modal dialogs, popups, and lightboxes.
 static MODAL_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    RegexBuilder::new(r"(?:^|\s)(?:wp-|p-|-l)?(?:modal|popup|lightbox)(?:[_-]*(?:window|pane|box))?(?:$|[\s_-])")
+    RegexBuilder::new(r"(?:^|\s)(?:wp-|p-|-l)?(?:modal|popup|lightbox)(?:[_-]*(?:window|pane|box))?(?:$|\s)")
         .case_insensitive(true)
         .unicode(false)
         .build()
         .expect("valid extraction pattern")
 });
 
-/// Class or ID names identifying image galleries and carousels.
+/// Complete class or ID names identifying galleries, excluding presentation modifiers such as `carousel-template`.
 static GALLERY_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    RegexBuilder::new(r"(?:^|[\s_-])(?:gallery|carousel)(?:$|[\s_-])")
+    RegexBuilder::new(r"(?:^|\s)(?:gallery|carousel)(?:$|\s)")
         .case_insensitive(true)
         .unicode(false)
         .build()
@@ -400,7 +401,10 @@ pub(super) fn is_main_content(node: &Node, depth: usize, opts: &ExtractOptions) 
     ) {
         return false;
     }
-    if matches(&combined, &ARTICLE_CLS_REGEX) {
+    if !opts.comments && matches(&combined, &COMMENTS_CLS_REGEX) {
+        return false;
+    }
+    if name == "article" || matches(&combined, &ARTICLE_CLS_REGEX) {
         return true;
     }
     if matches(&id, &LANDMARK_ID_REGEX)
@@ -408,7 +412,6 @@ pub(super) fn is_main_content(node: &Node, depth: usize, opts: &ExtractOptions) 
         || matches(&combined, &FOOTER_CLS_REGEX)
         || matches(&combined, &NAV_CLS_REGEX)
         || matches(&combined, &RECOMMENDED_CLS_REGEX)
-        || (!opts.comments && matches(&combined, &COMMENTS_CLS_REGEX))
         || matches(&combined, &SEARCH_CLS_REGEX)
         || matches(&combined, &SIDEBAR_CLS_REGEX)
         || matches(&combined, &MODAL_CLS_REGEX)

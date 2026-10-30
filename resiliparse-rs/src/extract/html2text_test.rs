@@ -250,3 +250,42 @@ fn main_content_class_filters() {
         }
     }
 }
+
+#[test]
+fn layout_classes_preserve_articles() {
+    for class in [
+        "news-release carousel-template",
+        "news-release inline-gallery-template",
+        "render-target-active render-target-default modal-open_Op(1)",
+        "shadow_footer",
+        "more-posts",
+        "other-posts",
+        "menu-responsive-on",
+        "nav-modal-xs-sm",
+        "menu_tabs",
+        "links",
+        "span8 right-sidebar",
+        "sidebar-offcanvas",
+        "column main-inh panel-search",
+    ] {
+        for id in ["", "id=neutral"] {
+            for tag in ["article", "div"] {
+                let html = format!("<div class='{class}' {id}><{tag}><h1>Title</h1><p>Article text.</p></{tag}></div>");
+                let mut opts = ExtractOptions::default();
+                opts.main_content = true;
+                assert_eq!(extract(&html, opts), "Title\n\nArticle text.", "{class}; {id}; {tag}");
+            }
+        }
+    }
+}
+
+#[test]
+fn article_classes_do_not_override_semantics() {
+    let mut opts = ExtractOptions::default();
+    opts.main_content = true;
+    assert_eq!(extract("<article class='gallery'><p>Article text.</p></article>", opts.clone()), "Article text.");
+    assert_eq!(extract("<article class='gallery' hidden><p>Hidden text.</p></article>", opts.clone()), "");
+    assert_eq!(extract("<article class='gallery' role=dialog><p>Dialog text.</p></article>", opts.clone()), "");
+    opts.comments = false;
+    assert_eq!(extract("<article class='comments'><p>Comment text.</p></article>", opts), "");
+}
