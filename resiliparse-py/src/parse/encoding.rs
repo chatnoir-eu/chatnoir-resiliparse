@@ -37,12 +37,50 @@ pub struct EncodingDetectorPy {
 
 fn canonical_encoding(py: Python<'_>, label: &str, html5: bool) -> PyResult<Option<String>> {
     if html5 {
-        return Ok(native::map_encoding_to_html5(label, true).map(str::to_owned));
+        return Ok(native::map_encoding_to_html5(label, true)
+            .map(python_encoding_name)
+            .map(str::to_owned));
     }
     match py.import("codecs")?.call_method1("lookup", (label,)) {
         Ok(codec) => Ok(Some(codec.getattr("name")?.extract()?)),
         Err(error) if error.is_instance_of::<PyLookupError>(py) => Ok(None),
         Err(error) => Err(error),
+    }
+}
+
+/// Translate standard encoding labels to the names used by Python's codecs.
+fn python_encoding_name(label: &'static str) -> &'static str {
+    match label {
+        "ibm866" => "cp866",
+        "windows-1250" => "cp1250",
+        "windows-1251" => "cp1251",
+        "windows-1252" => "cp1252",
+        "windows-1253" => "cp1253",
+        "windows-1254" => "cp1254",
+        "windows-1255" => "cp1255",
+        "windows-1256" => "cp1256",
+        "windows-1257" => "cp1257",
+        "windows-1258" => "cp1258",
+        "iso-8859-2" => "iso8859-2",
+        "iso-8859-3" => "iso8859-3",
+        "iso-8859-4" => "iso8859-4",
+        "iso-8859-5" => "iso8859-5",
+        "iso-8859-6" => "iso8859-6",
+        "iso-8859-7" => "iso8859-7",
+        "iso-8859-8" => "iso8859-8",
+        "iso-8859-10" => "iso8859-10",
+        "iso-8859-11" => "iso8859-11",
+        "iso-8859-13" => "iso8859-13",
+        "iso-8859-14" => "iso8859-14",
+        "iso-8859-15" => "iso8859-15",
+        "iso-8859-16" => "iso8859-16",
+        "euc-jp" => "euc_jp",
+        "euc-kr" => "euc_kr",
+        "iso-2022-jp" => "iso2022_jp",
+        "macintosh" => "mac-roman",
+        "utf-16le" => "utf-16-le",
+        "utf-16be" => "utf-16-be",
+        _ => label,
     }
 }
 
@@ -199,7 +237,7 @@ pub fn detect_encoding(
 pub fn map_encoding_to_html5(encoding: &Bound<'_, PyString>, fallback_utf8: bool) -> PyResult<Option<&'static str>> {
     // Match Python's Unicode strip/casefold semantics, including non-ASCII labels.
     let normalized: String = encoding.call_method0("strip")?.call_method0("casefold")?.extract()?;
-    Ok(native::map_encoding_to_html5(&normalized, fallback_utf8))
+    Ok(native::map_encoding_to_html5(&normalized, fallback_utf8).map(python_encoding_name))
 }
 
 fn default_fallbacks(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {

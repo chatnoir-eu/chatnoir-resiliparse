@@ -17,8 +17,8 @@
 //! Use [`EncodingDetector`] to feed data incrementally or [`detect_encoding`] to
 //! sample a byte slice in one call. Both return raw uchardet labels. For web
 //! content, [`html_meta_label`] can supply a declared charset, and
-//! [`map_encoding_to_html5`] maps labels to the API's Python-compatible WHATWG
-//! subset. Detection and label mapping do not decode the input bytes.
+//! [`map_encoding_to_html5`] maps labels to an adjusted WHATWG subset using
+//! standard encoding labels. Detection and label mapping do not decode the input bytes.
 //!
 //! [`detect_mime`] provides a quick check based on magic bytes and the proportion
 //! of unprintable bytes, rather than full document or media parsing.
@@ -42,7 +42,7 @@ static LABEL_MAP: LazyLock<HashMap<&'static str, &'static str>> =
 /// the internal state so the same detector can process another document.
 ///
 /// Results are raw uchardet labels, such as `"ASCII"`. Use
-/// [`map_encoding_to_html5`] to obtain the Python-compatible names used for web
+/// [`map_encoding_to_html5`] to obtain the standard encoding labels used for web
 /// content, including the remapping of ASCII and ISO-8859-1 to Windows-1252.
 ///
 /// # Examples
@@ -54,7 +54,7 @@ static LABEL_MAP: LazyLock<HashMap<&'static str, &'static str>> =
 /// detector.update(b"Hello ");
 /// detector.update(b"world");
 /// let label = detector.encoding();
-/// assert_eq!(map_encoding_to_html5(&label, true), Some("cp1252"));
+/// assert_eq!(map_encoding_to_html5(&label, true), Some("windows-1252"));
 /// // Retrieving the result has reset the detector.
 /// assert_eq!(detector.encoding(), "");
 /// ```
@@ -91,8 +91,7 @@ impl EncodingDetector {
     /// Finalize detection, return the raw encoding label, and reset the detector.
     ///
     /// Returns an empty string if no encoding could be determined, including
-    /// when no data was supplied. The result is neither canonicalized through
-    /// Python's codec registry nor remapped according to WHATWG. Use
+    /// when no data was supplied. The result is not remapped according to WHATWG. Use
     /// [`map_encoding_to_html5`] for the latter; its `fallback_utf8` argument
     /// controls whether unknown labels, including the empty string, become UTF-8.
     ///
@@ -124,20 +123,20 @@ impl Drop for EncodingDetector {
     }
 }
 
-/// Map an encoding label to a Python-compatible subset of HTML5 encoding names.
+/// Map an encoding label to an adjusted subset of standard HTML5 encoding names.
 ///
 /// The [WHATWG encoding mapping](https://encoding.spec.whatwg.org/#names-and-labels)
 /// reduces encoding aliases to canonical names while accounting for common
 /// mislabelling on the web. For example, ISO-8859-1 and ASCII are mapped to
-/// Windows-1252 (`"cp1252"`), which is more likely to match actual web content.
+/// Windows-1252 (`"windows-1252"`), which is more likely to match actual web content.
 /// Labels extracted from HTTP headers, HTML meta tags, and automatic detection
 /// can all be passed to this function.
 ///
 /// Leading and trailing whitespace is stripped and the label is lowercased.
-/// Lookup uses the adjusted WHATWG table rather than Python's codec alias
-/// registry. The input need not be a valid Python encoding name, while every
-/// returned label is one. A successful mapping does not guarantee that the
-/// input bytes can be decoded with the resulting encoding.
+/// Lookup uses the adjusted WHATWG table and returns standard labels such as
+/// `"windows-1252"`, `"euc-jp"`, and `"utf-16le"`, suitable for Rust encoding
+/// libraries. A successful mapping does not guarantee that the input bytes can be
+/// decoded with the resulting encoding.
 ///
 /// The mapping differs from WHATWG in these details:
 ///
@@ -157,8 +156,8 @@ impl Drop for EncodingDetector {
 /// ```
 /// use resiliparse::parse::encoding::map_encoding_to_html5;
 ///
-/// assert_eq!(map_encoding_to_html5(" ISO-8859-1 ", true), Some("cp1252"));
-/// assert_eq!(map_encoding_to_html5("csisolatin9", true), Some("iso8859-15"));
+/// assert_eq!(map_encoding_to_html5(" ISO-8859-1 ", true), Some("windows-1252"));
+/// assert_eq!(map_encoding_to_html5("csisolatin9", true), Some("iso-8859-15"));
 /// assert_eq!(map_encoding_to_html5("unknown", true), Some("utf-8"));
 /// assert_eq!(map_encoding_to_html5("unknown", false), None);
 /// ```
@@ -194,7 +193,7 @@ pub fn map_encoding_to_html5(label: &str, fallback_utf8: bool) -> Option<&'stati
 ///
 /// let label = html_meta_label(b"<meta charset='iso-8859-1'><p>Hello</p>").unwrap();
 /// assert_eq!(label, "iso-8859-1");
-/// assert_eq!(map_encoding_to_html5(&label, false), Some("cp1252"));
+/// assert_eq!(map_encoding_to_html5(&label, false), Some("windows-1252"));
 /// ```
 pub fn html_meta_label(data: &[u8]) -> Option<String> {
     let data = &data[..data.len().min(1024)];
@@ -274,7 +273,7 @@ fn utf8_ignore(mut bytes: &[u8]) -> String {
 /// use resiliparse::parse::encoding::{detect_encoding, map_encoding_to_html5};
 ///
 /// let label = detect_encoding(b"Hello world", 131072).expect("allocate detector");
-/// assert_eq!(map_encoding_to_html5(&label, true), Some("cp1252"));
+/// assert_eq!(map_encoding_to_html5(&label, true), Some("windows-1252"));
 /// ```
 pub fn detect_encoding(data: &[u8], max_len: usize) -> Option<String> {
     let mut detector = EncodingDetector::new()?;
@@ -359,59 +358,5 @@ pub fn detect_mime(data: &[u8], max_unprintable: f32) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detector_results_reset_the_stream() {
-        let mut detector = EncodingDetector::new().unwrap();
-        detector.update(b"Hello ");
-        detector.update(b"world");
-        assert_eq!(detector.encoding(), "ASCII");
-        assert_eq!(detector.encoding(), "");
-        detector.update(b"\xff\xfeH\0i\0");
-        detector.reset();
-        detector.update(b"new stream");
-        assert_eq!(detector.encoding(), "ASCII");
-    }
-
-    #[test]
-    fn meta_prescan_uses_the_first_declaration_within_the_limit() {
-        assert_eq!(
-            html_meta_label(b"<meta charset='windows-1252'><meta charset='utf-8'>").as_deref(),
-            Some("windows-1252")
-        );
-        let mut html = vec![b' '; 1024];
-        html.extend_from_slice(b"<meta charset='utf-8'>");
-        assert_eq!(html_meta_label(&html), None);
-    }
-
-    #[test]
-    fn mime_signature_precedence_and_binary_threshold() {
-        assert_eq!(detect_mime(b"RIFF....WAVE", 0.05), "image/webp");
-        assert_eq!(detect_mime(b" \n%PDF-1.7", 0.05), "application/pdf");
-        assert_eq!(detect_mime(b"1234567890123456789\0", 0.05), "text/plain");
-        assert_eq!(detect_mime(b"123456789012345678\0\0", 0.05), "application/octet-stream");
-    }
-
-    #[test]
-    fn html5_labels_and_sampled_detection() {
-        assert_eq!(map_encoding_to_html5(" ASCII ", false), Some("cp1252"));
-        assert_eq!(map_encoding_to_html5("csisolatin9", false), Some("iso8859-15"));
-        assert_eq!(map_encoding_to_html5("not-an-encoding", false), None);
-        assert_eq!(map_encoding_to_html5("not-an-encoding", true), Some("utf-8"));
-        assert_eq!(detect_encoding("Zażółć gęślą jaźń".as_bytes(), 0).as_deref(), Some("UTF-8"));
-    }
-
-    #[test]
-    fn mime_detection_covers_common_document_signatures() {
-        for (bytes, expected) in [
-            (b"%PDF-1.5\n".as_slice(), "application/pdf"),
-            (b"\x89PNG\r\n\x1a\n".as_slice(), "image/png"),
-            (b"<!doctype html>".as_slice(), "text/html"),
-            (b"<?xml version='1.0'?>".as_slice(), "application/xml"),
-        ] {
-            assert_eq!(detect_mime(bytes, 0.05), expected);
-        }
-    }
-}
+#[path = "encoding_test.rs"]
+mod tests;

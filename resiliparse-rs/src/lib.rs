@@ -67,7 +67,7 @@
 //! let mut detector = EncodingDetector::new().expect("allocate charset detector");
 //! detector.update(b"\xff\xfeH\x00e\x00l\x00l\x00o\x00");
 //! let label = detector.encoding();
-//! assert_eq!(map_encoding_to_html5(&label, true), Some("utf-16-le"));
+//! assert_eq!(map_encoding_to_html5(&label, true), Some("utf-16le"));
 //! ```
 //!
 //! For a complete byte buffer, [`detect_encoding`](parse::encoding::detect_encoding) is a convenient shortcut.
@@ -79,7 +79,7 @@
 //!
 //! let label = detect_encoding(b"Hello world", 128 * 1024).expect("allocate charset detector");
 //! let encoding = map_encoding_to_html5(&label, true).unwrap();
-//! assert_eq!(encoding, "cp1252");
+//! assert_eq!(encoding, "windows-1252");
 //! ```
 //!
 //! Detection is heuristic: a predicted label does not guarantee that every input byte can be decoded with that encoding.
@@ -87,13 +87,13 @@
 //! ## Mapping Labels and Decoding Text
 //!
 //! The WHATWG mapping accounts for common web encoding labels and mislabelling practices. For example, ISO-8859-1 is
-//! mapped to Windows-1252. The returned labels are the same codec names used by the Python bindings:
+//! mapped to Windows-1252.
 //!
 //! ```
 //! use resiliparse::parse::encoding::map_encoding_to_html5;
 //!
-//! assert_eq!(map_encoding_to_html5("iso-8859-1", true), Some("cp1252"));
-//! assert_eq!(map_encoding_to_html5("csisolatin9", true), Some("iso8859-15"));
+//! assert_eq!(map_encoding_to_html5("iso-8859-1", true), Some("windows-1252"));
+//! assert_eq!(map_encoding_to_html5("csisolatin9", true), Some("iso-8859-15"));
 //! assert_eq!(map_encoding_to_html5("unknown", true), Some("utf-8"));
 //! assert_eq!(map_encoding_to_html5("unknown", false), None);
 //! ```
