@@ -655,3 +655,9 @@ def test_real_word_data():
         assert main_content
         assert len(all) >= len(main_content)
     assert i > 0
+
+
+def test_empty_formatting_string_is_false():
+    # Both accepted Python argument types must select the same native formatting mode.
+    markup = '<p>first</p><p>second</p>'
+    assert extract_plain_text(markup, preserve_formatting='') == extract_plain_text(markup, preserve_formatting=False)

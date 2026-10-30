@@ -341,3 +341,55 @@ def test_zstd_dictionary_roundtrip(dict_train_data, train_dictionary, tmp_path):
     # Test explicit dictionary
     r = ZstdReader(out, dictionary=d)
     assert r.read() == raw_bytes
+
+
+@pytest.mark.parametrize('reader_cls, writer_cls', [
+    (GzipReader, GzipWriter), (BrotliReader, BrotliWriter),
+    (Lz4Reader, Lz4Writer), (ZstdReader, ZstdWriter), (ChunkedReader, ChunkedWriter),
+])
+def test_stream_pathlike_constructors(reader_cls, writer_cls, tmp_path):
+    # Use pathlib objects in both directions to exercise os.fspath conversion.
+    path = tmp_path / 'stream.bin'
+    with writer_cls(path, fsspec_args=False) as writer:
+        assert writer.write(b'payload') == 7
+        writer.finish()
+    with reader_cls(path, fsspec_args=False) as reader:
+        assert reader.read() == b'payload'
+
+
+@pytest.mark.parametrize('operation', ['read', 'seek', 'tell', 'inner_seek', 'inner_tell'])
+def test_closed_reader_python_errors(operation):
+    reader = GzipReader(io.BytesIO())
+    reader.close()
+    reader.close()
+    args = (0,) if operation in ('seek', 'inner_seek') else ()
+    with pytest.raises(ValueError, match='closed file'):
+        getattr(reader, operation)(*args)
+
+
+def test_closed_writer_python_error():
+    writer = GzipWriter(io.BytesIO())
+    writer.close()
+    writer.close()
+    with pytest.raises(ValueError, match='closed file'):
+        writer.write(b'payload')
+
+
+@pytest.mark.parametrize('offset, whence', [(0, 3), (-1, 0), (2 ** 64, 0), (2 ** 63, 1), (2 ** 63, 2)])
+def test_seek_python_argument_validation(offset, whence):
+    with GzipReader(io.BytesIO()) as reader:
+        with pytest.raises(ValueError):
+            reader.seek(offset, whence)
+
+
+def test_python_reader_must_return_bytes():
+    class TextReader:
+        def tell(self):
+            return 0
+
+        def read(self, size):
+            return 'text'
+
+    with GzipReader(TextReader()) as reader:
+        with pytest.raises(TypeError, match=r'read\(\) must return bytes'):
+            reader.read()

@@ -1,3 +1,17 @@
+# Copyright 2026 Janek Bevendorff
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import io
 import os
 import pytest
@@ -121,3 +135,95 @@ def test_warc_retry():
                                retry_count=5, seek=False):
             assert rec.stream_pos > prev_stream_pos
             prev_stream_pos = rec.stream_pos
+
+
+@pytest.mark.parametrize('wrapper', [exc_loop, lambda source: warc_retry(source, lambda: None)])
+def test_iterator_initialization_error(wrapper):
+    wrapped = wrapper(42)
+    assert iter(wrapped) is wrapped
+    with pytest.raises(TypeError):
+        next(wrapped)
+    # A failed Python __iter__ call must not be attempted again.
+    assert next(wrapped, None) is None
+
+
+def test_exception_loop_preserves_exception_identity():
+    error = RandomException('source failed')
+
+    def source():
+        yield object()
+        raise error
+
+    wrapped = exc_loop(source())
+    item, exc = next(wrapped)
+    assert item is not None and exc is None
+    assert next(wrapped) == (None, error)
+    assert next(wrapped, None) is None
+    assert next(wrapped, None) is None
+
+
+def test_exception_loop_resumes_python_iterator():
+    error = RandomException('temporary failure')
+
+    class RecoveringIterator:
+        def __init__(self):
+            self.calls = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise error
+            if self.calls == 2:
+                return 'recovered'
+            raise StopIteration
+
+    assert list(exc_loop(RecoveringIterator())) == [(None, error), ('recovered', None)]
+
+
+def test_progress_loop_reports_after_yield(monkeypatch):
+    from resiliparse import process_guard
+
+    context = object()
+    calls = []
+    monkeypatch.setattr(process_guard, 'progress', calls.append)
+    source = [object(), object()]
+    wrapped = process_guard.progress_loop(source, ctx=context)
+    assert iter(wrapped) is wrapped
+    assert next(wrapped) is source[0]
+    assert calls == []
+    assert next(wrapped) is source[1]
+    assert calls == [context]
+    assert next(wrapped, None) is None
+    assert calls == [context, context]
+    assert next(wrapped, None) is None
+    assert calls == [context, context]
+
+
+@pytest.mark.parametrize('failure', ['initialize', 'source', 'progress'])
+def test_progress_loop_propagates_python_exception(monkeypatch, failure):
+    from resiliparse import process_guard
+
+    error = RandomException('iteration failed')
+
+    def fail(*args):
+        raise error
+
+    class BrokenIterable:
+        __iter__ = fail
+
+    def broken_source():
+        raise error
+        yield
+
+    monkeypatch.setattr(process_guard, 'progress', fail)
+    source = {'initialize': BrokenIterable(), 'source': broken_source(), 'progress': [1]}[failure]
+    wrapped = process_guard.progress_loop(source)
+    if failure == 'progress':
+        assert next(wrapped) == 1
+    with pytest.raises(RandomException) as caught:
+        next(wrapped)
+    assert caught.value is error
+    assert next(wrapped, None) is None

@@ -1,3 +1,17 @@
+# Copyright 2026 Janek Bevendorff
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 
 from resiliparse.parse import lang
@@ -58,3 +72,12 @@ def test_train_language_examples_python_input_errors():
         lang.train_language_examples(42)
     with pytest.raises(TypeError):
         lang.train_language_examples(['not text', object()])
+
+
+@pytest.mark.parametrize('suffix', ['\ud800', '\U0001f600'])
+def test_language_vector_python_unicode_storage(suffix):
+    # Surrogates and emoji force CPython's two- and four-byte storage, respectively.
+    # Both are ignored by the language vector, so the ASCII vector must be preserved.
+    assert lang.train_language_examples(['abc' + suffix]) == lang.train_language_examples(['abc'])
+    result = lang.detect_fast('English text for language detection.' + suffix)
+    assert isinstance(result, tuple) and result[0] == 'en'

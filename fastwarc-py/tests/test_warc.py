@@ -676,3 +676,25 @@ def test_record_func_filters(func_filter, parse_http, expected_count, validator)
             assert validator(rec)
         count += 1
     assert count == expected_count
+
+
+def test_record_date_rejects_naive_datetime():
+    record = WarcRecord()
+    with pytest.raises(ValueError, match='naive datetime'):
+        record.record_date = dt.datetime(2026, 1, 1)
+
+
+def test_header_map_rejects_unknown_encoding():
+    with pytest.raises(ValueError, match='Unsupported encoding'):
+        HeaderMap('not-a-codec')
+
+
+def test_http_header_map_borrows_record():
+    record = _make_http_record()
+    record.parse_http()
+    headers = record.http_headers
+    headers['X-Binding-Test'] = 'value'
+    assert record.http_headers['X-Binding-Test'] == 'value'
+    assert 'X-Binding-Test: value' in str(headers)
+    headers.remove('X-Binding-Test')
+    assert 'X-Binding-Test' not in record.http_headers
