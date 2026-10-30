@@ -259,7 +259,7 @@ jobs:
           # Run Python tests (install apache_beam manually, which is skipped in 3.14)
           python${PYTHON_VERSION} -m pip install apache_beam
           python${PYTHON_VERSION} -m pytest \
-            --cov-report xml:pytest-coverage.xml \
+            --cov --cov-report xml:pytest-coverage.xml \
             --junitxml=pytest-report.junit.xml
 
           # Generate Rust coverage report (includes PyO3 wrappers)

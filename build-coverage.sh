@@ -16,11 +16,12 @@ source <(cargo llvm-cov show-env --sh)
 # Clean up previous coverage runs
 cargo llvm-cov clean --workspace
 
-# Run fastwarc tests
-cargo test --package fastwarc
+# Run Rust tests (excluding PyO3 wrappers)
+cargo test --workspace --exclude '*-py'
 
 # Rebuild Python bindings
 $PYTHON -m pip install --no-build-isolation -e fastwarc-py/
+$PYTHON -m pip install --no-build-isolation -e resiliparse-py/
 
 # Run Python tests
 rm -rf .coverage.html
@@ -28,8 +29,7 @@ $PYTHON -m pytest \
   --cov \
   --cov-report "xml:${OUTDIR}/pytest-coverage.xml" \
   --cov-report "lcov:${OUTDIR}/pytest-coverage.info" \
-  --junitxml="${OUTDIR}/pytest-report.junit.xml" \
-  fastwarc-py/fastwarc-pytest
+  --junitxml="${OUTDIR}/pytest-report.junit.xml"
 
 # Generate Rust coverage report
 cargo llvm-cov report --lcov --output-path "${OUTDIR}/cargo-coverage.info"

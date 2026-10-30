@@ -29,6 +29,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - `.github/workflows`: GitHub Actions workflows
 - `.vcpkg`: vcpkg overlay ports and triplets
 - `benchmarks`: benchmark suites (should not be used for temporary performance tests)
+- `build-coverage.sh`: helper script for running tests and collecting coverage info locally
 - `docs`: main project documentation
     - `docs/man`: general usage documentation (Python)
     - `docs/api`: Python API docs
