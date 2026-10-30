@@ -685,3 +685,13 @@ def test_inline_visibility_without_classes(style, attributes):
     for hidden_elements in [False, True]:
         assert extract_plain_text(document, main_content=True, hidden_elements=hidden_elements) == 'Story'
     assert extract_plain_text(document) == 'Story\n\nHidden'
+
+
+@pytest.mark.parametrize(('formatting', 'expected'), [
+    (True, 'A\t\tB\nC\t\t\t\tD'),
+    ('minimal_html', 'A\t\tB\nC\t\t\t\tD'),
+    (False, 'A B C D'),
+])
+def test_table_cell_boundaries(formatting, expected):
+    document = '<table><tr><th>A</th><th>B</th></tr><tr><td>C</td><td></td><td>D</td></tr></table>'
+    assert extract_plain_text(document, preserve_formatting=formatting) == expected

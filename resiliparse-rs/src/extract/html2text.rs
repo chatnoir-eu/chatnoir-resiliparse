@@ -220,12 +220,15 @@ struct ExtractNode {
 /// Collect one DOM traversal event, merging inline text into the current extraction node.
 ///
 /// `depth` is relative to the extraction root; `end` marks an element exit.
-/// Block boundaries, links, and text areas create separate extraction nodes.
+/// Block boundaries, table cells, links, and text areas create separate extraction nodes.
 fn collect(nodes: &mut Vec<ExtractNode>, node: &Node, depth: usize, end: bool, opts: &ExtractOptions) {
     let name = tag(node);
     let block = is_block(&name);
     let last = nodes.last();
-    if last.is_none_or(|last| block || depth < last.depth) || (opts.links && name == "a") || name == "textarea" {
+    if last.is_none_or(|last| block || depth < last.depth)
+        || (opts.links && name == "a")
+        || matches!(name.as_str(), "textarea" | "td" | "th")
+    {
         let mut pre_depth = last.map_or(0, |n| n.pre_depth);
         if matches!(name.as_str(), "pre" | "textarea") {
             pre_depth = if end {
@@ -337,7 +340,32 @@ fn serialize(nodes: Vec<ExtractNode>, opts: &ExtractOptions) -> String {
     let mut margins: usize = 0;
     let mut uncollapsed = 0;
     let mut numbering: Vec<usize> = Vec::new();
+    let mut row_has_cell = Vec::new();
     for mut n in nodes {
+        if n.tag == "tr" {
+            if n.end {
+                row_has_cell.pop();
+            } else {
+                row_has_cell.push(false);
+            }
+        }
+        if matches!(n.tag.as_str(), "td" | "th") {
+            // Cell exits can collect whitespace between cells, which is not cell content.
+            if n.end {
+                continue;
+            }
+            margin(&mut out, &mut margins, &n, opts);
+            if let Some(has_cell) = row_has_cell.last_mut() {
+                if *has_cell {
+                    if opts.formatting != Formatting::Off {
+                        out.push_str("\t\t");
+                    } else if !out.is_empty() && !out.chars().last().is_some_and(is_space) {
+                        out.push(' ');
+                    }
+                }
+                *has_cell = true;
+            }
+        }
         if opts.formatting != Formatting::Off {
             if n.block && !n.collapse_margins {
                 uncollapsed += 1;
@@ -453,13 +481,6 @@ fn serialize(nodes: Vec<ExtractNode>, opts: &ExtractOptions) -> String {
         if depth > 0 && opts.formatting == Formatting::Basic {
             indent(&mut out, depth + usize::from(opts.list_bullets && !bullet));
             bullet = false;
-        }
-        if opts.formatting != Formatting::Off
-            && matches!(n.tag.as_str(), "td" | "th")
-            && !out.is_empty()
-            && !out.ends_with('\n')
-        {
-            out.push_str("\t\t");
         }
         out.push_str(&prefix);
         prefix.clear();

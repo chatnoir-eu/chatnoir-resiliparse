@@ -186,3 +186,43 @@ fn inline_visibility_without_classes() {
     opts.main_content = true;
     assert_eq!(extract("<div style='display:block; visibility:visible'>Story</div>", opts), "Story");
 }
+
+#[test]
+fn table_cell_boundaries() {
+    let html = "<table><tr><th>A</th><th>B</th></tr><tr><td>C</td><td></td><td>D</td></tr></table>";
+    let mut opts = ExtractOptions::default();
+    assert_eq!(extract(html, opts.clone()), "A\t\tB\nC\t\t\t\tD");
+    opts.formatting = Formatting::MinimalHtml;
+    assert_eq!(extract(html, opts.clone()), "A\t\tB\nC\t\t\t\tD");
+    opts.formatting = Formatting::Off;
+    assert_eq!(extract(html, opts), "A B C D");
+}
+
+#[test]
+fn table_cells_with_inline_content() {
+    let mut opts = ExtractOptions::default();
+    opts.links = true;
+    assert_eq!(
+        extract("<table><tr><td>A</td><td><a href='/'>B</a> C<span>D</span></td></tr></table>", opts),
+        "A\t\tB (/) CD"
+    );
+    assert_eq!(
+        extract("<table><tr><td>A</td>\n <td><span>B</span></td></tr></table>", ExtractOptions::default()),
+        "A\t\tB"
+    );
+}
+
+#[test]
+fn table_cell_whitespace_and_empty_cells() {
+    let html = "<table><tr><td></td><td>A </td><td> B</td></tr><tr><td></td></tr><tr><td>C</td></tr></table>";
+    let mut opts = ExtractOptions::default();
+    opts.formatting = Formatting::Off;
+    assert_eq!(extract(html, opts), "A B C");
+    assert_eq!(extract("<table><tr><td></td><td>A</td></tr></table>", ExtractOptions::default()), "\t\tA");
+}
+
+#[test]
+fn nested_table_cell_boundaries() {
+    let html = "<table><tr><td><table><tr><td>A</td><td>B</td></tr></table></td><td>C</td></tr></table>";
+    assert_eq!(extract(html, ExtractOptions::default()), "A\t\tB\n\t\tC");
+}
