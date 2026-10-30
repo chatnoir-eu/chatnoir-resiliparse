@@ -1,4 +1,3 @@
 resiliparse.cli
 resiliparse.beam
 resiliparse.beam.*
-resiliparse.legacy.*
