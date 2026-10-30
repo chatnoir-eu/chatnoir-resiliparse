@@ -19,7 +19,6 @@ publish = true
 description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
 authors = ["Janek Bevendorff"]
 documentation = "https://resiliparse.chatnoir.eu/"
-readme = "README.md"
 repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse/"
 license = "Apache-2.0"
 
