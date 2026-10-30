@@ -27,7 +27,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! resiliparse = "2"
+//! resiliparse = "*"    # Use correct version here
 //! ```
 //!
 //! Building requires Rust and Cargo, a C/C++ compiler, CMake, libclang for binding generation, and `vcpkg` on `PATH`.

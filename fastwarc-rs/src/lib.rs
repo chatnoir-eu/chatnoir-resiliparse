@@ -29,7 +29,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! fastwarc = "2"    # Use correct version here
+//! fastwarc = "*"    # Use correct version here
 //! ```
 //!
 //! To build FastWARC as a standalone library, run `cargo build` from the root of this repository.
