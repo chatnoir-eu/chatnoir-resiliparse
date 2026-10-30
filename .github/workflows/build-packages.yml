@@ -105,7 +105,7 @@ jobs:
           package-dir: fastwarc-py
           output-dir: wheelhouse
         env:
-          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose --import-mode=importlib fastwarc-py/tests
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose "{project}/fastwarc-py/tests"
 
       - name: Build Resiliparse
         uses: pypa/cibuildwheel@v4.3
@@ -116,7 +116,7 @@ jobs:
           CIBW_BEFORE_TEST: >-
             python -c "import glob, platform, re, sysconfig; open('fastwarc.txt', 'w').write(glob.glob('wheelhouse/fastwarc-*-cp*-cp' + re.match(r'^.*(?:cpython|cp)-?(3\d+t?)', sysconfig.get_config_var('EXT_SUFFIX'))[1] + '-*_' + platform.machine().lower() + '.whl')[0])" &&
             python -m pip install -r fastwarc.txt
-          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose --import-mode=importlib resiliparse-py/tests
+          CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose "{project}/resiliparse-py/tests"
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -233,11 +233,12 @@ jobs:
         shell: bash
         run: |
           set -ex
-          
+
           # Set up llvm-cov env
           source <(cargo llvm-cov show-env --sh)
-          
+
           # Build wheels
+          export PATH="$(python${PYTHON_VERSION} -c 'import sysconfig; print(sysconfig.get_path("scripts"))'):$PATH"
           python${PYTHON_VERSION} -m pip install maturin codecov-cli
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "fastwarc-py[all,test]"
           python${PYTHON_VERSION} -m pip install --no-build-isolation -e "resiliparse-py[all,test]"
