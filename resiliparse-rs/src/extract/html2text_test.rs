@@ -226,3 +226,27 @@ fn nested_table_cell_boundaries() {
     let html = "<table><tr><td><table><tr><td>A</td><td>B</td></tr></table></td><td>C</td></tr></table>";
     assert_eq!(extract(html, ExtractOptions::default()), "A\t\tB\n\t\tC");
 }
+
+#[test]
+fn main_content_class_filters() {
+    for class in [
+        "hidden",
+        "visually-hidden",
+        "navigation",
+        "related",
+        "sidebar",
+        "skip-to-content",
+        "sign-in",
+        "sponsored",
+        "social",
+    ] {
+        for id in ["", "id=widget"] {
+            let html =
+                format!("<main><section><p>Article text</p><div {id} class='{class}'>Junk</div></section></main>");
+            let mut opts = ExtractOptions::default();
+            assert_eq!(extract(&html, opts.clone()), "Article text\n\nJunk", "{class}; {id}");
+            opts.main_content = true;
+            assert_eq!(extract(&html, opts), "Article text", "{class}; {id}");
+        }
+    }
+}

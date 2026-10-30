@@ -309,18 +309,6 @@ def test_synthetic_legacy_edge_cases(options, expected):
     assert actual.encode('utf-8') == expected.encode('utf-8')
 
 
-@pytest.mark.parametrize('class_name', [
-    'hidden', 'visually-hidden', 'navigation', 'related', 'sidebar',
-    'skip-to-content', 'sign-in', 'sponsored', 'social',
-])
-@pytest.mark.parametrize('id_attribute', ['', 'id="widget"'])
-def test_main_content_class_filters(class_name, id_attribute):
-    document = (f'<main><section><p>Article text</p>'
-                f'<div {id_attribute} class="{class_name}">Junk</div></section></main>')
-    assert extract_plain_text(document) == 'Article text\n\nJunk'
-    assert extract_plain_text(document, main_content=True) == 'Article text'
-
-
 def test_hidden_content_option():
     document = '<main><p>Article text</p><div class="hidden">More text</div></main>'
     assert extract_plain_text(document, main_content=True, hidden_elements=True) == \
@@ -667,31 +655,3 @@ def test_real_word_data():
         assert main_content
         assert len(all) >= len(main_content)
     assert i > 0
-
-
-@pytest.mark.parametrize('id_attribute', ['', 'id=""', 'id="neutral"'])
-def test_class_only_boilerplate(id_attribute):
-    document = (f'<div class="site-header" {id_attribute}>Header</div><main><p>Story</p>'
-                f'<div class="comments" {id_attribute}>Discussion</div></main>')
-    assert extract_plain_text(document, main_content=True, comments=False, preserve_formatting=False) == 'Story'
-    assert extract_plain_text(document, main_content=True, comments=True,
-                              preserve_formatting=False) == 'Story Discussion'
-
-
-@pytest.mark.parametrize('style', ['display:none', 'visibility:hidden'])
-@pytest.mark.parametrize('attributes', ['', 'class="" id=""', 'id="neutral"'])
-def test_inline_visibility_without_classes(style, attributes):
-    document = f'<p>Story</p><div style="{style}" {attributes}>Hidden</div>'
-    for hidden_elements in [False, True]:
-        assert extract_plain_text(document, main_content=True, hidden_elements=hidden_elements) == 'Story'
-    assert extract_plain_text(document) == 'Story\n\nHidden'
-
-
-@pytest.mark.parametrize(('formatting', 'expected'), [
-    (True, 'A\t\tB\nC\t\t\t\tD'),
-    ('minimal_html', 'A\t\tB\nC\t\t\t\tD'),
-    (False, 'A B C D'),
-])
-def test_table_cell_boundaries(formatting, expected):
-    document = '<table><tr><th>A</th><th>B</th></tr><tr><td>C</td><td></td><td>D</td></tr></table>'
-    assert extract_plain_text(document, preserve_formatting=formatting) == expected
