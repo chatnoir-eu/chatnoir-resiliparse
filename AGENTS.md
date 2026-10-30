@@ -124,7 +124,8 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Test names should be to the point, but not verbose or overly specific.
 - Python tests should be minimal smoke tests that still cover the full call path from Python to the core Rust library.
 - Actual functionality Python tests must be added only for Python-specific behaviour and non-native Python code.
-- Add short comments inside the tests where the purpose of the tested condition isn't obvious. Try not to overexplain.
+- Add short comments inside the tests about what the test is supposed to show, unless the tested condition is
+  obvious from the test name. Try not to overexplain.
 
 ## Coding Style
 
