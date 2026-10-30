@@ -186,3 +186,7 @@ vcpkg_installed/
 # agents
 .agents/
 .codex/
+
+# Local scratch file
+test.py
+
