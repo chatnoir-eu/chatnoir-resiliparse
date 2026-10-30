@@ -10,7 +10,7 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-fastwarc = { version = "2.0.0", path = "../../fastwarc-rs" }
+fastwarc.workspace = true
 pyo3 = { workspace = true, features = ["extension-module"] }
 time.workspace = true
 

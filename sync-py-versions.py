@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Keep Python package versions in sync with Rust workspace version
+# Sync dependency requirements and vcpkg metadata with the Rust workspace version.
+# Maturin obtains Python package versions from Cargo workspace inheritance.
 
 import json
 from pathlib import Path
@@ -44,6 +45,8 @@ def sync_path_dependency_versions(manifest: Path) -> int:
     return replacements
 
 
+# Workspace members inherit dependencies from the root manifest. Standalone
+# benchmark workspaces still need their own path dependency versions updated.
 for manifest in base_path.rglob('Cargo.toml'):
     sync_path_dependency_versions(manifest)
 
