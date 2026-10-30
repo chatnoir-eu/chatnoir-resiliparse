@@ -110,7 +110,6 @@ fn is_block_element(local_name: lxb_tag_id_enum_t::Type) -> bool {
             | LXB_TAG_LI
             | LXB_TAG_MAIN
             | LXB_TAG_NAV
-            | LXB_TAG_NOSCRIPT
             | LXB_TAG_OL
             | LXB_TAG_P
             | LXB_TAG_PRE

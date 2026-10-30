@@ -44,10 +44,19 @@ fn markup_escapes_text_and_attributes() {
 }
 
 #[test]
-#[ignore = "Known bug: a skipped noscript element adds a trailing block break"]
 fn skipped_noscript_does_not_change_visible_text() {
     // Given the existing skip policy, noscript must contribute neither text nor a block break.
-    let tree = HtmlTree::parse("<div>Visible<noscript>Fallback</noscript></div>").unwrap();
-    let element = tree.body().unwrap().first_element_child().unwrap();
-    assert_eq!(element.inner_text(), "Visible");
+    for (html, expected) in [
+        ("<div>Visible<noscript>Fallback</noscript></div>", "Visible"),
+        ("<div><noscript>Fallback</noscript>Visible</div>", "Visible"),
+        ("<div>Before<noscript>Fallback</noscript>After</div>", "BeforeAfter"),
+        ("<div><noscript>Fallback</noscript></div>", ""),
+        // Skipping an element must also leave existing whitespace untouched.
+        ("<div>Visible <noscript>Fallback</noscript></div>", "Visible "),
+        ("<div>Visible<br><noscript>Fallback</noscript></div>", "Visible\n"),
+    ] {
+        let tree = HtmlTree::parse(html).unwrap();
+        let element = tree.body().unwrap().first_element_child().unwrap();
+        assert_eq!(element.inner_text(), expected, "{html}");
+    }
 }
