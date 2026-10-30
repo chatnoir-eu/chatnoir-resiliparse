@@ -126,8 +126,8 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Actual functionality Python tests must be added only for Python-specific behaviour and non-native Python code.
 - Add short (normal double-slash) comments inside the tests about what the test is supposed to show, unless the tested
   condition is obvious from the test name. Try not to overexplain.
-- Use rstest matrix tests to test multiple different inputs against the same condition instead of repeating the lines or
-  testing in a loop.
+- Use rstest or pytest matrix tests to test multiple different inputs against the same condition instead of repeating
+  the lines or testing in a loop.
 
 ## Coding Style
 
