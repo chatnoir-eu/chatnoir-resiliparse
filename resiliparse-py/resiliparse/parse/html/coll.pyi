@@ -103,7 +103,7 @@ class DOMTokenList(Sequence[str], Container[str]):
     def __contains__(self, token: object, /) -> bool: ...
 
 
-# Names retained for source compatibility with the Cython DOM API.
+# Names retained for source compatibility with the previous DOM API.
 HTMLCollection = ElementNodeList
 DOMCollection = ElementNodeList
 DOMElementClassList = DOMTokenList

@@ -4,8 +4,8 @@
 [![Codecov](https://codecov.io/gh/chatnoir-eu/chatnoir-resiliparse/branch/develop/graph/badge.svg?token=VA51APYHU5)](https://codecov.io/gh/chatnoir-eu/chatnoir-resiliparse)
 [![Documentation Status](https://readthedocs.org/projects/chatnoir-resiliparse/badge/?version=latest)](https://resiliparse.chatnoir.eu/en/latest/?badge=latest)
 
-A collection of robust and fast processing tools for parsing and analyzing web archive data written in Rust and
-Cython/C++ with bindings for Python.
+A collection of robust and fast processing tools for parsing and analyzing web archive data written in Rust
+with bindings for Python.
 
 ## Usage Instructions
 
@@ -54,7 +54,7 @@ Main documentation: [Resiliparse Itertools](https://resiliparse.chatnoir.eu/en/l
 
 ### 2. FastWARC
 
-FastWARC is a high-performance WARC parsing library for Python written in Rust with bindings for Python.
+FastWARC is a high-performance WARC parsing library written in Rust with bindings for Python. It supports
 compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are GZip, Zstd, and LZ4.
 
 Main documentation: [FastWARC](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html)
@@ -91,8 +91,8 @@ pip install fastwarc
 
 ### Building Bindings From Source
 
-You can also build the Resiliparse and FastWARC Python bindings yourself from source. FastWARC has been fully ported to
-Rust. Resiliparse is still written in Cython.
+You can also build the Resiliparse and FastWARC Python bindings from source. Both libraries use Rust with PyO3
+bindings, built with maturin.
 
 For detailed build instructions, please refer to
 the [build documentation](https://resiliparse.chatnoir.eu/en/stable/man/installation.html) or the individual READMEs:

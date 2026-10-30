@@ -83,7 +83,7 @@ Main documentation: :ref:`itertools-manual`.
 
 2. FastWARC
 -----------
-FastWARC is a high-performance WARC parsing library for Python written in C++/Cython. The API is inspired in large parts by WARCIO, but does not aim at being a drop-in replacement. FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are Gzip and LZ4.
+FastWARC is a high-performance WARC parsing library written in Rust with bindings for Python. The API is inspired in large parts by WARCIO, but does not aim at being a drop-in replacement. FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are Gzip, Zstandard, and LZ4.
 
 FastWARC provides both a Python API and a command line interface (CLI).
 

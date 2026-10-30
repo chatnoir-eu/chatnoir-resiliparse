@@ -61,7 +61,7 @@ Iterating WARC Files
 
 .. important::
 
-  With the Rust port in version 1.0, the Python API has changed slightly. The old names (e.g., ``GZipStream`` instead of ``GzipReader``) still mostly work through compatibility shims, but will eventually be removed. So please make sure you update your scripts! If you run into deeper issues, the old Cython bindings are still available as a submodule named ``fastwarc.legacy``.
+  Version 2.0 removes the legacy bindings and compatibility shims. Update scripts to use the current API names, such as ``GzipReader`` and ``GzipWriter`` in place of ``GZipStream``.
 
 
 The central class for stream-processing WARC files is :class:`.ArchiveIterator`:

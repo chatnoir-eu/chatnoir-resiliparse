@@ -10,7 +10,7 @@ FastWARC:
 - `fastwarc` (Rust)
 - `fastwarc-grpc` (Rust, gRPC client/server round trip over a Unix socket)
 - `fastwarc-py` (Python bindings)
-- `fastwarc-py` (legacy Cython implementation)
+- `fastwarc-py` (legacy implementation)
 
 Third-party:
 
@@ -103,7 +103,7 @@ Following is a summary of the benchmarking results as a table. More details can 
 
 The rows are sorted by best uncompressed throughput. Compressed times can vary greatly based on the compressor
 implementation used. FastWARC generally has the fastest (de-)compressors and is beaten only by `libarchive`'s LZ4
-implementation. The LZ4 performance of the legacy Cython implementation is also slightly better, meaning that the LZ4
+implementation. The LZ4 performance of the legacy implementation is also slightly better, meaning that the LZ4
 Rust library is not yet on par with liblz4 in C.
 
 FastWARC and `libarchive` both have the overall fastest parsers. FastWARC comes out on top when the WARC file is

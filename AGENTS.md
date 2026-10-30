@@ -45,8 +45,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
 ### Build Instructions
 
-- The Rust projects are built with `cargo`. The Python bindings are built with `setuptools-rust` via `pyproject.toml`
-  and `setup.py`.
+- The Rust projects are built with `cargo`. The Python bindings use PyO3 and are built with `maturin` via `pyproject.toml`.
 - Native dependencies are installed via `vcpkg`. Rust installs its dependencies to the target dir with `vcpkg`. The
   `vcpkg` binary must be available on the `PATH`. If `RESILIPARSE_USE_SYSTEM_LIBS=1` is set, it uses libraries from the
   system instead.

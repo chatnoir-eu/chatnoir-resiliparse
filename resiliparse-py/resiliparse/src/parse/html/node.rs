@@ -540,7 +540,7 @@ impl NodePy {
         self.node.to_string()
     }
 
-    /// Set the element's inner HTML, matching the Cython DOM API.
+    /// Set the element's inner HTML.
     /// Replace this element’s contents from an HTML string.
     ///
     /// :param html: HTML string used to replace this element’s contents.

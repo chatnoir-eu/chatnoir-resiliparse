@@ -40,16 +40,18 @@ Replace the triplet value with one suitable for your platform. Valid values are:
 
 After installing the dependencies, you can build the actual Python packages:
 
+Both packages use maturin to build their Rust extensions and PyO3 bindings. Pip installs the build backend automatically.
+
 .. code:: bash
 
     # Create a fresh venv first (recommended)
     python3 -m venv venv && source venv/bin/activate
 
     # Option 1: Build and install in editable mode (best for development)
-    python3 -m pip install -e ./fastwarc ./resiliparse
+    python3 -m pip install -e ./fastwarc-py -e ./resiliparse-py
 
     # Option 2 (alternative): Build and install wheels in separate steps (best for redistribution)
-    python3 -m pip wheel ./fastwarc ./resiliparse
+    python3 -m pip wheel ./fastwarc-py ./resiliparse-py
     ls ./FastWARC-*.whl ./Resiliparse-*.whl | xargs python3 -m pip install
 
 In most cases, the build routine should be smart enough to detect the location of the installed vcpkg dependencies. However, in some cases you may be getting errors about missing header files or undefined symbols. This can happen if you don't build from the source repository, use Python's new ``build`` module, or run ``pip wheel`` with ``--isolated``. To work around that, set the ``RESILIPARSE_VCPKG_PATH`` environment variable to the absolute path of the vcpkg installation directory:
