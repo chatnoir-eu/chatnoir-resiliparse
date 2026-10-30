@@ -16,11 +16,11 @@ def test_matchfiles():
         count = (pipeline
                  | fileio.MatchFiles(os.path.join(DATA_DIR, 'warcfile*'), shuffle=False)
                  | beam.combiners.Count.Globally())
-        assert_that(count, equal_to([3]))
+        assert_that(count, equal_to([6]))
 
     # Match with shuffle
     with TestPipeline() as pipeline:
         count = (pipeline
                  | fileio.MatchFiles(os.path.join(DATA_DIR, 'warcfile*'), shuffle=True)
                  | beam.combiners.Count.Globally())
-        assert_that(count, equal_to([3]))
+        assert_that(count, equal_to([6]))
