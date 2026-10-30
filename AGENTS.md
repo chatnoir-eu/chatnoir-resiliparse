@@ -115,6 +115,9 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 ## Writing Tests
 
 - All code paths must have test coverage.
+- When asked to write tests, do not just make the current behaviour green. Reason whether the shown behaviour makes
+  sense (based on documentation, function naming, or common sense) and ask back when you believe to have found a bug.
+- Do not automatically fix bugs found that way, unless they are absolutely obvious.
 - Bug fixes need dedicated regression tests.
 - Functionality tests should be done in Rust tests.
 - Keep tests short and focussed. Every test must have a purpose.
@@ -150,7 +153,13 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   Rust implementation should be made.
 - Vice versa, Rust documentation should not mention Python-specific behaviour.
 - Python API documentation is included via `autodoc` in `docs/api`. New Python modules must be registered there.
-- All public members must be documented with informative (but not verbose) RustDoc comments. The minimal structure is:
+- All public modules must be documented with a short one-liner (that should not wrap in the module list on docs.rs),
+  followed by a blank line and an appropriately sized detailed description. The description should give a rough
+  overview of the module and provide general usage information, potentially with code examples.
+- For modules, the description should go beyond mere API documentation, but remain concise and to the point.
+- All public members must be documented with informative (but not verbose) RustDoc comments. The format
+  is the same: short one-liner, blank line, description.
+- Methods must have their arguments and return values documented. The minimal structure for:
   ```
   /// Short one-liner summary.
   ///
