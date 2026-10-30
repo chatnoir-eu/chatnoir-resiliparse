@@ -25,5 +25,10 @@ pub mod tree;
 mod lexbor;
 mod serialize;
 
+// ===========================================================
+// Tests
+// ===========================================================
+
 #[cfg(test)]
-mod test;
+#[path = "mod_test.rs"]
+mod mod_test;

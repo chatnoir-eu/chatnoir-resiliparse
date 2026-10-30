@@ -594,40 +594,10 @@ pub fn extract_plain_text(tree: &HtmlTree, opts: &ExtractOptions) -> Result<Stri
     Ok(serialize(nodes, opts))
 }
 
+// ===========================================================
+// Tests
+// ===========================================================
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn extract(html: &str, opts: ExtractOptions) -> String {
-        let tree = HtmlTree::parse(html).unwrap();
-        extract_plain_text(&tree, &opts).unwrap()
-    }
-
-    #[test]
-    fn formatting_links_forms_and_alternative_text() {
-        let html = "<p>Hello <a href='/there'>world</a></p><img alt='picture'><input value='name'>";
-        let mut opts = ExtractOptions::default();
-        opts.links = true;
-        opts.form_fields = true;
-        assert_eq!(extract(html, opts), "Hello world (/there)\n\npicture[ name ]");
-    }
-
-    #[test]
-    fn compact_formatting_and_skip_selectors() {
-        let html = "<div> one   two </div><nav>skip me</nav><p>three</p>";
-        let mut opts = ExtractOptions::default();
-        opts.formatting = Formatting::Off;
-        opts.skip_elements = vec!["nav".into()];
-        assert_eq!(extract(html, opts), "one two three");
-    }
-
-    #[test]
-    fn minimal_html_and_main_content() {
-        let html =
-            "<body><header>Header</header><article><h1>Title</h1><p>Story</p></article><footer>Footer</footer></body>";
-        let mut opts = ExtractOptions::default();
-        opts.main_content = true;
-        opts.formatting = Formatting::MinimalHtml;
-        assert_eq!(extract(html, opts), "Header\n\n<h1>Title</h1>\n\n<p>Story</p>");
-    }
-}
+#[path = "html2text_test.rs"]
+mod html2text_test;

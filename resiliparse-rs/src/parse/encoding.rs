@@ -357,6 +357,10 @@ pub fn detect_mime(data: &[u8], max_unprintable: f32) -> &'static str {
     "text/plain"
 }
 
+// ===========================================================
+// Tests
+// ===========================================================
+
 #[cfg(test)]
 #[path = "encoding_test.rs"]
-mod tests;
+mod encoding_test;

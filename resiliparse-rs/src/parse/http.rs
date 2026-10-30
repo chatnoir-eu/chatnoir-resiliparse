@@ -171,26 +171,10 @@ pub fn iterate_http_chunks<R: BufRead>(mut reader: R) -> impl Iterator<Item = io
     })
 }
 
+// ===========================================================
+// Tests
+// ===========================================================
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Cursor;
-
-    #[test]
-    fn binary_chunks_and_extensions_preserve_payload_bytes() {
-        let mut reader = Cursor::new(b"3;extension=x\r\n\0\xff\x80\r\n1\r\nx\r\n0\r\n\r\ntrailer");
-        let chunks = iterate_http_chunks(&mut reader)
-            .collect::<io::Result<Vec<_>>>()
-            .unwrap();
-        assert_eq!(chunks, [vec![0, 255, 128], b"x".to_vec()]);
-        assert_eq!(&reader.get_ref()[reader.position() as usize..], b"trailer");
-    }
-
-    #[test]
-    fn short_chunk_and_invalid_header_stop_without_fabricating_bytes() {
-        assert_eq!(read_http_chunk(&mut Cursor::new(b"5\r\nabc")).unwrap(), b"abc");
-        let mut reader = Cursor::new(b"invalid\r\nbody");
-        assert!(read_http_chunk(&mut reader).unwrap().is_empty());
-        assert_eq!(&reader.get_ref()[reader.position() as usize..], b"dy");
-    }
-}
+#[path = "http_test.rs"]
+mod http_test;
