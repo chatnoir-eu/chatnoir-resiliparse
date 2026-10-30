@@ -89,8 +89,6 @@ the directory containing the platform triplet directories:
 Alternatively, set ``RESILIPARSE_USE_SYSTEM_LIBS=1`` to skip vcpkg and use system headers and shared libraries. Make
 their include and library directories available to the compiler and linker.
 
-.. note::
-
-    Native vcpkg builds statically link their libraries. Linux manylinux wheel builds use libraries from the build image
-    and bundle them into the wheel. Installed wheels therefore do not need the build-time ``vcpkg_installed`` directory.
-    Custom builds using ``RESILIPARSE_USE_SYSTEM_LIBS=1`` must provide those libraries at runtime.
+Set ``RESILIPARSE_STATIC_LIBS=1`` as well to link system libraries statically instead. Their static archives must be
+available to rustc; use ``RUSTFLAGS="-L native=/path/to/lib"`` for non-standard library directories. The C++ runtime remains
+dynamically linked on Linux and macOS. The Docker image enables static system libraries by default.

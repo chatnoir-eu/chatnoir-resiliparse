@@ -104,10 +104,14 @@ fn generate_native_bindings(out_dir: &std::path::Path) {
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-changed=vcpkg.json");
     println!("cargo:rerun-if-env-changed=RESILIPARSE_USE_SYSTEM_LIBS");
+    println!("cargo:rerun-if-env-changed=RESILIPARSE_STATIC_LIBS");
 
     let manifest: serde_json::Value = serde_json::from_str(include_str!("vcpkg.json")).expect("Invalid vcpkg manifest");
     let is_docs_rs = env::var_os("DOCS_RS").is_some();
     let vcpkg_dir = if is_docs_rs { None } else { get_vcpkg_dir() };
+    // vcpkg deps are always linked statically
+    let link_static = vcpkg_dir.is_some()
+        || env::var("RESILIPARSE_STATIC_LIBS").is_ok_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
 
     for dependency in manifest["dependencies"].as_array().unwrap() {
         let Some(settings) = dependency.get("$bindgen") else {
@@ -124,8 +128,7 @@ fn generate_native_bindings(out_dir: &std::path::Path) {
             continue;
         }
 
-        // vcpkg dependencies are linked statically.
-        if vcpkg_dir.is_some() {
+        if link_static {
             println!("cargo:rustc-link-lib=static={dependency_name}");
         } else {
             println!("cargo:rustc-link-lib={dependency_name}");
@@ -148,6 +151,8 @@ fn generate_native_bindings(out_dir: &std::path::Path) {
     }
     if let Some(vcpkg_dir) = vcpkg_dir {
         println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.display());
+    }
+    if link_static && !is_docs_rs {
         match env::var("CARGO_CFG_TARGET_OS").as_deref() {
             Ok("linux") => println!("cargo:rustc-link-lib=dylib=stdc++"),
             Ok("macos") => println!("cargo:rustc-link-lib=dylib=c++"),

@@ -37,6 +37,10 @@ use an existing vcpkg installation directory containing the platform triplet dir
 `RESILIPARSE_USE_SYSTEM_LIBS=1` to use system headers and shared libraries. Those libraries must also be available at
 runtime.
 
+Set `RESILIPARSE_STATIC_LIBS=1` as well to link system libraries statically instead. Their static archives must be
+available to rustc; use `RUSTFLAGS="-L native=/path/to/lib"` for non-standard library directories. The C++ runtime remains
+dynamically linked on Linux and macOS. The Docker image enables static system libraries by default.
+
 ## Using Resiliparse as a Library
 
 Add Resiliparse to your project's `Cargo.toml`:

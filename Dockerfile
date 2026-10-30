@@ -27,8 +27,8 @@ RUN set -x \
     && /opt/vcpkg/bootstrap-vcpkg.sh \
     && (cd /tmp/build \
         && case "$(uname -m)" in \
-                x86_64) triplet=x64-linux-dynamic ;; \
-                aarch64) triplet=arm64-linux-dynamic ;; \
+                x86_64) triplet=x64-linux ;; \
+                aarch64) triplet=arm64-linux ;; \
                 *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
             esac \
         && /opt/vcpkg/vcpkg install --triplet=${triplet} --x-install-root=/tmp/build/vcpkg_installed \
@@ -37,9 +37,9 @@ RUN set -x \
     && rm -rf /tmp/build
 
 ENV RESILIPARSE_USE_SYSTEM_LIBS="1"
+ENV RESILIPARSE_STATIC_LIBS="1"
 ENV CPATH="/opt/libs/include"
-ENV LIBRARY_PATH="/opt/libs/lib"
-ENV LD_LIBRARY_PATH="/opt/libs/lib"
+ENV RUSTFLAGS="-L native=/opt/libs/lib"
 
 ENV RUSTUP_HOME=/opt/rust/rustup
 ENV CARGO_HOME=/opt/rust/cargo
