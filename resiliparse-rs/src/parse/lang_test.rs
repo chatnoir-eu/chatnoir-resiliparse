@@ -91,3 +91,46 @@ fn language_detection_and_training() {
     assert_eq!(train_language_examples(["a \t\n b"], 8), train_language_examples(["a b"], 8));
     assert_ne!(train_language_examples(["A a"], 8), train_language_examples(["a a"], 8));
 }
+
+#[test]
+fn incremental_vectors_and_dimensions() {
+    let text = "A α\u{2003}中!B";
+    let mut vector = LanguageVector::new(512).unwrap();
+    for c in text.chars() {
+        vector.push_codepoint(c as u32);
+    }
+    let result = vector.finish();
+    // Extra bins do not change the 256-bin profile and must remain zero.
+    assert_eq!(&result[..256], language_vector(text, 256).unwrap());
+    assert_eq!(&result[256..], &[0; 256]);
+    assert_eq!(language_vector("!?123", 8).unwrap(), [0; 8]);
+    assert_eq!(LanguageVector::new(8).unwrap().finish(), [0; 8]);
+    assert!(LanguageTrainer::new(0).is_err());
+    assert!(LanguageTrainer::new(8).unwrap().finish().is_err());
+}
+
+#[test]
+fn ranking_limits_and_order() {
+    let vector: [u8; 256] = language_vector("A long English article about language detection.", 256)
+        .unwrap()
+        .try_into()
+        .unwrap();
+    // Request every profile to exercise heap ordering beyond the single-best path.
+    let ranked = rank_vector(&vector, 200, usize::MAX, usize::MAX, None);
+    assert_eq!(ranked.len(), supported_langs().len());
+    assert!(ranked.windows(2).all(|pair| pair[0].rank <= pair[1].rank));
+    let unique: std::collections::HashSet<_> = ranked.iter().map(|item| item.language).collect();
+    assert_eq!(unique.len(), ranked.len());
+    assert!(rank_vector(&vector, 200, usize::MAX, 0, None).is_empty());
+    let filtered = rank_vector(&vector, 200, usize::MAX, 10, Some(&["en", "de", "unknown"]));
+    // Filter order, duplicates, and unsupported codes must not change the ranking.
+    let reversed = rank_vector(&vector, 200, usize::MAX, 10, Some(&["de", "en", "en"]));
+    assert_eq!(filtered, reversed);
+    assert_eq!(filtered.len(), 2);
+    // A cutoff equal to the best rank includes it; lowering the cutoff by one excludes it.
+    let best = ranked[0];
+    assert_eq!(rank_vector(&vector, 200, best.rank as usize, 1, None), [best]);
+    if best.rank > 0 {
+        assert!(rank_vector(&vector, 200, best.rank as usize - 1, 1, None).is_empty());
+    }
+}

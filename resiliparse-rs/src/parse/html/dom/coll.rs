@@ -903,3 +903,11 @@ impl From<DomTokenList<'_>> for DomTokenListOwned {
         Self::new(value.element.clone())
     }
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "coll_test.rs"]
+mod coll_test;

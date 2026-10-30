@@ -88,3 +88,44 @@ fn mime_detection_covers_common_document_signatures() {
         assert_eq!(detect_mime(bytes, 0.05), expected);
     }
 }
+
+#[test]
+fn meta_declarations_ignore_invalid_utf8() {
+    // Discard malformed bytes, including a truncated sequence, without losing valid text.
+    assert_eq!(html_meta_label(b"<meta charset='ut\xfff-8'>").as_deref(), Some("utf-8"));
+    assert_eq!(utf8_ignore(b"A\xffB\xe2\x82"), "AB");
+    assert_eq!(html_meta_label(b"<meta name='description' content='charset=utf-8'>"), None);
+    assert_eq!(
+        html_meta_label(
+            b"<!--<meta charset=utf-8>--><meta http-equiv=content-type content='text/html; charset=windows-1251'>"
+        )
+        .as_deref(),
+        Some("windows-1251")
+    );
+    // Prescanning returns the first declaration even when its label is unsupported.
+    assert_eq!(html_meta_label(b"<meta charset=unknown><meta charset=utf-8>").as_deref(), Some("unknown"));
+}
+
+#[test]
+fn detection_samples_both_ends() {
+    // The sampled ends contain UTF-8; the invalid middle must not reach the detector.
+    let edge = "Zażółć gęślą jaźń. ".repeat(8);
+    let mut data = edge.as_bytes().to_vec();
+    data.extend_from_slice(&[0xff; 32]);
+    data.extend_from_slice(edge.as_bytes());
+    // Odd limits round each half up, so both limits select the same bytes.
+    for limit in [edge.len() * 2 - 1, edge.len() * 2] {
+        assert_eq!(detect_encoding(&data, limit).as_deref(), Some("UTF-8"));
+    }
+    assert_eq!(detect_encoding(b"", 0).as_deref(), Some(""));
+}
+
+#[test]
+fn xml_mime_subtypes() {
+    assert_eq!(
+        detect_mime(b"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\">", 0.05),
+        "application/xhtml+xml"
+    );
+    assert_eq!(detect_mime(b"<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg'>", 0.05), "image/svg+xml");
+    assert_eq!(detect_mime(b"<?xml version='1.0'?><root/>", 0.05), "application/xml");
+}

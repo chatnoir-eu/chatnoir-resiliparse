@@ -202,3 +202,11 @@ fn collapse_whitespace(s: &str) -> String {
         })
         .collect()
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "serialize_test.rs"]
+mod serialize_test;
