@@ -15,7 +15,6 @@
 import importlib
 
 _native = importlib.import_module("._fastwarc", __name__)
-_legacy_shims = importlib.import_module(".legacy._shims", __name__)
 
 import fastwarc.stream_io as stream_io  # noqa: F401
 import fastwarc.warc as warc  # noqa: F401
@@ -23,22 +22,4 @@ import fastwarc.warc as warc  # noqa: F401
 # Re-export module attributes
 globals().update({attr: getattr(_native, attr) for attr in _native.__all__})
 
-# Patch legacy shims onto stream_io
-for name in _legacy_shims.__all__:
-    setattr(stream_io, name, getattr(_legacy_shims, name))
-stream_io.__all__ += getattr(_legacy_shims, "__all__", ())  # type: ignore[attr-defined]
-
-FileStream = _legacy_shims.FileStream
-GZipStream = _legacy_shims.GZipStream
-LZ4Stream = _legacy_shims.LZ4Stream
-FastWARCError = _legacy_shims.FastWARCError
-StreamError = _legacy_shims.StreamError
-
-__all__ = [
-    *_native.__all__,
-    'FileStream',
-    'GZipStream',
-    'LZ4Stream',
-    'FastWARCError',
-    'StreamError',
-]
+__all__ = list(_native.__all__)

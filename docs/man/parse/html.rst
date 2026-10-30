@@ -63,7 +63,7 @@ The document root element node can be accessed through the :attr:`.HTMLTree.docu
 
 These element selectors behave just like you would expect from other languages or libraries and return either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The exception is :meth:`~.ElementNode.matches`, which returns a boolean value indicating whether the element itself matches the given CSS selector, following DOM ``Element.matches()`` semantics. In addition to these standard DOM functions, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names and values.
 
-.. versionchanged:: 1.2.0
+.. versionchanged:: 2.0.0
 
    ``node.matches(selector)`` checks the element itself instead of searching its
    descendants. To retain the previous descendant-search behavior, use
@@ -136,7 +136,7 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     # >>> {<span class="bar baz">}
 
 
-.. versionchanged:: 1.2.0
+.. versionchanged:: 2.0.0
 
    ``collection.matches(selector)`` checks whether any of the collection's
    elements themselves match, instead of searching their descendants. Use

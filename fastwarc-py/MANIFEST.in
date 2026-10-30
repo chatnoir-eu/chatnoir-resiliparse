@@ -1,4 +1,1 @@
-recursive-include fastwarc *.rs Cargo.toml Cargo.lock *.pyx *.pxd *.h
-recursive-exclude fastwarc *.cpp
-graft resiliparse_common
-graft resiliparse_inc
+recursive-include fastwarc *.rs Cargo.toml Cargo.lock *.h

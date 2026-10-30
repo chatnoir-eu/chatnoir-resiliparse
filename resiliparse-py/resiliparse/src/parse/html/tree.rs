@@ -115,8 +115,8 @@ impl HTMLTreePy {
     /// A missing or empty HTML title element returns ``None``. Whitespace-only
     /// title text is normalized to an empty string by the parser.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Return ``None`` instead of an empty string for missing or empty title elements.
+    /// .. versionchanged:: 2.0.0
+    ///    Returns ``None`` instead of an empty string for missing or empty title elements.
     ///
     /// :type: str or None
     #[getter]

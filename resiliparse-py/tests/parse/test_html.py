@@ -3,7 +3,6 @@ import pytest
 import html as pyhtml
 
 from fastwarc.warc import ArchiveIterator, WarcRecordType
-from fastwarc.stream_io import FileStream
 from resiliparse.parse.encoding import detect_encoding
 from resiliparse.parse.html import *
 

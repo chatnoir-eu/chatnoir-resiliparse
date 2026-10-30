@@ -3,9 +3,9 @@ requires = [
     "setuptools>=77.0",
     "packaging>=24.2",
     "setuptools-rust>=1.10",
-    "Cython>=0.29.33",
     "tomli>=2.0.0; python_version < '3.11'",
-    "tomli-w>=1.1.0"]
+    "tomli-w>=1.1.0",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -51,7 +51,7 @@ fastwarc = "fastwarc.cli:main"
 include-package-data = false
 
 [tool.setuptools.packages.find]
-include = ["fastwarc", "fastwarc.legacy"]
+include = ["fastwarc"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
@@ -65,8 +65,7 @@ test-extras = ["all", "test"]
 [tool.mypy]
 exclude = [
     "fastwarc/cli\\.py",
-    "fastwarc/legacy/.*",
-    "fastwarc-pytest/.*",
+    "tests/.*",
 ]
 
 [[tool.mypy.overrides]]

@@ -69,15 +69,13 @@ def _serialize_records(*records: WarcRecord) -> io.BytesIO:
     return stream
 
 
-def test_package_reexports_and_legacy_shims():
+def test_package_reexports():
     assert WarcRecord is WarcRecord
     assert HeaderMap is HeaderMap
     assert WarcHeaderMap is HeaderMap
-    assert FileStream is FileStream
-    assert GZipStream is GZipStream
-    assert LZ4Stream is LZ4Stream
-    assert "FileStream" in fastwarc.__all__
-    assert "GZipStream" in fastwarc.stream_io.__all__
+    assert ArchiveIterator is fastwarc.ArchiveIterator
+    assert "ArchiveIterator" in fastwarc.__all__
+    assert "GzipReader" in fastwarc.stream_io.__all__
 
 
 def test_warc_record_type_binary_operators():

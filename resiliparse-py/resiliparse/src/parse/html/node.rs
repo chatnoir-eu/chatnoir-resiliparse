@@ -493,8 +493,8 @@ impl NodePy {
     ///
     /// The text can be changed by assigning to this property.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Return ``None`` instead of an empty string when text content is unavailable.
+    /// .. versionchanged:: 2.0.0
+    ///    Returns ``None`` instead of an empty string when text content is unavailable.
     ///
     /// :type: str or None
     #[getter]
@@ -514,8 +514,8 @@ impl NodePy {
     ///
     /// The text can be changed by assigning to this property.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Return ``None`` instead of an empty string when text content is unavailable.
+    /// .. versionchanged:: 2.0.0
+    ///    Returns ``None`` instead of an empty string when text content is unavailable.
     ///
     /// :type: str or None
     #[getter]
@@ -784,8 +784,8 @@ impl ElementNodePy {
     /// ID attribute of this element, or ``None`` if the attribute is absent.
     /// An existing attribute with an empty value returns an empty string.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Return ``None`` instead of an empty string when the attribute is absent.
+    /// .. versionchanged:: 2.0.0
+    ///    Returns ``None`` instead of an empty string when the attribute is absent.
     ///
     /// :type: str or None
     #[getter]
@@ -804,8 +804,8 @@ impl ElementNodePy {
     /// Class name attribute of this element, or ``None`` if the attribute is absent.
     /// An existing attribute with an empty value returns an empty string.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Return ``None`` instead of an empty string when the attribute is absent.
+    /// .. versionchanged:: 2.0.0
+    ///    Returns ``None`` instead of an empty string when the attribute is absent.
     ///
     /// :type: str or None
     #[getter]
@@ -977,11 +977,9 @@ impl ElementNodePy {
 
     /// Return whether this element matches the selector.
     ///
-    /// .. versionchanged:: 1.2.0
-    ///    Follow DOM ``Element.matches()`` semantics by testing the element itself.
-    ///
-    /// .. warning::
-    ///    Before 1.2.0, this method searched descendants. To preserve that behavior,
+    /// .. versionchanged:: 2.0.0
+    ///    Now follows DOM ``Element.matches()`` semantics by testing the element itself.
+    ///    Before 2.0.0, this method searched descendants. To preserve that behavior,
     ///    use ``node.query_selector(selectors) is not None``.
     ///
     /// :param selectors: CSS selector expression.

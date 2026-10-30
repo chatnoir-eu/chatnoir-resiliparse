@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=77.0", "packaging>=24.2", "Cython>=0.29.33", "setuptools-rust>=1.10"]
+requires = [
+    "setuptools>=77.0",
+    "packaging>=24.2",
+    "setuptools-rust>=1.10",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "tomli-w>=1.1.0",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -71,16 +77,9 @@ test-extras = ["all", "test"]
 exclude = [
     "resiliparse/cli\\.py",
     "resiliparse/beam/.*",
-    "resiliparse/itertools\\.py", # itertools includes legacy FastWARC
-    "resiliparse/legacy/.*",
-    "resiliparse-pytest/.*",
+    "tests/.*",
 ]
 
 [[tool.mypy.overrides]]
 module = ["apache_beam.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["resiliparse.legacy.*"]
-follow_imports = "skip"
 ignore_missing_imports = true

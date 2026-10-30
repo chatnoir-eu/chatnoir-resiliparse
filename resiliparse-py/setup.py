@@ -12,133 +12,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import os
-import platform
-import shutil
 import sys
+from pathlib import Path
 
-from Cython.Build import cythonize
-from Cython.Distutils.build_ext import new_build_ext as build_ext
-from setuptools import Extension, setup
+from setuptools import setup
+from setuptools.command.sdist import sdist
 from setuptools_rust import Binding, RustExtension
+import tomli_w
 
-TRACE = bool(int(os.getenv('TRACE', 0)))
-DEBUG = bool(int(os.getenv('DEBUG', 0))) or TRACE
-ASAN = bool(int(os.getenv('ASAN', 0)))
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
-ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+DEBUG = bool(int(os.getenv('DEBUG', 0)))
 
-
-class resiliparse_build_ext(build_ext):
-    def build_extension(self, ext):
-        for k, v in self.get_cpp_args().items():
-            setattr(ext, k, v)
-        return super().build_extension(ext)
-
-    def get_vcpkg_path(self):
-        osname = platform.system().lower().replace('darwin', 'osx')
-        arch = platform.machine().lower()
-        if os.environ.get('_PYTHON_HOST_PLATFORM', '').startswith('macosx-'):
-            arch = os.environ['_PYTHON_HOST_PLATFORM'].split('-')[-1]
-        arch = arch.replace('x86_64', 'x64').replace('amd64', 'x64').replace('aarch64', 'arm64')
-        triplet = f'{arch}-{osname}'
-
-        if os.environ.get('RESILIPARSE_VCPKG_PATH'):
-            return os.path.join(os.environ['RESILIPARSE_VCPKG_PATH'], triplet)
-        return os.path.join(os.path.dirname(ROOT_DIR), 'vcpkg_installed', triplet)
-
-    def get_cpp_args(self):
-        include_path = os.path.join(self.get_vcpkg_path(), 'include')
-        library_path = os.path.join(self.get_vcpkg_path(), 'lib')
-        cpp_args = {}
-
-        if TRACE:
-            cpp_args.update(dict(define_macros=[('CYTHON_TRACE_NOGIL', '1')]))
-
-        if self.compiler.compiler_type == 'unix':
-            cpp_args.update(dict(
-                extra_compile_args=['-std=c++17',
-                                    f'-O{0 if DEBUG else 3}',
-                                    f'-I{include_path}',
-                                    '-Wall',
-                                    '-Wno-deprecated-declarations',
-                                    '-Wno-unreachable-code',
-                                    '-Wno-unused-function'],
-                extra_link_args=['-std=c++17', f'-L{library_path}', f'-Wl,-rpath,{library_path}']
-            ))
-            if DEBUG:
-                cpp_args['extra_compile_args'].append('-Werror')
-            if ASAN:
-                cpp_args['extra_compile_args'].append('-fsanitize=address')
-                cpp_args['extra_link_args'].append('-fsanitize=address')
-            if platform.system() == 'Darwin':
-                cpp_args['extra_link_args'].append('-headerpad_max_install_names')
-
-        elif self.compiler.compiler_type == 'msvc':
-            cpp_args.update(dict(
-                extra_compile_args=['/std:c++latest',
-                                    '/W3',
-                                    f'/O{"d" if DEBUG else 2}',
-                                    f'/I{include_path}'],
-                extra_link_args=[f'/LIBPATH:{library_path}']
-            ))
-            if DEBUG:
-                cpp_args['extra_compile_args'].append('/WX')
-                cpp_args['extra_link_args'].append('/WX')
-
-        return cpp_args
+ROOT_DIR = Path(__file__).parent.absolute()
 
 
-def get_cython_args():
-    return dict(
-        annotate=DEBUG,
-        gdb_debug=DEBUG,
-        nthreads=os.cpu_count(),
-        compiler_directives=dict(
-            language_level='3',
-            linetrace=TRACE,
-            initializedcheck=DEBUG,
-            boundscheck=DEBUG,
-            cdivision=True
-        )
-    )
+class resiliparse_sdist(sdist):
+    def make_release_tree(self, base_dir, files):
+        super().make_release_tree(base_dir, files)
+        base_dir = Path(base_dir)
+        crate_name = base_dir.name.split('-', 1)[0]
+        workspace_manifest = ROOT_DIR.parent / 'Cargo.toml'
+        crate_manifest = base_dir / crate_name / 'Cargo.toml'
+        self.inline_workspace_dependencies(workspace_manifest, crate_manifest)
 
+    @staticmethod
+    def inline_workspace_dependencies(workspace_manifest, crate_manifest) -> None:
+        workspace = tomllib.loads(workspace_manifest.read_text())
+        crate = tomllib.loads(crate_manifest.read_text())
+        workspace_deps = workspace.get('workspace', {}).get('dependencies', {})
+        workspace_package = workspace.get('workspace', {}).get('package', {})
 
-def get_ext_modules():
-    resiliparse_extensions = [
-        Extension('resiliparse.legacy.itertools',
-                  sources=['resiliparse/legacy/itertools.pyx']),
-        Extension('resiliparse.legacy.extract.html2text',
-                  sources=['resiliparse/legacy/extract/html2text.pyx'], libraries=['lexbor', 're2']),
-        Extension('resiliparse.legacy.parse.encoding',
-                  sources=['resiliparse/legacy/parse/encoding.pyx'], libraries=['uchardet', 'lexbor']),
-        Extension('resiliparse.legacy.parse.html',
-                  sources=['resiliparse/legacy/parse/html.pyx'], libraries=['lexbor']),
-        Extension('resiliparse.legacy.parse.http',
-                  sources=['resiliparse/legacy/parse/http.pyx']),
-        Extension('resiliparse.legacy.parse.lang',
-                  sources=['resiliparse/legacy/parse/lang.pyx']),
-    ]
-    if os.name == 'posix':
-        # Process Guards are unsupported on Windows
-        resiliparse_extensions.append(
-            Extension('resiliparse.legacy.process_guard', sources=['resiliparse/legacy/process_guard.pyx'],
-                      libraries=['pthread'])
-        )
+        for name, value in crate['package'].items():
+            if isinstance(value, dict) and value.get('workspace') is True:
+                crate['package'][name] = workspace_package[name]
+        for section in ('dependencies', 'dev-dependencies', 'build-dependencies'):
+            dependencies = crate.get(section, {})
+            for name, spec in list(dependencies.items()):
+                if name in ('fastwarc', 'resiliparse'):
+                    dependencies[name] = workspace_package['version']
+                elif isinstance(spec, dict) and spec.get('workspace') is True:
+                    dependencies[name] = workspace_deps[name]
 
-    return cythonize(resiliparse_extensions, **get_cython_args())
-
+        crate['workspace'] = {}
+        crate_manifest.write_text(tomli_w.dumps(crate))
 
 def main():
-    # Copy FastWARC headers
-    fastwarc_headers = glob.glob(os.path.join(ROOT_DIR, '..', 'fastwarc-py', 'fastwarc', 'legacy', "*.pxd"))
-    if fastwarc_headers:
-        os.makedirs(os.path.join(ROOT_DIR, 'fastwarc', 'legacy'), exist_ok=True)
-        [shutil.copy2(f, os.path.join(ROOT_DIR, 'fastwarc', 'legacy')) for f in fastwarc_headers]
-
     setup(
-        ext_modules=get_ext_modules(),
         rust_extensions=[
             RustExtension(
                 target='resiliparse._resiliparse',
@@ -147,9 +71,9 @@ def main():
                 debug=DEBUG,
             )
         ],
-        cmdclass=dict(build_ext=resiliparse_build_ext),
+        cmdclass=dict(sdist=resiliparse_sdist),
         exclude_package_data={
-            '': [] if 'sdist' in sys.argv else ['*.pxd', '*.pxi', '*.pyx', '*.h', '*.cpp']
+            '': [] if 'sdist' in sys.argv else ['*.h', '*.cpp']
         }
     )
 

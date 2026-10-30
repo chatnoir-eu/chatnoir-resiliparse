@@ -28,7 +28,7 @@ import apache_beam.transforms.window as window
 import boto3
 import botocore.client as boto_client
 
-from fastwarc.legacy.warc import ArchiveIterator
+from fastwarc.warc import ArchiveIterator
 from resiliparse.beam.fileio import MatchFiles
 from resiliparse.itertools import warc_retry
 

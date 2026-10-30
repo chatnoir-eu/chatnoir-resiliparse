@@ -21,12 +21,6 @@ from .stream_io import (
     Lz4Reader,
     Lz4Writer,
 
-    # Legacy names
-    FileStream,
-    GZipStream,
-    LZ4Stream,
-    FastWARCError,
-    StreamError,
 )
 
 __all__ = [
@@ -41,10 +35,4 @@ __all__ = [
     'Lz4Reader',
     'Lz4Writer',
 
-    # Legacy names
-    'FileStream',
-    'GZipStream',
-    'LZ4Stream',
-    'FastWARCError',
-    'StreamError',
 ]

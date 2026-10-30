@@ -17,9 +17,6 @@ from types import TracebackType
 from typing import BinaryIO, ContextManager, Protocol, Type, Self
 from typing_extensions import disjoint_base
 
-# Legacy shims
-from .legacy._shims import *
-
 __all__ = [
     'WarcReader',
     'WarcWriter',
@@ -37,20 +34,6 @@ __all__ = [
     'zstd_train_dictionary_from_files',
     'zstd_train_dictionary_from_samples',
 
-    # Legacy names
-    'BrotliStream',
-    'BufferedReader',
-    'BytesIOStream',
-    'CompressingStream',
-    'FastWARCError',
-    'FileStream',
-    'GZipStream',
-    'IOStream',
-    'LZ4Stream',
-    'PythonIOStreamAdapter',
-    'ReaderStaleError',
-    'StreamError',
-    'wrap_stream'
 ]
 
 
