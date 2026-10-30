@@ -119,6 +119,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
 ## Coding Style
 
+- Sources files must start with an Apache-2.0 license header.
 - Rust source files must be formatted with `rustfmt`.
 - Names with all-caps abbreviations use pure `PascalCase` in Rust, but `CAPSCase` in Python.
 - PyO3 binding structs and enums have the suffix `Py` and set their Python-visible names (without `Py`) via
