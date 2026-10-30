@@ -1,7 +1,7 @@
 # ChatNoir Resiliparse
 
-A collection of robust and fast processing tools for parsing and analyzing web archive data written in Rust and
-Cython/C++ with bindings for Python.
+A collection of robust and fast processing tools for parsing and analyzing web archive data written in Rust with
+bindings for Python.
 
 Resiliparse is a part of the [ChatNoir web analytics toolkit](https://github.com/chatnoir-eu/).
 

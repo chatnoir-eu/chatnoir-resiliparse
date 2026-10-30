@@ -17,17 +17,35 @@
 
 import json
 from pathlib import Path
-import tomllib
 import re
+import tomllib
 from subprocess import run
 
 base_path = Path(__file__).parent
 cargo_ver = tomllib.load(open(base_path / 'Cargo.toml', 'rb'))['workspace']['package']['version']
 
-print(f'Updating Python package versions to {cargo_ver}.')
+print(f'Updating Python package and dependency versions to {cargo_ver}.')
 
-run(['poetry', 'version', '--project=fastwarc-py', cargo_ver], check=True, cwd=base_path)
-run(['poetry', 'version', '--project=resiliparse-py', cargo_ver], check=True, cwd=base_path)
+
+def sync_path_dependency_versions(manifest: Path) -> int:
+    content = manifest.read_text()
+    pattern = r'(?m)^(\s*[\w.-]+\s*=\s*\{[^{}\n]*\bpath\s*=\s*"[^"]+"[^{}\n]*\})'
+
+    def update_dependency(match: re.Match) -> str:
+        dependency = match.group(1)
+        version_pattern = r'\bversion\s*=\s*"[^"]+"'
+        if re.search(version_pattern, dependency):
+            return re.sub(version_pattern, f'version = "{cargo_ver}"', dependency, count=1)
+        return re.sub(r'\{\s*', f'{{ version = "{cargo_ver}", ', dependency, count=1)
+
+    updated, replacements = re.subn(pattern, update_dependency, content)
+    if updated != content:
+        manifest.write_text(updated)
+    return replacements
+
+
+for manifest in base_path.rglob('Cargo.toml'):
+    sync_path_dependency_versions(manifest)
 
 with open(base_path / 'vcpkg.json', 'r') as f:
     vcpkg_json = json.load(f)
@@ -36,7 +54,7 @@ with open(base_path / 'vcpkg.json', 'w') as f:
     json.dump(vcpkg_json, f, ensure_ascii=False, indent=2)
     f.write('\n')
 
-# Patch fastwarc dependency (cannot use `poetry add` for this if fastwarc is not yet published)
+# Keep the Python FastWARC requirement in sync with the workspace version.
 with open(base_path / 'resiliparse-py/pyproject.toml', 'r') as f:
     resiliparse_toml = f.read()
 with open(base_path / 'resiliparse-py/pyproject.toml', 'w') as f:

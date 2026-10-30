@@ -1,1 +1,0 @@
-recursive-include fastwarc *.rs Cargo.toml Cargo.lock *.h

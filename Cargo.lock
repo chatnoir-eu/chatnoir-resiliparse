@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-py"
-version = "0.0.0"
+version = "2.0.0"
 dependencies = [
  "fastwarc",
  "pyo3",
@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "resiliparse-py"
-version = "0.0.0"
+version = "2.0.0"
 dependencies = [
  "libc",
  "pyo3",

@@ -1,5 +1,6 @@
 [package]
 name = "resiliparse-py"
+version.workspace = true
 edition.workspace = true
 publish = false
 
@@ -8,6 +9,6 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-resiliparse = { path = "../../resiliparse-rs" }
+resiliparse = { version = "2.0.0", path = "../../resiliparse-rs" }
 pyo3 = { workspace = true, features = ["extension-module"] }
 libc = "0.2"
