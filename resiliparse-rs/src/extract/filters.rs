@@ -419,3 +419,11 @@ pub(super) fn is_main_content(node: &Node, depth: usize, opts: &ExtractOptions) 
     }
     !(depth > 2 && name == "div" && link_cluster(node, 0.6, 1500))
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "filters_test.rs"]
+mod filters_test;

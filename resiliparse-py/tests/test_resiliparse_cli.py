@@ -1,9 +1,30 @@
+# Copyright 2026 Janek Bevendorff
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import ast
+import builtins
+import hashlib
+import io
+import json
 import os
+import runpy
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import pytest
 
@@ -157,3 +178,225 @@ def test_cli_training_failure_preserves_output(tmp_path):
     assert result.exit_code == 1
     assert 'pub(super)' not in result.output
     assert target.read_text(encoding='utf-8') == 'existing model'
+
+
+@pytest.mark.parametrize('dependency', ['click', 'tqdm', 'joblib'])
+def test_cli_missing_dependencies(monkeypatch, dependency, capsys):
+    native_import = builtins.__import__
+
+    def import_module(name, *args, **kwargs):
+        if name == dependency:
+            raise ModuleNotFoundError(name)
+        return native_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, '__import__', import_module)
+    if dependency == 'click':
+        with pytest.raises(SystemExit, match='1'):
+            runpy.run_path(cli.__file__)
+        assert 'Missing dependency: click' in capsys.readouterr().err
+    else:
+        module = runpy.run_path(cli.__file__)
+        result = CliRunner().invoke(module['main'], ['lang'])
+        assert result.exit_code == 1
+        assert 'Missing CLI dependencies!' in result.output
+        assert 'resiliparse[cli]' in result.output
+
+
+def test_cli_module_entry_point(monkeypatch, capsys):
+    monkeypatch.setattr(sys, 'argv', ['resiliparse', '--help'])
+    with pytest.raises(SystemExit, match='0'):
+        runpy.run_path(cli.__file__, run_name='__main__')
+    assert 'Resiliparse Command Line Interface' in capsys.readouterr().out
+
+
+def test_cli_encoding_mapping(monkeypatch):
+    encodings = [{'encodings': [
+        {'name': 'UTF-8', 'labels': ['unicode-1-1-utf-8', 'utf8']},
+        {'name': 'iso-8859-8-i', 'labels': ['logical']},
+        {'name': 'windows-874', 'labels': ['dos-874']},
+        {'name': 'not-a-real-codec', 'labels': ['invalid']},
+    ]}]
+    urls = []
+
+    def urlopen(url):
+        urls.append(url)
+        return io.BytesIO(json.dumps(encodings).encode())
+
+    monkeypatch.setattr(cli.urllib.request, 'urlopen', urlopen)
+    result = CliRunner().invoke(cli.main, ['encoding', 'download-whatwg-mapping'])
+    assert result.exit_code == 0, result.output
+    mapping = ast.literal_eval(result.stdout)
+    assert mapping['utf8'] == mapping['unicode-1-1-utf-8'] == 'utf-8'
+    assert mapping['logical'] == 'iso8859-8'
+    assert mapping['dos-874'] == 'iso8859-11'
+    assert 'invalid' not in mapping
+    assert list(mapping) == sorted(mapping)
+    assert 'skipped not-a-real-codec' in result.stderr
+    assert urls == ['https://encoding.spec.whatwg.org/encodings.json']
+
+
+@pytest.mark.parametrize('outcome', ['success', 'corrupt', 'missing', 'http-error'])
+def test_cli_download_dumps(tmp_path, monkeypatch, outcome):
+    payload = b'compressed dump contents' * 400  # Exercise multiple download blocks.
+    requested = []
+
+    def urlopen(url):
+        requested.append(url)
+        if url.endswith('dumpstatus.json'):
+            if outcome == 'http-error':
+                raise HTTPError(url, 404, 'Not found', None, None)
+            jobs = {} if outcome == 'missing' else {'articlesmultistreamdump': {'files': {'part': {
+                'url': '/enwiki/dump.xml.bz2',
+                'md5': hashlib.md5(payload if outcome == 'success' else b'wrong').hexdigest(),
+                'size': len(payload),
+            }}}}
+            return io.BytesIO(json.dumps({'jobs': jobs}).encode())
+        assert url == 'https://dumps.wikimedia.org/enwiki/dump.xml.bz2'
+        return io.BytesIO(payload)
+
+    monkeypatch.setattr(cli.urllib.request, 'urlopen', urlopen)
+    outdir = tmp_path / 'dumps'
+    result = CliRunner().invoke(cli.main, ['lang', 'download-wiki-dumps', '20260101',
+                                          '--langs', ' en ', '-o', str(outdir), '-j', '1'])
+    assert result.exit_code == 0, result.output
+    assert requested[0] == 'https://dumps.wikimedia.org/enwiki/20260101/dumpstatus.json'
+    if outcome == 'success':
+        assert (outdir / 'enwiki.bz2').read_bytes() == payload
+    else:
+        assert list(outdir.iterdir()) == []
+    if outcome == 'corrupt':
+        assert 'corrupted, deleting it' in result.output
+    if outcome == 'http-error':
+        assert 'Error downloading enwiki: HTTP Error 404' in result.output
+
+
+@pytest.mark.parametrize('installed', [False, True])
+def test_cli_optional_html_benchmarks(monkeypatch, installed):
+    calls = {'selectolax': [], 'bs4': []}
+
+    def selectolax(text):
+        calls['selectolax'].append(text)
+        return SimpleNamespace(css_first=lambda selector: 'title' if selector == 'title' else None)
+
+    def beautiful_soup(text, parser):
+        assert parser == 'lxml'
+        calls['bs4'].append(text)
+        return SimpleNamespace(title='title')
+
+    monkeypatch.setitem(sys.modules, 'selectolax', SimpleNamespace())
+    monkeypatch.setitem(sys.modules, 'selectolax.lexbor',
+                        SimpleNamespace(LexborHTMLParser=selectolax) if installed else None)
+    monkeypatch.setitem(sys.modules, 'bs4', SimpleNamespace(BeautifulSoup=beautiful_soup) if installed else None)
+    warc = Path(__file__).resolve().parents[2] / 'test-data' / 'warcfile.warc'
+    result = CliRunner().invoke(cli.main, ['html', 'benchmark', str(warc)])
+    assert result.exit_code == 0, result.output
+    if installed:
+        expected = sum(1 for _ in cli.ArchiveIterator(str(warc), record_types=cli.WarcRecordType.response))
+        assert len(calls['selectolax']) == len(calls['bs4']) == expected
+        assert calls['selectolax'] == calls['bs4']
+        assert all(isinstance(text, str) for text in calls['bs4'])
+        assert f'{expected} documents in' in result.output
+    else:
+        assert 'Not benchmarking Selectolax' in result.output
+        assert 'Not benchmarking BeautifulSoup4' in result.output
+        assert calls == {'selectolax': [], 'bs4': []}
+
+
+def test_cli_dataset_filtering_and_existing_output(tmp_path):
+    raw = tmp_path / 'raw' / 'enwiki'
+    raw.mkdir(parents=True)
+    article = 'An English article with enough characters to serve as a language training example. ' * 4
+    (raw / 'wiki_00').write_text(f'<doc id="1">\nshort\n\n[[{article}]]\n[[{article}]]\n</doc>\n')
+    (raw / 'notes').write_text(article + 'ignored\n')
+    (raw.parent / 'ignored.txt').write_text(article)
+    dataset = tmp_path / 'dataset'
+    dataset.mkdir()
+    runner = CliRunner()
+    args = ['lang', 'create-dataset', str(raw.parent), str(dataset), '--min-examples', '2', '-j', '1']
+    result = runner.invoke(cli.main, args)
+    assert result.exit_code == 0, result.output
+    assert 'Not enough examples' in result.output
+    assert list(dataset.iterdir()) == []  # Temporary files and the empty language directory are removed.
+    args[args.index('2')] = '1'
+    (dataset / 'en').mkdir()  # Existing empty language directories are reusable.
+    result = runner.invoke(cli.main, args)
+    assert result.exit_code == 0, result.output
+    target = dataset / 'en' / 'train.txt'
+    assert target.read_text() == article + '\n'
+    result = runner.invoke(cli.main, args)
+    assert result.exit_code == 0, result.output
+    assert 'dataset for language already present' in result.output
+    assert target.read_text() == article + '\n'
+
+
+@pytest.mark.parametrize('problem', ['no-languages', 'invalid-language', 'missing-split', 'invalid-utf8'])
+def test_cli_training_errors(tmp_path, problem):
+    if problem != 'no-languages':
+        directory = tmp_path / ('bad"code' if problem == 'invalid-language' else 'en')
+        directory.mkdir()
+        if problem != 'missing-split':
+            (directory / 'train.txt').write_bytes(b'\xff' if problem == 'invalid-utf8' else b'example\n')
+    result = CliRunner().invoke(cli.main, ['lang', 'train-vectors', str(tmp_path), '-f', 'rust'])
+    assert result.exit_code == 1
+    expected = {'no-languages': 'No language directories', 'invalid-language': 'Rust profile language codes',
+                'missing-split': 'train.txt', 'invalid-utf8': 'train.txt'}
+    assert expected[problem] in result.output
+    assert 'pub(super)' not in result.output
+
+
+def test_cli_raw_training_uses_requested_split(tmp_path):
+    directory = tmp_path / 'en'
+    directory.mkdir()
+    (directory / 'test.txt').write_text('abc\n')
+    result = CliRunner().invoke(cli.main, ['lang', 'train-vectors', str(tmp_path), '-s', 'test', '-l', '8'])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == ['# (lang, vec)', repr(('en', cli.rlang.train_language_examples(['abc\n'], 8)))]
+
+
+@pytest.mark.parametrize('prediction', [None, [], [(1.0, '__label__en')]])
+def test_cli_evaluation_unknown_and_fasttext(tmp_path, monkeypatch, prediction):
+    directory = tmp_path / 'en'
+    directory.mkdir()
+    (directory / 'test.txt').write_text('First example\nSecond example\n')
+    args = ['lang', 'evaluate', str(tmp_path), '-s', 'test', '-c', '0', '-t', '5', '--langs', 'en', '--sort-lang', '--print-cm']
+    calls = []
+    if prediction is not None:
+        def predict(text, k, threshold, on_unicode_error):
+            calls.append((text, k, threshold, on_unicode_error))
+            return prediction
+
+        monkeypatch.setitem(sys.modules, 'fasttext', SimpleNamespace(
+            FastText=SimpleNamespace(eprint=None),
+            load_model=lambda _: SimpleNamespace(f=SimpleNamespace(predict=predict))))
+        model = tmp_path / 'model.bin'
+        model.touch()
+        args.extend(['-f', str(model)])
+    result = CliRunner().invoke(cli.main, args)
+    assert result.exit_code == 0, result.output
+    assert f'Accuracy: {"1.00" if prediction else "0.00"}' in result.output
+    assert 'Confusion matrix:' in result.output
+    if prediction is not None:
+        assert calls == [('First\n', 1, 0.0, 'strict'), ('Secon\n', 1, 0.0, 'strict')]
+
+
+@pytest.mark.parametrize('command', ['evaluate', 'benchmark'])
+def test_cli_fasttext_dependency_missing(tmp_path, monkeypatch, command):
+    monkeypatch.setitem(sys.modules, 'fasttext', None)
+    model = tmp_path / 'model.bin'
+    model.touch()
+    source = tmp_path if command == 'evaluate' else model
+    result = CliRunner().invoke(cli.main, ['lang', command, str(source), '-f', str(model)])
+    assert result.exit_code == 0, result.output
+    assert 'FastText needs to be installed' in result.output
+    assert 'pip install fasttext' in result.output
+
+
+def test_cli_language_benchmark_without_optional_backends(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, 'langid', None)
+    infile = tmp_path / 'sample.txt'
+    infile.write_text('A short English sentence.\n')
+    result = CliRunner().invoke(cli.main, ['lang', 'benchmark', str(infile), '-r', '1'])
+    assert result.exit_code == 0, result.output
+    assert 'Skipping FastText benchmark' in result.output
+    assert 'Skipping langid benchmark' in result.output
+    assert 'Resiliparse:' in result.output
