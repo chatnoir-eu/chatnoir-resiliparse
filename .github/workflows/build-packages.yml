@@ -257,10 +257,11 @@ jobs:
         run: |
           set -ex
 
-          export LD_PRELOAD="$ASAN_RUNTIME"
+          # Preload only test executables, keeping Cargo, rustc, and proc macros unaffected.
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="env LD_PRELOAD=$ASAN_RUNTIME"
           export RUSTDOCFLAGS="$RUSTFLAGS"
           cargo test --workspace --exclude '*-py' --target "$CARGO_BUILD_TARGET" --verbose
-          python${PYTHON_VERSION} -m pytest --capture=sys --verbose
+          LD_PRELOAD="$ASAN_RUNTIME" python${PYTHON_VERSION} -m pytest --capture=sys --verbose
 
   build-coverage:
     runs-on: ubuntu-latest
