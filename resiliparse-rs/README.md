@@ -1,16 +1,74 @@
 # ChatNoir Resiliparse
 
-**WORK IN PROGRESS!** This crate is not production-ready yet. It is only here to reserve the name already.
-Please use the Python version for now.
-
-A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data.
+A collection of robust and fast processing tools for parsing and analyzing web archive data, written in Rust with
+bindings for Python. Resiliparse provides HTML parsing and DOM manipulation, text extraction, character encoding
+detection, HTTP parsing, and language detection.
 
 Resiliparse is a part of the [ChatNoir web analytics toolkit](https://github.com/chatnoir-eu/).
 
+## Building Resiliparse
+
+You need Rust and Cargo, a C/C++ compiler, CMake, and libclang to build Resiliparse. Install the Rust toolchain with
+[rustup](https://rustup.rs/) if necessary:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+From a checkout of this repository, install [vcpkg](https://vcpkg.io/) and add its executable to your `PATH`:
+
+```bash
+git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
+cd chatnoir-resiliparse
+git clone https://github.com/microsoft/vcpkg.git
+./vcpkg/bootstrap-vcpkg.sh
+export PATH="$PWD/vcpkg:$PATH"
+```
+
+Build the crate from the repository root:
+
+```bash
+cargo build -p resiliparse
+```
+
+The build script installs Lexbor and uchardet through vcpkg when they are missing. These libraries are linked
+statically. Set `RESILIPARSE_VCPKG_PATH` to use an existing vcpkg installation directory containing the platform triplet
+directories. Alternatively, set `RESILIPARSE_USE_SYSTEM_LIBS=1` to use system headers and shared libraries; those
+libraries
+must also be available at runtime.
+
+## Using Resiliparse as a Library
+
+Add Resiliparse to your project's `Cargo.toml`:
+
+```toml
+[dependencies]
+resiliparse = "*" # Specify the correct version here
+```
+
+Then build your project with `cargo build`. The native build prerequisites described above also apply when using
+Resiliparse as a dependency.
+
+### Building Python Bindings From Source
+
+The Python bindings use PyO3 and are built with maturin. Pip installs the build backend automatically. From the
+repository root, after setting up the native build prerequisites:
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+
+# Build and install both packages in editable mode for development
+python3 -m pip install -e ./fastwarc-py -e ./resiliparse-py
+
+# Or build wheels and install from the resulting directory
+python3 -m pip wheel -w build ./fastwarc-py ./resiliparse-py
+python3 -m pip install --no-index --find-links build resiliparse
+```
+
 ## Usage Instructions
 
-For detailed usage instructions, please consult
-the [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/latest/).
+For the Rust API, see the [crate documentation](https://docs.rs/resiliparse/). For Python usage, see the
+[Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/latest/).
 
 ## Cite Us
 

@@ -60,18 +60,21 @@ compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression
 Main documentation: [FastWARC](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html)
 and [FastWARC CLI](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc-cli.html)
 
+FastWARC also provides a standalone gRPC server, which allows to use it on other languages without native bindings.
+See the [FastWARC-gRPC documentation](https://docs.rs/fastwarc-grpc/) for more information.
+
 ## Installation (Rust)
 
-To use FastWARC as a library in your Rust project, add the following to your `Cargo.toml`:
+To use Resiliparse and FastWARC as libraries in your Rust project, add the packages you need to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-fastwarc = "*" # Specify the correct version here
+resiliparse = "2"
+fastwarc = "2"
 ```
 
-Then build your project like normal with `cargo build`.
-
-Resiliparse is not yet available as a stable crate.
+Then build your project with `cargo build`. Resiliparse requires native build dependencies. See
+[Rust build instructions](resiliparse-rs/README.md#building-resiliparse) for more information.
 
 ## Installation (Python)
 

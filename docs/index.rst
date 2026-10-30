@@ -4,8 +4,9 @@
 ChatNoir Resiliparse |release| Documentation
 ++++++++++++++++++++++++++++++++++++++++++++
 
-ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web
-archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`__.
+ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing web archive data,
+written in Rust with bindings for Python. Resiliparse is part of the
+`ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`__.
 
 
 Table of Contents
@@ -14,8 +15,8 @@ Table of Contents
 This is the full table of contents for this documentation:
 
 .. toctree::
-   :maxdepth: 3
-   :caption: User Manual
+   :maxdepth: 1
+   :caption: User Manual (Python)
 
    man/installation
    man/parse
@@ -24,12 +25,20 @@ This is the full table of contents for this documentation:
    man/itertools
    man/beam
    man/fastwarc
-   FastWARC (Rust) <https://docs.rs/fastwarc/latest/fastwarc/>
 
 
 .. toctree::
-   :maxdepth: 3
-   :caption: API Documentation
+   :maxdepth: 1
+   :caption: User Manual (Rust)
+
+   Resiliparse <https://docs.rs/resiliparse/latest/resiliparse/>
+   FastWARC <https://docs.rs/fastwarc/latest/fastwarc/>
+   FastWARC-gRPC <https://docs.rs/fastwarc-grpc/latest/fastwarc_grpc/>
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: API Documentation (Python)
 
    api/parse
    api/extract
@@ -37,11 +46,19 @@ This is the full table of contents for this documentation:
    api/itertools
    api/beam
    api/fastwarc
-   FastWARC (Rust) <https://docs.rs/fastwarc/latest/fastwarc/all.html>
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: API Documentation (Rust)
+
+   Resiliparse <https://docs.rs/resiliparse/latest/resiliparse/all.html>
+   FastWARC <https://docs.rs/fastwarc/latest/fastwarc/all.html>
+   FastWARC-gRPC <https://docs.rs/fastwarc-grpc/latest/fastwarc_grpc/all.html>
+
+
+.. toctree::
+   :maxdepth: 1
    :caption: CLI Documentation
 
    cli/resiliparse
@@ -72,6 +89,13 @@ further processing by extracting structural or semantic information.
 
 Main documentation: :ref:`parse-manual`.
 
+Extraction Utilities
+^^^^^^^^^^^^^^^^^^^^
+The Resiliparse Extraction Utilities extract structural and semantic information from noisy web data, including
+main-content extraction, boilerplate removal, and schema extraction.
+
+Main documentation: :ref:`extract-manual`.
+
 Process Guard
 ^^^^^^^^^^^^^
 The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to
@@ -98,6 +122,41 @@ WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are Gzip, Zstand
 FastWARC provides both a Python API and a command line interface (CLI).
 
 Main documentation: :ref:`fastwarc-manual` and :ref:`fastwarc-cli`
+
+FastWARC also provides a standalone gRPC server, allowing clients written in other languages to use it without native
+bindings. See the `FastWARC-gRPC documentation <https://docs.rs/fastwarc-grpc/>`__ for server usage and client examples.
+
+
+Installation (Rust)
+===================
+
+To use Resiliparse and FastWARC as libraries in your Rust project, add the packages you need to your ``Cargo.toml``:
+
+.. code-block:: toml
+
+    [dependencies]
+    resiliparse = "2"
+    fastwarc = "2"
+
+Then build your project with ``cargo build``. Resiliparse requires native build dependencies; see
+:ref:`resiliparse-installation` for the prerequisites and source-build instructions.
+
+
+Installation (Python)
+=====================
+
+Pre-built wheels are available for Linux, macOS, and Windows on PyPI:
+
+.. code-block:: bash
+
+    pip install resiliparse
+    pip install fastwarc
+
+Building Bindings From Source
+-----------------------------
+
+Both libraries use Rust with PyO3 bindings, built with maturin. For build instructions and native dependencies, see
+:ref:`resiliparse-installation` and :ref:`fastwarc-installation`.
 
 
 About ChatNoir

@@ -1,7 +1,7 @@
 .. _fastwarc-manual:
 
-FastWARC (Python)
-=================
+FastWARC
+========
 
 FastWARC is a high-performance WARC parsing library written in Rust with bindings available for Python. Its design goals
 are high speed, a low and fixed memory footprint, ease of use, and byte-level content preservation. FastWARC supports

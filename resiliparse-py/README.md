@@ -1,58 +1,59 @@
-# ChatNoir Resiliparse
+# Resiliparse (Python)
 
 A collection of robust and fast processing tools for parsing and analyzing web archive data written in Rust with
 bindings for Python.
+
+This package contains the Python bindings for Resiliparse, including HTML parsing and DOM manipulation, text extraction,
+encoding and language detection, HTTP parsing, process guards, and Apache Beam utilities.
 
 Resiliparse is a part of the [ChatNoir web analytics toolkit](https://github.com/chatnoir-eu/).
 
 ## Installing Resiliparse
 
-Pre-built Resiliparse binaries can be installed from PyPi:
+Pre-built Resiliparse binaries for Python can be installed from [PyPI](https://pypi.org/project/Resiliparse/):
 
 ```bash
 pip install resiliparse
 ```
 
-## Building Resiliparse From Source
+## Building Python Bindings From Source
 
-To build Resiliparse from sources, you need to install all required build-time dependencies listed in
-`vcpkg.json`. It's possible to install them globally via your package manager, but the easiest and most consistent way
-is to use [vcpkg](https://vcpkg.io/en/):
+You need the Rust toolchain, a C/C++ compiler, CMake, and libclang. The bindings use PyO3 and are built with maturin;
+pip installs the build backend automatically. To build directly from the GitHub repository:
 
 ```bash
-# Install vcpkg itself (skip if you have a working vcpkg installation already)
-git clone https://github.com/Microsoft/vcpkg
-./vcpkg/bootstrap-vcpkg.sh
+# Clone repository
+git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
+cd chatnoir-resiliparse
 
-# Install dependencies to vcpkg_installed (must be run from sources root)
-./vcpkg/vcpkg install --triplet=x64-linux
+# Install Rust toolchain (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install vcpkg (if not already available on PATH)
+git clone https://github.com/microsoft/vcpkg.git
+./vcpkg/bootstrap-vcpkg.sh
+export PATH="$PWD/vcpkg:$PATH"
 ```
 
-Replace the triplet value with one suitable for your platform. Valid values are: `x64-windows`, `x64-osx`, `arm64-osx`,
-`arm64-linux` (or any of the vcpkg default triplets).
+Resiliparse's build script installs Lexbor and uchardet through vcpkg when they are missing.
 
-By default, Resiliparse uses `vcpkg` to build and install native dependencies. You can set
-`RESILIPARSE_USE_SYSTEM_LIBS=1` to skip `vcpkg` and use dependencies already present on your system.
-
-After installing the dependencies, you can build the actual Python packages:
+From the repository root, build and install the Python packages. Building FastWARC alongside Resiliparse ensures the
+matching dependency is available locally:
 
 ```bash
 # Create a fresh venv first (recommended)
 python3 -m venv venv && source venv/bin/activate
 
 # Option 1: Build and install in editable mode (best for development)
-python3 -m pip install -e ./resiliparse-py
+python3 -m pip install -e ./fastwarc-py -e ./resiliparse-py
 
 # Option 2 (alternative): Build and install wheels in separate steps (best for redistribution)
-python3 -m pip wheel -w build ./resiliparse-py
-ls ./build/*.whl | xargs python3 -m pip install
+python3 -m pip wheel -w build ./fastwarc-py ./resiliparse-py
+python3 -m pip install --no-index --find-links build resiliparse
 ```
 
-In most cases, the build routine should be smart enough to detect the location of the installed vcpkg dependencies.
-However, in some cases you may be getting errors about missing header files or undefined symbols. This can happen if you
-don't build from the source repository, use Python's new `build` module, or run `pip wheel` with `--isolated`. To work
-around that, set the `RESILIPARSE_VCPKG_PATH` environment variable to the absolute path of the vcpkg installation
-directory:
+To use an existing vcpkg installation, set `RESILIPARSE_VCPKG_PATH` to the directory containing its platform triplet
+directories:
 
 ```bash
 export RESILIPARSE_VCPKG_PATH="$(pwd)/vcpkg_installed"
@@ -60,7 +61,8 @@ export RESILIPARSE_VCPKG_PATH="$(pwd)/vcpkg_installed"
 
 Native vcpkg builds link libraries statically. Linux manylinux wheel builds use libraries from the build image and
 bundle them into the wheel. Installed wheels therefore do not need the build-time `vcpkg_installed` directory.
-Custom builds using `RESILIPARSE_USE_SYSTEM_LIBS=1` must provide those libraries at runtime.
+Set `RESILIPARSE_USE_SYSTEM_LIBS=1` to skip vcpkg and use system headers and shared libraries. Those libraries must be
+available at runtime.
 
 ## Usage Instructions
 

@@ -5,10 +5,13 @@ Installation Instructions
 
 .. note::
 
-  These installation instructions are for the main Resiliparse module. For installing FastWARC, see
+  These installation instructions cover the Resiliparse Python package. For installing FastWARC, see
   :ref:`fastwarc-installation`.
 
-Pre-built Resiliparse binaries can be installed from `PyPi <https://pypi.org/project/Resiliparse/>`__:
+Installing for Python
+---------------------
+
+Pre-built Resiliparse binaries can be installed from `PyPI <https://pypi.org/project/Resiliparse/>`__:
 
 .. code-block:: console
 
@@ -21,33 +24,42 @@ flag):
 
   $ pip install 'resiliparse[cli]'
 
-
 Building Resiliparse From Source
 --------------------------------
 
-You can compile Resiliparse either from the `PyPi <https://pypi.org/project/Resiliparse/>`__source package or directly
-from the `Github repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`_.
+Prerequisites
+^^^^^^^^^^^^^
 
-In either case, you need to install all required build-time dependencies listed in `vcpkg.json`. It's possible to
-install them globally via your package manager, but the easiest and most consistent way is to use
-[vcpkg](https://vcpkg.io/en/):
+The Python bindings require Rust and Cargo, a C/C++ compiler, CMake, and libclang. Install the Rust toolchain with
+`rustup <https://rustup.rs/>`__ if necessary:
 
 .. code:: bash
 
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+To build from the `GitHub repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`__, clone the sources and
+make `vcpkg <https://vcpkg.io/>`__ available on your ``PATH``:
+
+.. code:: bash
+
+    git clone https://github.com/chatnoir-eu/chatnoir-resiliparse.git
+    cd chatnoir-resiliparse
+
     # Install vcpkg itself (skip if you have a working vcpkg installation already)
-    git clone https://github.com/Microsoft/vcpkg
+    git clone https://github.com/microsoft/vcpkg.git
     ./vcpkg/bootstrap-vcpkg.sh
+    export PATH="$PWD/vcpkg:$PATH"
 
-    # Install dependencies to vcpkg_installed (must be run from sources root)
-    ./vcpkg/vcpkg install --triplet=x64-linux
+On Windows, run ``vcpkg/bootstrap-vcpkg.bat`` and add the ``vcpkg`` directory to ``PATH``.
 
-Replace the triplet value with one suitable for your platform. Valid values are: ``x64-windows``, ``x64-osx``,
-``arm64-osx``, ``arm64-linux`` (or any of the vcpkg default triplets).
+The build script installs Lexbor and uchardet through vcpkg when they are missing and selects the platform triplet
+automatically. By default, these libraries are linked statically.
 
-After installing the dependencies, you can build the actual Python packages:
+Building the Python Bindings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Both packages use maturin to build their Rust extensions and PyO3 bindings. Pip installs the build backend
-automatically.
+The Python bindings use PyO3 and maturin. Pip installs the build backend automatically. From the repository root,
+build FastWARC alongside Resiliparse so that the matching Python dependency is available locally:
 
 .. code:: bash
 
@@ -58,18 +70,23 @@ automatically.
     python3 -m pip install -e ./fastwarc-py -e ./resiliparse-py
 
     # Option 2 (alternative): Build and install wheels in separate steps (best for redistribution)
-    python3 -m pip wheel ./fastwarc-py ./resiliparse-py
-    ls ./FastWARC-*.whl ./Resiliparse-*.whl | xargs python3 -m pip install
+    python3 -m pip wheel -w build ./fastwarc-py ./resiliparse-py
+    python3 -m pip install --no-index --find-links build resiliparse
 
-In most cases, the build routine should be smart enough to detect the location of the installed vcpkg dependencies.
-However, in some cases you may be getting errors about missing header files or undefined symbols. This can happen if you
-don't build from the source repository, use Python's new ``build`` module, or run ``pip wheel`` with ``--isolated``. To
-work around that, set the ``RESILIPARSE_VCPKG_PATH`` environment variable to the absolute path of the vcpkg installation
-directory:
+On Windows, activate the virtual environment with ``venv\Scripts\activate``.
+
+Using Existing Native Libraries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For either Rust or Python builds, set ``RESILIPARSE_VCPKG_PATH`` to use an existing vcpkg installation. It must point to
+the directory containing the platform triplet directories:
 
 .. code:: bash
 
     export RESILIPARSE_VCPKG_PATH="$(pwd)/vcpkg_installed"
+
+Alternatively, set ``RESILIPARSE_USE_SYSTEM_LIBS=1`` to skip vcpkg and use system headers and shared libraries. Make
+their include and library directories available to the compiler and linker.
 
 .. note::
 
