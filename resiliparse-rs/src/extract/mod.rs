@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Heuristics for filtering boilerplate from main-content extraction.
+//! Extract readable text and main content from parsed HTML documents.
+//!
+//! [`html2text::extract_plain_text`] converts an HTML tree into text without modifying it.
+//! [`html2text::ExtractOptions`] controls formatting, link targets, alternative text, and
+//! heuristic boilerplate removal; [`html2text::Formatting`] selects plain text or reduced HTML output.
+
 mod filters;
 
-/// HTML text extraction with configurable formatting and content selection.
 pub mod html2text;

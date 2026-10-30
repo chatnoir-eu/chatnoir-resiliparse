@@ -17,8 +17,11 @@
 //! preservation. Supported are compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Available compression
 //! algorithms are Gzip, Zstd, and LZ4.
 //!
-//! FastWARC belongs to the [ChatNoir Resiliparse toolkit](https://resiliparse.chatnoir.eu/en/stable/index.html)
-//! for fast and robust web data processing.
+//! > **Note:** FastWARC belongs to the [ChatNoir Resiliparse toolkit](https://resiliparse.chatnoir.eu/en/stable/index.html)
+//! > for fast and robust web data processing.
+//!
+//! This documentation covers the FastWARC Rust crate. For the Python bindings, see the
+//! [Python documentation](https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html).
 //!
 //! # Installing FastWARC
 //! To use FastWARC in your Rust project, add it as a dependency to your `Cargo.toml` to install it directly

@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Internal tag, attribute, and class-name heuristics for HTML text extraction.
+//!
+//! These filters identify likely main-content containers, boilerplate, and hidden elements
+//! according to the extraction options.
+
 use super::html2text::*;
 use crate::parse::html::dom::node::Node;
 use crate::parse::html::dom::traits::*;

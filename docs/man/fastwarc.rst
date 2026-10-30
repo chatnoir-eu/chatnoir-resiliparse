@@ -10,6 +10,11 @@ compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression
 FastWARC belongs to the :ref:`ChatNoir Resiliparse toolkit <resiliparse-docs-index>` for fast and robust web data
 processing.
 
+.. note::
+
+    This manual covers the FastWARC Python bindings. For the Rust crate, see the
+    `Rust documentation <https://docs.rs/fastwarc/latest/fastwarc/>`__.
+
 Why FastWARC and not WARCIO?
 ----------------------------
 

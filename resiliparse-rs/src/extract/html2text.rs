@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Convert parsed HTML into readable text or reduced HTML markup.
+//!
+//! [`extract_plain_text`] reads an existing [`HtmlTree`] without modifying or reparsing it.
+//! [`ExtractOptions`] controls whitespace and block formatting, list bullets, alternative text,
+//! link targets, and form fields. Enable `main_content` to filter likely boilerplate, or supply
+//! CSS selectors in `skip_elements` to exclude specific subtrees.
+//!
+//! Main-content filtering uses heuristics rather than browser layout. [`Formatting::MinimalHtml`]
+//! preserves selected markup for presentation and does not provide general HTML sanitization.
+
 use crate::parse::html::dom::node::Node;
 use crate::parse::html::dom::traits::*;
 use crate::parse::html::selector::CssParserError;

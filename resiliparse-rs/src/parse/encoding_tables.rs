@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Encoding labels and ordered MIME signatures retained from the legacy API.
+//! Encoding label mappings and ordered MIME signatures used by the parsing utilities.
 pub(super) const ENCODING_LABELS: &[(&str, &str)] = &[
     ("866", "cp866"),
     ("ansi_x3.4-1968", "cp1252"),

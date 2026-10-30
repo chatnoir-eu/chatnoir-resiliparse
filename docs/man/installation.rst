@@ -6,7 +6,8 @@ Installation Instructions
 .. note::
 
   These installation instructions cover the Resiliparse Python package. For installing FastWARC, see
-  :ref:`fastwarc-installation`.
+  :ref:`fastwarc-installation` For the Rust crate, see the `Rust documentation <https://docs.rs/fastwarc/latest/fastwarc/>`__.
+
 
 Installing for Python
 ---------------------

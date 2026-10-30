@@ -12,15 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Generated native bindings used by the encoding detector and HTML parser.
+//!
+//! The build script generates these bindings from Lexbor and uchardet headers. Public Rust
+//! APIs wrap the native types and functions exposed here.
+
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
+/// Bindings to Lexbor's HTML parsing, DOM, and selector APIs.
 pub(crate) mod lexbor {
     include!(concat!(env!("OUT_DIR"), "/lexbor.rs"));
 }
 
+/// Bindings to uchardet's incremental character encoding detector.
 pub(crate) mod uchardet {
     include!(concat!(env!("OUT_DIR"), "/uchardet.rs"));
 }
