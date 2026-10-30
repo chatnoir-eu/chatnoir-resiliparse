@@ -183,6 +183,7 @@ def test_exception_loop_resumes_python_iterator():
     assert list(exc_loop(RecoveringIterator())) == [(None, error), ('recovered', None)]
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='Process guards are only available on Unix.')
 def test_progress_loop_reports_after_yield(monkeypatch):
     from resiliparse import process_guard
 
@@ -202,6 +203,7 @@ def test_progress_loop_reports_after_yield(monkeypatch):
     assert calls == [context, context]
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='Process guards are only available on Unix.')
 @pytest.mark.parametrize('failure', ['initialize', 'source', 'progress'])
 def test_progress_loop_propagates_python_exception(monkeypatch, failure):
     from resiliparse import process_guard

@@ -271,8 +271,12 @@ def test_cli_download_dumps(tmp_path, monkeypatch, outcome):
 
 
 @pytest.mark.parametrize('installed', [False, True])
-def test_cli_optional_html_benchmarks(monkeypatch, installed):
+@pytest.mark.parametrize('elapsed', [0.0, 0.25])
+def test_cli_optional_html_benchmarks(monkeypatch, installed, elapsed):
     calls = {'selectolax': [], 'bs4': []}
+    # A short benchmark can finish within one clock tick on Windows.
+    timestamps = iter([0.0, elapsed] * 3)
+    monkeypatch.setattr(cli, 'time', SimpleNamespace(perf_counter=lambda: next(timestamps)))
 
     def selectolax(text):
         calls['selectolax'].append(text)
@@ -290,6 +294,8 @@ def test_cli_optional_html_benchmarks(monkeypatch, installed):
     warc = Path(__file__).resolve().parents[2] / 'test-data' / 'warcfile.warc'
     result = CliRunner().invoke(cli.main, ['html', 'benchmark', str(warc)])
     assert result.exit_code == 0, result.output
+    if elapsed == 0:
+        assert 'inf documents/s' in result.output
     if installed:
         expected = sum(1 for _ in cli.ArchiveIterator(str(warc), record_types=cli.WarcRecordType.response))
         assert len(calls['selectolax']) == len(calls['bs4']) == expected
@@ -332,7 +338,7 @@ def test_cli_dataset_filtering_and_existing_output(tmp_path):
 @pytest.mark.parametrize('problem', ['no-languages', 'invalid-language', 'missing-split', 'invalid-utf8'])
 def test_cli_training_errors(tmp_path, problem):
     if problem != 'no-languages':
-        directory = tmp_path / ('bad"code' if problem == 'invalid-language' else 'en')
+        directory = tmp_path / ('bad.code' if problem == 'invalid-language' else 'en')
         directory.mkdir()
         if problem != 'missing-split':
             (directory / 'train.txt').write_bytes(b'\xff' if problem == 'invalid-utf8' else b'example\n')

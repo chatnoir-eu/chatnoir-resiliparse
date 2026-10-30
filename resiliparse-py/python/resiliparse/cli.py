@@ -126,7 +126,7 @@ def benchmark(warc_file):
     print('HTML parser benchmark <title> extraction:')
     print('=========================================')
 
-    start = time.monotonic()
+    start = time.perf_counter()
     i = 0
     for i, record in enumerate(tqdm(ArchiveIterator(warc_file, record_types=WarcRecordType.response),
                                     desc=f'Benchmarking Resiliparse (Lexbor)', unit=' docs',
@@ -134,27 +134,29 @@ def benchmark(warc_file):
         content = record.reader.read()
         # noinspection PyStatementEffect
         HTMLTree.parse_from_bytes(content, detect_encoding(content) or 'utf-8').title
-    t = time.monotonic() - start
-    print(f'Resiliparse (Lexbor):  {i} documents in {t:.2f}s ({i / t:.2f} documents/s)')
+    t = time.perf_counter() - start
+    rate = i / t if t > 0 else float('inf')
+    print(f'Resiliparse (Lexbor):  {i} documents in {t:.2f}s ({rate:.2f} documents/s)')
 
     try:
         from selectolax.lexbor import LexborHTMLParser as SelectolaxLexbor
-        start = time.monotonic()
+        start = time.perf_counter()
         i = 0
         for i, record in enumerate(tqdm(ArchiveIterator(warc_file, record_types=WarcRecordType.response),
                                         desc=f'Benchmarking Selectolax (Lexbor)', unit=' docs',
                                         leave=False, mininterval=0.3), start=1):
             content = record.reader.read()
             SelectolaxLexbor(bytes_to_str(content, detect_encoding(content) or 'utf-8')).css_first('title')
-        t = time.monotonic() - start
-        print(f'Selectolax (Lexbor):   {i} documents in {time.monotonic() - start:.2f}s ({i / t:.2f} documents/s)')
+        t = time.perf_counter() - start
+        rate = i / t if t > 0 else float('inf')
+        print(f'Selectolax (Lexbor):   {i} documents in {t:.2f}s ({rate:.2f} documents/s)')
 
     except ModuleNotFoundError:
         print('[Not benchmarking Selectolax, because it is not installed.')
 
     try:
         from bs4 import BeautifulSoup
-        start = time.monotonic()
+        start = time.perf_counter()
         i = 0
         for i, record in enumerate(tqdm(ArchiveIterator(warc_file, record_types=WarcRecordType.response),
                                         desc=f'Benchmarking BeautifulSoup4 (lxml)', unit=' docs',
@@ -162,8 +164,9 @@ def benchmark(warc_file):
             content = record.reader.read()
             # noinspection PyStatementEffect
             BeautifulSoup(bytes_to_str(content, detect_encoding(content) or 'utf-8'), 'lxml').title
-        t = time.monotonic() - start
-        print(f'BeautifulSoup4 (lxml): {i} documents in {time.monotonic() - start:.2f}s ({i / t:.2f} documents/s)')
+        t = time.perf_counter() - start
+        rate = i / t if t > 0 else float('inf')
+        print(f'BeautifulSoup4 (lxml): {i} documents in {t:.2f}s ({rate:.2f} documents/s)')
     except ModuleNotFoundError:
         print('[Not benchmarking BeautifulSoup4, because it is not installed.')
 
