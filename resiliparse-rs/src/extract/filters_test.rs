@@ -57,7 +57,9 @@ fn boilerplate_attributes_and_landmarks() {
         "<div id=neutral class=hidden>Hidden</div>",
         "<div id=neutral class=widget style='display:none'>Hidden</div>",
     ] {
-        assert!(!main_content(html, 3, &opts), "{html}");
+        for variant in [html.to_owned(), html.replace("id=neutral ", "")] {
+            assert!(!main_content(&variant, 3, &opts), "{variant}");
+        }
     }
     for html in [
         "<main hidden>Main</main>",
@@ -144,4 +146,37 @@ fn footer_position_and_text_symbols() {
         assert_eq!(is_main_content(&elements.item(index).unwrap().first_child().unwrap(), 1, &opts), keep);
     }
     assert!(is_main_content(&body.last_child().unwrap(), 1, &opts));
+}
+
+#[test]
+fn article_pattern_requires_content_marker() {
+    for value in [
+        "",
+        " ",
+        "_",
+        "-",
+        "widget ",
+        "site-header ",
+        "widget  sidebar",
+        "widget--sidebar",
+        "articleish",
+    ] {
+        assert!(!ARTICLE_CLS_REGEX.is_match(value), "{value:?}");
+    }
+    for value in [
+        "article",
+        "ARTICLE",
+        "entry",
+        "post",
+        "story",
+        "single-post",
+        "main-content",
+        "body",
+        "text",
+        "page",
+        "widget article",
+        "article-body",
+    ] {
+        assert!(ARTICLE_CLS_REGEX.is_match(value), "{value:?}");
+    }
 }

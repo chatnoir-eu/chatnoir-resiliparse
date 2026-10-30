@@ -1,3 +1,17 @@
+# Copyright 2026 Janek Bevendorff
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 
 import pytest
@@ -219,7 +233,7 @@ def test_main_content_extraction():
            "foo\n\nbaz\nbar\n\n[ Some text ] [ Insert text ]"
 
 
-# Edge cases tested to preserve compatibility to legacy Cython implementation.
+# Legacy extraction cases, with class-only comment filtering corrected when comments=False.
 LEGACY_COMPATIBILITY_HTML = """<html><body>
 <header class="page-header">Header</header>
 <main class="main-content" role="main">
@@ -250,7 +264,7 @@ LEGACY_COMPATIBILITY_HTML = """<html><body>
      "Header\n\n<h1>Title</h1>\n\n<p>Visible link!</p>\n\n<p>■</p>\n\n<p>\ue123</p>\n\n<ul>\n  <li>One</li>\n  <li>Two</li>\n</ul>\nPicture\nHidden\nSkip\nBy me\nComments\nFooter"),
     ({'main_content': True}, "Header\n\nTitle\n\nVisible link!\n\nPicture\nBy me\nComments"),
     ({'main_content': True, 'comments': False, 'post_meta': False, 'hidden_elements': True,
-      'skip_elements': ['.skip']}, "Header\n\nTitle\n\nVisible link!\n\nPicture\nHidden\nComments"),
+      'skip_elements': ['.skip']}, "Header\n\nTitle\n\nVisible link!\n\nPicture\nHidden"),
     ({'links': True, 'form_fields': True, 'noscript': True, 'list_bullets': False},
      "Header\n\nTitle\n\nVisible link (/x)!\n\n■\n\n\ue123\n\n  One\n  Two\nPicture\n[ Search ] [ Go ]\nFallback\nHidden\nSkip\nBy me\nComments\nFooter"),
     ({'alt_texts': False},
@@ -299,9 +313,10 @@ def test_synthetic_legacy_edge_cases(options, expected):
     'hidden', 'visually-hidden', 'navigation', 'related', 'sidebar',
     'skip-to-content', 'sign-in', 'sponsored', 'social',
 ])
-def test_main_content_class_filters(class_name):
+@pytest.mark.parametrize('id_attribute', ['', 'id="widget"'])
+def test_main_content_class_filters(class_name, id_attribute):
     document = (f'<main><section><p>Article text</p>'
-                f'<div id="widget" class="{class_name}">Junk</div></section></main>')
+                f'<div {id_attribute} class="{class_name}">Junk</div></section></main>')
     assert extract_plain_text(document) == 'Article text\n\nJunk'
     assert extract_plain_text(document, main_content=True) == 'Article text'
 
@@ -652,3 +667,12 @@ def test_real_word_data():
         assert main_content
         assert len(all) >= len(main_content)
     assert i > 0
+
+
+@pytest.mark.parametrize('id_attribute', ['', 'id=""', 'id="neutral"'])
+def test_class_only_boilerplate(id_attribute):
+    document = (f'<div class="site-header" {id_attribute}>Header</div><main><p>Story</p>'
+                f'<div class="comments" {id_attribute}>Discussion</div></main>')
+    assert extract_plain_text(document, main_content=True, comments=False, preserve_formatting=False) == 'Story'
+    assert extract_plain_text(document, main_content=True, comments=True,
+                              preserve_formatting=False) == 'Story Discussion'

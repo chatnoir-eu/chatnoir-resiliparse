@@ -145,3 +145,20 @@ fn multiline_form_fields() {
     opts.formatting = Formatting::MinimalHtml;
     assert_eq!(extract("<textarea>&lt;&amp;</textarea>", opts), "[ &lt;&amp; ]");
 }
+
+#[test]
+fn class_only_boilerplate() {
+    for id in ["", "id=''", "id=neutral"] {
+        let html = format!(
+            "<div class=site-header {id}>Header</div><main><p>Story</p>\
+             <div class=comments {id}>Discussion</div></main>"
+        );
+        let mut opts = ExtractOptions::default();
+        opts.main_content = true;
+        opts.formatting = Formatting::Off;
+        opts.comments = false;
+        assert_eq!(extract(&html, opts.clone()), "Story", "{id}");
+        opts.comments = true;
+        assert_eq!(extract(&html, opts), "Story Discussion", "{id}");
+    }
+}

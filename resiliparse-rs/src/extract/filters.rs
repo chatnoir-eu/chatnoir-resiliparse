@@ -26,7 +26,7 @@ use std::sync::LazyLock;
 /// Class or ID names suggesting article or main-content containers.
 static ARTICLE_CLS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     RegexBuilder::new(
-        r"(?:^|[\s_-])(?:article|entry|post|story|single[_-]?post|(?:main[_-])?content|body|text|page)?(?:$|[\s_-])",
+        r"(?:^|[\s_-])(?:article|entry|post|story|single[_-]?post|(?:main[_-])?content|body|text|page)(?:$|[\s_-])",
     )
     .case_insensitive(true)
     .unicode(false)
