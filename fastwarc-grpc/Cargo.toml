@@ -14,7 +14,7 @@ categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
 cap-std = "4"
-fastwarc = { version = "1", path = "../fastwarc-rs" }
+fastwarc = { version = "2", path = "../fastwarc-rs" }
 prost = "0.14"
 prost-types = "0.14"
 tonic = "0.14"
