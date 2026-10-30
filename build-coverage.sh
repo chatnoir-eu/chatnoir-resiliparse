@@ -19,9 +19,12 @@ cargo llvm-cov clean --workspace
 # Run Rust tests (excluding PyO3 wrappers)
 cargo test --workspace --exclude '*-py'
 
-# Rebuild Python bindings
-$PYTHON -m pip install --no-build-isolation -e fastwarc-py/
-$PYTHON -m pip install --no-build-isolation -e resiliparse-py/
+# Match llvm-cov's debug profile.
+# Maturin's default release artifacts are not included in its report.
+$PYTHON -m pip install --no-build-isolation \
+  --config-settings="maturin.build-args=--profile dev" -e fastwarc-py/
+$PYTHON -m pip install --no-build-isolation \
+  --config-settings="maturin.build-args=--profile dev" -e resiliparse-py/
 
 # Run Python tests
 rm -rf .coverage.html
@@ -33,6 +36,12 @@ $PYTHON -m pytest \
 
 # Generate Rust coverage report
 cargo llvm-cov report --lcov --output-path "${OUTDIR}/cargo-coverage.info"
+for binding in fastwarc-py resiliparse-py; do
+  if ! grep -qE "^SF:.*${binding}/src/" "${OUTDIR}/cargo-coverage.info"; then
+    echo "Missing native coverage for ${binding}" >&2
+    exit 1
+  fi
+done
 
 # Generate HTML report
 if [ -n "$WITH_HTML" ] || [ -n "$WITH_HTML_OPEN" ]; then

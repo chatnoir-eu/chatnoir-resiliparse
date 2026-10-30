@@ -254,8 +254,12 @@ jobs:
           # Build wheels
           export PATH="$(python${PYTHON_VERSION} -c 'import sysconfig; print(sysconfig.get_path("scripts"))'):$PATH"
           python${PYTHON_VERSION} -m pip install maturin codecov-cli
-          python${PYTHON_VERSION} -m pip install --no-build-isolation -e "fastwarc-py[all,test]"
-          python${PYTHON_VERSION} -m pip install --no-build-isolation -e "resiliparse-py[all,test]"
+
+          # Maturin defaults to release builds, explicitly set debug profile.
+          python${PYTHON_VERSION} -m pip install --no-build-isolation \
+            --config-settings="maturin.build-args=--profile dev" -e "fastwarc-py[all,test]"
+          python${PYTHON_VERSION} -m pip install --no-build-isolation \
+            --config-settings="maturin.build-args=--profile dev" -e "resiliparse-py[all,test]"
 
       - name: Run Tests
         shell: bash
