@@ -44,36 +44,23 @@ pub enum FormattingArg {
 /// Alternative text and list bullets are enabled by default; links, form fields, and noscript content are disabled.
 ///
 /// :param html: HTML as DOM tree or Unicode string
-/// :type html: HTMLTree or str
-/// :param preserve_formatting: preserve basic block-level formatting (use ``'minimal_html'`` for minimal HTML
+/// :param preserve_formatting: Preserve basic block-level formatting (use ``'minimal_html'`` for minimal HTML
 ///                             markup in output)
-/// :type preserve_formatting: bool or t.Literal['minimal_html']
-/// :param main_content: apply simple heuristics for extracting only "main-content" elements
-/// :type main_content: bool
-/// :param list_bullets: insert bullets / numbers for list items
-/// :type list_bullets: bool
-/// :param alt_texts: preserve alternative text descriptions
-/// :type alt_texts: bool
-/// :param links: extract link target URLs
-/// :type links: bool
-/// :param form_fields: extract form fields and their values
-/// :type form_fields: bool
-/// :param noscript: extract contents of ``<noscript>`` elements
-/// :type noscript: bool
-/// :param comments: treat comment sections as main content
-/// :type comments: bool
-/// :param post_meta: preserve blog post / article meta data in main content extract
-/// :type post_meta: bool
-/// :param hidden_elements: keep elements with hidden class names during main-content extraction;
+/// :param main_content: Apply simple heuristics for extracting only "main-content" elements
+/// :param list_bullets: Insert bullets / numbers for list items
+/// :param alt_texts: Preserve alternative text descriptions
+/// :param links: Extract link target URLs
+/// :param form_fields: Extract form fields and their values
+/// :param noscript: Extract contents of ``<noscript>`` elements
+/// :param comments: Treat comment sections as main content
+/// :param post_meta: Preserve blog post / article meta data in main content extract
+/// :param hidden_elements: Keep elements with hidden class names during main-content extraction;
 ///                         explicit hidden attributes and inline CSS remain subject to filtering
-/// :type hidden_elements: bool
-/// :param skip_elements: list of CSS selectors for elements to skip
-/// :type skip_elements: t.Iterable[str] or None
-/// :return: extracted plain text
-/// :rtype: str
-/// :raises TypeError: if html is neither a Unicode string nor an HTMLTree, or an option has an invalid type
-/// :raises HTMLParserException: if parsing the HTML string fails
-/// :raises CSSParserException: if a skip selector cannot be parsed
+/// :param skip_elements: List of CSS selectors for elements to skip
+/// :return: Extracted plain text
+/// :raise TypeError: If html is neither a Unicode string nor an HTMLTree, or an option has an invalid type
+/// :raise HTMLParserException: If parsing the HTML string fails
+/// :raise CSSParserException: If a skip selector cannot be parsed
 #[pyfunction]
 #[pyo3(signature = (html, preserve_formatting=FormattingArg::Bool(true), main_content=false,
     list_bullets=true, alt_texts=true, links=false, form_fields=false, noscript=false,

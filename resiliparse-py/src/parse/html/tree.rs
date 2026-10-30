@@ -30,8 +30,7 @@ impl HTMLTreePy {
     ///
     /// :param document: Unicode HTML document to parse.
     /// :return: Parsed HTML document tree.
-    /// :rtype: HTMLTree
-    /// :raises ValueError: If parsing fails.
+    /// :raise HTMLParserException: If parsing fails
     #[staticmethod]
     pub fn parse(document: &str) -> PyResult<Self> {
         match tree::HtmlTree::parse(document) {
@@ -48,8 +47,9 @@ impl HTMLTreePy {
     /// :param encoding: Character encoding used to decode the input.
     /// :param errors: Decoding error policy, as accepted by ``bytes.decode()``.
     /// :return: Parsed HTML document tree.
-    /// :rtype: HTMLTree
-    /// :raises ValueError: If parsing fails.
+    /// :raise HTMLParserException: If parsing fails
+    /// :raise LookupError: If a decoding error handler is unknown and is needed
+    /// :raise UnicodeError: If decoding or re-encoding fails under the selected error policy
     #[allow(unused_variables)]
     #[staticmethod]
     #[pyo3(signature = (document, encoding="utf-8", errors="ignore"))]
@@ -75,6 +75,7 @@ impl HTMLTreePy {
     /// Create a new DOM element node.
     ///
     /// :param tag_name: Tag name for the new element.
+    /// :raise DOMException: If the document is unavailable or the node cannot be created
     pub fn create_element<'py>(slf: PyRef<'py, Self>, tag_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
             || Err(DOMExceptionPy::new_err("No document node.")),
@@ -85,6 +86,7 @@ impl HTMLTreePy {
     /// Create a new text node with the given string contents.
     ///
     /// :param text: Text to store in the node.
+    /// :raise DOMException: If the document is unavailable or the node cannot be created
     pub fn create_text_node<'py>(slf: PyRef<'py, Self>, text: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::document(slf).map_or_else(
             || Err(DOMExceptionPy::new_err("No document node.")),
@@ -103,8 +105,8 @@ impl HTMLTreePy {
     pub fn head(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNodePy>> {
         ElementNodePy::new_bound(slf.py(), slf.tree.head()?).ok()
     }
-    /// HTML body element or ``None`` if the document has no body.
 
+    /// HTML body element or ``None`` if the document has no body.
     #[getter]
     pub fn body(slf: PyRef<'_, Self>) -> Option<Bound<'_, ElementNodePy>> {
         ElementNodePy::new_bound(slf.py(), slf.tree.body()?).ok()
@@ -117,8 +119,6 @@ impl HTMLTreePy {
     ///
     /// .. versionchanged:: 2.0.0
     ///    Returns ``None`` instead of an empty string for missing or empty title elements.
-    ///
-    /// :type: str or None
     #[getter]
     pub fn title(slf: PyRef<'_, Self>) -> Option<String> {
         slf.tree.title()

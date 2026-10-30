@@ -48,13 +48,13 @@ pub const MAX_WBITS: u8 = 15;
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size (default: 64 KiB).
-/// * `window_bits` - history buffer size, behavior compatible with zlib:
-///   Values between `9..15` are for zlib streams. Values above `15` ([`MAX_WBITS`])
+/// * `capacity` - Sets the internal buffer size (default: 64 KiB).
+/// * `window_bits` - History buffer size, behavior compatible with zlib:
+///   Values in `9..=15` are for zlib streams. Values above `15` ([`MAX_WBITS`])
 ///   enable gzip header decoding:
 ///     * `+16` enables gzip header decoding only,
 ///     * `+32` enables gzip/zlib header autodetection.
-/// * `expect_header` - specifies whether a zlib or gzip header is expected or
+/// * `expect_header` - Specifies whether a zlib or gzip header is expected or
 ///   whether this is a raw stream (equivalent to negative `window_bits` in zlib).
 #[derive(Debug, Copy, Clone)]
 pub struct GzipReaderOptions {
@@ -76,7 +76,7 @@ impl Default for GzipReaderOptions {
 impl<T: ReadSeek> GzipReader<T> {
     /// Create a new [`GzipReader`].
     ///
-    /// The default buffer size is 64 KIB. For custom buffer sizes, use
+    /// The default buffer size is 64 KiB. For custom buffer sizes, use
     /// [`Self::with_capacity()`] or [`Self::with_options()`].
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, GzipReaderOptions::default())
@@ -86,8 +86,8 @@ impl<T: ReadSeek> GzipReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `capacity` - buffer capacity
+    /// * `inner` - Input (inner) stream to read from
+    /// * `capacity` - Buffer capacity
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(
             inner,
@@ -102,8 +102,8 @@ impl<T: ReadSeek> GzipReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `options` - Reader options
     pub fn with_options(mut inner: T, options: GzipReaderOptions) -> Self {
         let window_bits = options.window_bits;
         let inner_pos = inner.stream_position().unwrap_or(0);
@@ -133,9 +133,9 @@ impl<T: ReadSeek> GzipReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `read_len` - length of the uncompressed input buffer
-    /// * `consumed` - number of bytes consumed from the input buffer
-    /// * `produced` - number of bytes produced on the output buffer
+    /// * `read_len` - Length of the uncompressed input buffer
+    /// * `consumed` - Number of bytes consumed from the input buffer
+    /// * `produced` - Number of bytes produced on the output buffer
     fn _update_buf_size(&mut self, read_len: usize, consumed: usize, produced: usize) {
         self.decomp_ratio = 0.9 * self.decomp_ratio + 0.1 * (produced as f32 / consumed as f32);
         let target_buf_size = ((read_len as f32 * self.decomp_ratio).ceil() as usize)
@@ -296,15 +296,12 @@ pub struct GzipWriter<T: _Write> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size.
-/// * `window_bits` - history buffer size, behavior compatible with zlib:
-///   Values between `9..15` are for zlib streams. Values above `15` ([`MAX_WBITS`])
-///   enable gzip header encoding:
-///     * `+16` enables gzip header encoding only,
-///     * `+32` enables gzip/zlib header autodetection.
-/// * `expect_header` - specifies whether a zlib or gzip header is expected or
+/// * `capacity` - Sets the internal buffer size.
+/// * `window_bits` - History-buffer size exponent from 9 to 15 for zlib output.
+///   Add 16 for gzip output; automatic header detection is available only when reading.
+/// * `expect_header` - Specifies whether to emit a zlib or gzip header or
 ///   whether this is a raw stream (equivalent to negative `window_bits` in zlib).
-/// * `compression_level` - gzip / DEFLATE compression level to use (`9` is best)
+/// * `compression_level` - Gzip / DEFLATE compression level to use (`9` is best)
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct GzipWriterOptions {
     pub capacity: usize,
@@ -334,7 +331,7 @@ impl<T: _Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
+    /// * `inner` - Inner stream to write compressed output to
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, GzipWriterOptions::default())
     }
@@ -357,8 +354,8 @@ impl<T: _Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `capacity` - write buffer size
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `capacity` - Write buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(
             inner,
@@ -373,8 +370,8 @@ impl<T: _Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `options` - Writer options
     pub fn with_options(inner: T, options: GzipWriterOptions) -> Self {
         Self {
             inner: Some(inner),
@@ -410,7 +407,7 @@ impl<T: _Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `buf` - bytes to compress
+    /// * `buf` - Bytes to compress
     /// * `flush` - Deflate flush options
     ///
     /// # Returns
@@ -465,7 +462,7 @@ impl<T: _Write> GzipWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `level` - new compression level (1-9)
+    /// * `level` - New compression level (1-9)
     pub fn set_level(&mut self, level: i32) {
         self.level = level;
     }

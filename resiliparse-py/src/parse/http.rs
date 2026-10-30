@@ -30,10 +30,11 @@ use resiliparse::parse::http;
 /// delimiter is discarded without validating CRLF, and HTTP trailer headers
 /// are not parsed or skipped as a block.
 ///
-/// :param reader: input reader
-/// :type reader: typing.BinaryIO
-/// :return: contents of the next chunk or empty string if EOF
-/// :rtype: bytes
+/// :param reader: Input reader
+/// :return: Contents of the next chunk or empty string if EOF
+/// :raise AttributeError: If the reader lacks readline() or read()
+/// :raise TypeError: If the reader methods do not return bytes
+/// :raise OSError: If reading from the stream fails
 #[pyfunction]
 pub fn read_http_chunk<'py>(reader: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
     let header = reader.call_method0("readline")?;
@@ -81,10 +82,11 @@ impl HttpChunksPy {
 /// iterator remains exhausted. Chunk framing and trailer handling follow
 /// :func:`read_http_chunk`.
 ///
-/// :param reader: input reader
-/// :type reader: typing.BinaryIO
-/// :return: iterator of chunks
-/// :rtype: typing.Iterator[bytes]
+/// :param reader: Input reader
+/// :return: Iterator of chunks
+/// :raise AttributeError: If the reader lacks readline() or read()
+/// :raise TypeError: If the reader methods do not return bytes
+/// :raise OSError: If reading from the stream fails
 #[pyfunction]
 pub fn iterate_http_chunks(reader: Py<PyAny>) -> HttpChunksPy {
     HttpChunksPy { reader, done: false }

@@ -27,9 +27,8 @@ __all__ = [
     'ReadFromText',
 ]
 
-
-DEFAULT_DESIRED_SPLIT_SIZE = 64 * 1024 * 1024   # 64 MiB
-DEFAULT_MIN_SPLIT_SIZE = 1024 * 1024            # 1 MiB
+DEFAULT_DESIRED_SPLIT_SIZE = 64 * 1024 * 1024  # 64 MiB
+DEFAULT_MIN_SPLIT_SIZE = 1024 * 1024  # 1 MiB
 
 
 class ReadFromText(beam.PTransform):
@@ -44,16 +43,18 @@ class ReadFromText(beam.PTransform):
 
     The only supported newline separator at the moment is ``\\n``.
 
-    :param file_pattern: input file glob
-    :param empty_match_treatment: what to do with empty glob matches
-    :param shuffle_splits: shuffle input splits to break fusion
-    :param shuffle_names: shuffle matched file names before deriving splits (adds one more fusion
+    :param file_pattern: Input file glob
+    :param empty_match_treatment: What to do with empty glob matches
+    :param shuffle_splits: Shuffle input splits to break fusion
+    :param shuffle_names: Shuffle matched file names before deriving splits (adds one more fusion
                           break, should be enabled if ``file_pattern`` matches many files or if
                           input files are compressed and cannot be split)
-    :param desired_split_size: desired file split size in bytes
-    :param min_split_size: minimum file split size in bytes
-    :param compression_type: file compression type, will determine whether individual files are splittable
-    :param coder: coder for decoding file contents
+    :param desired_split_size: Desired file split size in bytes
+    :param min_split_size: Minimum file split size in bytes
+    :param compression_type: File compression type, will determine whether individual files are splittable
+    :param coder: Coder for decoding file contents
+    :raise OSError: During execution if reading a file fails or EOF occurs inside a required split
+    :raise UnicodeError: During execution if the coder cannot decode a line
     """
 
     def __init__(self,
@@ -81,16 +82,18 @@ class ReadAllFromText(beam.PTransform):
     Read lines from a given :class:`~apache_beam.pvalue.PCollection` of
     :class:`~apache_beam.io.filesystem.FileMetadata` objects in parallel.
 
-    See :class:`ReadFormText` for more information.
+    See :class:`ReadFromText` for more information.
 
-    :param shuffle_splits: shuffle input splits to break fusion
-    :param shuffle_names: shuffle matched file names before deriving splits (adds one more fusion
+    :param shuffle_splits: Shuffle input splits to break fusion
+    :param shuffle_names: Shuffle matched file names before deriving splits (adds one more fusion
                           break, should be enabled if ``file_pattern`` matches many files or if
                           input files are compressed and cannot be split)
-    :param desired_split_size: desired file split size in bytes
-    :param min_split_size: minimum file split size in bytes
-    :param compression_type: file compression type, will determine whether individual files are splittable
-    :param coder: coder for decoding file contents
+    :param desired_split_size: Desired file split size in bytes
+    :param min_split_size: Minimum file split size in bytes
+    :param compression_type: File compression type, will determine whether individual files are splittable
+    :param coder: Coder for decoding file contents
+    :raise OSError: During execution if reading a file fails or EOF occurs inside a required split
+    :raise UnicodeError: During execution if the coder cannot decode a line
     """
 
     def __init__(self,
@@ -181,7 +184,7 @@ class _ReadSplits(beam.DoFn):
                     line = file.readline()
                     if not line:
                         break
-                    yield line[:-1]     # Strip trailing newline character
+                    yield line[:-1]  # Strip trailing newline character
 
                 tracker.try_claim(file._file.tell())
                 return
@@ -196,7 +199,7 @@ class _ReadSplits(beam.DoFn):
                 line = file.readline()
                 if not line:
                     raise IOError(f'Unexpected EOF at {file.tell()}')
-                line = line[:-1]     # Strip trailing newline character
+                line = line[:-1]  # Strip trailing newline character
                 if self.coder:
                     line = self.coder.decode(line)
                 yield line

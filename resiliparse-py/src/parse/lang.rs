@@ -68,18 +68,13 @@ fn language_vector(text: &Bound<'_, PyString>, vec_len: usize) -> PyResult<Vec<u
 /// results use deterministic heap order for ties. Empty or entirely ignored text
 /// can still match a profile.
 ///
-/// :param text: input text
-/// :type text: str
-/// :param cutoff: inclusive OOP rank cutoff, default 1200
-/// :type cutoff: int
-/// :param n_results: nonnegative number of best matches to return, default 1
-/// :type n_results: int
-/// :param langs: restrict detection to these language codes, or None for all
-/// :type langs: typing.Iterable[str] | None
-/// :return: detected language and rank, or a list of matches
-/// :rtype: tuple[str, int] | list[tuple[str, int]]
-/// :raises OverflowError: if cutoff or n_results is negative or exceeds the platform's unsigned integer range
-/// :raises TypeError: if text is not a str or langs cannot be used as a language filter
+/// :param text: Input text
+/// :param cutoff: Inclusive OOP rank cutoff, default 1200
+/// :param n_results: Nonnegative number of best matches to return, default 1
+/// :param langs: Restrict detection to these language codes, or None for all
+/// :return: Detected language and rank, or a list of matches
+/// :raise OverflowError: If cutoff or n_results is negative or exceeds the platform's unsigned integer range
+/// :raise TypeError: If text is not a str or langs cannot be used as a language filter
 #[pyfunction(signature = (text, cutoff=1200, n_results=1, langs=None))]
 pub fn detect_fast(
     text: &Bound<'_, PyString>,
@@ -148,8 +143,7 @@ pub fn detect_fast(
 /// Returns a fresh list of 101 language codes sorted lexicographically. These
 /// codes can be passed to :func:`detect_fast` through its ``langs`` parameter.
 ///
-/// :return: sorted list of supported languages
-/// :rtype: list[str]
+/// :return: Sorted list of supported languages
 #[pyfunction]
 pub fn supported_langs() -> Vec<&'static str> {
     lang::supported_langs()
@@ -170,16 +164,13 @@ pub fn supported_langs() -> Vec<&'static str> {
 /// The returned list has exactly ``vec_len`` elements. Use 256 bins for the
 /// built-in detector's dimensions. This function does not modify the built-in profiles.
 ///
-/// :param examples: example texts for this language
-/// :type examples: typing.Iterable[str]
-/// :param vec_len: positive output vector length, default 256
-/// :type vec_len: int
-/// :return: vector of trained values
-/// :rtype: list[int]
-/// :raises ValueError: if examples is empty, vec_len is zero, or the 32-bit example
+/// :param examples: Example texts for this language
+/// :param vec_len: Positive output vector length, default 256
+/// :return: Vector of trained values
+/// :raise ValueError: If examples is empty, vec_len is zero, or the 32-bit example
 ///                     counter wraps to zero
-/// :raises OverflowError: if vec_len is negative or exceeds the platform's unsigned integer range
-/// :raises TypeError: if examples is not iterable or contains a non-string value
+/// :raise OverflowError: If vec_len is negative or exceeds the platform's unsigned integer range
+/// :raise TypeError: If examples is not iterable or contains a non-string value
 #[pyfunction(signature = (examples, vec_len=256))]
 pub fn train_language_examples(examples: &Bound<'_, PyAny>, vec_len: usize) -> PyResult<Vec<u32>> {
     let mut trainer = LanguageTrainer::new(vec_len).map_err(PyValueError::new_err)?;

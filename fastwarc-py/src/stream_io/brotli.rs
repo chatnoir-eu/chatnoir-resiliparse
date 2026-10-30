@@ -24,9 +24,13 @@ use std::sync::Mutex;
 
 /// Brotli reader.
 ///
-/// :param inner: raw input stream, file-like object, file name, or URL
-/// :param buffer_size: input buffer size
-/// :param fsspec_args: arguments for :mod:`fsspec`, or ``False`` to disable it
+/// Exceptions raised by a supplied stream or filesystem backend propagate unchanged.
+///
+/// :param inner: Raw input stream, file-like object, file name, or URL
+/// :param buffer_size: Input buffer size
+/// :param fsspec_args: Arguments for :mod:`fsspec`, or ``False`` to disable it
+/// :raise OSError: If the file or stream cannot be opened or the codec cannot be initialized
+/// :raise TypeError: If fsspec_args is neither a mapping nor False
 #[pyclass(name = "BrotliReader", module = "fastwarc.stream_io", extends = WarcReaderPy, subclass)]
 pub struct BrotliReaderPy {
     pub(crate) inner: Mutex<Option<Box<dyn WarcRead + Send>>>,
@@ -58,29 +62,65 @@ impl BrotliReaderPy {
         }))
     }
 
+    /// Read bytes from the decoded stream.
+    ///
+    /// :param size: Maximum bytes to read, or -1 for all remaining bytes
+    /// :return: Decoded bytes
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
+    /// :raise TypeError: If a supplied Python reader returns neither bytes nor bytearray
     #[pyo3(signature = (size=-1))]
     pub fn read<'py>(&self, py: Python<'py>, size: i128) -> PyResult<Bound<'py, PyBytes>> {
         impl_reader_read!(self, py, size)
     }
 
+    /// Seek within the decoded stream.
+    ///
+    /// :param offset: Seek offset
+    /// :param whence: Seek mode: 0 for start, 1 for current position, or 2 for end
+    /// :return: New decoded stream offset
+    /// :raise ValueError: If the stream is closed, whence is invalid, or offset is outside the supported range
+    /// :raise OSError: If the stream operation or codec processing fails
     #[pyo3(signature = (offset, whence=0))]
     pub fn seek(&self, offset: i128, whence: u8) -> PyResult<u64> {
         impl_reader_seek!(self, offset, whence, seek)
     }
 
+    /// Seek within the underlying stream.
+    ///
+    /// :param offset: Seek offset
+    /// :param whence: Seek mode: 0 for start, 1 for current position, or 2 for end
+    /// :return: New underlying stream offset
+    /// :raise ValueError: If the stream is closed, whence is invalid, or offset is outside the supported range
+    /// :raise OSError: If the stream operation or codec processing fails
     #[pyo3(signature = (offset, whence=0))]
     pub fn inner_seek(&self, offset: i128, whence: u8) -> PyResult<u64> {
         impl_reader_seek!(self, offset, whence, inner_seek)
     }
 
+    /// Return the decoded stream offset.
+    ///
+    /// :return: Current decoded stream offset
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     pub fn tell(&self) -> PyResult<u64> {
         forward_fn_call!(self, stream_position)
     }
 
+    /// Return the underlying stream offset.
+    ///
+    /// :return: Current underlying stream offset
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     pub fn inner_tell(&self) -> PyResult<u64> {
         forward_fn_call!(self, inner_stream_position)
     }
 
+    /// Return the current compression-frame offset, if supported.
+    ///
+    /// :return: Frame start offset, or None if the codec does not expose one
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     #[allow(clippy::needless_question_mark)]
     pub fn frame_start_position(&mut self) -> io::Result<Option<u64>> {
         forward_fn_call!(self, frame_start_position)
@@ -93,9 +133,13 @@ impl BrotliReaderPy {
 
 /// Brotli writer.
 ///
-/// :param inner: raw output stream, file-like object, file name, or URL
-/// :param buffer_size: compression buffer size
-/// :param fsspec_args: arguments for :mod:`fsspec`, or ``False`` to disable it
+/// Exceptions raised by a supplied stream or filesystem backend propagate unchanged.
+///
+/// :param inner: Raw output stream, file-like object, file name, or URL
+/// :param buffer_size: Compression buffer size
+/// :param fsspec_args: Arguments for :mod:`fsspec`, or ``False`` to disable it
+/// :raise OSError: If the file or stream cannot be opened or the codec cannot be initialized
+/// :raise TypeError: If fsspec_args is neither a mapping nor False
 #[pyclass(name = "BrotliWriter", module = "fastwarc.stream_io", extends = WarcWriterPy, subclass)]
 pub struct BrotliWriterPy {
     pub(crate) inner: Mutex<Option<Box<dyn WarcWrite + Send>>>,
@@ -130,18 +174,35 @@ impl BrotliWriterPy {
         }))
     }
 
+    /// Write bytes to the stream.
+    ///
+    /// :param data: Bytes to write
+    /// :return: Number of bytes written
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     pub fn write(&self, data: &[u8]) -> PyResult<usize> {
         impl_writer_write!(self, data)
     }
 
+    /// Flush buffered output.
+    ///
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     pub fn flush(&self) -> PyResult<()> {
         forward_fn_call!(self, flush)
     }
 
+    /// Finish encoding the stream.
+    ///
+    /// :raise ValueError: If the stream is closed
+    /// :raise OSError: If the stream operation or codec processing fails
     pub fn finish(&self) -> PyResult<()> {
         forward_fn_call!(self, finish)
     }
 
+    /// Close the writer after flushing buffered output.
+    ///
+    /// :raise OSError: If flushing the underlying stream fails
     pub fn close(&self) -> PyResult<()> {
         impl_writer_close!(self)
     }

@@ -36,7 +36,7 @@ pub struct ChunkedReader<T: ReadSeek> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size (default: 4 KiB).
+/// * `capacity` - Sets the internal buffer size (default: 4 KiB).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ChunkedReaderOptions {
     pub capacity: usize,
@@ -64,8 +64,8 @@ impl<T: ReadSeek> ChunkedReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `capacity` - internal buffer size
+    /// * `inner` - Input (inner) stream to read from
+    /// * `capacity` - Internal buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(inner, ChunkedReaderOptions { capacity })
     }
@@ -74,8 +74,8 @@ impl<T: ReadSeek> ChunkedReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `options` - Reader options
     pub fn with_options(inner: T, options: ChunkedReaderOptions) -> Self {
         Self {
             inner: Some(TrackingBufReader::with_capacity(options.capacity, inner)),
@@ -241,7 +241,7 @@ pub struct ChunkedWriter<T: _Write> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size.
+/// * `min_chunk_size` - Minimum number of buffered payload bytes before emitting a chunk (default: 1024).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ChunkedWriterOptions {
     pub min_chunk_size: usize,
@@ -263,7 +263,7 @@ impl<T: _Write> ChunkedWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write chunked output to
+    /// * `inner` - Inner stream to write chunked output to
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, ChunkedWriterOptions::default())
     }
@@ -275,8 +275,8 @@ impl<T: _Write> ChunkedWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write chunked output to
-    /// * `min_chunk_size` - chunk write buffer size
+    /// * `inner` - Inner stream to write chunked output to
+    /// * `min_chunk_size` - Chunk write buffer size
     pub fn with_chunk_size(inner: T, min_chunk_size: usize) -> Self {
         Self::with_options(inner, ChunkedWriterOptions { min_chunk_size })
     }
@@ -285,8 +285,8 @@ impl<T: _Write> ChunkedWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write chunked output to
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write chunked output to
+    /// * `options` - Writer options
     pub fn with_options(inner: T, options: ChunkedWriterOptions) -> Self {
         Self {
             inner: Some(inner),

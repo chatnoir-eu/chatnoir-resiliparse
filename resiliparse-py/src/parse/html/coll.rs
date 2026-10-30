@@ -96,6 +96,7 @@ impl NodeListPy {
     /// Return the item at the given index, or ``None`` if it is out of range.
     ///
     /// :param index: Zero-based item index.
+    /// :raise OverflowError: If index is negative or outside the supported integer range
     pub fn item<'py>(&self, index: usize, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
         create_upcast_node(
             py,
@@ -174,6 +175,9 @@ impl NodeListPy {
     /// Return the node at the given index, or a collection containing the nodes in a slice. Negative indexes are supported.
     ///
     /// :param index_or_slice: Integer index or slice.
+    /// :raise IndexError: If the index is out of range
+    /// :raise TypeError: If the index is neither an integer nor a slice
+    /// :raise ValueError: If a slice step is zero
     #[inline(always)]
     pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         get_tuple_slice(&self.values(index_or_slice.py())?.to_tuple(), index_or_slice)
@@ -196,6 +200,7 @@ impl ElementNodeListPy {
     ///
     /// :param element_id: ID value to search for.
     /// :param case_insensitive: Whether ID matching ignores case.
+    /// :raise ValueError: If the underlying collection does not contain elements
     #[pyo3(signature = (element_id, case_insensitive=false))]
     pub fn get_element_by_id<'py>(
         slf: PyRef<'py, Self>,
@@ -218,6 +223,7 @@ impl ElementNodeListPy {
     /// :param attr_name: Attribute name to match.
     /// :param attr_value: Attribute value to match.
     /// :param case_insensitive: Whether attribute value matching ignores case.
+    /// :raise ValueError: If the underlying collection does not contain elements
     #[pyo3(signature = (attr_name, attr_value, case_insensitive=false))]
     pub fn get_elements_by_attr<'py>(
         slf: PyRef<'py, Self>,
@@ -235,6 +241,7 @@ impl ElementNodeListPy {
     ///
     /// :param class_name: Class name token to match.
     /// :param case_insensitive: Legacy option; class-name matching remains case-sensitive.
+    /// :raise ValueError: If the underlying collection does not contain elements
     #[pyo3(signature = (class_name, case_insensitive=false))]
     pub fn get_elements_by_class_name<'py>(
         slf: PyRef<'py, Self>,
@@ -251,6 +258,7 @@ impl ElementNodeListPy {
     /// Find elements in this collection with the given tag name.
     ///
     /// :param tag_name: Tag name to match.
+    /// :raise ValueError: If the underlying collection does not contain elements
     pub fn get_elements_by_tag_name<'py>(
         slf: PyRef<'py, Self>,
         tag_name: &str,
@@ -265,6 +273,8 @@ impl ElementNodeListPy {
     /// Find the first matching element in this collection. This is more efficient than calling :meth:`query_selector_all` and discarding additional results.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
+    /// :raise ValueError: If the underlying collection does not contain elements
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector(selectors).map_or_else(
@@ -279,6 +289,8 @@ impl ElementNodeListPy {
     /// Find all matching elements in this collection and return an :class:`ElementNodeList`.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
+    /// :raise ValueError: If the underlying collection does not contain elements
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         if let Some(l) = slf.as_super().list.elements() {
             return l.query_selector_all(selectors).map_or_else(
@@ -297,6 +309,8 @@ impl ElementNodeListPy {
     ///    ``collection.query_selector(selectors) is not None``.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
+    /// :raise ValueError: If the underlying collection does not contain elements
     pub fn matches(slf: PyRef<Self>, selectors: &str) -> PyResult<bool> {
         if let Some(l) = slf.as_super().list.elements() {
             return l
@@ -373,6 +387,7 @@ impl DOMTokenListPy {
     /// Return the item at the given index, or ``None`` if it is out of range.
     ///
     /// :param index: Zero-based item index.
+    /// :raise OverflowError: If index is negative or outside the supported integer range
     pub fn item(&self, index: usize) -> Option<String> {
         self.list.item(index)
     }
@@ -388,6 +403,7 @@ impl DOMTokenListPy {
     /// Add a new class name to the element if it is not already present.
     ///
     /// :param token: One or more class-name tokens.
+    /// :raise TypeError: If a token is not a string
     #[pyo3(signature = (*token))]
     pub fn add<'py>(&self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
         self.list.add(
@@ -405,6 +421,7 @@ impl DOMTokenListPy {
     /// Remove a class name from this element.
     ///
     /// :param token: One or more class-name tokens.
+    /// :raise TypeError: If a token is not a string
     #[pyo3(signature = (*token))]
     pub fn remove<'py>(&self, token: &Bound<'py, PyTuple>) -> PyResult<()> {
         self.list.remove(
@@ -438,6 +455,9 @@ impl DOMTokenListPy {
     /// Return the class name at the given index or the class names in a slice.
     ///
     /// :param index_or_slice: Integer index or slice.
+    /// :raise IndexError: If the index is out of range
+    /// :raise TypeError: If the index is neither an integer nor a slice
+    /// :raise ValueError: If a slice step is zero
     pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         get_tuple_slice(&PyTuple::new(index_or_slice.py(), self.list.values().into_iter())?, index_or_slice)
     }

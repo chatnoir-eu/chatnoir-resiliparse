@@ -239,7 +239,8 @@ impl HeaderKeyBytesPy {
 
 /// Dict-like type representing a WARC or HTTP header block.
 ///
-/// :param encoding: header source encoding
+/// :param encoding: Header source encoding
+/// :raise ValueError: If encoding is neither utf-8 nor latin1
 #[pyclass(name = "HeaderMap", module = "fastwarc.warc")]
 pub struct HeaderMapPy {
     inner: HeaderMapBacking,
@@ -326,6 +327,9 @@ impl HeaderMapPy {
         (self.encoding(),)
     }
 
+    /// Return the serialized state used by pickle.
+    ///
+    /// :raise OSError: If serializing headers or reading the record payload fails
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, bool)> {
         self.with_headers(|headers| {
             let mut buf = Vec::with_capacity(headers.len() * 40);
@@ -334,6 +338,9 @@ impl HeaderMapPy {
         })
     }
 
+    /// Restore the state saved by pickle.
+    ///
+    /// :raise OSError: If the serialized headers or record cannot be parsed
     pub fn __setstate__<'py>(&mut self, state: (Bound<'py, PyBytes>, bool)) -> PyResult<()> {
         let (header_bytes, has_status_line) = state;
         let mut headers = HeaderMap::new(match self.encoding() {
@@ -374,9 +381,10 @@ impl HeaderMapPy {
 
     /// Parse a header block from a stream.
     ///
-    /// :param reader: input stream or reader object
-    /// :param has_status_line: whether the first line is a status line
-    /// :return: number of bytes read
+    /// :param reader: Input stream or reader object
+    /// :param has_status_line: Whether the first line is a status line
+    /// :return: Number of bytes read
+    /// :raise OSError: If the headers are invalid, too long, or cannot be read
     #[pyo3(signature = (reader, has_status_line=true))]
     pub fn parse(&mut self, reader: Py<PyAny>, has_status_line: bool) -> PyResult<usize> {
         let mut reader = PyReaderAdapter::new(reader)?;
@@ -385,8 +393,9 @@ impl HeaderMapPy {
 
     /// Write the header block into a stream.
     ///
-    /// :param writer: output stream or writer object
-    /// :return: number of bytes written
+    /// :param writer: Output stream or writer object
+    /// :return: Number of bytes written
+    /// :raise OSError: If the record stream operation fails
     pub fn write(&self, writer: Py<PyAny>) -> PyResult<usize> {
         let mut writer = PyWriterAdapter::new(writer)?;
         Ok(self.with_headers(|h| h.write(&mut writer))?)
@@ -418,7 +427,7 @@ impl HeaderMapPy {
 
     /// Set status line contents.
     ///
-    /// :param status_line: new status line
+    /// :param status_line: New status line
     #[setter]
     pub fn set_status_line(&mut self, status_line: &str) {
         self.with_headers_mut(|h| h.set_status_line(status_line));
@@ -438,8 +447,8 @@ impl HeaderMapPy {
     ///
     /// Use this if the header name is not unique.
     ///
-    /// :param key: header key
-    /// :param value: header value
+    /// :param key: Header key
+    /// :param value: Header value
     pub fn append(&mut self, key: HeaderKeyStrPy, value: &str) {
         let key = key.into_string();
         self.with_headers_mut(|h| h.append(&key, value));
@@ -490,8 +499,8 @@ impl HeaderMapPy {
     ///
     /// If multiple headers have the same key, only the last occurrence is returned.
     ///
-    /// :param key: header key
-    /// :param default: default value if ``key`` is not present
+    /// :param key: Header key
+    /// :param default: Default value if ``key`` is not present
     #[pyo3(signature = (key, default=None))]
     pub fn get<'py>(
         &self,
@@ -508,7 +517,7 @@ impl HeaderMapPy {
 
     /// Get all occurrences of a header.
     ///
-    /// :param key: header key
+    /// :param key: Header key
     pub fn get_multiple<'py>(&self, py: Python<'py>, key: HeaderKeyStrPy) -> PyResult<Bound<'py, PyTuple>> {
         let key = key.into_string();
         self.with_headers(|h| {
@@ -553,8 +562,8 @@ impl HeaderMapPy {
 
     /// Set a header value, overwriting any previous value for the same key.
     ///
-    /// :param key: header key
-    /// :param value: header value
+    /// :param key: Header key
+    /// :param value: Header value
     pub fn set(&mut self, key: HeaderKeyStrPy, value: &str) {
         let key = key.into_string();
         self.with_headers_mut(|h| h.set(&key, value));
@@ -572,7 +581,7 @@ impl HeaderMapPy {
 
     /// Remove all headers matching ``key``.
     ///
-    /// :param key: header key
+    /// :param key: Header key
     pub fn remove(&mut self, key: HeaderKeyStrPy) {
         let key = key.into_string();
         self.with_headers_mut(|h| h.remove(&key));
@@ -627,6 +636,9 @@ impl HeaderMapPy {
         PyTuple::new(py, values)
     }
 
+    /// Return the value of a header.
+    ///
+    /// :raise KeyError: If the requested header does not exist
     pub fn __getitem__<'py>(&self, py: Python<'py>, item: HeaderKeyStrPy) -> PyResult<Bound<'py, PyString>> {
         let item = item.into_string();
         self.with_headers(|h| h.get(&item).map(|s| s.into_owned()))
@@ -696,7 +708,8 @@ impl WarcRecordPayloadReaderPy {
 impl WarcRecordPayloadReaderPy {
     /// Read payload bytes.
     ///
-    /// :param size: maximum number of bytes to read, or ``-1`` for all remaining bytes
+    /// :param size: Maximum number of bytes to read, or ``-1`` for all remaining bytes
+    /// :raise OSError: If the record has no active reader or the payload operation fails
     #[pyo3(signature = (size=-1))]
     pub fn read<'py>(&self, py: Python<'py>, size: i128) -> PyResult<Bound<'py, PyBytes>> {
         self.with_payload_reader(|reader| {
@@ -715,7 +728,8 @@ impl WarcRecordPayloadReaderPy {
 
     /// Read a single payload line.
     ///
-    /// :param max_line_len: maximum line length
+    /// :param max_line_len: Maximum line length
+    /// :raise OSError: If the record has no active reader or the payload operation fails
     #[pyo3(signature = (max_line_len=8192))]
     pub fn readline<'py>(&self, py: Python<'py>, max_line_len: usize) -> PyResult<Bound<'py, PyBytes>> {
         self.with_payload_reader(|reader| {
@@ -727,7 +741,8 @@ impl WarcRecordPayloadReaderPy {
 
     /// Consume payload bytes without returning them.
     ///
-    /// :param size: maximum number of bytes to consume, or ``-1`` for all remaining bytes
+    /// :param size: Maximum number of bytes to consume, or ``-1`` for all remaining bytes
+    /// :raise OSError: If the record stream operation fails
     #[pyo3(signature = (size=-1))]
     pub fn consume(&self, size: i128) -> PyResult<usize> {
         let mut record = self.record.lock().unwrap();
@@ -740,6 +755,7 @@ impl WarcRecordPayloadReaderPy {
 
     /// Return the current payload offset.
     ///
+    /// :raise OSError: If the record has no active reader or the payload operation fails
     pub fn tell(&self) -> PyResult<u64> {
         self.with_payload_reader(|reader| Ok(reader.stream_position()?))
     }
@@ -748,8 +764,9 @@ impl WarcRecordPayloadReaderPy {
     ///
     /// Backward seeking is only supported on frozen or in-memory payloads.
     ///
-    /// :param offset: seek offset
-    /// :param whence: seek mode (``0`` = start, ``1`` = current, ``2`` = end)
+    /// :param offset: Seek offset
+    /// :param whence: Seek mode (``0`` = start, ``1`` = current, ``2`` = end)
+    /// :raise ValueError: If the stream is closed, whence is invalid, or offset is outside the supported range
     #[pyo3(signature = (offset, whence=0))]
     pub fn seek(&self, offset: i128, whence: u8) -> PyResult<u64> {
         self.with_payload_reader(|reader| Ok(reader.seek(python_whence_to_seekfrom(offset, whence)?)?))
@@ -786,11 +803,22 @@ impl WarcRecordPy {
         Self::from_record(WarcRecord::new())
     }
 
+    /// Parse a WARC record from bytes.
+    ///
+    /// :param payload: Complete WARC record bytes
+    /// :return: Parsed WARC record
+    /// :raise OSError: If the byte string contains an invalid or truncated WARC record
     #[classmethod]
     pub fn from_bytes(_cls: &Bound<'_, PyType>, payload: Vec<u8>) -> PyResult<Self> {
         Ok(Self::from_record(WarcRecord::from_bytes(payload)?))
     }
 
+    /// Parse a WARC record from a stream or path.
+    ///
+    /// :param reader: Input stream, path, or URL
+    /// :param quirks_mode: Enable lenient parsing
+    /// :return: Parsed WARC record
+    /// :raise OSError: If opening or reading the stream fails, or the WARC record is invalid
     // noinspection DuplicatedCode
     #[classmethod]
     #[pyo3(signature = (reader, quirks_mode=false))]
@@ -814,6 +842,9 @@ impl WarcRecordPy {
         PyTuple::empty(py)
     }
 
+    /// Return the serialized state used by pickle.
+    ///
+    /// :raise OSError: If serializing headers or reading the record payload fails
     pub fn __getstate__(&mut self) -> PyResult<(Vec<u8>, bool)> {
         let mut record = self.lock();
         let http_parsed = record.is_http_parsed();
@@ -829,6 +860,9 @@ impl WarcRecordPy {
         Ok((serialized, http_parsed))
     }
 
+    /// Restore the state saved by pickle.
+    ///
+    /// :raise OSError: If the serialized headers or record cannot be parsed
     pub fn __setstate__(&mut self, state: (Vec<u8>, bool)) -> PyResult<()> {
         let (serialized, http_parsed) = state;
         let mut record = WarcRecord::from_bytes(serialized)?;
@@ -883,7 +917,7 @@ impl WarcRecordPy {
 
     /// Set record ID.
     ///
-    /// :param record_id: record identifier
+    /// :param record_id: Record identifier
     #[setter]
     pub fn set_record_id<'py>(&self, record_id: &str) {
         self.lock().set_record_id(record_id);
@@ -899,7 +933,7 @@ impl WarcRecordPy {
 
     /// Set record type.
     ///
-    /// :param record_type: record type
+    /// :param record_type: Record type
     #[setter]
     pub fn set_record_type(&mut self, record_type: WarcRecordTypePy) {
         self.lock().set_record_type(record_type.into());
@@ -918,6 +952,8 @@ impl WarcRecordPy {
     /// WARC Date.
     ///
     /// :type: datetime.datetime or None
+    ///
+    /// :raise ValueError: When assigning a datetime without a valid timezone, date, or time
     #[getter]
     pub fn record_date<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDateTime>>> {
         let inner = self.lock();
@@ -950,7 +986,8 @@ impl WarcRecordPy {
     ///
     /// ``record_date`` must be timezone-aware.
     ///
-    /// :param record_date: datetime object
+    /// :param record_date: Datetime object
+    /// :raise ValueError: If record_date has no timezone or its date, time, or UTC offset is invalid
     #[setter]
     pub fn set_record_date<'py>(&mut self, py: Python<'py>, record_date: Bound<'py, PyDateTime>) -> PyResult<()> {
         if record_date.getattr("tzinfo")?.is_none() {
@@ -1006,7 +1043,7 @@ impl WarcRecordPy {
 
     /// Set whether this record is an HTTP record.
     ///
-    /// :param is_http: whether the record is an HTTP record
+    /// :param is_http: Whether the record is an HTTP record
     #[setter]
     pub fn set_is_http(&mut self, is_http: bool) {
         self.lock().set_is_http(is_http);
@@ -1112,7 +1149,7 @@ impl WarcRecordPy {
     ///
     /// :param record_type: WARC-Type
     /// :param record_urn: WARC-Record-ID as URN without ``'<urn:'`` and ``'>'``
-    /// :param content_length: deprecated compatibility argument, ignored
+    /// :param content_length: Deprecated compatibility argument, ignored
     #[pyo3(signature = (record_type=WarcRecordTypePy::no_type, record_urn=None, *, content_length=None)
     )]
     pub fn init_headers(
@@ -1130,6 +1167,7 @@ impl WarcRecordPy {
     /// Freezing copies the remaining payload bytes into memory so the record can
     /// outlive the iterator stream and support backward seeking.
     ///
+    /// :raise OSError: If the record stream operation fails
     pub fn freeze(&mut self) -> PyResult<bool> {
         self.lock().freeze()?;
         Ok(true)
@@ -1137,21 +1175,22 @@ impl WarcRecordPy {
 
     /// Set the WARC payload as bytes.
     ///
-    /// :param content: payload as bytes
+    /// :param content: Payload as bytes
     pub fn set_bytes_content(&mut self, content: &[u8]) {
         self.set_bytes_payload(content);
     }
 
     /// Set the WARC payload as bytes.
     ///
-    /// :param content: payload as bytes
+    /// :param content: Payload as bytes
     pub fn set_bytes_payload(&mut self, content: &[u8]) {
         self.lock().set_bytes_payload(content.to_vec());
     }
 
     /// Consume payload bytes without returning them.
     ///
-    /// :param n: maximum number of bytes to consume, or ``None`` for all remaining bytes
+    /// :param n: Maximum number of bytes to consume, or ``None`` for all remaining bytes
+    /// :raise OSError: If the record stream operation fails
     #[pyo3(signature = (n=None))]
     pub fn consume(&mut self, n: Option<usize>) -> PyResult<usize> {
         match n {
@@ -1162,9 +1201,10 @@ impl WarcRecordPy {
 
     /// Parse the WARC header block from the attached stream.
     ///
-    /// :param quirks_mode: enable lenient parsing
-    /// :param max_header_len: maximum allowed header length (throws an error if exceeded)
-    /// :return: number of bytes read
+    /// :param quirks_mode: Enable lenient parsing
+    /// :param max_header_len: Maximum allowed header length (throws an error if exceeded)
+    /// :return: Number of bytes read
+    /// :raise OSError: If the headers are invalid, too long, or cannot be read
     #[pyo3(signature = (quirks_mode=false, max_header_len=32 << 10))]
     pub fn parse_warc_headers(&mut self, quirks_mode: bool, max_header_len: usize) -> PyResult<usize> {
         Ok(self.lock().parse_warc_headers_with_opts(quirks_mode, max_header_len)?)
@@ -1179,11 +1219,13 @@ impl WarcRecordPy {
     ///
     /// Quirks mode allows parsing of headers terminated with only LF instead of CRLF.
     ///
-    /// :param auto_decode: automatically decode HTTP payload encodings
-    ///                     (accepted values: ``'none'``, ``'content'``, ``'transfer'``, ``'all'``)
-    /// :param max_header_len: maximum allowed header length (throws an error if exceeded)
-    /// :param quirks_mode: enable parsing of LF-only headers.
-    /// :param strict_mode: this argument is deprecated and ignored.
+    /// :param auto_decode: Automatically decode HTTP payload encodings
+    ///     (accepted values: ``'none'``, ``'content'``, ``'transfer'``, ``'all'``).
+    /// :param max_header_len: Maximum allowed header length (throws an error if exceeded)
+    /// :param quirks_mode: Enable parsing of LF-only headers.
+    /// :param strict_mode: This argument is deprecated and ignored.
+    /// :raise ValueError: If auto_decode is not a supported decoding mode
+    /// :raise OSError: If HTTP headers are invalid, exceed max_header_len, or cannot be read
     #[pyo3(signature = (auto_decode="none", max_header_len=32 << 10, quirks_mode=false, *, strict_mode=true))]
     pub fn parse_http(
         &mut self,
@@ -1203,7 +1245,8 @@ impl WarcRecordPy {
     /// Returns ``False`` for missing or invalid digest metadata and raises
     /// :class:`OSError` only for stream I/O failures.
     ///
-    /// :param consume: consume the remaining record payload instead of preserving it
+    /// :param consume: Consume the remaining record payload instead of preserving it
+    /// :raise OSError: If reading the payload fails
     #[pyo3(signature = (consume=false))]
     pub fn verify_block_digest(&mut self, consume: bool) -> PyResult<bool> {
         match self.lock().verify_block_digest(consume) {
@@ -1219,7 +1262,8 @@ impl WarcRecordPy {
     /// Returns ``False`` for missing or invalid digest metadata and raises
     /// :class:`OSError` only for stream I/O failures.
     ///
-    /// :param consume: consume the remaining payload instead of preserving it
+    /// :param consume: Consume the remaining payload instead of preserving it
+    /// :raise OSError: If reading the payload fails
     #[pyo3(signature = (consume=false))]
     pub fn verify_payload_digest(&mut self, consume: bool) -> PyResult<bool> {
         match self.lock().verify_payload_digest(consume) {
@@ -1231,11 +1275,12 @@ impl WarcRecordPy {
 
     /// Write this record to a stream.
     ///
-    /// :param stream: output stream
-    /// :param checksum_data: calculate and add block and payload digests
-    /// :param payload_digest: optional SHA-1 payload digest bytes
-    /// :param chunk_size: write block size
-    /// :return: number of bytes written
+    /// :param stream: Output stream
+    /// :param checksum_data: Calculate and add block and payload digests
+    /// :param payload_digest: Optional SHA-1 payload digest bytes
+    /// :param chunk_size: Write block size
+    /// :return: Number of bytes written
+    /// :raise OSError: If the record stream operation fails
     #[pyo3(signature = (stream, checksum_data=false, payload_digest=None, chunk_size=16384))]
     pub fn write<'py>(
         &mut self,
@@ -1314,23 +1359,25 @@ fn http_datetime_to_py<'py>(py: Python<'py>, value: Option<&str>) -> PyResult<Op
 /// object, or a URL string. If installed, :mod:`fsspec` is used for opening
 /// paths and URLs unless ``fsspec_args=False``.
 ///
-/// :param stream: input stream, file-like object, file name, or URL
-/// :param record_types: bitmask of :class:`WarcRecordType` values to return
-/// :param parse_http: parse HTTP records automatically
-/// :param min_content_length: skip records smaller than this length, or ``None`` to disable
-/// :param max_content_length: skip records larger than this length, or ``None`` to disable
+/// Exceptions raised by func_filter or a supplied Python stream propagate during iteration.
+///
+/// :param stream: Input stream, file-like object, file name, or URL
+/// :param record_types: Bitmask of :class:`WarcRecordType` values to return
+/// :param parse_http: Parse HTTP records automatically
+/// :param min_content_length: Skip records smaller than this length, or ``None`` to disable
+/// :param max_content_length: Skip records larger than this length, or ``None`` to disable
 /// :param func_filter: Python callable taking a :class:`WarcRecord` and returning ``bool``
-/// :param verify_digests: skip records with missing or invalid block digests
-/// :param quirks_mode: enable lenient parsing for malformed records
-/// :param auto_decode: automatically decode HTTP payload encodings
-/// :param max_header_len: maximum allowed header length (throws an error if exceeded)
-/// :param stream_detect: auto-detect gzip, zstd, or lz4 compressed streams
-/// :param default_buffer_size: default buffer size to use for reading from files
-///                             (has no effect if ``stream`` is not a path-like object)
-/// :param inplace: Reuse and mutate the same :class:`WarcRecord` instance instead of creating
-///                 a new instance in each iteration.
-/// :param fsspec_args: arguments for :mod:`fsspec`, or ``False`` to disable it
-/// :param strict_mode: this argument is deprecated and ignored. Use ``quirks_mode`` instead.
+/// :param verify_digests: Skip records with missing or invalid block digests
+/// :param quirks_mode: Enable lenient parsing for malformed records
+/// :param auto_decode: Automatically decode HTTP payload encodings
+/// :param max_header_len: Maximum allowed header length (throws an error if exceeded)
+/// :param stream_detect: Auto-detect gzip, zstd, or lz4 compressed streams
+/// :param buffer_size: Read buffer size for local files; ignored for supplied streams, URLs, and fsspec_args=False.
+/// :param inplace: Reuse and mutate the same :class:`WarcRecord` instance instead of creating a new one per iteration.
+/// :param fsspec_args: Arguments for :mod:`fsspec`, or ``False`` to disable it
+/// :param strict_mode: This argument is deprecated and ignored. Use ``quirks_mode`` instead.
+/// :raise ValueError: If auto_decode is not a supported decoding mode
+/// :raise OSError: If the stream cannot be opened, read, decompressed, or parsed
 #[pyclass(name = "ArchiveIterator", module = "fastwarc.warc")]
 pub struct ArchiveIteratorPy {
     inner: Box<dyn ArchiveIteratorTrait<Arc<Mutex<WarcRecord>>> + Send + Sync>,
@@ -1521,11 +1568,18 @@ impl ArchiveIteratorPy {
     ///
     /// This is useful when resuming archive iteration after a stream failure. The returned iterator
     /// starts at the beginning of `stream`.
+    ///
+    /// :raise OSError: If the replacement stream cannot be opened or initialized
     pub fn restart(&self, stream: Py<PyAny>, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.restart_factory.bind(py).call1((stream,)).map(Bound::unbind)
     }
 
     /// Return the next :class:`WarcRecord` from the stream.
+    ///
+    ///
+    /// Exceptions raised by func_filter propagate unchanged.
+    ///
+    /// :raise OSError: If the archive cannot be read, decompressed, or parsed
     pub fn __next__<'py>(&mut self, py: Python<'py>) -> PyResult<Option<Py<WarcRecordPy>>> {
         loop {
             let Some(next) = self.inner.next() else {
@@ -1703,8 +1757,8 @@ pub fn is_concurrent_py(record: &WarcRecordPy) -> bool {
 ///
 /// This predicate is equivalent to using ``record_types`` in :class:`ArchiveIterator`.
 ///
-/// :param record_type_bitmask: :class:`WarcRecordType` or bitmask of types
-/// :returns: WARC record filter
+/// :param record_type_bitmask: A :class:`WarcRecordType` value or bitmask of types
+/// :return: WARC record filter
 #[pyfunction(name = "has_record_type")]
 pub fn has_record_type_py(record_type_bitmask: u16) -> NativeFilterPy {
     NativeFilterPy {
@@ -1716,8 +1770,8 @@ pub fn has_record_type_py(record_type_bitmask: u16) -> NativeFilterPy {
 ///
 /// This predicate is equivalent to using ``max_content_length`` in :class:`ArchiveIterator`.
 ///
-/// :param max: maximum ``Content-Length``
-/// :returns: WARC record filter
+/// :param max: Maximum ``Content-Length``
+/// :return: WARC record filter
 #[pyfunction(name = "has_content_length_lte")]
 pub fn has_content_length_lte_py(max: u64) -> NativeFilterPy {
     NativeFilterPy {
@@ -1729,8 +1783,8 @@ pub fn has_content_length_lte_py(max: u64) -> NativeFilterPy {
 ///
 /// This predicate is equivalent to using ``min_content_length`` in :class:`ArchiveIterator`.
 ///
-/// :param min: minimum ``Content-Length``
-/// :returns: WARC record filter
+/// :param min: Minimum ``Content-Length``
+/// :return: WARC record filter
 #[pyfunction(name = "has_content_length_gte")]
 pub fn has_content_length_gte_py(min: u64) -> NativeFilterPy {
     NativeFilterPy {

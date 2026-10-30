@@ -183,7 +183,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   be made as comments inside the code (try not to over comment, however).
 - Private members should be documented as well, but the description can be brief and arguments and return values do not
   need to be documented.
-- PyO3 exports must have equivalent doc strings, but using ReST syntax:
+- PyO3 exports must have equivalent doc strings, but using ReST syntax. Raised exceptions must be documented, too.
   ```
   /// Short one-liner summary.
   ///
@@ -192,4 +192,5 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   /// :param param1: Short description
   /// :param param2: Short description
   /// :return: Short return value description.
+  /// :raise ValueError: Error condition.
   ```

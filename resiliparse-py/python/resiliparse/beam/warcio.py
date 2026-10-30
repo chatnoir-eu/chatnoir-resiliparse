@@ -44,14 +44,15 @@ class ReadWarcs(beam.PTransform):
     """
     Read WARC records from files matching a glob pattern.
 
-    :param file_pattern: input file glob pattern
-    :param warc_args: arguments to pass to :class:`fastwarc.warc.ArchiveIterator`
-    :param with_filename: keep the input filename as a key (otherwise return only the record)
-    :param freeze: freeze returned records (required if the records are not consumed immediately)
-    :param always_keep_meta: always return record metadata, even if they exceed ``max_content_length``
+    :param file_pattern: Input file glob pattern
+    :param warc_args: Arguments to pass to :class:`fastwarc.warc.ArchiveIterator`
+    :param with_filename: Keep the input filename as a key (otherwise return only the record)
+    :param freeze: Freeze returned records (required if the records are not consumed immediately)
+    :param always_keep_meta: Always return record metadata, even if they exceed ``max_content_length``
                              (from ``warc_args``), but strip them of their payload
-    :param shuffle_files: shuffle matched file names (useful if Beam runner does not support automatic
+    :param shuffle_files: Shuffle matched file names (useful if Beam runner does not support automatic
                           shuffling of input source splits)
+    :raise OSError: During execution if an archive cannot be opened, read, decompressed, or parsed
     """
 
     def __init__(self,
@@ -77,11 +78,12 @@ class ReadAllWarcs(beam.PTransform):
     Read WARC records from a given :class:`~apache_beam.pvalue.PCollection` of
     :class:`~apache_beam.io.filesystem.FileMetadata` objects.
 
-    :param warc_args: arguments to pass to :class:`fastwarc.warc.ArchiveIterator`
-    :param with_filename: keep the input filename as a key (otherwise return only the record)
-    :param freeze: freeze returned records (required if returned records are not consumed immediately)
-    :param always_keep_meta: always return record metadata, even if they exceed ``max_content_length``
+    :param warc_args: Arguments to pass to :class:`fastwarc.warc.ArchiveIterator`
+    :param with_filename: Keep the input filename as a key (otherwise return only the record)
+    :param freeze: Freeze returned records (required if returned records are not consumed immediately)
+    :param always_keep_meta: Always return record metadata, even if they exceed ``max_content_length``
                              (from ``warc_args``), but strip them of their payload
+    :raise OSError: During execution if an archive cannot be opened, read, decompressed, or parsed
     """
 
     def __init__(self,

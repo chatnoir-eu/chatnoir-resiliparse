@@ -170,9 +170,9 @@ impl From<WarcRecordType> for &'static str {
 ///
 /// # Types
 ///
-/// * `Original` - original reader as passed to [`WarcRecord::attach_reader()`].
-/// * `Frozen` - frozen reader and, optionally, the preserved original reader.
-/// * `Wrapped` - original reader wrapped in (multiple) content- or transfer-decoding readers.
+/// * `Original` - Original reader as passed to [`WarcRecord::attach_reader()`].
+/// * `Frozen` - Frozen reader and, optionally, the preserved original reader.
+/// * `Wrapped` - Original reader wrapped in (multiple) content- or transfer-decoding readers.
 pub(super) enum ReaderType {
     Original(LimitedBufReader),
     Frozen((LimitedBufReader, Option<LimitedBufReader>)),
@@ -360,7 +360,7 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `reader` - buffered reader instance
+    /// * `reader` - Buffered reader instance
     ///
     /// # Returns
     ///
@@ -378,9 +378,9 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `reader` - buffered reader instance
-    /// * `quirks_mode` - whether to enable lenient parsing ("quirks mode")
-    /// * `max_header_len` - maximum WARC header length (will return an error if exceeded, default: 32 KiB)
+    /// * `reader` - Buffered reader instance
+    /// * `quirks_mode` - Whether to enable lenient parsing ("quirks mode")
+    /// * `max_header_len` - Maximum WARC header length (will return an error if exceeded, default: 32 KiB)
     ///
     /// # Returns
     ///
@@ -404,12 +404,12 @@ impl WarcRecord {
     /// # Arguments
     ///
     /// * `reader` - Buffered reader instance
-    /// * `quirks_mode` - whether to enable lenient parsing
-    /// * `max_header_len` - maximum WARC header length (will return an error if exceeded, default: 32 KiB)
+    /// * `quirks_mode` - Whether to enable lenient parsing
+    /// * `max_header_len` - Maximum WARC header length (will return an error if exceeded, default: 32 KiB)
     ///
     /// # Returns
     ///
-    /// `OK(Some(record))` if record found. `OK(None)` if regular EOF reached. `Err` otherwise.
+    /// Returns `Ok(Some(record))` if a record is found, `Ok(None)` at EOF, or `Err(_)` on failure.
     fn from_reader_internal(
         reader: impl IntoWarcReader,
         quirks_mode: bool,
@@ -450,7 +450,7 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `reader` - stream reader instance
+    /// * `reader` - Stream reader instance
     pub fn attach_reader(&mut self, reader: impl IntoWarcReader) {
         let mut reader = reader.into_warc_reader();
         // Initialize stream position from inner stream
@@ -686,7 +686,7 @@ impl WarcRecord {
     /// # Arguments
     ///
     /// * `quirks_mode` - Whether to skip non-empty lines before header start
-    /// * `max_header_len` - maximum allowed header length (will return an error if exceeded, default: 32 KiB)
+    /// * `max_header_len` - Maximum allowed header length (will return an error if exceeded, default: 32 KiB)
     ///
     /// # Returns
     ///
@@ -1054,8 +1054,8 @@ impl WarcRecord {
     ///
     /// # Arguments
     ///
-    /// * `encoding_str` - comma-separated list of encodings as ASCII bytes
-    /// * `transfer` - whether this is transfer- or content-encoding
+    /// * `encoding_str` - Comma-separated list of encodings as ASCII bytes
+    /// * `transfer` - Whether this is transfer- or content-encoding
     fn wrap_reader_in_payload_decoders(&mut self, encoding_str: &[u8], transfer: bool) -> io::Result<()> {
         let mut frozen_orig: Option<LimitedBufReader> = None;
         let mut is_frozen = false;
@@ -1404,9 +1404,9 @@ impl WarcRecord {
     ///
     /// # Returns
     ///
-    /// `Ok(())` if next record read successfully, `None` at EOF, `Err(_)` if an I/O error
-    /// occurred. If the result is not `Ok(_)`, the instance should be treated as tainted and should
-    /// no longer be used. You may still call [`Self::detach_reader()`], however.
+    /// Returns `Some(Ok(()))` if the next record is read successfully, `None` at EOF, or `Some(Err(_))`
+    /// if an I/O error occurs. If the result is not `Some(Ok(()))`, the instance should be treated as tainted
+    /// and should no longer be used. You may still call [`Self::detach_reader()`], however.
     #[inline]
     pub fn next_inplace(&mut self) -> Option<io::Result<()>> {
         self.next_inplace_impl(32 << 10)

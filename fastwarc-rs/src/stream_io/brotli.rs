@@ -32,7 +32,7 @@ pub struct BrotliReader<T: ReadSeek> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size (default: 4 KiB).
+/// * `capacity` - Sets the internal buffer size (default: 4 KiB).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct BrotliReaderOptions {
     pub capacity: usize,
@@ -60,8 +60,8 @@ impl<T: ReadSeek> BrotliReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `capacity` - internal buffer size
+    /// * `inner` - Input (inner) stream to read from
+    /// * `capacity` - Internal buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(inner, BrotliReaderOptions { capacity })
     }
@@ -70,8 +70,8 @@ impl<T: ReadSeek> BrotliReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `options` - Reader options
     pub fn with_options(inner: T, options: BrotliReaderOptions) -> Self {
         Self {
             inner: Some(io::BufReader::with_capacity(options.capacity, Decompressor::new(inner, options.capacity))),
@@ -170,7 +170,9 @@ pub struct BrotliWriter<T: _Write> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size.
+/// * `capacity` - Sets the internal buffer size.
+/// * `quality` - Compression quality from 0 to 11 (default: 4).
+/// * `lg_window_size` - Base-2 logarithm of the sliding-window size (default: 22).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct BrotliWriterOptions {
     pub capacity: usize,
@@ -201,7 +203,7 @@ impl<T: _Write> BrotliWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
+    /// * `inner` - Inner stream to write compressed output to
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, BrotliWriterOptions::default())
     }
@@ -213,8 +215,8 @@ impl<T: _Write> BrotliWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `capacity` - write buffer size
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `capacity` - Write buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(
             inner,
@@ -229,8 +231,8 @@ impl<T: _Write> BrotliWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `options` - Writer options
     pub fn with_options(inner: T, options: BrotliWriterOptions) -> Self {
         Self {
             inner: Some(CompressorWriter::new(inner, options.capacity, options.quality, options.lg_window_size)),

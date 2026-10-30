@@ -28,9 +28,9 @@ class MatchFiles(beam.PTransform):
     by reshuffling the matched file names. This circumvents limitations in certain
     Beam runners that do not automatically distribute splits, such as the FlinkRunner.
 
-    :param file_pattern: file glob
-    :param empty_match_treatment: what to do with empty glob matches
-    :param shuffle: shuffle matches to break fusion (setting this to ``False`` effectively
+    :param file_pattern: File glob
+    :param empty_match_treatment: What to do with empty glob matches
+    :param shuffle: Shuffle matches to break fusion (setting this to ``False`` effectively
                     falls back to the original Beam implementation)
     """
 

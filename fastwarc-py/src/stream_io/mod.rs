@@ -49,7 +49,7 @@ impl WarcReaderPy {
 
     /// Read bytes from the stream.
     ///
-    /// :param size: maximum number of bytes to read, or ``-1`` for all remaining bytes
+    /// :param size: Maximum number of bytes to read, or ``-1`` for all remaining bytes
     #[pyo3(signature = (size=-1))]
     pub fn read<'py>(&self, py: Python<'py>, size: i128) -> PyResult<Py<PyAny>> {
         let _ = size;
@@ -58,8 +58,8 @@ impl WarcReaderPy {
 
     /// Seek within the decoded stream.
     ///
-    /// :param offset: seek offset
-    /// :param whence: seek mode (``0`` = start, ``1`` = current, ``2`` = end)
+    /// :param offset: Seek offset
+    /// :param whence: Seek mode (``0`` = start, ``1`` = current, ``2`` = end)
     #[pyo3(signature = (offset, whence=0))]
     pub fn seek(&self, py: Python<'_>, offset: i128, whence: u8) -> PyResult<Py<PyAny>> {
         let _ = (offset, whence);
@@ -94,8 +94,8 @@ impl WarcReaderPy {
 
     /// Seek within the wrapped inner stream.
     ///
-    /// :param offset: seek offset
-    /// :param whence: seek mode (``0`` = start, ``1`` = current, ``2`` = end)
+    /// :param offset: Seek offset
+    /// :param whence: Seek mode (``0`` = start, ``1`` = current, ``2`` = end)
     #[pyo3(signature = (offset, whence=0))]
     pub fn inner_seek(&self, py: Python<'_>, offset: i128, whence: u8) -> PyResult<Py<PyAny>> {
         let _ = (offset, whence);
@@ -128,8 +128,8 @@ impl WarcWriterPy {
 
     /// Write bytes to the stream.
     ///
-    /// :param data: bytes to write
-    /// :return: number of bytes written
+    /// :param data: Bytes to write
+    /// :return: Number of bytes written
     pub fn write(&self, py: Python<'_>, data: Py<PyBytes>) -> PyResult<Py<PyAny>> {
         let _ = data;
         Ok(py.NotImplemented())
@@ -546,11 +546,12 @@ pub(crate) fn python_whence_to_seekfrom(offset: i128, whence: u8) -> PyResult<Se
 ///
 /// # Arguments
 ///
-/// * `raw_stream` - input python stream / file-like object
-/// * `fsspec_open_mode` - open mode for `fsspec.open()`
-/// * `fsspec_args` - dict of arguments to pass to `fsspec` or `None` for defaults (set to `False` to disable `fsspec`)
-/// * `wrap_stream_fn` - closure for constructing a native reader from a [`PyStreamAdapter`]
-/// * `wrap_path_fn` - closure for constructing a native reader from a `String` file path
+/// * `py` - Python interpreter token.
+/// * `raw_stream` - Input python stream / file-like object
+/// * `fsspec_open_mode` - Open mode for `fsspec.open()`
+/// * `fsspec_args` - Dict of arguments to pass to `fsspec` or `None` for defaults (set to `False` to disable `fsspec`)
+/// * `wrap_stream_fn` - Closure for constructing a native reader from a [`PyStreamAdapter`]
+/// * `wrap_path_fn` - Closure for constructing a native reader from a `String` file path
 pub(crate) fn wrap_stream<T, A, FStream, FPath>(
     py: Python<'_>,
     raw_stream: Py<PyAny>,

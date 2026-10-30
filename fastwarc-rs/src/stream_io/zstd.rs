@@ -40,7 +40,7 @@ pub use ::zstd::dict::from_samples as train_dictionary_from_samples;
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size (default: 64 KiB).
+/// * `capacity` - Sets the internal buffer size (default: 64 KiB).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ZstdReaderOptions {
     pub capacity: usize,
@@ -59,7 +59,7 @@ impl<T: ReadSeek> ZstdReader<T> {
     ///
     /// Allocates an internal buffer holding chunks of the uncompressed inner stream.
     ///
-    /// The default buffer size is 4096 bytes. For custom buffer sizes, use [`Self::with_capacity()`].
+    /// The default buffer size is 64 KiB. For custom buffer sizes, use [`Self::with_capacity()`].
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, ZstdReaderOptions::default())
     }
@@ -70,8 +70,8 @@ impl<T: ReadSeek> ZstdReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `capacity` - internal buffer size
+    /// * `inner` - Input (inner) stream to read from
+    /// * `capacity` - Internal buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(inner, ZstdReaderOptions { capacity })
     }
@@ -80,8 +80,8 @@ impl<T: ReadSeek> ZstdReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `options` - Reader options
     pub fn with_options(inner: T, options: ZstdReaderOptions) -> Self {
         Self::with_dict_options_internal(inner, None, Some(options))
     }
@@ -94,9 +94,9 @@ impl<T: ReadSeek> ZstdReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `dict` - zstd dictionary
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `dict` - Zstd dictionary
+    /// * `options` - Reader options
     pub fn with_dictionary(inner: T, dict: Vec<u8>, options: Option<ZstdReaderOptions>) -> Self {
         Self::with_dict_options_internal(inner, Some(dict), options)
     }
@@ -183,7 +183,7 @@ impl<T: ReadSeek> ZstdReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `seek_pos` - optional seek position on inner buffered reader before Decoder construction
+    /// * `seek_pos` - Optional seek position on inner buffered reader before Decoder construction
     ///
     /// # Returns
     ///
@@ -334,15 +334,15 @@ pub struct ZstdWriter<T: _Write> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size.
-/// * `level` - compression level.
-/// * `multithread_workers` - number of threads to use for compression (0 to disable).
-/// * `include_checksum` - include `Content_Checksum` in each frame (required for WARCs).
-/// * `include_content_size` - include `Frame_Content_Size` in each frame (required for WARCs).
-/// * `include_dictid` - include dictionary ID when using one.
-/// * `compress_dictionary_frame` - if given a custom dictionary (with [`ZstdWriter::with_dictionary()`]),
+/// * `capacity` - Sets the internal buffer size.
+/// * `level` - Compression level.
+/// * `multithread_workers` - Number of threads to use for compression (0 to disable).
+/// * `include_checksum` - Include `Content_Checksum` in each frame (required for WARCs).
+/// * `include_content_size` - Include `Frame_Content_Size` in each frame (required for WARCs).
+/// * `include_dictid` - Include dictionary ID when using one.
+/// * `compress_dictionary_frame` - If given a custom dictionary (with [`ZstdWriter::with_dictionary()`]),
 ///   compress the dictionary frame contents
-/// * `write_dictionary_frame` - write a dictionary frame at the start of the stream if a custom
+/// * `write_dictionary_frame` - Write a dictionary frame at the start of the stream if a custom
 ///   dictionary was given.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ZstdWriterOptions {
@@ -380,7 +380,7 @@ impl<T: _Write> ZstdWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
+    /// * `inner` - Inner stream to write compressed output to
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, ZstdWriterOptions::default())
     }
@@ -392,8 +392,8 @@ impl<T: _Write> ZstdWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `capacity` - write buffer size
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `capacity` - Write buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(
             inner,
@@ -408,8 +408,8 @@ impl<T: _Write> ZstdWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `options` - Writer options
     pub fn with_options(inner: T, options: ZstdWriterOptions) -> Self {
         Self {
             inner: Some(
@@ -433,9 +433,9 @@ impl<T: _Write> ZstdWriter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `dict` - zstd dictionary
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `dict` - Zstd dictionary
+    /// * `options` - Writer options
     pub fn with_dictionary(inner: T, dict: Vec<u8>, options: Option<ZstdWriterOptions>) -> Self {
         let options = options.unwrap_or_default();
         Self {

@@ -34,7 +34,7 @@ pub struct Lz4Reader<T: ReadSeek> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size (default: 64 KiB).
+/// * `capacity` - Sets the internal buffer size (default: 64 KiB).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Lz4ReaderOptions {
     pub capacity: usize,
@@ -53,7 +53,7 @@ impl<T: ReadSeek> Lz4Reader<T> {
     ///
     /// Allocates an internal buffer holding chunks of the inner stream.
     ///
-    /// The default buffer size is 4096 bytes. For custom buffer sizes, use [`Self::with_capacity()`].
+    /// The default buffer size is 64 KiB. For custom buffer sizes, use [`Self::with_capacity()`].
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, Lz4ReaderOptions::default())
     }
@@ -64,8 +64,8 @@ impl<T: ReadSeek> Lz4Reader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `capacity` - internal buffer size
+    /// * `inner` - Input (inner) stream to read from
+    /// * `capacity` - Internal buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(inner, Lz4ReaderOptions { capacity })
     }
@@ -74,8 +74,8 @@ impl<T: ReadSeek> Lz4Reader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - input (inner) stream to read from
-    /// * `options` - reader options
+    /// * `inner` - Input (inner) stream to read from
+    /// * `options` - Reader options
     pub fn with_options(inner: T, options: Lz4ReaderOptions) -> Self {
         let mut reader = TrackingBufReader::with_capacity(options.capacity, inner);
         let frame_start_pos = reader.stream_position().unwrap_or(0);
@@ -212,7 +212,7 @@ pub struct Lz4Writer<T: _Write> {
 ///
 /// # Options
 ///
-/// * `capacity` - sets the internal buffer size.
+/// * `capacity` - Sets the internal buffer size.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Lz4WriterOptions {
     pub capacity: usize,
@@ -233,7 +233,7 @@ impl<T: _Write> Lz4Writer<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
+    /// * `inner` - Inner stream to write compressed output to
     pub fn new(inner: T) -> Self {
         Self::with_options(inner, Lz4WriterOptions::default())
     }
@@ -245,8 +245,8 @@ impl<T: _Write> Lz4Writer<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `capacity` - write buffer size
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `capacity` - Write buffer size
     pub fn with_capacity(inner: T, capacity: usize) -> Self {
         Self::with_options(inner, Lz4WriterOptions { capacity })
     }
@@ -255,8 +255,8 @@ impl<T: _Write> Lz4Writer<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - inner stream to write compressed output to
-    /// * `options` - writer options
+    /// * `inner` - Inner stream to write compressed output to
+    /// * `options` - Writer options
     pub fn with_options(inner: T, options: Lz4WriterOptions) -> Self {
         Self {
             inner: Some(FrameEncoder::new(BufWriter::with_capacity(options.capacity, inner))),

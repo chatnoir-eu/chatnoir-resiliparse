@@ -86,6 +86,9 @@ fn python_encoding_name(label: &'static str) -> &'static str {
 
 #[pymethods]
 impl EncodingDetectorPy {
+    /// Create an encoding detector.
+    ///
+    /// :raise MemoryError: If the encoding detector cannot be allocated
     #[new]
     fn new() -> PyResult<Self> {
         let detector = native::EncodingDetector::new()
@@ -102,8 +105,7 @@ impl EncodingDetectorPy {
     /// Repeated updates belong to the same document until :meth:`encoding` or
     /// :meth:`reset` is called.
     ///
-    /// :param data: the next block of input data
-    /// :type data: bytes
+    /// :param data: The next block of input data
     fn update(&self, data: &Bound<'_, PyBytes>) {
         self.detector.lock().unwrap().update(data.as_bytes());
     }
@@ -120,10 +122,8 @@ impl EncodingDetectorPy {
     /// resets the detector, including on failure; subsequent updates start a new
     /// document.
     ///
-    /// :param html5_compatible: remap encoding names according to WHATWG (default: True)
-    /// :type html5_compatible: bool
-    /// :return: detected encoding name, or None if detection fails without remapping
-    /// :rtype: str or None
+    /// :param html5_compatible: Remap encoding names according to WHATWG (default: True)
+    /// :return: Detected encoding name, or None if detection fails without remapping
     #[pyo3(signature = (html5_compatible=true))]
     fn encoding(&self, py: Python<'_>, html5_compatible: bool) -> PyResult<Option<String>> {
         let label = self.detector.lock().unwrap().encoding();
@@ -166,16 +166,12 @@ impl EncodingDetectorPy {
 /// If WHATWG remapping is enabled, UTF-8 is returned as a fallback encoding. Otherwise, the method returns
 /// ``None`` on failure to detect the encoding.
 ///
-/// :param data: input string for which to detect the encoding
-/// :type data: bytes
-/// :param max_len: maximum number of bytes to feed to detector (0 for no limit)
-/// :type max_len: int
+/// :param data: Input string for which to detect the encoding
+/// :param max_len: Maximum number of bytes to feed to detector (0 for no limit)
 /// :param html5_compatible: Remap encoding names according to WHATWG
-/// :type html5_compatible: bool
-/// :param from_html_meta: if string is an HTML document, use meta tag info
-/// :type from_html_meta: bool
-/// :return: detected encoding
-/// :rtype: str or None
+/// :param from_html_meta: If string is an HTML document, use meta tag info
+/// :return: Detected encoding
+/// :raise MemoryError: If the encoding detector cannot be allocated
 #[pyfunction]
 #[pyo3(signature = (data, max_len=131072, html5_compatible=true, from_html_meta=false))]
 pub fn detect_encoding(
@@ -226,12 +222,9 @@ pub fn detect_encoding(
 ///   * x-user-defined is unsupported
 ///   * No "replacement" mapping for 7-bit versions of ISO/IEC 2022
 ///
-/// :param encoding: input encoding name
-/// :type encoding: str
+/// :param encoding: Input encoding name
 /// :param fallback_utf8: Whether to fall back to UTF-8 or return ``None`` for unknown encodings
-/// :type fallback_utf8: bool
-/// :return: mapped output encoding name
-/// :rtype: str or None
+/// :return: Mapped output encoding name
 #[pyfunction]
 #[pyo3(signature = (encoding, fallback_utf8=true))]
 pub fn map_encoding_to_html5(encoding: &Bound<'_, PyString>, fallback_utf8: bool) -> PyResult<Option<&'static str>> {
@@ -277,18 +270,17 @@ fn bom_encoding<'a>(encoding: &'a str, data: &[u8], strip: bool) -> &'a str {
 /// This function also takes care to strip BOMs from the beginning of the string if
 /// ``strip_bom=True``.
 ///
-/// :param data: input byte string
-/// :type data: bytes
-/// :param encoding: desired encoding
-/// :type encoding: str
-/// :param errors: error handling for invalid characters
-/// :type errors: str
-/// :param fallback_encodings: list of fallback encodings to try if the primary encoding fails
-/// :type fallback_encodings: t.Iterable[str]
-/// :param strip_bom: strip BOM sequences from beginning of the string
-/// :type strip_bom: bool
-/// :return: decoded string
-/// :rtype: str
+/// Exceptions raised by the fallback iterable or a custom codec propagate unchanged.
+///
+/// :param data: Input byte string
+/// :param encoding: Desired encoding
+/// :param errors: Error handling for invalid characters
+/// :param fallback_encodings: List of fallback encodings to try if the primary encoding fails
+/// :param strip_bom: Strip BOM sequences from beginning of the string
+/// :return: Decoded string
+/// :raise LookupError: If an attempted codec or a required error handler is unknown
+/// :raise TypeError: If fallback_encodings is not iterable or an attempted label is not a string
+/// :raise UnicodeError: If all decoding attempts fail or re-encoding fails under the selected error policy
 #[pyfunction]
 #[pyo3(signature = (data, encoding="utf-8", errors="ignore", fallback_encodings=None, strip_bom=true),
     text_signature = "(data, encoding='utf-8', errors='ignore', fallback_encodings=('utf-8', 'cp1252'), strip_bom=True)")]
@@ -336,12 +328,9 @@ pub fn bytes_to_str<'py>(
 /// The check is very basic and only checks the starting bytes as well as the number of unprintable
 /// bytes. It does not replace a full-blown MIME type detection engine like Apache Tika at the moment.
 ///
-/// :param data: input bytes
-/// :type data: bytes
-/// :param max_unprintable: maximum allowable ratio of unprintable characters for text
-/// :type max_unprintable: float
-/// :return: detected MIME type
-/// :rtype: str
+/// :param data: Input bytes
+/// :param max_unprintable: Maximum allowable ratio of unprintable characters for text
+/// :return: Detected MIME type
 #[pyfunction]
 #[pyo3(signature = (data, max_unprintable=0.05))]
 pub fn detect_mime(data: &Bound<'_, PyBytes>, max_unprintable: f32) -> &'static str {

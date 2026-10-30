@@ -58,7 +58,7 @@ impl<T: Read + Seek> TrackingBufReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - wrapped stream
+    /// * `inner` - Wrapped stream
     pub fn new(inner: T) -> Self {
         Self::with_capacity(DEFAULT_BUFFER_SIZE, inner)
     }
@@ -70,8 +70,8 @@ impl<T: Read + Seek> TrackingBufReader<T> {
     ///
     /// # Arguments
     ///
-    /// * `capacity` - buffer capacity
-    /// * `inner` - wrapped stream
+    /// * `capacity` - Buffer capacity
+    /// * `inner` - Wrapped stream
     pub fn with_capacity(capacity: usize, mut inner: T) -> Self {
         let pos = inner.stream_position().unwrap_or(0);
         Self {
@@ -201,7 +201,7 @@ impl<T: BufReadSeek> RawReaderAdapter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - wrapped stream
+    /// * `inner` - Wrapped stream
     pub fn new(mut inner: T) -> Self {
         let pos = inner.stream_position().unwrap_or(0);
         Self { inner, pos }
@@ -314,7 +314,7 @@ impl<T: _Write> RawWriterAdapter<T> {
     ///
     /// # Arguments
     ///
-    /// * `inner` - wrapped stream
+    /// * `inner` - Wrapped stream
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
@@ -436,8 +436,8 @@ impl LimitedBufReader {
     ///
     /// # Arguments
     ///
-    /// * `reader` - inner reader to put the limit on
-    /// * `limit` - limit in bytes at which EOF is returned
+    /// * `reader` - Inner reader to put the limit on
+    /// * `limit` - Limit in bytes at which EOF is returned
     pub fn new(reader: impl IntoWarcReader, limit: Option<u64>) -> Self {
         let mut reader = reader.into_warc_reader();
         let pos = reader.stream_position().unwrap_or(0);
@@ -454,7 +454,7 @@ impl LimitedBufReader {
     ///
     /// # Arguments
     ///
-    /// * `limit` - new reader limit
+    /// * `limit` - New reader limit
     #[inline]
     pub fn set_limit(&mut self, limit: u64) {
         self.limit = limit;
@@ -505,8 +505,8 @@ impl LimitedBufReader {
     ///
     /// # Arguments
     ///
-    /// * `buf` - output buffer to append to
-    /// * `max_line_len` - maximum line length to read if no LF found
+    /// * `buf` - Output buffer to append to
+    /// * `max_line_len` - Maximum line length to read if no LF found
     ///
     /// # Returns
     ///

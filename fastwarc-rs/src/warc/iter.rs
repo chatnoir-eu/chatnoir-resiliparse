@@ -43,15 +43,14 @@ pub struct ArchiveIteratorImpl<R> {
 ///
 /// # Options
 ///
-/// * `parse_http` - automatically parse HTTP headers.
-/// * `decode_http_payload` - automatically decode transfer- or content-encoded HTTP payloads.
-///   Requires `parse_http=true`.to have an effect.
-/// * `verify_digests` - automatically verify record digest.
-/// * `quirks_mode` - enable strict record parsing (set to `false` for quirks mode --
-///   required for some ClueWebs).
-/// * `stream_detect` - automatically detect the stream compression type. If enabled, automatically
+/// * `parse_http` - Automatically parse HTTP headers.
+/// * `decode_http_payload` - Automatically decode transfer- or content-encoded HTTP payloads.
+///   Requires `parse_http=true` to have an effect.
+/// * `verify_digests` - Automatically verify record digest.
+/// * `quirks_mode` - Enable lenient record parsing, including LF-only header line endings.
+/// * `stream_detect` - Automatically detect the stream compression type. If enabled, automatically
 ///   detects the stream compression type based on the file extension or magic bytes.
-/// * `max_header_len` - maximum accepted WARC or HTTP header length. If a parsed header is longer than this,
+/// * `max_header_len` - Maximum accepted WARC or HTTP header length. If a parsed header is longer than this,
 ///   an error is returned (default: 32 KiB).
 /// * `inplace` - Reuse and mutate [`WarcRecord`] objects in-place instead of constructing new instances
 ///   in each iteration.
@@ -110,7 +109,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `reader` - buffered reader instance to attach to records.
+    /// * `reader` - Buffered reader instance to attach to records.
     pub fn new(reader: impl IntoWarcReader) -> Self {
         Self::with_options(reader, ArchiveIteratorOptions::default())
     }
@@ -119,8 +118,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `reader` - buffered reader instance to attach to records.
-    /// * `options` - custom iterator options.
+    /// * `reader` - Buffered reader instance to attach to records.
+    /// * `options` - Custom iterator options.
     pub fn with_options(reader: impl IntoWarcReader, options: ArchiveIteratorOptions) -> Self {
         let mut empty = WarcRecord::new();
         if options.quirks_mode {
@@ -142,7 +141,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `path` - path to WARC file.
+    /// * `path` - Path to WARC file.
     pub fn from_path(path: impl AsRef<std::path::Path>) -> io::Result<Self> {
         Self::from_path_with_options(path, Default::default())
     }
@@ -157,8 +156,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `path` - path to WARC file.
-    /// * `options` - options for constructing the iterator.
+    /// * `path` - Path to WARC file.
+    /// * `options` - Options for constructing the iterator.
     pub fn from_path_with_options(
         path: impl AsRef<std::path::Path>,
         mut options: ArchiveIteratorOptions,
@@ -271,7 +270,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter` - boolean filter predicate (must take a [`&mut WarcRecord`] as parameter)
+    /// * `filter` - Boolean filter predicate (must take a [`&mut WarcRecord`] as parameter)
     pub fn with_filter<F>(self, filter: F) -> FilteredArchiveIteratorImpl<R, F>
     where
         F: Fn(&mut WarcRecord) -> bool,

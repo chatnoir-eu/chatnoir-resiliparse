@@ -156,14 +156,18 @@ def time_guard(timeout=60, timeout_ms=None, grace_period=15, grace_period_ms=Non
     raises an exception and then escalates to signals. ``send_kill=True`` uses
     ``SIGKILL`` for the final signal attempt; this terminates the whole process.
 
-    :param timeout: maximum execution time in seconds, default 60
-    :param timeout_ms: maximum execution time in milliseconds, overriding ``timeout``
-    :param grace_period: delay in seconds between interrupt attempts, default 15
-    :param grace_period_ms: grace period in milliseconds, overriding ``grace_period``
-    :param interrupt_type: exception, signal, or exception-then-signal behavior
-    :param send_kill: use ``SIGKILL`` instead of ``SIGTERM`` for the final attempt
-    :param check_interval: watchdog polling interval in milliseconds, default 500
-    :return: a decorator and context manager for execution-time limits
+    :param timeout: Maximum execution time in seconds, default 60
+    :param timeout_ms: Maximum execution time in milliseconds, overriding ``timeout``
+    :param grace_period: Delay in seconds between interrupt attempts, default 15
+    :param grace_period_ms: Grace period in milliseconds, overriding ``grace_period``
+    :param interrupt_type: Exception, signal, or exception-then-signal behavior
+    :param send_kill: Use ``SIGKILL`` instead of ``SIGTERM`` for the final attempt
+    :param check_interval: Watchdog polling interval in milliseconds, default 500
+    :return: A decorator and context manager for execution-time limits
+    :raise ValueError: If both timeout and timeout_ms are None
+    :raise OverflowError: If a duration is negative or out of range
+    :raise RuntimeError: When entering a nested time guard
+    :raise ExecutionTimeout: In the guarded task if its timeout is exceeded and exceptions are enabled
     """
     native = _process_guard.time_guard(
         timeout, timeout_ms, grace_period, grace_period_ms,
@@ -194,16 +198,19 @@ def mem_guard(max_memory: int, absolute: bool = True, grace_period: int = 0, gra
         Memory guards are supported only on Linux. Using the guard on another
         platform raises :class:`RuntimeError` when it is entered or called.
 
-    :param max_memory: maximum allowed RSS or RSS growth in KiB
-    :param absolute: interpret ``max_memory`` as an absolute process limit
-    :param grace_period: delay in seconds before the first interrupt
-    :param grace_period_ms: first grace period in milliseconds, overriding ``grace_period``
-    :param secondary_grace_period: delay in seconds between later escalation attempts
-    :param secondary_grace_period_ms: secondary grace period in milliseconds
-    :param interrupt_type: exception, signal, or exception-then-signal behavior
-    :param send_kill: use ``SIGKILL`` instead of ``SIGTERM`` for the final attempt
-    :param check_interval: watchdog polling interval in milliseconds, default 500
-    :return: a decorator and context manager for memory limits
+    :param max_memory: Maximum allowed RSS or RSS growth in KiB
+    :param absolute: Interpret ``max_memory`` as an absolute process limit
+    :param grace_period: Delay in seconds before the first interrupt
+    :param grace_period_ms: First grace period in milliseconds, overriding ``grace_period``
+    :param secondary_grace_period: Delay in seconds between later escalation attempts
+    :param secondary_grace_period_ms: Secondary grace period in milliseconds
+    :param interrupt_type: Exception, signal, or exception-then-signal behavior
+    :param send_kill: Use ``SIGKILL`` instead of ``SIGTERM`` for the final attempt
+    :param check_interval: Watchdog polling interval in milliseconds, default 500
+    :return: A decorator and context manager for memory limits
+    :raise OverflowError: If a memory limit or duration is negative or out of range
+    :raise RuntimeError: When entering the guard outside Linux or inside another memory guard
+    :raise MemoryLimitExceeded: In the guarded task if the memory limit is exceeded and exceptions are enabled
     """
     native = _process_guard.mem_guard(
         max_memory, absolute, grace_period, grace_period_ms,
@@ -221,8 +228,8 @@ def progress(ctx=None) -> None:
     the global namespace or a decorated function carrying ``_guard_self``. If
     the context is local or cannot be found, pass it explicitly.
 
-    :param ctx: active :class:`TimeGuard` context, or ``None`` for stack lookup
-    :raises RuntimeError: if no active time guard can be found
+    :param ctx: Active :class:`TimeGuard` context, or ``None`` for stack lookup
+    :raise RuntimeError: If no active time guard can be found
     """
     if ctx is None:
         for frame_info in inspect.stack():
@@ -260,8 +267,10 @@ def progress_loop(it, ctx=None) -> Iterator[Any]:
     item. If ``ctx`` is ``None``, the guard is found using :func:`progress`'s
     stack lookup.
 
-    :param it: iterable to pass through
-    :param ctx: active time-guard context, or ``None`` for automatic lookup
-    :return: iterator yielding the original items
+    :param it: Iterable to pass through
+    :param ctx: Active time-guard context, or ``None`` for automatic lookup
+    :return: Iterator yielding the original items
+    :raise TypeError: During iteration if the input is not iterable
+    :raise RuntimeError: During iteration if no active time guard can be found
     """
     return _itertools._process_guard_progress_loop(it, ctx)

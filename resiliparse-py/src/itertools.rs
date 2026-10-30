@@ -84,10 +84,11 @@ impl ExceptionLoop {
 /// Remember that a generator will end after throwing an exception, so if the input iterator is
 /// a generator, you will have to create a new instance in order to retry or continue.
 ///
-/// :param it: original iterator
-/// :type it: t.Iterable[t.Any]
-/// :return: iterator of items and ``None`` or ``None`` and exception instance
-/// :rtype: t.Iterable[(t.Any or None, BaseException or None)]
+/// Exceptions raised when obtaining the input iterator propagate; exceptions from advancing it are yielded.
+///
+/// :param it: Original iterator
+/// :return: Iterator of items and ``None`` or ``None`` and exception instance
+/// :raise TypeError: If the input cannot be iterated
 #[pyfunction]
 fn exc_loop(it: Py<PyAny>, py: Python<'_>) -> PyResult<Py<ExceptionLoop>> {
     Py::new(
@@ -171,11 +172,13 @@ fn make_progress_loop(it: Py<PyAny>, ctx: Option<Py<PyAny>>, py: Python<'_>) -> 
 /// Wraps an iterator into a pass-through iterator that reports progress to an active
 /// :class:`resiliparse.process_guard.TimeGuard` context guard after each iteration.
 ///
-/// :param it: original iterator
-/// :type it: t.Iterable[t.Any]
-/// :param ctx: active guard context (will use last global context from the call stack if unset)
-/// :return: wrapped iterator
-/// :rtype: t.Iterable[t.Any]
+/// Input-iterator and progress-callback exceptions propagate unchanged during iteration.
+///
+/// :param it: Original iterator
+/// :param ctx: Active guard context (will use last global context from the call stack if unset)
+/// :return: Wrapped iterator
+/// :raise TypeError: If the input cannot be iterated
+/// :raise RuntimeError: If progress cannot find an active time guard
 #[pyfunction]
 #[pyo3(name = "_process_guard_progress_loop", signature = (it, ctx=None))]
 fn process_guard_progress_loop(it: Py<PyAny>, ctx: Option<Py<PyAny>>, py: Python<'_>) -> PyResult<Py<ProgressLoop>> {
@@ -356,16 +359,16 @@ impl WarcRetry {
 ///
 /// Exceptions raised inside ``stream_factory()`` will be caught and count towards ``retry_count``.
 ///
-/// :param archive_iterator: input WARC iterator
-/// :type archive_iterator: fastwarc.warc.ArchiveIterator
-/// :param stream_factory: callable returning a new stream instance to continue iteration in case of failure
-/// :type stream_factory: t.Callable[[], t.Any] or t.Callable[[int], t.Any]
-/// :param retry_count: maximum number of retries before giving up (set to ``None`` or zero for no limit)
-/// :type retry_count: int
-/// :param seek: whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
-/// :type seek: bool or None
-/// :return: wrapped :class:`~fastwarc.warc.ArchiveIterator`
-/// :rtype: t.Iterable[fastwarc.warc.WarcRecord]
+/// The last stream or factory exception propagates when the retry limit is exceeded.
+/// Exceptions raised while restarting the archive iterator propagate unchanged.
+///
+/// :param archive_iterator: Input WARC iterator
+/// :param stream_factory: Callable returning a new stream instance to continue iteration in case of failure
+/// :param retry_count: Maximum number of retries before giving up (set to ``None`` or zero for no limit)
+/// :param seek: Whether to seek to previous position on new stream object (or ``None`` for "stream consumption")
+/// :return: Wrapped :class:`~fastwarc.warc.ArchiveIterator`
+/// :raise TypeError: If archive_iterator cannot be iterated or the factory is not callable
+/// :raise OverflowError: If retry_count is negative or out of range
 #[pyfunction]
 #[pyo3(signature = (archive_iterator, stream_factory, retry_count=3, seek=true))]
 fn warc_retry(

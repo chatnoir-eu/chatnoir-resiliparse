@@ -406,14 +406,18 @@ impl TimeGuard {
 /// ``SIGTERM``, or first raise an exception and then escalate to signals.
 /// ``send_kill=True`` uses ``SIGKILL`` for the final signal escalation.
 ///
-/// :param timeout: timeout in seconds, default 60; use ``timeout_ms`` for finer resolution
-/// :param timeout_ms: timeout in milliseconds, overriding ``timeout``
-/// :param grace_period: delay in seconds between escalation attempts, default 15
-/// :param grace_period_ms: grace period in milliseconds, overriding ``grace_period``
-/// :param interrupt_type: exception, signal, or exception-then-signal behavior
-/// :param send_kill: use ``SIGKILL`` for the final signal escalation
-/// :param check_interval: watchdog polling interval in milliseconds, default 500
-/// :return: a time guard that can decorate a function or guard a context
+/// :param timeout: Timeout in seconds, default 60; use ``timeout_ms`` for finer resolution
+/// :param timeout_ms: Timeout in milliseconds, overriding ``timeout``
+/// :param grace_period: Delay in seconds between escalation attempts, default 15
+/// :param grace_period_ms: Grace period in milliseconds, overriding ``grace_period``
+/// :param interrupt_type: Exception, signal, or exception-then-signal behavior
+/// :param send_kill: Use ``SIGKILL`` for the final signal escalation
+/// :param check_interval: Watchdog polling interval in milliseconds, default 500
+/// :return: A time guard that can decorate a function or guard a context
+/// :raise ValueError: If both timeout and timeout_ms are None
+/// :raise OverflowError: If a duration is negative or out of range
+/// :raise RuntimeError: When entering a nested time guard
+/// :raise ExecutionTimeout: In the guarded task if the time limit is exceeded and exceptions are enabled
 #[pyfunction]
 #[pyo3(signature = (timeout=60, timeout_ms=None, grace_period=15, grace_period_ms=None, interrupt_type=None, send_kill=false, check_interval=500))]
 fn time_guard(
@@ -600,16 +604,19 @@ impl MemGuard {
 /// when the guard starts. ``grace_period_ms`` and
 /// ``secondary_grace_period_ms`` override their seconds-based values.
 ///
-/// :param max_memory: maximum process RSS or growth in KiB
-/// :param absolute: treat ``max_memory`` as an absolute limit, default true
-/// :param grace_period: delay in seconds before the first interrupt, default 0
-/// :param grace_period_ms: grace period in milliseconds, overriding ``grace_period``
-/// :param secondary_grace_period: delay in seconds between later escalation attempts, default 5
-/// :param secondary_grace_period_ms: secondary grace period in milliseconds
-/// :param interrupt_type: exception, signal, or exception-then-signal behavior
-/// :param send_kill: use ``SIGKILL`` for the final signal escalation
-/// :param check_interval: watchdog polling interval in milliseconds, default 500
-/// :return: a memory guard that can decorate a function or guard a context
+/// :param max_memory: Maximum process RSS or growth in KiB
+/// :param absolute: Treat ``max_memory`` as an absolute limit, default true
+/// :param grace_period: Delay in seconds before the first interrupt, default 0
+/// :param grace_period_ms: Grace period in milliseconds, overriding ``grace_period``
+/// :param secondary_grace_period: Delay in seconds between later escalation attempts, default 5
+/// :param secondary_grace_period_ms: Secondary grace period in milliseconds
+/// :param interrupt_type: Exception, signal, or exception-then-signal behavior
+/// :param send_kill: Use ``SIGKILL`` for the final signal escalation
+/// :param check_interval: Watchdog polling interval in milliseconds, default 500
+/// :return: A memory guard that can decorate a function or guard a context
+/// :raise OverflowError: If a memory limit or duration is negative or out of range
+/// :raise RuntimeError: When entering the guard outside Linux or inside another memory guard
+/// :raise MemoryLimitExceeded: In the guarded task if the memory limit is exceeded and exceptions are enabled
 #[pyfunction]
 #[pyo3(signature = (max_memory, absolute=true, grace_period=0, grace_period_ms=None, secondary_grace_period=5, secondary_grace_period_ms=None, interrupt_type=None, send_kill=false, check_interval=500))]
 fn mem_guard(

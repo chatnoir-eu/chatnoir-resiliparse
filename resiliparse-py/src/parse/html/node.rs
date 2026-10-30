@@ -246,8 +246,10 @@ macro_rules! character_data_node {
 
             /// Return a portion of the character data.
             ///
-            /// :param offset: Character offset at which to edit or read data.
-            /// :param count: Number of characters to read or remove.
+            /// :param offset: Character offset at which reading starts.
+            /// :param count: Maximum number of characters to read.
+            /// :raise DOMException: If offset exceeds the character-data length
+            /// :raise OverflowError: If offset or count is negative or out of range
             #[inline(always)]
             pub fn substring_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<String> {
                 Self::raw_node(&slf).substring_data(offset, count).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
@@ -255,7 +257,7 @@ macro_rules! character_data_node {
 
             /// Append text to the character data.
             ///
-            /// :param data: Character data to store in the node.
+            /// :param data: Character data to append.
             #[inline(always)]
             pub fn append_data(slf: PyRef<'_, Self>, data: &str) {
                 Self::raw_node(&slf).append_data(data)
@@ -263,8 +265,10 @@ macro_rules! character_data_node {
 
             /// Insert text into the character data.
             ///
-            /// :param offset: Character offset at which to edit or read data.
-            /// :param data: Character data to store in the node.
+            /// :param offset: Character offset at which to insert the data.
+            /// :param data: Character data to insert.
+            /// :raise DOMException: If offset exceeds the character-data length
+            /// :raise OverflowError: If offset is negative or out of range
             #[inline(always)]
             pub fn insert_data(slf: PyRef<'_, Self>, offset: usize, data: &str) -> PyResult<()> {
                 Self::raw_node(&slf).insert_data(offset, data).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
@@ -272,8 +276,10 @@ macro_rules! character_data_node {
 
             /// Delete a portion of the character data.
             ///
-            /// :param offset: Character offset at which to edit or read data.
-            /// :param count: Number of characters to read or remove.
+            /// :param offset: Character offset at which deletion starts.
+            /// :param count: Maximum number of characters to remove.
+            /// :raise DOMException: If offset exceeds the character-data length
+            /// :raise OverflowError: If offset or count is negative or out of range
             #[inline(always)]
             pub fn delete_data(slf: PyRef<'_, Self>, offset: usize, count: usize) -> PyResult<()> {
                 Self::raw_node(&slf).delete_data(offset, count).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
@@ -281,9 +287,11 @@ macro_rules! character_data_node {
 
             /// Replace a portion of the character data.
             ///
-            /// :param offset: Character offset at which to edit or read data.
-            /// :param count: Number of characters to read or remove.
-            /// :param data: Character data to store in the node.
+            /// :param offset: Character offset at which replacement starts.
+            /// :param count: Maximum number of characters to replace.
+            /// :param data: Replacement character data.
+            /// :raise DOMException: If offset exceeds the character-data length
+            /// :raise OverflowError: If offset or count is negative or out of range
             #[inline(always)]
             pub fn replace_data(slf: PyRef<'_, Self>, offset: usize, count: usize, data: &str) -> PyResult<()> {
                 Self::raw_node(&slf).replace_data(offset, count, data).map_err(|error| DOMExceptionPy::new_err(error.to_string()))
@@ -298,7 +306,8 @@ macro_rules! character_data_node {
 
             /// Insert nodes immediately before this node.
             ///
-            /// :param node: Node to append as a child.
+            /// :param node: Nodes to insert immediately before this node.
+            /// :raise TypeError: If an argument is not a DOM node
             #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -307,7 +316,8 @@ macro_rules! character_data_node {
 
             /// Insert nodes immediately after this node.
             ///
-            /// :param node: Node to append as a child.
+            /// :param node: Nodes to insert immediately after this node.
+            /// :raise TypeError: If an argument is not a DOM node
             #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -316,7 +326,8 @@ macro_rules! character_data_node {
 
             /// Replace this node with the given nodes.
             ///
-            /// :param node: Node to append as a child.
+            /// :param node: Nodes to replace this node with.
+            /// :raise TypeError: If an argument is not a DOM node
             #[pyo3(signature = (*node))]
             #[inline(always)]
             pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -469,7 +480,7 @@ impl NodePy {
 
     /// Set the value associated with this node or token list.
     ///
-    /// :param value: Attribute value to match.
+    /// :param value: Value to assign to this node.
     #[setter]
     pub fn set_value(&self, value: &str) {
         self.set_node_value(value)
@@ -483,7 +494,7 @@ impl NodePy {
 
     /// Set the node value.
     ///
-    /// :param value: Attribute value to match.
+    /// :param value: Value to assign to this node.
     #[setter]
     pub fn set_node_value(&self, value: &str) {
         self.node.set_node_value(value)
@@ -495,8 +506,6 @@ impl NodePy {
     ///
     /// .. versionchanged:: 2.0.0
     ///    Returns ``None`` instead of an empty string when text content is unavailable.
-    ///
-    /// :type: str or None
     #[getter]
     pub fn text(&self) -> Option<String> {
         self.text_content()
@@ -516,8 +525,6 @@ impl NodePy {
     ///
     /// .. versionchanged:: 2.0.0
     ///    Returns ``None`` instead of an empty string when text content is unavailable.
-    ///
-    /// :type: str or None
     #[getter]
     pub fn text_content(&self) -> Option<String> {
         self.node.text_content()
@@ -535,6 +542,8 @@ impl NodePy {
     /// HTML contents of this DOM node and its children.
     ///
     /// The inner HTML can be changed by assigning to this property.
+    ///
+    /// :raise TypeError: When assigning HTML to a node that is not an element
     #[getter]
     pub fn html(&self) -> String {
         self.node.to_string()
@@ -544,6 +553,7 @@ impl NodePy {
     /// Replace this element’s contents from an HTML string.
     ///
     /// :param html: HTML string used to replace this element’s contents.
+    /// :raise TypeError: If this node is not an element
     #[setter]
     pub fn set_html(&self, html: &str) -> PyResult<()> {
         match &self.node {
@@ -590,7 +600,7 @@ impl NodePy {
 
     /// Check whether this node contains the given node.
     ///
-    /// :param node: Node to append as a child.
+    /// :param node: Node to test for containment.
     pub fn contains<'py>(&self, node: &Bound<'py, NodePy>) -> bool {
         self.node.contains(&node.borrow().node.as_noderef())
     }
@@ -683,7 +693,7 @@ impl NodePy {
 
     /// Insert ``node`` before ``reference`` as a child. The reference must be a child of this node; ``None`` appends the new node after the last child.
     ///
-    /// :param node: Node to append as a child.
+    /// :param node: Node to insert.
     /// :param reference: Child node before which the new node is inserted.
     #[pyo3(signature = (node, reference=None))]
     pub fn insert_before<'py>(
@@ -786,8 +796,6 @@ impl ElementNodePy {
     ///
     /// .. versionchanged:: 2.0.0
     ///    Returns ``None`` instead of an empty string when the attribute is absent.
-    ///
-    /// :type: str or None
     #[getter]
     pub fn id(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).id()
@@ -806,8 +814,6 @@ impl ElementNodePy {
     ///
     /// .. versionchanged:: 2.0.0
     ///    Returns ``None`` instead of an empty string when the attribute is absent.
-    ///
-    /// :type: str or None
     #[getter]
     pub fn class_name(slf: PyRef<'_, Self>) -> Option<String> {
         Self::raw_node(&slf).class_name()
@@ -815,7 +821,7 @@ impl ElementNodePy {
 
     /// Set the element’s class names.
     ///
-    /// :param class_names: Whitespace-separated class names to match.
+    /// :param class_names: Whitespace-separated class names to assign.
     #[setter]
     pub fn set_class_name<'py>(slf: PyRef<'py, Self>, class_names: &str) {
         Self::raw_node(&slf).set_class_name(class_names)
@@ -873,7 +879,7 @@ impl ElementNodePy {
     /// Set an attribute value.
     ///
     /// :param qualified_name: Qualified attribute name.
-    /// :param value: Attribute value to match.
+    /// :param value: Attribute value to assign.
     pub fn set_attribute(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
         Self::raw_node(&slf).set_attribute(qualified_name, value)
     }
@@ -926,6 +932,7 @@ impl ElementNodePy {
     /// Get the value of an attribute.
     ///
     /// :param qualified_name: Qualified attribute name.
+    /// :raise KeyError: If the attribute does not exist
     pub fn __getitem__(slf: PyRef<'_, Self>, qualified_name: &str) -> PyResult<String> {
         Self::get_attribute(slf, qualified_name, None)
             .ok_or_else(|| PyKeyError::new_err(format!("No such attribute: {qualified_name}")))
@@ -934,7 +941,7 @@ impl ElementNodePy {
     /// Insert or update an attribute with the given name and value.
     ///
     /// :param qualified_name: Qualified attribute name.
-    /// :param value: Attribute value to match.
+    /// :param value: Attribute value to assign.
     pub fn setattr(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
         Self::set_attribute(slf, qualified_name, value)
     }
@@ -942,7 +949,7 @@ impl ElementNodePy {
     /// Insert or update an attribute with the given name and value.
     ///
     /// :param qualified_name: Qualified attribute name.
-    /// :param value: Attribute value to match.
+    /// :param value: Attribute value to assign.
     pub fn __setitem__(slf: PyRef<'_, Self>, qualified_name: &str, value: &str) {
         Self::set_attribute(slf, qualified_name, value)
     }
@@ -957,6 +964,7 @@ impl ElementNodePy {
     /// Remove the given attribute.
     ///
     /// :param qualified_name: Qualified attribute name.
+    /// :raise KeyError: If the attribute does not exist
     pub fn __delitem__(slf: PyRef<'_, Self>, qualified_name: &str) -> PyResult<()> {
         if Self::raw_node(&slf).has_attribute(qualified_name) {
             Ok(Self::remove_attribute(slf, qualified_name))
@@ -968,6 +976,7 @@ impl ElementNodePy {
     /// Find the nearest matching element, including this element.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     pub fn closest<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Self::raw_node(&slf).closest(selectors).map_or_else(
             |e| Err(CSSParserExceptionPy::new_err(e.to_string())),
@@ -984,6 +993,7 @@ impl ElementNodePy {
     ///
     /// :param selectors: CSS selector expression.
     /// :return: Whether this element matches the selector.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     pub fn matches<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<bool> {
         Self::raw_node(&slf)
             .matches(selectors)
@@ -992,7 +1002,7 @@ impl ElementNodePy {
 
     /// Find all descendant elements with the given tag name.
     ///
-    /// :param name: Attribute name to match.
+    /// :param name: Tag name to match.
     pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_tag_name, name)
     }
@@ -1103,7 +1113,8 @@ impl ElementNodePy {
 
     /// Insert nodes immediately before this node.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to insert immediately before this node.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1111,7 +1122,8 @@ impl ElementNodePy {
     }
     /// Insert nodes immediately after this node.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to insert immediately after this node.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1120,7 +1132,8 @@ impl ElementNodePy {
 
     /// Replace this node with the given nodes.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to replace this node with.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1177,7 +1190,8 @@ impl ElementNodePy {
 
     /// Insert nodes before the existing children.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to insert before the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1186,7 +1200,8 @@ impl ElementNodePy {
 
     /// Append nodes after the existing children.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to append after the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1195,7 +1210,8 @@ impl ElementNodePy {
 
     /// Replace all children with the given nodes.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to use as this node's new children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1206,6 +1222,7 @@ impl ElementNodePy {
     ///
     /// :param selectors: CSS selector expression.
     /// :return: The first matching element, or ``None`` if no element matches.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
@@ -1215,6 +1232,7 @@ impl ElementNodePy {
     ///
     /// :param selectors: CSS selector expression.
     /// :return: All matching elements.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
@@ -1248,7 +1266,7 @@ impl AttrNodePy {
 
     /// Set the value associated with this node or token list.
     ///
-    /// :param value: Attribute value to match.
+    /// :param value: Value to assign to this node.
     #[setter]
     pub fn set_value<'py>(slf: PyRef<'py, Self>, value: &str) {
         Self::raw_node(&slf).set_value(value)
@@ -1288,7 +1306,8 @@ impl DocumentTypeNodePy {
 
     /// Insert nodes immediately before this node.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to insert immediately before this node.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn before(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1297,7 +1316,8 @@ impl DocumentTypeNodePy {
 
     /// Insert nodes immediately after this node.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to insert immediately after this node.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn after(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1306,7 +1326,8 @@ impl DocumentTypeNodePy {
 
     /// Replace this node with the given nodes.
     ///
-    /// :param node: Nodes to insert in place of this node.
+    /// :param node: Nodes to replace this node with.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_with(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1333,6 +1354,8 @@ macro_rules! doc_create_x {
 #[pymethods]
 impl DocumentNodePy {
     /// The document type node, if present.
+    ///
+    /// :raise DOMException: If the requested document node is unavailable
     #[getter]
     pub fn doctype(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         Self::raw_node(&slf).doctype().map_or_else(
@@ -1342,6 +1365,8 @@ impl DocumentNodePy {
     }
 
     /// The root element of this document, if present.
+    ///
+    /// :raise DOMException: If the requested document node is unavailable
     #[getter]
     pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf).document_element().map_or_else(
@@ -1352,7 +1377,7 @@ impl DocumentNodePy {
 
     /// Find all descendant elements with the given tag name.
     ///
-    /// :param name: Attribute name to match.
+    /// :param name: Tag name to match.
     pub fn get_elements_by_tag_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         get_elements_by_x!(slf, get_elements_by_tag_name, name)
     }
@@ -1390,12 +1415,15 @@ impl DocumentNodePy {
 
     /// Create a new DOM element node.
     ///
-    /// :param local_name: Data for the processing instruction.
+    /// :param local_name: Tag name of the new element.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_element<'py>(slf: PyRef<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_element, local_name)
     }
 
     /// Create an empty document fragment.
+    ///
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_document_fragment(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, PyAny>>> {
         doc_create_x!(slf, create_document_fragment)
     }
@@ -1403,6 +1431,7 @@ impl DocumentNodePy {
     /// Create a new text node with the given string contents.
     ///
     /// :param data: String contents of the new text node.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_text_node<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_text_node, data)
     }
@@ -1410,6 +1439,7 @@ impl DocumentNodePy {
     /// Create a CDATA section containing the given data.
     ///
     /// :param data: Character data to store in the node.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_cdata_section<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_cdata_section, data)
     }
@@ -1417,6 +1447,7 @@ impl DocumentNodePy {
     /// Create a comment containing the given data.
     ///
     /// :param data: Character data to store in the node.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_comment<'py>(slf: PyRef<'py, Self>, data: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_comment, data)
     }
@@ -1425,6 +1456,7 @@ impl DocumentNodePy {
     ///
     /// :param target: The target of this processing instruction.
     /// :param local_name: Data for the processing instruction.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_processing_instruction<'py>(
         slf: PyRef<'py, Self>,
         target: &str,
@@ -1436,6 +1468,7 @@ impl DocumentNodePy {
     /// Create an attribute with the given local name.
     ///
     /// :param local_name: Local name for the new attribute.
+    /// :raise DOMException: If the document is invalid or the node cannot be created
     pub fn create_attribute<'py>(slf: PyRef<'py, Self>, local_name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         doc_create_x!(slf, create_attribute, local_name)
     }
@@ -1470,7 +1503,8 @@ impl DocumentNodePy {
 
     /// Insert nodes before the existing children.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to insert before the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1479,7 +1513,8 @@ impl DocumentNodePy {
 
     /// Append nodes after the existing children.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to append after the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1488,7 +1523,8 @@ impl DocumentNodePy {
 
     /// Replace all children with the given nodes.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to use as this node's new children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1498,6 +1534,7 @@ impl DocumentNodePy {
     /// Find and return the first element matching the CSS selector. This is more efficient than calling :meth:`query_selector_all` and discarding additional results.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
@@ -1506,6 +1543,7 @@ impl DocumentNodePy {
     /// Find all elements matching the CSS selector and return them as an :class:`ElementNodeList`.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
@@ -1562,7 +1600,8 @@ impl DocumentFragmentNodePy {
 
     /// Insert nodes before the existing children.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to insert before the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn prepend(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1571,7 +1610,8 @@ impl DocumentFragmentNodePy {
 
     /// Append nodes after the existing children.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to append after the existing children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn append(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1580,7 +1620,8 @@ impl DocumentFragmentNodePy {
 
     /// Replace all children with the given nodes.
     ///
-    /// :param node: Node or nodes to insert, replace, or remove.
+    /// :param node: Nodes to use as this node's new children.
+    /// :raise TypeError: If an argument is not a DOM node
     #[pyo3(signature = (*node))]
     #[inline(always)]
     pub fn replace_children(slf: PyRef<'_, Self>, node: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -1590,6 +1631,7 @@ impl DocumentFragmentNodePy {
     /// Find and return the first element matching the CSS selector. This is more efficient than calling :meth:`query_selector_all` and discarding additional results.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Option<Bound<'py, ElementNodePy>>> {
         Self::query_selector_(slf, selectors)
@@ -1598,6 +1640,7 @@ impl DocumentFragmentNodePy {
     /// Find all elements matching the CSS selector and return them as an :class:`ElementNodeList`.
     ///
     /// :param selectors: CSS selector expression.
+    /// :raise CSSParserException: If the CSS selector cannot be parsed
     #[inline(always)]
     pub fn query_selector_all<'py>(slf: PyRef<'py, Self>, selectors: &str) -> PyResult<Bound<'py, ElementNodeListPy>> {
         Self::query_selector_all_(slf, selectors)
@@ -1677,12 +1720,16 @@ impl DOMContextPy {
 ///
 /// If ``end_callback`` is provided, it is called when traversal leaves a node. Callbacks receive the shared :class:`DOMContext`, which tracks the current node and depth and can hold custom state.
 ///
+/// Exceptions raised by either callback propagate unchanged.
+///
 /// :param base_node: Root node whose subtree is traversed.
 /// :param start_callback: Callable invoked when a node is entered.
 /// :param end_callback: Optional callable invoked when a node is exited.
 /// :param context: Optional mutable state shared with callbacks.
-/// :param elements_only: whether to invoke callbacks only for elements
-/// :return: ``None``
+/// :param elements_only: Whether to invoke callbacks only for elements
+/// :return: No return value.
+/// :raise DOMException: If a visited node cannot be accessed
+/// :raise TypeError: If a callback is not callable or context is not a DOMContext
 #[pyfunction]
 #[pyo3(signature = (base_node, start_callback, end_callback=None, context=None, elements_only=false))]
 pub fn traverse_dom(
