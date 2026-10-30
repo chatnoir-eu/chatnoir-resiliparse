@@ -184,4 +184,5 @@ vcpkg_installed/
 .vcpkg-inst/
 
 # agents
-.codex
+.agents/
+.codex/

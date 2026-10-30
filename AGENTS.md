@@ -115,6 +115,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 ## Writing Tests
 
 - All code paths must have test coverage.
+- Bug fixes need dedicated regression tests.
 - Functionality tests should be done in Rust tests.
 - Keep tests short and focussed. Every test must have a purpose.
 - Test names should be to the point, but not verbose or overly specific.
@@ -124,6 +125,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
 ## Coding Style
 
+- Names of variables, functions, modules, and other identifiers use US English.
 - Sources files must start with an Apache-2.0 license header.
 - Rust source files must be formatted with `rustfmt`.
 - Names with all-caps abbreviations use pure `PascalCase` in Rust, but `CAPSCase` in Python.
@@ -137,12 +139,16 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
 ## Documentation
 
+- Documentation is written in UK English.
 - General usage documentation is maintained in `docs/man` as Sphinx documentation.
 - The Sphinx docs can be built using `make html` with dependencies from `docs/requirements.txt`.
 - The documentation in `docs/man` should give a good overview of and introduction to the library with a focus on the
   Python interface.
 - An equivalent Rust-specific manual is maintained as large module-level RustDoc blocks in the `lib.rs` files of the
   respective crates. The `docs.rs` links to these manuals are linked in the Sphinx doc sidebar.
+- Python-specific behaviour must be documented in the Python usage and API docs, but no unnecessary references to the
+  Rust implementation should be made.
+- Vice versa, Rust documentation should not mention Python-specific behaviour.
 - Python API documentation is included via `autodoc` in `docs/api`. New Python modules must be registered there.
 - All public members must be documented with informative (but not verbose) RustDoc comments. The minimal structure is:
   ```
@@ -175,4 +181,3 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   /// :param param2: Short description
   /// :return: Short return value description.
   ```
-  Python-specific behaviour should be documented, but no references to the Rust implementation should be made.
