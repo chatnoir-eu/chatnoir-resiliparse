@@ -676,3 +676,12 @@ def test_class_only_boilerplate(id_attribute):
     assert extract_plain_text(document, main_content=True, comments=False, preserve_formatting=False) == 'Story'
     assert extract_plain_text(document, main_content=True, comments=True,
                               preserve_formatting=False) == 'Story Discussion'
+
+
+@pytest.mark.parametrize('style', ['display:none', 'visibility:hidden'])
+@pytest.mark.parametrize('attributes', ['', 'class="" id=""', 'id="neutral"'])
+def test_inline_visibility_without_classes(style, attributes):
+    document = f'<p>Story</p><div style="{style}" {attributes}>Hidden</div>'
+    for hidden_elements in [False, True]:
+        assert extract_plain_text(document, main_content=True, hidden_elements=hidden_elements) == 'Story'
+    assert extract_plain_text(document) == 'Story\n\nHidden'

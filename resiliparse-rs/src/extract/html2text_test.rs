@@ -162,3 +162,27 @@ fn class_only_boilerplate() {
         assert_eq!(extract(&html, opts), "Story Discussion", "{id}");
     }
 }
+
+#[test]
+fn inline_visibility_without_classes() {
+    for style in [
+        "display:none",
+        "visibility:hidden",
+        "color:red; display: none;",
+        "VISIBILITY: HIDDEN",
+    ] {
+        for attributes in ["", "class='' id=''", "id=neutral"] {
+            let html = format!("<p>Story</p><div style='{style}' {attributes}>Hidden</div>");
+            for hidden_elements in [false, true] {
+                let mut opts = ExtractOptions::default();
+                opts.main_content = true;
+                opts.hidden_elements = hidden_elements;
+                assert_eq!(extract(&html, opts), "Story", "{style}; {attributes}; {hidden_elements}");
+            }
+            assert_eq!(extract(&html, ExtractOptions::default()), "Story\n\nHidden");
+        }
+    }
+    let mut opts = ExtractOptions::default();
+    opts.main_content = true;
+    assert_eq!(extract("<div style='display:block; visibility:visible'>Story</div>", opts), "Story");
+}

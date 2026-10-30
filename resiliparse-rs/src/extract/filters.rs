@@ -341,15 +341,15 @@ pub(super) fn is_main_content(node: &Node, depth: usize, opts: &ExtractOptions) 
     }
     let class = attr(node, "class");
     let id = attr(node, "id");
-    if class.is_empty() && id.is_empty() {
-        return name != "div" || depth <= 5 || !link_cluster(node, 0.6, 800);
-    }
-    let combined = format!("{}{}{}", class, if class.is_empty() { "" } else { " " }, id);
     if (!opts.hidden_elements && matches(&class, &DISPLAY_CLS_REGEX))
         || matches(&attr(node, "style"), &DISPLAY_CSS_REGEX)
     {
         return false;
     }
+    if class.is_empty() && id.is_empty() {
+        return name != "div" || depth <= 5 || !link_cluster(node, 0.6, 800);
+    }
+    let combined = format!("{}{}{}", class, if class.is_empty() { "" } else { " " }, id);
     if matches!(name.as_str(), "a" | "div" | "li") && matches(&combined, &SKIP_LINK_CLS_REGEX) {
         return false;
     }
