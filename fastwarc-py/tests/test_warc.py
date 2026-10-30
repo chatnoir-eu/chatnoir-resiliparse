@@ -27,7 +27,7 @@ from fastwarc.warc import *
 
 
 def get_fixtures_path():
-    return Path(__file__).resolve().parents[2] / "fastwarc-rs" / "tests" / "fixtures"
+    return Path(__file__).resolve().parents[2] / "test-data"
 
 
 HTTP_BODY = b"Hello"
@@ -543,7 +543,7 @@ def test_archive_iterator_accepts_pathlike_and_filters(tmp_path: Path):
 def test_archive_iterator_accepts_fsspec_url():
     pytest.importorskip("fsspec")
 
-    fixture = Path(__file__).resolve().parents[2] / "fastwarc-rs" / "tests" / "fixtures" / "warcfile.warc.zst"
+    fixture = Path(__file__).resolve().parents[2] / "test-data" / "warcfile.warc.zst"
     iterator = ArchiveIterator(
         fixture.resolve().as_uri(),
         parse_http=False,
@@ -559,7 +559,7 @@ def test_archive_iterator_accepts_fsspec_url():
 def test_archive_iterator_accepts_fsspec_url_with_args_dict():
     pytest.importorskip("fsspec")
 
-    fixture = Path(__file__).resolve().parents[2] / "fastwarc-rs" / "tests" / "fixtures" / "warcfile.warc.zst"
+    fixture = Path(__file__).resolve().parents[2] / "test-data" / "warcfile.warc.zst"
     iterator = ArchiveIterator(
         fixture.resolve().as_uri(),
         parse_http=False,

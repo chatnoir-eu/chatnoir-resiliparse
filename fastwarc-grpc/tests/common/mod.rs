@@ -30,16 +30,11 @@ use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Channel;
 
-/// Canonical path to a test fixture. Block-sized archives live in the shared test data.
+/// Canonical path to shared test data.
 pub fn data_path(name: &str) -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let directory = if name.starts_with("block-sized-records") {
-        "../test-data"
-    } else {
-        "../fastwarc-rs/tests/fixtures"
-    };
     manifest_dir
-        .join(directory)
+        .join("../test-data")
         .join(name)
         .canonicalize()
         .expect("missing test fixture")

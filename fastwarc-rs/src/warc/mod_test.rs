@@ -22,7 +22,7 @@ use std::path::PathBuf;
 /// Helper for getting path to external test fixtures.
 pub fn get_fixture_path(name: &str) -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("tests/fixtures");
+    path.push("../test-data");
     path.push(name);
     path
 }

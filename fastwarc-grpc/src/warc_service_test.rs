@@ -143,7 +143,7 @@ async fn response_cancellation_stops_forwarder_with_full_input_channel() {
 /// Wait for the blocking parser to exit and release its directory handle.
 #[tokio::test]
 async fn local_file_parser_finishes_after_response_cancellation() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fastwarc-rs/tests/fixtures");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../test-data");
     let root = WarcParser::with_local_files(path).unwrap().local_file_root.unwrap();
     let root_ref = Arc::downgrade(&root);
     let (response_tx, mut response_rx) = mpsc::channel(1);
@@ -227,7 +227,7 @@ async fn parser_capacity_is_shared_and_recovers_after_cancellation() {
     use pb::warc_service_server::WarcServiceServer;
     use tokio_stream::wrappers::TcpListenerStream;
 
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fastwarc-rs/tests/fixtures");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../test-data");
     let service = WarcParser::with_local_files(root)
         .unwrap()
         .with_max_concurrent_parsers(1)

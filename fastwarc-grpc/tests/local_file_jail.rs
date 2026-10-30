@@ -96,7 +96,7 @@ async fn absolute_path_outside_root_is_rejected() {
 /// `..` components cannot escape the jail, even when the traversal would
 /// land back on an existing file.
 #[rstest]
-#[case::absolute_escape(true, "../../../fastwarc-rs/tests/fixtures/warcfile.warc.zst")]
+#[case::absolute_escape(true, "../../../test-data/warcfile.warc.zst")]
 #[case::relative_escape(false, "../data/warcfile.warc")]
 #[case::parent(false, "..")]
 #[tokio::test]

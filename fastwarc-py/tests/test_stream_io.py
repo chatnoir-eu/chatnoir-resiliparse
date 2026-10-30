@@ -21,7 +21,7 @@ from fastwarc.stream_io import *
 
 
 def get_fixtures_path():
-    return Path(__file__).resolve().parents[2] / "fastwarc-rs" / "tests" / "fixtures"
+    return Path(__file__).resolve().parents[2] / "test-data"
 
 
 TQBF = b"The quick brown fox jumps over the lazy dog."
@@ -315,13 +315,16 @@ def test_stream_io_fsspec_import_error_is_propagated(monkeypatch):
             id="samples",
         ),
         pytest.param(
-            get_fixtures_path() / "tqbf.txt",
+            "files",
             lambda r: zstd_train_dictionary_from_files([str(r)] * 8, 100000),
             id="files",
         ),
     ],
 )
-def test_zstd_dictionary_roundtrip(dict_train_data, train_dictionary):
+def test_zstd_dictionary_roundtrip(dict_train_data, train_dictionary, tmp_path):
+    if dict_train_data == "files":
+        dict_train_data = tmp_path / "tqbf.txt"
+        dict_train_data.write_bytes(TQBF * 20)
     raw_bytes = TQBF * 200
 
     out = io.BytesIO()
