@@ -122,8 +122,8 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Functionality tests should be done in Rust tests.
 - Keep tests short and focussed. Every test must have a purpose.
 - Test names should be to the point, but not verbose or overly specific.
-- Python tests must cover the full call patch from Python to the core Rust library. These tests must be complete, but
-  actual functionality tests must be added only for Python-specific behaviour.
+- Python tests should be minimal smoke tests that still cover the full call path from Python to the core Rust library.
+- Actual functionality Python tests must be added only for Python-specific behaviour and non-native Python code.
 - Add short comments inside the tests where the purpose of the tested condition isn't obvious. Try not to overexplain.
 
 ## Coding Style
