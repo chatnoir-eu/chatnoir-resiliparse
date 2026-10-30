@@ -72,6 +72,7 @@ def _serialize_records(*records: WarcRecord) -> io.BytesIO:
 def test_package_reexports_and_legacy_shims():
     assert WarcRecord is WarcRecord
     assert HeaderMap is HeaderMap
+    assert WarcHeaderMap is HeaderMap
     assert FileStream is FileStream
     assert GZipStream is GZipStream
     assert LZ4Stream is LZ4Stream
@@ -592,6 +593,29 @@ def test_archive_iterator_inplace():
 
     with pytest.raises(StopIteration):
         next(iterator)
+
+
+def test_archive_iterator_restart_preserves_python_options():
+    request_record = _make_http_record(request, record_urn=b"uuid:request")
+    response_record = _make_http_record(response, record_urn=b"uuid:response")
+    archive = _serialize_record(request_record) + _serialize_record(response_record)
+
+    iterator = ArchiveIterator(
+        io.BytesIO(archive), record_types=response, parse_http=False, fsspec_args=False,
+    )
+    first = next(iterator)
+    restarted = iterator.restart(io.BytesIO(archive))
+
+    assert isinstance(restarted, ArchiveIterator)
+    assert next(restarted).record_id == first.record_id == "<urn:uuid:response>"
+    with pytest.raises(StopIteration):
+        next(restarted)
+
+
+def test_warc_record_string_representations():
+    record = _make_http_record(response, record_urn=b"uuid:repr")
+    assert repr(record) == "<WarcRecord type='response', id='<urn:uuid:repr>'>"
+    assert isinstance(str(record), str)
 
 
 @pytest.mark.parametrize(

@@ -15,13 +15,6 @@ tool.\r\n\
 
 
 def test_chunked_http():
-    reader = BytesIO(chunked_http)
-    decoded = b''
-    while True:
-        chunk = read_http_chunk(reader)
-        if not chunk:
-            break
-        decoded += chunk
-
-    assert decoded == b'Resiliparse is an awesome tool.'
+    # The Rust core tests chunk parsing, framing, and termination. This checks
+    # that the Python iterator wrapper exposes the same payload bytes.
     assert b''.join(iterate_http_chunks(BytesIO(chunked_http))) == b'Resiliparse is an awesome tool.'

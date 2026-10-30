@@ -591,7 +591,7 @@ impl Document for DocumentNode {
     }
 
     fn document_element(&self) -> Option<ElementNode> {
-        self.owner_document()?.first_element_child()
+        self.first_element_child()
     }
 
     fn get_elements_by_tag_name(&self, name: &str) -> HtmlCollection {

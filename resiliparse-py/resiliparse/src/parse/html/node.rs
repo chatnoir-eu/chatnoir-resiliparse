@@ -1348,10 +1348,7 @@ impl DocumentNodePy {
     pub fn document_element(slf: PyRef<'_, Self>) -> PyResult<Option<Bound<'_, ElementNodePy>>> {
         Self::raw_node(&slf).document_element().map_or_else(
             || Err(DOMExceptionPy::new_err("No Document node")),
-            |d| {
-                d.first_element_child()
-                    .map_or(Ok(None), |e| Ok(Some(ElementNodePy::new_bound(slf.py(), e)?)))
-            },
+            |element| Ok(Some(ElementNodePy::new_bound(slf.py(), element)?)),
         )
     }
 

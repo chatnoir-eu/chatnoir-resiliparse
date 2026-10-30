@@ -493,4 +493,20 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn language_detection_and_training() {
+        let english =
+            "The quick brown fox jumps over the lazy dog. This is a longer sentence about language detection.";
+        assert_eq!(detect_fast(english, 1200, 1, None)[0].language, "en");
+        assert_eq!(detect_fast(english, 1200, 1, Some(&["fr", "en"]))[0].language, "en");
+        assert!(detect_fast(english, 1200, 10, Some(&["xx"])).is_empty());
+
+        let one = train_language_examples(["abc"], 8).unwrap();
+        let averaged = train_language_examples(["abc", ""], 8).unwrap();
+        assert_eq!(one, [85, 0, 85, 85, 0, 85, 85, 85]);
+        assert_eq!(averaged, [42, 0, 42, 42, 0, 42, 42, 42]);
+        assert_eq!(train_language_examples(["a \t\n b"], 8), train_language_examples(["a b"], 8));
+        assert_ne!(train_language_examples(["A a"], 8), train_language_examples(["a a"], 8));
+    }
 }

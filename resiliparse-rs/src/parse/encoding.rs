@@ -393,4 +393,25 @@ mod tests {
         assert_eq!(detect_mime(b"1234567890123456789\0", 0.05), "text/plain");
         assert_eq!(detect_mime(b"123456789012345678\0\0", 0.05), "application/octet-stream");
     }
+
+    #[test]
+    fn html5_labels_and_sampled_detection() {
+        assert_eq!(map_encoding_to_html5(" ASCII ", false), Some("cp1252"));
+        assert_eq!(map_encoding_to_html5("csisolatin9", false), Some("iso8859-15"));
+        assert_eq!(map_encoding_to_html5("not-an-encoding", false), None);
+        assert_eq!(map_encoding_to_html5("not-an-encoding", true), Some("utf-8"));
+        assert_eq!(detect_encoding("Zażółć gęślą jaźń".as_bytes(), 0).as_deref(), Some("UTF-8"));
+    }
+
+    #[test]
+    fn mime_detection_covers_common_document_signatures() {
+        for (bytes, expected) in [
+            (b"%PDF-1.5\n".as_slice(), "application/pdf"),
+            (b"\x89PNG\r\n\x1a\n".as_slice(), "image/png"),
+            (b"<!doctype html>".as_slice(), "text/html"),
+            (b"<?xml version='1.0'?>".as_slice(), "application/xml"),
+        ] {
+            assert_eq!(detect_mime(bytes, 0.05), expected);
+        }
+    }
 }

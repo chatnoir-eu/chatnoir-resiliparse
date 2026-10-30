@@ -1469,6 +1469,7 @@ fn document_hierarchy_validates_order_counts_and_fragment_contents() {
     let tree = HtmlTree::parse("<!doctype html><html><body></body></html>").unwrap();
     let doc = tree.document().unwrap();
     let root = doc.document_element().unwrap();
+    assert_eq!(root.local_name().as_deref(), Some("html"));
     let doctype = doc.doctype().unwrap();
     let text = doc.create_text_node("text").unwrap();
     let second = doc.create_element("second").unwrap();

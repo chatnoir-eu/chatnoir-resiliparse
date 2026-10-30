@@ -185,6 +185,10 @@ def test_collection():
     tree = HTMLTree.parse(html)
 
     coll = tree.body.query_selector_all('main *')
+    assert coll.item(0) is coll[0]
+    assert coll.item(len(coll)) is None
+    assert coll.values() == list(coll)
+    assert isinstance(repr(coll), str)
 
     # Basic element attributes
     assert coll[0].id == 'a'
@@ -261,6 +265,99 @@ def test_attributes():
 
     del a['lang']
     assert a.getattr('lang') is None
+
+
+def test_dom_token_list_python_sequence_and_mutation_methods():
+    element = HTMLTree.parse('<div class="one two"></div>').body.first_element_child
+    tokens = element.class_list
+
+    assert tokens.value == 'one two'
+    assert tokens.values() == ['one', 'two']
+    assert tokens.item(0) == 'one'
+    assert tokens.item(2) is None
+    assert tokens[1] == 'two'
+    assert tokens[:] == ('one', 'two')
+    assert tokens.contains('one')
+    assert 'two' in tokens
+    assert len(tokens) == 2
+    assert tokens.replace('two', 'three')
+    assert not tokens.replace('missing', 'ignored')
+    assert tokens.toggle('three', False) is False
+    assert tokens.toggle('four', True) is True
+    assert tokens.toggle('one') is False
+    assert tokens == ['four']
+    assert repr(tokens) == "['four']"
+    tokens.value = 'alpha beta'
+    assert tokens.values() == ['alpha', 'beta']
+
+
+def test_element_attribute_selector_and_markup_properties():
+    tree = HTMLTree.parse('<main><div id="target" data-kind="one"><span>text</span></div></main>')
+    element = tree.body.query_selector('#target')
+
+    assert element.closest('main').tag == 'main'
+    assert element.closest('article') is None
+    assert element.attribute_names == ('id', 'data-kind')
+    assert [attr.name for attr in element.attributes] == ['id', 'data-kind']
+    attribute = element.attribute_node('data-kind')
+    assert attribute.owner_element == element
+    assert attribute.value == 'one'
+    attribute.value = 'two'
+    assert element.get_attribute('data-kind') == 'two'
+    assert element.has_attribute('data-kind')
+    assert element.toggle_attribute('hidden')
+    assert element.toggle_attribute('hidden', True)
+    assert not element.toggle_attribute('hidden', False)
+    element.set_attribute('title', 'caption')
+    assert element.get_attribute('title') == 'caption'
+    element.remove_attribute('title')
+    assert not element.has_attribute('title')
+
+    assert element.outer_html == '<div id="target" data-kind="two"><span>text</span></div>'
+    assert element.inner_text == 'text'
+    element.inner_text = 'replacement'
+    assert element.inner_html == 'replacement'
+    assert element.outer_text == 'replacement'
+    element.outer_html = '<section id="replacement">next</section>'
+    replacement = tree.body.query_selector('#replacement')
+    assert replacement.outer_html == '<section id="replacement">next</section>'
+    replacement.outer_text = 'plain'
+    assert tree.body.inner_text.strip() == 'plain'
+
+
+def test_document_factories_and_character_data_binding_methods():
+    document = HTMLTree.parse('<!doctype html><html><body></body></html>').document
+    assert document.doctype.name == 'html'
+    assert document.document_element.tag == 'html'
+
+    fragment = document.create_document_fragment()
+    element = document.create_element('div')
+    text = document.create_text_node('abcd')
+    comment = document.create_comment('note')
+    cdata = document.create_cdata_section('raw')
+    instruction = document.create_processing_instruction('target', 'data')
+    attribute = document.create_attribute('title')
+
+    assert fragment.type == NodeType.DOCUMENT_FRAGMENT
+    assert fragment.append_child(element) is element
+    assert element.parent is fragment
+    assert text.data == 'abcd'
+    assert len(text) == 4
+    assert not text.is_empty()
+    assert text.substring_data(1, 2) == 'bc'
+    text.insert_data(2, 'X')
+    text.delete_data(1, 1)
+    text.replace_data(1, 1, 'Y')
+    text.append_data('!')
+    assert text.data == 'aYcd!'
+    assert comment.data == 'note'
+    assert cdata.data == 'raw'
+    assert instruction.target == 'target'
+    assert instruction.data == 'data'
+    assert attribute.name == attribute.local_name == 'title'
+    assert attribute.owner_element is None
+    attribute.value = 'caption'
+    assert attribute.value == 'caption'
 
 
 @pytest.mark.parametrize('markup, expected', [
