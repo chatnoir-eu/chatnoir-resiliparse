@@ -31,10 +31,10 @@
 //! ```
 //!
 //! Building requires Rust and Cargo, a C/C++ compiler, CMake, libclang for binding generation, and `vcpkg` on `PATH`.
-//! The build script installs Lexbor and uchardet through vcpkg when the selected triplet is missing and links them
-//! statically. Set `RESILIPARSE_VCPKG_PATH` to use an existing vcpkg installation containing platform triplet directories.
+//! The build script installs native dependencies through vcpkg and links them statically.
 //! Alternatively, `RESILIPARSE_USE_SYSTEM_LIBS=1` uses system headers and shared libraries, which must also be available
 //! at runtime. See the [build instructions](https://resiliparse.chatnoir.eu/en/latest/man/installation.html) for details.
+//!Set `RESILIPARSE_VCPKG_PATH` to use an existing vcpkg installation containing platform triplet directories.
 //!
 //! From a checkout of the repository, run `cargo build -p resiliparse` to build the Rust crate.
 //!

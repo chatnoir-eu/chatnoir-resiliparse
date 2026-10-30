@@ -6,12 +6,6 @@ HTML Parsing
 Resiliparse comes with a light-weight and fast HTML parsing and DOM processing library based on the `Lexbor web browser
 engine <https://www.lexbor.com/>`_ for processing HTML web pages.
 
-.. warning::
-
-  The HTML parsing module is experimental. While the code is mostly well-tested, there are a few Lexbor bugs that have
-  been fixed upstream, but haven't been released so far. You may want to build your own Resiliparse binaries with the
-  latest Lexbor Git master for the best experience.
-
 To parse a Python Unicode string into a DOM tree, construct a new :class:`~.HTMLTree` object by calling the static
 factory method :meth:`~.HTMLTree.parse`:
 
@@ -430,13 +424,6 @@ DOM Tree Manipulation
 ---------------------
 
 Resiliparse supports DOM manipulation and the creation of new nodes with a basic set of well-known DOM functions.
-
-.. warning::
-
-  A :class:`.DOMNode` object is valid only for as long as its parent tree has not been modified or deallocated. Thus,
-  **DO NOT** use existing instances after any sort of DOM tree manipulation! Doing so may result in Python crashes or
-  (worse) security vulnerabilities due to dangling pointers (*use after free*). This is a `known Lexbor limitation
-  <https://github.com/lexbor/lexbor/issues/132>`__ for which there is no workaround at the moment.
 
 Elements
 ^^^^^^^^

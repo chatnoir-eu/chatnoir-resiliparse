@@ -53,8 +53,7 @@ make `vcpkg <https://vcpkg.io/>`__ available on your ``PATH``:
 
 On Windows, run ``vcpkg/bootstrap-vcpkg.bat`` and add the ``vcpkg`` directory to ``PATH``.
 
-The build script installs Lexbor and uchardet through vcpkg when they are missing and selects the platform triplet
-automatically. By default, these libraries are linked statically.
+The build script installs native dependencies through vcpkg and links them statically.
 
 Building the Python Bindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

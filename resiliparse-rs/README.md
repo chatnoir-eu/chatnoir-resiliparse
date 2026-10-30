@@ -31,11 +31,10 @@ Build the crate from the repository root:
 cargo build -p resiliparse
 ```
 
-The build script installs Lexbor and uchardet through vcpkg when they are missing. These libraries are linked
-statically. Set `RESILIPARSE_VCPKG_PATH` to use an existing vcpkg installation directory containing the platform triplet
-directories. Alternatively, set `RESILIPARSE_USE_SYSTEM_LIBS=1` to use system headers and shared libraries; those
-libraries
-must also be available at runtime.
+The build script installs native dependencies through vcpkg and links them statically. Set `RESILIPARSE_VCPKG_PATH` to
+use an existing vcpkg installation directory containing the platform triplet directories. Alternatively, set
+`RESILIPARSE_USE_SYSTEM_LIBS=1` to use system headers and shared libraries. Those libraries must also be available at
+runtime.
 
 ## Using Resiliparse as a Library
 
