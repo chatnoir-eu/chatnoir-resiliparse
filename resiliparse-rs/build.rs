@@ -16,7 +16,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Detect vcpkg directory or return `None` if `RESILIPARSE_USE_SYSTEM_LIBS` is set.
+/// Install vcpkg dependencies or return `None` if `RESILIPARSE_USE_SYSTEM_LIBS` is set.
 fn get_vcpkg_dir() -> Option<PathBuf> {
     if env::var("RESILIPARSE_USE_SYSTEM_LIBS").is_ok_and(|value| value == "1" || value.eq_ignore_ascii_case("true")) {
         return None;
@@ -38,11 +38,14 @@ fn get_vcpkg_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root.join("vcpkg_installed"));
     println!("cargo:rerun-if-env-changed=RESILIPARSE_VCPKG_PATH");
-    let triplet_root = install_root.join(&triplet);
-    if triplet_root.is_dir() {
-        return Some(triplet_root);
+    println!("cargo:rerun-if-env-changed=VCPKG_DEFAULT_TRIPLET");
+    for path in ["vcpkg.json", "vcpkg-configuration.json", ".vcpkg"] {
+        println!("cargo:rerun-if-changed={}", workspace_root.join(path).display());
     }
+    let triplet_root = install_root.join(&triplet);
 
+    // Cross-builds may create the host triplet directory for build tools alone.
+    // Let vcpkg check the installed packages instead of relying on that directory.
     let out = Command::new("vcpkg")
         .current_dir(&workspace_root)
         .args(["install", "--triplet", &triplet, "--x-install-root"])
@@ -52,8 +55,9 @@ fn get_vcpkg_dir() -> Option<PathBuf> {
         .expect("Failed to run vcpkg.");
     assert!(
         out.status.success(),
-        "Failed to install vcpkg dependencies:\n{}",
-        String::from_utf8_lossy(&out.stdout)
+        "Failed to install vcpkg dependencies:\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
     );
     Some(triplet_root)
 }
