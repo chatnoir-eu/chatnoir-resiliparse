@@ -3,13 +3,17 @@
 HTML Parsing
 ============
 
-Resiliparse comes with a light-weight and fast HTML parsing and DOM processing library based on the `Lexbor web browser engine <https://www.lexbor.com/>`_ for processing HTML web pages.
+Resiliparse comes with a light-weight and fast HTML parsing and DOM processing library based on the `Lexbor web browser
+engine <https://www.lexbor.com/>`_ for processing HTML web pages.
 
 .. warning::
 
-  The HTML parsing module is experimental. While the code is mostly well-tested, there are a few Lexbor bugs that have been fixed upstream, but haven't been released so far. You may want to build your own Resiliparse binaries with the latest Lexbor Git master for the best experience.
+  The HTML parsing module is experimental. While the code is mostly well-tested, there are a few Lexbor bugs that have
+  been fixed upstream, but haven't been released so far. You may want to build your own Resiliparse binaries with the
+  latest Lexbor Git master for the best experience.
 
-To parse a Python Unicode string into a DOM tree, construct a new :class:`~.HTMLTree` object by calling the static factory method :meth:`~.HTMLTree.parse`:
+To parse a Python Unicode string into a DOM tree, construct a new :class:`~.HTMLTree` object by calling the static
+factory method :meth:`~.HTMLTree.parse`:
 
 .. code-block:: python
 
@@ -31,7 +35,8 @@ To parse a Python Unicode string into a DOM tree, construct a new :class:`~.HTML
 
     tree = HTMLTree.parse(html)
 
-If your HTML contents are encoded as bytes, use :meth:`~.HTMLTree.parse_from_bytes` instead of :meth:`~.HTMLTree.parse`, which takes a ``bytes`` object and an encoding:
+If your HTML contents are encoded as bytes, use :meth:`~.HTMLTree.parse_from_bytes` instead of :meth:`~.HTMLTree.parse`,
+which takes a ``bytes`` object and an encoding:
 
 .. code-block:: python
 
@@ -40,7 +45,10 @@ If your HTML contents are encoded as bytes, use :meth:`~.HTMLTree.parse_from_byt
     html_bytes = html.encode('utf-16')
     tree = HTMLTree.parse_from_bytes(html_bytes, detect_encoding(html_bytes))
 
-It is sufficient if the encoding name is a "best guess", since the name will be remapped according to the WHATWG specification (using :func:`~.parse.encoding.map_encoding_to_html5`) and the decoding is done with :func:`~.parse.encoding.bytes_to_str`, which tries several fallback encodings if the originally intended encoding fails (see :ref:`parse-bytes-to-str` for more information).
+It is sufficient if the encoding name is a "best guess", since the name will be remapped according to the WHATWG
+specification (using :func:`~.parse.encoding.map_encoding_to_html5`) and the decoding is done with
+:func:`~.parse.encoding.bytes_to_str`, which tries several fallback encodings if the originally intended encoding fails
+(see :ref:`parse-bytes-to-str` for more information).
 
 
 .. _parse-html-select-elements:
@@ -52,7 +60,11 @@ Resiliparse provides a basic set of standard DOM functions for selecting element
 
 Elements
 ^^^^^^^^
-The document root element node can be accessed through the :attr:`.HTMLTree.document` property. The properties :attr:`.HTMLTree.body` and :attr:`.HTMLTree.head` also exist for conveniently accessing a document's ``<head>`` or ``<body>`` elements (if they exist). These anchors and all other element nodes are represented by :class:`.DOMNode` objects, which support the following standard DOM selectors for matching further elements either by attributes or CSS selectors:
+The document root element node can be accessed through the :attr:`.HTMLTree.document` property. The properties
+:attr:`.HTMLTree.body` and :attr:`.HTMLTree.head` also exist for conveniently accessing a document's ``<head>`` or
+``<body>`` elements (if they exist). These anchors and all other element nodes are represented by :class:`.DOMNode`
+objects, which support the following standard DOM selectors for matching further elements either by attributes or CSS
+selectors:
 
 * :meth:`~.DOMNode.get_element_by_id`
 * :meth:`~.DOMNode.get_elements_by_tag_name`
@@ -61,7 +73,12 @@ The document root element node can be accessed through the :attr:`.HTMLTree.docu
 * :meth:`~.DOMNode.query_selector_all`
 * :meth:`~.ElementNode.matches`
 
-These element selectors behave just like you would expect from other languages or libraries and return either a single :class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The exception is :meth:`~.ElementNode.matches`, which returns a boolean value indicating whether the element itself matches the given CSS selector, following DOM ``Element.matches()`` semantics. In addition to these standard DOM functions, Resiliparse provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names and values.
+These element selectors behave just like you would expect from other languages or libraries and return either a single
+:class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The exception is
+:meth:`~.ElementNode.matches`, which returns a boolean value indicating whether the element itself matches the given CSS
+selector, following DOM ``Element.matches()`` semantics. In addition to these standard DOM functions, Resiliparse
+provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names
+and values.
 
 .. versionchanged:: 2.0.0
 
@@ -71,7 +88,10 @@ These element selectors behave just like you would expect from other languages o
 
 .. note::
 
-  If you want to match only a single element, always use the dedicated single-match selectors (e.g., use :meth:`~.DOMNode.query_selector` instead of :meth:`~.DOMNode.query_selector_all` etc.). These functions have built-in early stopping optimizations and are therefore more efficient than matching all elements in the tree and discarding unwanted elements in the resulting collection.
+  If you want to match only a single element, always use the dedicated single-match selectors (e.g., use
+  :meth:`~.DOMNode.query_selector` instead of :meth:`~.DOMNode.query_selector_all` etc.). These functions have built-in
+  early stopping optimizations and are therefore more efficient than matching all elements in the tree and discarding
+  unwanted elements in the resulting collection.
 
 Here are a few examples of how to match elements by ID, tag name, class name, or CSS selector:
 
@@ -107,7 +127,8 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     print(tree.body.query_selector('.bar') is not None)
     # >>> True
 
-:class:`.DOMCollection` objects are iterable, indexable, and slicable. The size of a collection can be checked with ``len()``. If a slice is requested, the returned object will be another :class:`.DOMCollection`:
+:class:`.DOMCollection` objects are iterable, indexable, and slicable. The size of a collection can be checked with
+``len()``. If a slice is requested, the returned object will be another :class:`.DOMCollection`:
 
 .. code-block:: python
 
@@ -125,7 +146,10 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     print(repr(coll[:2]))
     # >>> {<p id="a">, <span class="bar">}
 
-:class:`.DOMCollection` objects have the same DOM methods for selecting objects as :class:`.DOMNode` objects. This can be used for efficiently matching elements in the subtree(s) of the previously selected elements. The selection methods behave just like their :class:`.DOMNode` counterparts and return either a single :class:`.DOMNode` or another :class:`.DOMCollection`:
+:class:`.DOMCollection` objects have the same DOM methods for selecting objects as :class:`.DOMNode` objects. This can
+be used for efficiently matching elements in the subtree(s) of the previously selected elements. The selection methods
+behave just like their :class:`.DOMNode` counterparts and return either a single :class:`.DOMNode` or another
+:class:`.DOMCollection`:
 
 .. code-block:: python
 
@@ -164,7 +188,8 @@ Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` 
 
 The dict access method will raise a :exc:`KeyError` exception if the attribute does not exist.
 
-The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list` properties:
+The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and
+:attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list` properties:
 
 .. code-block:: python
 
@@ -198,7 +223,8 @@ A list of existing attributes on an element is provided by its :attr:`~.DOMNode.
 HTML and Text Serialization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :class:`.DOMNode` objects have a :attr:`~.DOMNode.text` and :attr:`~.DOMNode.html` property for accessing their plaintext or HTML serialization:
+All :class:`.DOMNode` objects have a :attr:`~.DOMNode.text` and :attr:`~.DOMNode.html` property for accessing their
+plaintext or HTML serialization:
 
 .. code-block:: python
 
@@ -215,7 +241,8 @@ Alternatively, you can also simply cast a :class:`.DOMNode` to ``str``, which is
     print(tree.body.get_element_by_id('a'))
     # >>> <p id="a">Hello <span class="bar">world</span>!</p>
 
-For extracting specifically the text contents of the document's ``<title>`` element, there is also the :attr:`.HTMLTree.title` property:
+For extracting specifically the text contents of the document's ``<title>`` element, there is also the
+:attr:`.HTMLTree.title` property:
 
 .. code-block:: python
 
@@ -228,7 +255,8 @@ For extracting specifically the text contents of the document's ``<title>`` elem
 DOM Tree Traversal
 ------------------
 
-The DOM subtree of any node can be traversed in pre-order by iterating over a :class:`.DOMNode` instance. Different types of nodes can be distinguished by their :attr:`~.DOMNode.type` property.
+The DOM subtree of any node can be traversed in pre-order by iterating over a :class:`.DOMNode` instance. Different
+types of nodes can be distinguished by their :attr:`~.DOMNode.type` property.
 
 .. code-block:: python
 
@@ -245,7 +273,8 @@ The DOM subtree of any node can be traversed in pre-order by iterating over a :c
     print(tag_names_elements_only)
     # >>> ['p', 'span']
 
-To iterate only the immediate children of a node, loop over its :attr:`~.DOMNode.child_nodes` property instead of the node itself:
+To iterate only the immediate children of a node, loop over its :attr:`~.DOMNode.child_nodes` property instead of the
+node itself:
 
 .. code-block:: python
 
@@ -268,14 +297,17 @@ In addition, any :class:`.DOMNode` object also has the following properties:
 * :attr:`~.DOMNode.next`
 * :attr:`~.DOMNode.parent`
 
-These can be used for traversing in a custom order or with custom logic, though the callback-based traversal mechanism described in the next section :ref:`parse-html-traversal-advanced` is usually more convenient.
+These can be used for traversing in a custom order or with custom logic, though the callback-based traversal mechanism
+described in the next section :ref:`parse-html-traversal-advanced` is usually more convenient.
 
 
 .. _parse-html-traversal-advanced:
 
 Advanced Traversal
 ^^^^^^^^^^^^^^^^^^
-Besides the simple iterable interface, Resiliparse also supports a more advanced and flexible callback-based method for traversing the DOM tree. The :func:`.traverse_dom` helper function accepts a :class:`.DOMNode` and a callback function that is called for each individual DOM node with a :class:`.DOMContext` context object as its only parameter.
+Besides the simple iterable interface, Resiliparse also supports a more advanced and flexible callback-based method for
+traversing the DOM tree. The :func:`.traverse_dom` helper function accepts a :class:`.DOMNode` and a callback function
+that is called for each individual DOM node with a :class:`.DOMContext` context object as its only parameter.
 
 The following example prints the values of all text nodes:
 
@@ -295,7 +327,8 @@ Output:
 
     Hello world ! Hello DOM !
 
-In addition to the start element callback, you can also specify an end element callback that will be invoked every time the DOM tree traverser encounters and element's end tag (i.e., every time the tree traverser goes up one node level):
+In addition to the start element callback, you can also specify an end element callback that will be invoked every time
+the DOM tree traverser encounters and element's end tag (i.e., every time the tree traverser goes up one node level):
 
 The following example prints all start and end tags without their textual contents or attributes:
 
@@ -317,7 +350,8 @@ Output:
 
     <body><main><p><span></span></p><p><span></span></p></main></body>
 
-Besides a reference to the current node, the context objects also keeps track of the traversal depth, so the following is possible:
+Besides a reference to the current node, the context objects also keeps track of the traversal depth, so the following
+is possible:
 
 .. code-block:: python
 
@@ -356,7 +390,10 @@ Output:
       </main>
     </body>
 
-The context object is the same object throughout the whole traversal process, so besides the node ``node`` and ``depth`` attributes, it can be mutated arbitrarily to maintain your own state. If you need to, you can also pass a pre-initialized context object to :func:`.traverse_dom`. The following example converts the HTML body into nested Python lists:
+The context object is the same object throughout the whole traversal process, so besides the node ``node`` and ``depth``
+attributes, it can be mutated arbitrarily to maintain your own state. If you need to, you can also pass a
+pre-initialized context object to :func:`.traverse_dom`. The following example converts the HTML body into nested Python
+lists:
 
 .. code-block:: python
 
@@ -396,7 +433,10 @@ Resiliparse supports DOM manipulation and the creation of new nodes with a basic
 
 .. warning::
 
-  A :class:`.DOMNode` object is valid only for as long as its parent tree has not been modified or deallocated. Thus, **DO NOT** use existing instances after any sort of DOM tree manipulation! Doing so may result in Python crashes or (worse) security vulnerabilities due to dangling pointers (*use after free*). This is a `known Lexbor limitation <https://github.com/lexbor/lexbor/issues/132>`__ for which there is no workaround at the moment.
+  A :class:`.DOMNode` object is valid only for as long as its parent tree has not been modified or deallocated. Thus,
+  **DO NOT** use existing instances after any sort of DOM tree manipulation! Doing so may result in Python crashes or
+  (worse) security vulnerabilities due to dangling pointers (*use after free*). This is a `known Lexbor limitation
+  <https://github.com/lexbor/lexbor/issues/132>`__ for which there is no workaround at the moment.
 
 Elements
 ^^^^^^^^
@@ -426,7 +466,9 @@ Output:
           <p id="b" class="dom">Hello <span class="bar baz">DOM</span>!</p>
          <p>Hello Resiliparse!</p></main>
 
-In addition to :meth:`~.DOMNode.append_child`, nodes also provide :meth:`~.DOMNode.insert_before` for inserting a child node before another child instead of appending it at the end, and :meth:`~.DOMNode.replace_child` for replacing an existing child node in the tree with another.
+In addition to :meth:`~.DOMNode.append_child`, nodes also provide :meth:`~.DOMNode.insert_before` for inserting a child
+node before another child instead of appending it at the end, and :meth:`~.DOMNode.replace_child` for replacing an
+existing child node in the tree with another.
 
 Use :meth:`~.DOMNode.remove_child` to remove a node from the tree:
 
@@ -434,7 +476,8 @@ Use :meth:`~.DOMNode.remove_child` to remove a node from the tree:
 
     main_element.remove_child(new_element)
 
-To fully delete a node, use :meth:`~.DOMNode.decompose()` on the node itself. This will remove it from the tree (if not already done) and delete the node and its entire subtree recursively:
+To fully delete a node, use :meth:`~.DOMNode.decompose()` on the node itself. This will remove it from the tree (if not
+already done) and delete the node and its entire subtree recursively:
 
 .. code-block:: python
 
@@ -454,7 +497,8 @@ Attributes can be added or modified via :meth:`~.DOMNode.setattr` or by assignin
     print(element)
     # >>> <img src="https://example.com/foo.png" alt="Foo">
 
-For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list`:
+For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or
+:attr:`~.DOMNode.class_list`:
 
 .. code-block:: python
 
@@ -477,7 +521,9 @@ For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :
 
 Inner HTML and Inner Text
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-An easier, but less efficient way of manipulating the DOM is to assign a string directly to either its :attr:`~.DOMNode.html` or :attr:`~.DOMNode.text` property. This will replace the inner HTML or inner text of these nodes with the new value:
+An easier, but less efficient way of manipulating the DOM is to assign a string directly to either its
+:attr:`~.DOMNode.html` or :attr:`~.DOMNode.text` property. This will replace the inner HTML or inner text of these nodes
+with the new value:
 
 .. code-block:: python
 
@@ -496,9 +542,13 @@ An easier, but less efficient way of manipulating the DOM is to assign a string 
 Benchmarks
 ----------
 
-The :ref:`resiliparse-cli` parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax <https://github.com/rushter/selectolax>`__ (Lexbor engine) and `BeautifulSoup4 <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`__ (lxml engine only, which is the fastest BS4 backend).
+The :ref:`resiliparse-cli` parser comes with a small HTML parser benchmarking tool that can measure the parsing engine's
+performance and compare it to other Python HTML parsing libraries. Supported third-party libraries are `Selectolax
+<https://github.com/rushter/selectolax>`__ (Lexbor engine) and `BeautifulSoup4
+<https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`__ (lxml engine only, which is the fastest BS4 backend).
 
-Here are the results of extracting the titles from all web pages in an uncompressed 42,015-document WARC file on a Ryzen Threadripper 2920X machine:
+Here are the results of extracting the titles from all web pages in an uncompressed 42,015-document WARC file on a Ryzen
+Threadripper 2920X machine:
 
 .. code-block:: console
 
@@ -510,4 +560,5 @@ Here are the results of extracting the titles from all web pages in an uncompres
     Selectolax (Lexbor):   42015 documents in 37.46s (1121.52 documents/s)
     BeautifulSoup4 (lxml): 42015 documents in 874.40s (48.05 documents/s)
 
-Not surprisingly, the two parsers based on the Lexbor engine perform almost identically, whereas lxml is by far the slowest by a factor of 24x.
+Not surprisingly, the two parsers based on the Lexbor engine perform almost identically, whereas lxml is by far the
+slowest by a factor of 24x.

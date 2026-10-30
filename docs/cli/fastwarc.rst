@@ -3,7 +3,8 @@
 FastWARC CLI
 ============
 
-Besides the :ref:`Python API <fastwarc-manual>`, FastWARC also provides a command line interface via the ``fastwarc`` command, which enables working with WARC files on the console.
+Besides the :ref:`Python API <fastwarc-manual>`, FastWARC also provides a command line interface via the ``fastwarc``
+command, which enables working with WARC files on the console.
 
 Run ``fastwarc [COMMAND] --help`` for detailed help listings.
 

@@ -45,7 +45,8 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
 ### Build Instructions
 
-- The Rust projects are built with `cargo`. The Python bindings use PyO3 and are built with `maturin` via `pyproject.toml`.
+- The Rust projects are built with `cargo`. The Python bindings use PyO3 and are built with `maturin` via
+  `pyproject.toml`.
 - Native dependencies are installed via `vcpkg`. Rust installs its dependencies to the target dir with `vcpkg`. The
   `vcpkg` binary must be available on the `PATH`. If `RESILIPARSE_USE_SYSTEM_LIBS=1` is set, it uses libraries from the
   system instead.
@@ -124,6 +125,9 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   `#[pyclass(name = "...", module = "...")]`. The `module` path must be present and complete.
 - PyO3 modules use an `_` underscore at the beginning of the name instead of the `Py` suffix and set their
   Python-visible names via `#[pymodule(name = "...", module = "...")]`.
+- Lines in Markdown and ReST files should wrap after 120 characters.
+- RustDoc comment lines should also not exceed 120 characters.
+- Code examples within RustDoc should use sensible formatting to avoid horizontal scrolling on the rendered HTML page.
 
 ## Documentation
 

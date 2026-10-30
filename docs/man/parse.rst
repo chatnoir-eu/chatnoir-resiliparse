@@ -3,7 +3,8 @@
 Resiliparse Parsing Utilities
 =============================
 
-The Parsing Utilities module is a library of high-performance helper classes, functions, and models for parsing, processing, and transforming textual content, detecting encodings or content languages, and more.
+The Parsing Utilities module is a library of high-performance helper classes, functions, and models for parsing,
+processing, and transforming textual content, detecting encodings or content languages, and more.
 
 
 .. toctree::

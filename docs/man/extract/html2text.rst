@@ -3,12 +3,16 @@
 HTML2Text
 =========
 
-Resiliparse HTML2Text is a very fast and rule-based plain text extractor for HTML pages. HTML2Text uses the :ref:`Resiliparse DOM parser <parse-html-manual>`.
+Resiliparse HTML2Text is a very fast and rule-based plain text extractor for HTML pages. HTML2Text uses the
+:ref:`Resiliparse DOM parser <parse-html-manual>`.
 
 
 Basic Plain Text Conversion
 ---------------------------
-The simplest and fastest way to convert an HTML page to plain text is to use the :func:`~.extract_plain_text` helper without any further parameters. This will extract all visible text nodes inside the HTML document's ``<body>``. Only ``<script>``, ``<style>`` and a few other (generally) invisible elements are skipped and very basic ASCII formatting is applied:
+The simplest and fastest way to convert an HTML page to plain text is to use the :func:`~.extract_plain_text` helper
+without any further parameters. This will extract all visible text nodes inside the HTML document's ``<body>``. Only
+``<script>``, ``<style>`` and a few other (generally) invisible elements are skipped and very basic ASCII formatting is
+applied:
 
 .. code-block:: python
 
@@ -66,7 +70,9 @@ Output:
 
 Instead of the raw HTML as a string, you can also pass an :class:`~resiliparse.parse.html.HTMLTree` instance.
 
-For customization of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts several parameters controlling individual aspects of its output, such as the extraction of ``alt`` texts (enabled by default), link ``href`` targets, form fields, or ``noscript`` elements.
+For customization of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts
+several parameters controlling individual aspects of its output, such as the extraction of ``alt`` texts (enabled by
+default), link ``href`` targets, form fields, or ``noscript`` elements.
 
 .. code-block:: python
 
@@ -129,7 +135,9 @@ Output:
 Minimal HTML Conversion
 -----------------------
 
-Instead of rendering a pure plain text version of the source document, Resiliparse can also spice up the plain text output with minimal HTML markup to retain some of the document's structural information. For a minimal HTML rendering, set ``preserve_formatting='minimal_html'`` (instead of the default ``preserve_formatting=True``):
+Instead of rendering a pure plain text version of the source document, Resiliparse can also spice up the plain text
+output with minimal HTML markup to retain some of the document's structural information. For a minimal HTML rendering,
+set ``preserve_formatting='minimal_html'`` (instead of the default ``preserve_formatting=True``):
 
 .. code-block:: python
 
@@ -152,12 +160,17 @@ Output:
     Some image
     Copyright (C) 2021 Foo Bar
 
-With ``preserve_formatting='minimal_html'``, Resiliparse will retain headings (``<h1>`` -- ``<h6>``), paragraphs (``<p>``), pre-formatted text (``<pre>``), explicit line breaks (``<br>``), list items (``<ul>`` / ``<ol>`` and ``<li>``; unless ``list_bullets=False``), and anchor links (``<a href="...">``; only if ``links=True``, defaults to ``False``). Any additional attributes on those elements will not be preserved.
+With ``preserve_formatting='minimal_html'``, Resiliparse will retain headings (``<h1>`` -- ``<h6>``), paragraphs
+(``<p>``), pre-formatted text (``<pre>``), explicit line breaks (``<br>``), list items (``<ul>`` / ``<ol>`` and
+``<li>``; unless ``list_bullets=False``), and anchor links (``<a href="...">``; only if ``links=True``, defaults to
+``False``). Any additional attributes on those elements will not be preserved.
 
 
 Main Content Extraction
 -----------------------
-Resiliparse HTML2Text can also do very simple and fast rule-based main content extraction (also called boilerplate removal). Setting ``main_content=True`` will apply a set of rules for removing page elements such as navigation blocks, sidebars, footers, some ads, and (as far as they are possible to detect without rendering the page) invisible elements:
+Resiliparse HTML2Text can also do very simple and fast rule-based main content extraction (also called boilerplate
+removal). Setting ``main_content=True`` will apply a set of rules for removing page elements such as navigation blocks,
+sidebars, footers, some ads, and (as far as they are possible to detect without rendering the page) invisible elements:
 
 .. code-block:: python
 
@@ -190,6 +203,8 @@ Output:
 
     foo baz bar Sorry, your browser doesn't support JavaScript!
 
-By default, news article or blog post meta information (author, date, etc.), and user comments are considered main content. You can extraction of the meta data with ``post_meta=False`` and comment extraction with ``comments=False``.
+By default, news article or blog post meta information (author, date, etc.), and user comments are considered main
+content. You can extraction of the meta data with ``post_meta=False`` and comment extraction with ``comments=False``.
 
-Elements marked as hidden by certain class names or inline CSS are not considered main content by default, but you can keep them with ``hidden_elements=True``.
+Elements marked as hidden by certain class names or inline CSS are not considered main content by default, but you can
+keep them with ``hidden_elements=True``.

@@ -4,7 +4,8 @@
 ChatNoir Resiliparse |release| Documentation
 ++++++++++++++++++++++++++++++++++++++++++++
 
-ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`__.
+ChatNoir Resiliparse is a collection of robust and fast processing tools for parsing and analyzing (not only) web
+archive data. Resiliparse is part of the `ChatNoir web analytics toolkit <https://github.com/chatnoir-eu/>`__.
 
 
 Table of Contents
@@ -65,25 +66,34 @@ The Resiliparse main module comes with the following subcomponents:
 
 Parsing Utilities
 ^^^^^^^^^^^^^^^^^
-The Resiliparse Parsing Utilities are the largest submodule and provide an extensive (and growing) collection of efficient tools for dealing with encodings and raw protocol payloads, parsing HTML web pages, and preparing them for further processing by extracting structural or semantic information.
+The Resiliparse Parsing Utilities are the largest submodule and provide an extensive (and growing) collection of
+efficient tools for dealing with encodings and raw protocol payloads, parsing HTML web pages, and preparing them for
+further processing by extracting structural or semantic information.
 
 Main documentation: :ref:`parse-manual`.
 
 Process Guard
 ^^^^^^^^^^^^^
-The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially) successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory, but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
+The Resiliparse Process Guard module is a set of decorators and context managers for guarding a processing context to
+stay within pre-defined limits for execution time and memory usage. Process Guards help to ensure the (partially)
+successful completion of batch processing jobs in which individual tasks may time out or use abnormal amounts of memory,
+but in which the success of the whole job is not threatened by (a few) individual failures. A guarded processing context
+will be interrupted upon exceeding its resource limits so that the task can be skipped or rescheduled.
 
 Main documentation: :ref:`process-guard-manual`.
 
 Itertools
 ^^^^^^^^^
-Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable sources using other tools from the Resiliparse toolkit.
+Resiliparse Itertools are a collection of convenient and robust helper functions for iterating over data from unreliable
+sources using other tools from the Resiliparse toolkit.
 
 Main documentation: :ref:`itertools-manual`.
 
 2. FastWARC
 -----------
-FastWARC is a high-performance WARC parsing library written in Rust with bindings for Python. The API is inspired in large parts by WARCIO, but does not aim at being a drop-in replacement. FastWARC supports compressed and uncompressed WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are Gzip, Zstandard, and LZ4.
+FastWARC is a high-performance WARC parsing library written in Rust with bindings for Python. The API is inspired in
+large parts by WARCIO, but does not aim at being a drop-in replacement. FastWARC supports compressed and uncompressed
+WARC/1.0 and WARC/1.1 streams. Supported compression algorithms are Gzip, Zstandard, and LZ4.
 
 FastWARC provides both a Python API and a command line interface (CLI).
 
@@ -93,12 +103,16 @@ Main documentation: :ref:`fastwarc-manual` and :ref:`fastwarc-cli`
 About ChatNoir
 ==============
 
-`ChatNoir <https://chatnoir.eu>`__ is a web search engine developed developed by the `Webis Group <https://webis.de>`__ based on the `ClueWeb09 <https://lemurproject.org/clueweb09/>`__, `ClueWeb12 <https://lemurproject.org/clueweb12/>`__, and `Common Crawl <https://commoncrawl.org/>`__ datasets with the goal to make large-scale web retrieval research accessible to the wider research community.
+`ChatNoir <https://chatnoir.eu>`__ is a web search engine developed developed by the `Webis Group <https://webis.de>`__
+based on the `ClueWeb09 <https://lemurproject.org/clueweb09/>`__, `ClueWeb12 <https://lemurproject.org/clueweb12/>`__,
+and `Common Crawl <https://commoncrawl.org/>`__ datasets with the goal to make large-scale web retrieval research
+accessible to the wider research community.
 
 Cite Us
 -------
 
-If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our `ECIR demo paper <https://webis.de/downloads/publications/papers/bevendorff_2018.pdf>`__:
+If you use ChatNoir or any of its tools for a publication, you can make us happy by citing our `ECIR demo paper
+<https://webis.de/downloads/publications/papers/bevendorff_2018.pdf>`__:
 
 .. code-block:: bibtex
 

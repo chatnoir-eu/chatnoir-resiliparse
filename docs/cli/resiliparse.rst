@@ -3,9 +3,12 @@
 Resiliparse CLI
 ===============
 
-The ``resiliparse`` command line utility provides tools for maintaining and benchmarking Resiliparse. At the moment, these tools are aimed primarily at developers of Resiliparse. General-purpose tools geared towards users of the library may be added later.
+The ``resiliparse`` command line utility provides tools for maintaining and benchmarking Resiliparse. At the moment,
+these tools are aimed primarily at developers of Resiliparse. General-purpose tools geared towards users of the library
+may be added later.
 
-To install the Resiliparse CLI tool, specify the ``cli`` flag (and optionally the ``cli-benchmark`` flag for any third-party benchmarking dependencies) in your ``pip install`` command:
+To install the Resiliparse CLI tool, specify the ``cli`` flag (and optionally the ``cli-benchmark`` flag for any
+third-party benchmarking dependencies) in your ``pip install`` command:
 
 .. code-block:: console
 
