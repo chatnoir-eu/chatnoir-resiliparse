@@ -5,6 +5,7 @@ vcpkg_from_github(
     SHA512 d65906504f490a03579eb737fa85007f1e948c4e82f986454d763728e4d71be40fe953a5a7cfda84b322cb99837f482295ee89bc3f07f2ef89ccaeeab39a4acf
     PATCHES
         patches/0001-reference-counting.patch
+        patches/0002-static-library-name.patch
 )
 
 string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" BUILD_STATIC)

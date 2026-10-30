@@ -27,7 +27,6 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 ### Source Tree
 
 - `.github/workflows`: GitHub Actions workflows
-- `.vcpkg`: vcpkg overlay ports and triplets
 - `benchmarks`: benchmark suites (should not be used for temporary performance tests)
 - `build-coverage.sh`: helper script for running tests and collecting coverage info locally
 - `docs`: main project documentation
@@ -45,6 +44,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
     - `resiliparse-py/src`: Rust binding implementations
     - `resiliparse-py/tests`: Python interface tests
 - `resiliparse-rs`: Main Resiliparse Rust crate
+    - `resiliparse-rs/vcpkg`: vcpkg overlay ports and triplets
     - `resiliparse-rs/tests`: Additional integration tests and fixtures
 - `test-data`: global test data used in multiple packages / crates
 
@@ -55,8 +55,8 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Native dependencies are installed via `vcpkg`. Rust installs its dependencies to the target dir with `vcpkg`. The
   `vcpkg` binary must be available on the `PATH`. If `RESILIPARSE_USE_SYSTEM_LIBS=1` is set, it uses libraries from the
   system instead.
-- `vcpkg install` can install the native dependencies to a `vcpkg_installed` directory in the project root. Library
-  search paths should include `vcpg_installed/{host-triplet}/lib` for runtime tests.
+- Native dependencies are installed under Cargo's build output directory. `RESILIPARSE_VCPKG_PATH` can override
+  the installation root. For a manual installation, run `vcpkg install` from `resiliparse-rs`.
 
 ### Rust Module Structure
 

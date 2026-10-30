@@ -31,7 +31,8 @@ Build the crate from the repository root:
 cargo build -p resiliparse
 ```
 
-The build script installs native dependencies through vcpkg and links them statically. Set `RESILIPARSE_VCPKG_PATH` to
+The crate includes its native build manifests and overlays. The build script installs native dependencies under Cargo's
+build output directory through vcpkg and links them statically. Set `RESILIPARSE_VCPKG_PATH` to
 use an existing vcpkg installation directory containing the platform triplet directories. Alternatively, set
 `RESILIPARSE_USE_SYSTEM_LIBS=1` to use system headers and shared libraries. Those libraries must also be available at
 runtime.
@@ -68,6 +69,18 @@ python3 -m pip install --no-index --find-links build resiliparse
 
 For the Rust API, see the [crate documentation](https://docs.rs/resiliparse/). For Python usage, see the
 [Resiliparse User Manual](https://resiliparse.chatnoir.eu/en/latest/).
+
+### Updating docs.rs Bindings
+
+Since docs.rs cannot download vcpkg dependencies to generate FFI bindings, we need to ship a set of pre-generated
+bindings. The following script can be used to re-generate the bindings:
+
+```bash
+python3 ./tools/regenerate-docs-bindings.py
+```
+
+The pre-generated bindings are used only for compiling the docs. Actual crate builds will still generate the bindings
+directly from the native headers.
 
 ## Cite Us
 

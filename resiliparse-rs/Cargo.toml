@@ -16,3 +16,7 @@ regex = "1"
 
 [build-dependencies]
 bindgen.workspace = true
+serde_json = "1"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]

@@ -53,7 +53,8 @@ make `vcpkg <https://vcpkg.io/>`__ available on your ``PATH``:
 
 On Windows, run ``vcpkg/bootstrap-vcpkg.bat`` and add the ``vcpkg`` directory to ``PATH``.
 
-The build script installs native dependencies through vcpkg and links them statically.
+The Resiliparse crate includes its native build manifests and overlays. The build script installs native dependencies
+through vcpkg under Cargo's build output directory and links them statically.
 
 Building the Python Bindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

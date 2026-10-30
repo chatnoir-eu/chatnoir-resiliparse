@@ -33,21 +33,21 @@ fn get_vcpkg_dir() -> Option<PathBuf> {
     } else {
         target_triplet
     };
-    let workspace_root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("..");
+    let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let install_root = env::var_os("RESILIPARSE_VCPKG_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root.join("vcpkg_installed"));
+        .unwrap_or_else(|| PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("vcpkg_installed"));
     println!("cargo:rerun-if-env-changed=RESILIPARSE_VCPKG_PATH");
     println!("cargo:rerun-if-env-changed=VCPKG_DEFAULT_TRIPLET");
-    for path in ["vcpkg.json", "vcpkg-configuration.json", ".vcpkg"] {
-        println!("cargo:rerun-if-changed={}", workspace_root.join(path).display());
+    for path in ["vcpkg.json", "vcpkg-configuration.json", "vcpkg"] {
+        println!("cargo:rerun-if-changed={}", manifest_dir.join(path).display());
     }
     let triplet_root = install_root.join(&triplet);
 
     // Cross-builds may create the host triplet directory for build tools alone.
     // Let vcpkg check the installed packages instead of relying on that directory.
     let out = Command::new("vcpkg")
-        .current_dir(&workspace_root)
+        .current_dir(&manifest_dir)
         .args(["install", "--triplet", &triplet, "--x-install-root"])
         .arg(&install_root)
         .env("CMAKE_POLICY_VERSION_MINIMUM", "3.5")
@@ -95,43 +95,69 @@ fn generate_language_unicode(out_dir: &std::path::Path) {
     std::fs::write(out_dir.join("lang_unicode.rs"), source).expect("Failed to generate Unicode tables");
 }
 
-fn main() {
-    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let vcpkg_dir = get_vcpkg_dir();
-
+/// Generate native bindings and linker instructions.
+///
+/// docs.rs cannot download dependencies, so we need to ship a set of pre-compiled bindings for that.
+/// If the `DOCS_RS` variable is set, the function will copy the pre-generated bindings instead of
+/// generating new ones from the headers.
+fn generate_native_bindings(out_dir: &std::path::Path) {
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
+    println!("cargo:rerun-if-changed=vcpkg.json");
     println!("cargo:rerun-if-env-changed=RESILIPARSE_USE_SYSTEM_LIBS");
-    if let Some(vcpkg_dir) = &vcpkg_dir {
-        println!("cargo:rustc-link-lib=static=lexbor_static");
-        println!("cargo:rustc-link-lib=static=uchardet");
+
+    let manifest: serde_json::Value = serde_json::from_str(include_str!("vcpkg.json")).expect("Invalid vcpkg manifest");
+    let is_docs_rs = env::var_os("DOCS_RS").is_some();
+    let vcpkg_dir = if is_docs_rs { None } else { get_vcpkg_dir() };
+
+    for dependency in manifest["dependencies"].as_array().unwrap() {
+        let Some(settings) = dependency.get("$bindgen") else {
+            continue;
+        };
+        let dependency_name = dependency["name"].as_str().unwrap();
+        let output_name = out_dir.join(format!("{dependency_name}.rs"));
+
+        // If we're on docs.rs, use existing bindings instead of regenerating them.
+        if is_docs_rs {
+            let snapshot = format!("src/third_party/docs/{dependency_name}.rs");
+            println!("cargo:rerun-if-changed={snapshot}");
+            std::fs::copy(snapshot, output_name).expect("Failed to copy docs.rs bindings");
+            continue;
+        }
+
+        // vcpkg dependencies are linked statically.
+        if vcpkg_dir.is_some() {
+            println!("cargo:rustc-link-lib=static={dependency_name}");
+        } else {
+            println!("cargo:rustc-link-lib={dependency_name}");
+        }
+        let header = format!("src/third_party/{dependency_name}.h");
+        println!("cargo:rerun-if-changed={header}");
+        let setting = |key: &str| settings[key].as_str().unwrap();
+        bindgen::Builder::default()
+            .header(header)
+            .clang_args(vcpkg_dir.iter().map(|dir| format!("-I{}/include", dir.display())))
+            .allowlist_function(setting("functions"))
+            .allowlist_type(setting("types"))
+            .allowlist_var(setting("variables"))
+            .default_enum_style(bindgen::EnumVariation::ModuleConsts)
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+            .generate()
+            .unwrap_or_else(|error| panic!("Error generating {dependency_name} binding: {error}"))
+            .write_to_file(output_name)
+            .unwrap();
+    }
+    if let Some(vcpkg_dir) = vcpkg_dir {
         println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.display());
         match env::var("CARGO_CFG_TARGET_OS").as_deref() {
             Ok("linux") => println!("cargo:rustc-link-lib=dylib=stdc++"),
             Ok("macos") => println!("cargo:rustc-link-lib=dylib=c++"),
             _ => {}
         }
-    } else {
-        println!("cargo:rustc-link-lib=lexbor");
-        println!("cargo:rustc-link-lib=uchardet");
     }
-    for (name, functions, types, variables) in [
-        ("lexbor", "(lexbor|lxb)_.*", "(LEXBOR|lexbor|lxb)_.*", "(LEXBOR|LXB)_.*"),
-        ("uchardet", "uchardet_.*", "uchardet.*", "UCHARDET_.*"),
-    ] {
-        let header = format!("src/third_party/{name}.h");
-        println!("cargo:rerun-if-changed={header}");
-        bindgen::Builder::default()
-            .header(header)
-            .clang_args(vcpkg_dir.iter().map(|dir| format!("-I{}/include", dir.display())))
-            .allowlist_function(functions)
-            .allowlist_type(types)
-            .allowlist_var(variables)
-            .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-            .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-            .generate()
-            .unwrap_or_else(|error| panic!("Error generating {name} binding: {error}"))
-            .write_to_file(out_dir.join(format!("{name}.rs")))
-            .unwrap();
-    }
+}
 
+fn main() {
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    generate_native_bindings(&out_dir);
     generate_language_unicode(&out_dir);
 }

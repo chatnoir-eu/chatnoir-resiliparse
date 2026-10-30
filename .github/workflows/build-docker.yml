@@ -10,9 +10,9 @@ on:
     paths:
       - Dockerfile
       - .github/workflows/build-docker.yml
-      - .vcpkg/**
-      - vcpkg.json
-      - vcpkg-configuration.json
+      - resiliparse-rs/vcpkg/**
+      - resiliparse-rs/vcpkg.json
+      - resiliparse-rs/vcpkg-configuration.json
 
   pull_request:
     types:
@@ -23,9 +23,9 @@ on:
     paths:
       - Dockerfile
       - .github/workflows/build-docker.yml
-      - .vcpkg/**
-      - vcpkg.json
-      - vcpkg-configuration.json
+      - resiliparse-rs/vcpkg/**
+      - resiliparse-rs/vcpkg.json
+      - resiliparse-rs/vcpkg-configuration.json
 
 env:
   REGISTRY: ghcr.io

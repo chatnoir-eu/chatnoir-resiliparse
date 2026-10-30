@@ -19,8 +19,8 @@ RUN set -x \
 ENV VCPKG_DISABLE_METRICS="1"
 ENV VCPKG_FORCE_SYSTEM_BINARIES="1"
 
-COPY .vcpkg /tmp/build/.vcpkg
-COPY vcpkg.json vcpkg-configuration.json /tmp/build/
+COPY resiliparse-rs/vcpkg /tmp/build/vcpkg
+COPY resiliparse-rs/vcpkg.json resiliparse-rs/vcpkg-configuration.json /tmp/build/
 
 RUN set -x \
     && git clone --depth=1 https://github.com/Microsoft/vcpkg /opt/vcpkg \

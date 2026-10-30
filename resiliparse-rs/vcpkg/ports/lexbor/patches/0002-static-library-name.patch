@@ -1,0 +1,11 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -244,6 +244,7 @@ ENDIF()
+ IF(LEXBOR_BUILD_STATIC)
+     ADD_MODULE_LIBRARY(STATIC ${LEXBOR_LIB_NAME_STATIC} ${LEXBOR_VERSION_STRING}
+                        ${LEXBOR_VERSION_MAJOR})
++    set_target_properties(${LEXBOR_LIB_NAME_STATIC} PROPERTIES OUTPUT_NAME ${LEXBOR_LIB_NAME})
+ ENDIF()
+ 
+ ################

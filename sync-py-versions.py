@@ -61,9 +61,9 @@ for name in local_crates:
     )
 workspace_manifest.write_text(workspace_content)
 
-with open(base_path / 'vcpkg.json', 'r') as f:
+with open(base_path / 'resiliparse-rs/vcpkg.json', 'r') as f:
     vcpkg_json = json.load(f)
-with open(base_path / 'vcpkg.json', 'w') as f:
+with open(base_path / 'resiliparse-rs/vcpkg.json', 'w') as f:
     vcpkg_json['version-string'] = cargo_ver
     json.dump(vcpkg_json, f, ensure_ascii=False, indent=2)
     f.write('\n')

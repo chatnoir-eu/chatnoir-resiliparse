@@ -29,7 +29,7 @@ runs:
           .vcpkg-inst
           ~/.cache/vcpkg/archives
           ~/AppData/Local/vcpkg/archives
-        key: workspace-${{ steps.select-platform.outputs.cache-prefix }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'vcpkg-configuration.json', '.vcpkg/**') }}
+        key: workspace-${{ steps.select-platform.outputs.cache-prefix }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-lock.json', 'resiliparse-rs/vcpkg-configuration.json', 'resiliparse-rs/vcpkg/**') }}
         restore-keys: |
           workspace-${{ steps.select-platform.outputs.cache-prefix }}-
 

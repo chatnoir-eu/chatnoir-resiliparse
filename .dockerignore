@@ -1,4 +1,7 @@
 */
-!.vcpkg/
-!vcpkg.json
-!vcpkg-configuration.json
+!resiliparse-rs/
+resiliparse-rs/*
+!resiliparse-rs/vcpkg/
+!resiliparse-rs/vcpkg/**
+!resiliparse-rs/vcpkg.json
+!resiliparse-rs/vcpkg-configuration.json
