@@ -1247,3 +1247,11 @@ impl Notation for NotationNode {
         unsafe { Some(self.system_id_unchecked()?.to_owned()) }
     }
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "node_test.rs"]
+mod node_test;
