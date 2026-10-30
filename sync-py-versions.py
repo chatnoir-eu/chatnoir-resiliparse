@@ -22,7 +22,7 @@ import re
 import tomllib
 from subprocess import run
 
-base_path = Path(__file__).parent
+base_path = Path(__file__).resolve().parent
 cargo_ver = tomllib.load(open(base_path / 'Cargo.toml', 'rb'))['workspace']['package']['version']
 
 print(f'Updating Python package and dependency versions to {cargo_ver}.')
@@ -50,6 +50,17 @@ def sync_path_dependency_versions(manifest: Path) -> int:
 for manifest in base_path.rglob('Cargo.toml'):
     sync_path_dependency_versions(manifest)
 
+# Registry requirements stay exact; Cargo configuration supplies local dev overrides.
+local_crates = tomllib.loads((base_path / '.cargo/config.toml').read_text())['patch']['crates-io']
+workspace_manifest = base_path / 'Cargo.toml'
+workspace_content = workspace_manifest.read_text()
+for name in local_crates:
+    workspace_content = re.sub(
+        rf'(?m)^({re.escape(name)}\s*=\s*)"[^"]+"',
+        rf'\g<1>"={cargo_ver}"', workspace_content,
+    )
+workspace_manifest.write_text(workspace_content)
+
 with open(base_path / 'vcpkg.json', 'r') as f:
     vcpkg_json = json.load(f)
 with open(base_path / 'vcpkg.json', 'w') as f:
@@ -61,8 +72,8 @@ with open(base_path / 'vcpkg.json', 'w') as f:
 with open(base_path / 'resiliparse-py/pyproject.toml', 'r') as f:
     resiliparse_toml = f.read()
 with open(base_path / 'resiliparse-py/pyproject.toml', 'w') as f:
-    f.write(re.sub(r'"fastwarc==\d+\.\d+\.\d+"',
+    f.write(re.sub(r'"fastwarc==[^"\s]+"',
                    f'"fastwarc=={cargo_ver}"',
                    resiliparse_toml))
 
-run(['cargo', 'generate-lockfile'], cwd=base_path)
+run(['cargo', 'generate-lockfile'], check=True, cwd=base_path)

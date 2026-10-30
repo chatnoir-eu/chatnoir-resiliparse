@@ -20,10 +20,10 @@ import sys
 import tomllib
 
 src_dir = Path(__file__).parent.parent.absolute()
-if src_dir.joinpath('fastwarc-py', 'fastwarc', f'_fastwarc{EXTENSION_SUFFIXES[0]}').is_file():
+if src_dir.joinpath('fastwarc-py', 'python', 'fastwarc', f'_fastwarc{EXTENSION_SUFFIXES[0]}').is_file():
     sys.path[:0] = [
-        str(src_dir.joinpath('resiliparse-py')),
-        str(src_dir.joinpath('fastwarc-py'))
+        str(src_dir.joinpath('resiliparse-py', 'python')),
+        str(src_dir.joinpath('fastwarc-py', 'python'))
     ]
 
 # -- Project information -----------------------------------------------------
@@ -88,7 +88,7 @@ html_css_files = [
 
 # -- Stub patching -----------------------------------------------------------
 
-_fastwarc_pkg_dir = src_dir.joinpath('fastwarc-py', 'fastwarc')
+_fastwarc_pkg_dir = src_dir.joinpath('fastwarc-py', 'python', 'fastwarc')
 _STUBBED_NATIVE_MODULES = {
     'fastwarc.warc': _fastwarc_pkg_dir.joinpath('warc.pyi'),
     'fastwarc.stream_io': _fastwarc_pkg_dir.joinpath('stream_io.pyi'),

@@ -3,6 +3,7 @@ name = "resiliparse-py"
 version.workspace = true
 edition.workspace = true
 publish = false
+exclude = ["build/**", "*.egg-info/**", "resiliparse_common/**", "resiliparse_inc/**", ".mypy_cache/**"]
 
 [lib]
 path = "src/lib.rs"

@@ -1,2 +1,7 @@
 [build]
 rustflags = ["--cfg", "pyo3_disable_reference_pool"]
+
+# Repository builds use local crates.
+[patch.crates-io]
+fastwarc = { path = "fastwarc-rs" }
+resiliparse = { path = "resiliparse-rs" }

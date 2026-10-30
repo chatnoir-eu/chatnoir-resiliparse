@@ -42,8 +42,8 @@ test = [
 fastwarc = "fastwarc.cli:main"
 
 [tool.maturin]
-manifest-path = "fastwarc/Cargo.toml"
-python-source = "."
+manifest-path = "Cargo.toml"
+python-source = "python"
 module-name = "fastwarc._fastwarc"
 bindings = "pyo3"
 sdist-generator = "cargo"
@@ -56,7 +56,7 @@ test-extras = ["all", "test"]
 
 [tool.mypy]
 exclude = [
-    "fastwarc/cli\\.py",
+    "python/fastwarc/cli\\.py",
     "tests/.*",
 ]
 

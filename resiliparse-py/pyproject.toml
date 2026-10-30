@@ -51,8 +51,8 @@ test = [
 resiliparse = "resiliparse.cli:main"
 
 [tool.maturin]
-manifest-path = "resiliparse/Cargo.toml"
-python-source = "."
+manifest-path = "Cargo.toml"
+python-source = "python"
 module-name = "resiliparse._resiliparse"
 bindings = "pyo3"
 sdist-generator = "cargo"
@@ -65,8 +65,8 @@ test-extras = ["all", "test"]
 
 [tool.mypy]
 exclude = [
-    "resiliparse/cli\\.py",
-    "resiliparse/beam/.*",
+    "python/resiliparse/cli\\.py",
+    "python/resiliparse/beam/.*",
     "tests/.*",
 ]
 

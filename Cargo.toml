@@ -2,10 +2,10 @@
 resolver = "2"
 members = [
     "resiliparse-rs",
-    "resiliparse-py/resiliparse",
+    "resiliparse-py",
     "fastwarc-rs",
     "fastwarc-grpc",
-    "fastwarc-py/fastwarc",
+    "fastwarc-py",
 ]
 default-members = [
     "fastwarc-rs",
@@ -24,8 +24,8 @@ repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse/"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-fastwarc = { version = "2.0.0", path = "fastwarc-rs" }
-resiliparse = { version = "2.0.0", path = "resiliparse-rs" }
+fastwarc = "=2.0.0"
+resiliparse = "=2.0.0"
 bindgen = { version = "0.73", default-features = false, features = ["logging", "runtime"] }
 pyo3 = "0.30"
 pyo3-build-config = "0.30"

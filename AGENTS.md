@@ -34,10 +34,14 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
     - `docs/api`: Python API docs
 - `fastwarc-grpc`: gRPC wrapper around FastWARC
 - `fastwarc-py`: FastWARC PyO3 bindings
+    - `fastwarc-py/python`: Python package and type stubs
+    - `fastwarc-py/src`: Rust binding implementations
     - `fastwarc-py/tests`: Python interface tests
 - `fastwarc-rs`: Main FastWARC Rust crate
     - `fastwarc-rs/tests`: Additional integration tests and fixtures
 - `resiliparse-py`: Resiliparse PyO3 bindings
+    - `resiliparse-py/python`: Python package and type stubs
+    - `resiliparse-py/src`: Rust binding implementations
     - `resiliparse-py/tests`: Python interface tests
 - `resiliparse-rs`: Main Resiliparse Rust crate
     - `resiliparse-rs/tests`: Additional integration tests and fixtures
