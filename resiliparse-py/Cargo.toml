@@ -13,3 +13,6 @@ crate-type = ["cdylib"]
 resiliparse.workspace = true
 pyo3 = { workspace = true, features = ["extension-module"] }
 libc = "0.2"
+
+[build-dependencies]
+pyo3-build-config.workspace = true

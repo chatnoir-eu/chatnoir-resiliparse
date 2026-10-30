@@ -1191,6 +1191,7 @@ version = "2.0.0"
 dependencies = [
  "libc",
  "pyo3",
+ "pyo3-build-config",
  "resiliparse",
 ]
 
