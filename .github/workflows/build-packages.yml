@@ -231,8 +231,12 @@ jobs:
 
           scripts_dir="$(python${PYTHON_VERSION} -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
           echo "$scripts_dir" >> "$GITHUB_PATH"
-          asan_runtime="$(gcc -print-file-name=libasan.so)"
+          # GCC's libasan.so can be a linker script. Resolve the runtime used by a linked executable.
+          asan_probe="$RUNNER_TEMP/asan-probe"
+          printf 'int main(void) { return 0; }\n' | gcc -fsanitize=address -x c - -o "$asan_probe"
+          asan_runtime="$(ldd "$asan_probe" | awk '$1 ~ /^libasan[.]so[.]/ { print $3 }')"
           test -f "$asan_runtime"
+          LD_PRELOAD="$asan_runtime" "$asan_probe"
           echo "ASAN_RUNTIME=$asan_runtime" >> "$GITHUB_ENV"
 
       - name: Build Extensions
