@@ -31,9 +31,13 @@ RUN set -x \
                 aarch64) triplet=arm64-linux ;; \
                 *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
             esac \
-        && /opt/vcpkg/vcpkg install --triplet=${triplet} --x-install-root=/tmp/build/vcpkg_installed \
-        && mkdir /opt/libs \
-        && mv "/tmp/build/vcpkg_installed/$triplet/"* /opt/libs/) \
+        && for variant in "" "-asan"; do \
+            /opt/vcpkg/vcpkg install --triplet="${triplet}${variant}" \
+                --x-install-root="/tmp/build/vcpkg_installed${variant}" \
+                && mkdir "/opt/libs${variant}" \
+                && mv "/tmp/build/vcpkg_installed${variant}/${triplet}${variant}/"* "/opt/libs${variant}/" \
+                || exit 1; \
+            done) \
     && rm -rf /tmp/build
 
 ENV RESILIPARSE_USE_SYSTEM_LIBS="1"
@@ -45,7 +49,8 @@ ENV RUSTUP_HOME=/opt/rust/rustup
 ENV CARGO_HOME=/opt/rust/cargo
 ENV PATH=/opt/vcpkg:/opt/rust/cargo/bin:$PATH
 RUN set -x \
-    && curl --proto '=https' --tlsv1.2 -Ssf https://sh.rustup.rs | sh -s -- -y \
+    && curl --proto '=https' --tlsv1.2 -Ssf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable \
+    && rustup toolchain install nightly --profile minimal \
     && cargo install cargo-llvm-cov
 
 ENV FORCE_COLOR="1"
