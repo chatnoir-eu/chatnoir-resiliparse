@@ -358,7 +358,7 @@ def test_cli_evaluation_unknown_and_fasttext(tmp_path, monkeypatch, prediction):
     directory = tmp_path / 'en'
     directory.mkdir()
     (directory / 'test.txt').write_text('First example\nSecond example\n')
-    args = ['lang', 'evaluate', str(tmp_path), '-s', 'test', '-c', '0', '-t', '5', '--langs', 'en', '--sort-lang', '--print-cm']
+    args = ['lang', 'evaluate', str(tmp_path), '-s', 'test', '-c', '0', '-t', '5', '--sort-lang', '--print-cm']
     calls = []
     if prediction is not None:
         def predict(text, k, threshold, on_unicode_error):
@@ -400,3 +400,22 @@ def test_cli_language_benchmark_without_optional_backends(tmp_path, monkeypatch)
     assert 'Skipping FastText benchmark' in result.output
     assert 'Skipping langid benchmark' in result.output
     assert 'Resiliparse:' in result.output
+
+
+@pytest.mark.parametrize('langs', [None, 'en,README.txt'])
+def test_cli_evaluation_ignores_files(tmp_path, langs):
+    directory = tmp_path / 'en'
+    directory.mkdir()
+    (directory / 'val.txt').write_text(
+        'This is an English article about language detection and preparing training examples.\n', encoding='utf-8')
+    (tmp_path / 'README.txt').write_text('Dataset description', encoding='utf-8')
+    (tmp_path / 'model.bin').write_bytes(b'not a language directory')
+    args = ['lang', 'evaluate', str(tmp_path)]
+    if langs is not None:
+        args.extend(['--langs', langs])
+    result = CliRunner().invoke(cli.main, args)
+    assert result.exit_code == 0, result.output
+    assert 'en, 1.00, 1.00, 1.00, 1' in result.output
+    assert 'Accuracy: 1.00' in result.output
+    assert 'README.txt' not in result.output
+    assert 'model.bin' not in result.output

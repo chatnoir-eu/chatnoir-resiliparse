@@ -449,7 +449,8 @@ def evaluate(indir, split, langs, truncate, cutoff, sort_lang, print_cm, fasttex
     """
     if langs is not None:
         langs = {l.strip() for l in langs.split(',')}
-    in_langs = sorted([l for l in os.listdir(indir) if langs is None or l in langs])
+    in_langs = sorted(l for l in os.listdir(indir)
+                      if os.path.isdir(os.path.join(indir, l)) and (langs is None or l in langs))
 
     if fasttext_model:
         try:
