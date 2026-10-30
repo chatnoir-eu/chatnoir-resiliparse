@@ -16,8 +16,8 @@ import importlib
 from importlib.abc import MetaPathFinder
 from importlib.machinery import EXTENSION_SUFFIXES, ModuleSpec, SourceFileLoader
 from pathlib import Path
-import re
 import sys
+import tomllib
 
 src_dir = Path(__file__).parent.parent.absolute()
 if src_dir.joinpath('fastwarc-py', 'fastwarc', f'_fastwarc{EXTENSION_SUFFIXES[0]}').is_file():
@@ -31,8 +31,8 @@ if src_dir.joinpath('fastwarc-py', 'fastwarc', f'_fastwarc{EXTENSION_SUFFIXES[0]
 project = 'ChatNoir Resiliparse'
 copyright = f'2021-{datetime.datetime.today().year}, Janek Bevendorff'
 author = 'Janek Bevendorff'
-release = re.search(r'^version\s*=\s*"([\d.]+)"$',
-                    open(src_dir.joinpath('resiliparse-py', 'pyproject.toml')).read(), re.M).group(1)
+with src_dir.joinpath('Cargo.toml').open('rb') as manifest:
+    release = tomllib.load(manifest)['workspace']['package']['version']
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------

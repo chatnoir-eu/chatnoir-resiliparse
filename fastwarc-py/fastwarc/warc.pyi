@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Postpone type evaluation instead of executing pyi stubs eagerly.
+from __future__ import annotations
+
 from datetime import datetime
 from collections.abc import Callable, Iterable, Iterator
 from enum import IntFlag
