@@ -24,9 +24,24 @@ FastWARC and Resiliparse are high-performance data processing libraries for larg
 Resiliparse is the main web processing library. FastWARC is part of the suite, but shipped as a standalone library.
 FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 
-- Resiliparse lives in `resiliparse-rs` with PyO3 bindings in `resiliparse-py`.
-- FastWARC lives in `fastwarc-rs` with PyO3 bindings in `fastwarc-py`. FastWARC-gRPC lives in `fastwarc-grpc`.
-- GitHub Actions workflows are in `.github/workflows`.
+### Source Tree
+
+- `.github/workflows`: GitHub Actions workflows
+- `.vcpkg`: vcpkg overlay ports and triplets
+- `benchmarks`: benchmark suites (should not be used for temporary performance tests)
+- `docs`: main project documentation
+    - `docs/man`: general usage documentation (Python)
+    - `docs/api`: Python API docs
+- `fastwarc-grpc`: gRPC wrapper around FastWARC
+- `fastwarc-py`: FastWARC PyO3 bindings
+    - `fastwarc-py/tests`: Python interface tests
+- `fastwarc-rs`: Main FastWARC Rust crate
+    - `fastwarc-rs/tests`: Additional integration tests and fixtures
+- `resiliparse-py`: Resiliparse PyO3 bindings
+    - `resiliparse-py/tests`: Python interface tests
+- `resiliparse-rs`: Main Resiliparse Rust crate
+    - `resiliparse-rs/tests`: Additional integration tests and fixtures
+- `test-data`: global test data used in multiple packages / crates
 
 ### Build Instructions
 
@@ -80,16 +95,19 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   `#[pymodule_export] pub use super::member_name` directives in the `#[pymodule]`.
 - Submodules are registered in the  `#[pymodule]`'s `#[pymodule_init]`.
 
-## Coding Style
-
-- Rust source files must be formatted with `rustfmt`.
-- Names with all-caps abbreviations use pure `PascalCase` in Rust, but `CAPSCase` in Python.
-- PyO3 binding structs and enums have the suffix `Py` and set their Python-visible names (without `Py`) via
-  `#[pyclass(name = "...", module = "...")]`. The `module` path must be present and complete.
-- PyO3 modules use an `_` underscore at the beginning of the name instead of the `Py` suffix and set their
-  Python-visible names via `#[pymodule(name = "...", module = "...")]`.
-
 ## Tests
+
+### Running Tests
+
+- Rust tests can be run with `cargo test --workspace` for testing everything or `cargo test --package PKGNAME` for
+  individual crates.
+- Python tests can be run with `pytest` from the root or with `pytest subdirectory` for individual packages.
+- Running Python tests needs a venv. Unless specified otherwise in your harness, try to use an existing venv, which is
+  probably located at `.venv` or `venv` in the project root.
+- If tests fail at runtime due to missing native dependencies, load them from `vcpkg_installed/{host-triplet}/lib`.
+- Run the whole test suite before committing anything.
+
+## Writing Tests
 
 - All code paths must have test coverage.
 - Functionality tests should be done in Rust tests.
@@ -98,6 +116,15 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Python tests must cover the full call patch from Python to the core Rust library. These tests must be complete, but
   actual functionality tests must be added only for Python-specific behaviour.
 - Add short comments inside the tests where the purpose of the tested condition isn't obvious. Try not to overexplain.
+
+## Coding Style
+
+- Rust source files must be formatted with `rustfmt`.
+- Names with all-caps abbreviations use pure `PascalCase` in Rust, but `CAPSCase` in Python.
+- PyO3 binding structs and enums have the suffix `Py` and set their Python-visible names (without `Py`) via
+  `#[pyclass(name = "...", module = "...")]`. The `module` path must be present and complete.
+- PyO3 modules use an `_` underscore at the beginning of the name instead of the `Py` suffix and set their
+  Python-visible names via `#[pymodule(name = "...", module = "...")]`.
 
 ## Documentation
 
