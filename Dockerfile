@@ -27,8 +27,8 @@ RUN set -x \
     && /opt/vcpkg/bootstrap-vcpkg.sh \
     && (cd /tmp/build \
         && case "$(uname -m)" in \
-                x86_64) triplet=x64-linux ;; \
-                aarch64) triplet=arm64-linux ;; \
+                x86_64) triplet=x64-linux-dynamic ;; \
+                aarch64) triplet=arm64-linux-dynamic ;; \
                 *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
             esac \
         && /opt/vcpkg/vcpkg install --triplet=${triplet} --x-install-root=/tmp/build/vcpkg_installed \

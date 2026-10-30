@@ -13,11 +13,8 @@
 // limitations under the License.
 
 use std::env;
-use std::env::consts;
 use std::path::PathBuf;
 use std::process::Command;
-
-extern crate bindgen;
 
 /// Detect vcpkg directory or return `None` if `RESILIPARSE_USE_SYSTEM_LIBS` is set.
 fn get_vcpkg_dir() -> Option<PathBuf> {
@@ -25,25 +22,40 @@ fn get_vcpkg_dir() -> Option<PathBuf> {
         return None;
     }
 
-    let arch = consts::ARCH.replace("x86_64", "x64").replace("aarch64", "arm64");
-    let os = consts::OS.replace("macos", "osx");
-    let triplet = env::var("VCPKG_DEFAULT_TRIPLET").unwrap_or_else(|_| format!("{}-{}", arch, os));
-    let install_root = format!("{}/vcpkg_installed", env::var("OUT_DIR").unwrap_or_else(|_| ".".to_string()));
+    let arch = env::var("CARGO_CFG_TARGET_ARCH")
+        .unwrap()
+        .replace("x86_64", "x64")
+        .replace("aarch64", "arm64");
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap().replace("macos", "osx");
+    let target_triplet = format!("{arch}-{os}");
+    let triplet = if env::var("TARGET") == env::var("HOST") {
+        env::var("VCPKG_DEFAULT_TRIPLET").unwrap_or(target_triplet)
+    } else {
+        target_triplet
+    };
+    let workspace_root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("..");
+    let install_root = env::var_os("RESILIPARSE_VCPKG_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace_root.join("vcpkg_installed"));
+    println!("cargo:rerun-if-env-changed=RESILIPARSE_VCPKG_PATH");
+    let triplet_root = install_root.join(&triplet);
+    if triplet_root.is_dir() {
+        return Some(triplet_root);
+    }
+
     let out = Command::new("vcpkg")
-        .args([
-            "install",
-            "--triplet",
-            &triplet,
-            "--x-install-root",
-            install_root.as_str(),
-        ])
+        .current_dir(&workspace_root)
+        .args(["install", "--triplet", &triplet, "--x-install-root"])
+        .arg(&install_root)
         .env("CMAKE_POLICY_VERSION_MINIMUM", "3.5")
         .output()
         .expect("Failed to run vcpkg.");
-    if !out.status.success() {
-        panic!("Failed to install vcpkg dependencies:\n{}", String::from_utf8_lossy(&out.stdout));
-    }
-    Some(PathBuf::from(install_root).join(triplet))
+    assert!(
+        out.status.success(),
+        "Failed to install vcpkg dependencies:\n{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    Some(triplet_root)
 }
 
 /// Fast language detection: Compile the toolchain's Unicode properties into deduplicated bitmap pages.
@@ -80,23 +92,22 @@ fn generate_language_unicode(out_dir: &std::path::Path) {
 }
 
 fn main() {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap_or_else(|_| ".".to_string()));
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let vcpkg_dir = get_vcpkg_dir();
 
     println!("cargo:rerun-if-env-changed=RESILIPARSE_USE_SYSTEM_LIBS");
-    println!("cargo:rustc-link-lib=lexbor");
-    println!("cargo:rustc-link-lib=uchardet");
     if let Some(vcpkg_dir) = &vcpkg_dir {
+        println!("cargo:rustc-link-lib=static=lexbor_static");
+        println!("cargo:rustc-link-lib=static=uchardet");
         println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.display());
         match env::var("CARGO_CFG_TARGET_OS").as_deref() {
-            Ok("macos" | "linux") => {
-                println!("cargo:rustc-link-arg=-Wl,-rpath,{}/lib", vcpkg_dir.display());
-            }
-            Ok("windows") => {
-                println!("cargo:rustc-link-search=native={}/bin", vcpkg_dir.display());
-            }
+            Ok("linux") => println!("cargo:rustc-link-lib=dylib=stdc++"),
+            Ok("macos") => println!("cargo:rustc-link-lib=dylib=c++"),
             _ => {}
-        };
+        }
+    } else {
+        println!("cargo:rustc-link-lib=lexbor");
+        println!("cargo:rustc-link-lib=uchardet");
     }
     for (name, functions, types, variables) in [
         ("lexbor", "(lexbor|lxb)_.*", "(LEXBOR|lexbor|lxb)_.*", "(LEXBOR|LXB)_.*"),
@@ -104,11 +115,9 @@ fn main() {
     ] {
         let header = format!("src/third_party/{name}.h");
         println!("cargo:rerun-if-changed={header}");
-        let mut builder = bindgen::Builder::default().header(header);
-        if let Some(vcpkg_dir) = &vcpkg_dir {
-            builder = builder.clang_arg(format!("-I{}/include", vcpkg_dir.display()));
-        }
-        builder
+        bindgen::Builder::default()
+            .header(header)
+            .clang_args(vcpkg_dir.iter().map(|dir| format!("-I{}/include", dir.display())))
             .allowlist_function(functions)
             .allowlist_type(types)
             .allowlist_var(variables)

@@ -104,7 +104,7 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
 - Python tests can be run with `pytest` from the root or with `pytest subdirectory` for individual packages.
 - Running Python tests needs a venv. Unless specified otherwise in your harness, try to use an existing venv, which is
   probably located at `.venv` or `venv` in the project root.
-- If tests fail at runtime due to missing native dependencies, load them from `vcpkg_installed/{host-triplet}/lib`.
+- Builds using vcpkg link its libraries statically. System-library builds may need native library paths at runtime.
 - Run the whole test suite and stubtest before committing anything.
 
 ## Writing Tests

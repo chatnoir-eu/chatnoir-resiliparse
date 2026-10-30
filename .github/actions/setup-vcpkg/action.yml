@@ -53,28 +53,3 @@ runs:
     - name: Add vcpkg to PATH
       shell: bash
       run: echo "$GITHUB_WORKSPACE/.vcpkg-inst" >> "$GITHUB_PATH"
-
-    - name: Install vcpkg Dependencies
-      shell: bash
-      run: |
-        set -xe
-
-        if [ -d /c/vcpkg ] || [ "$(uname -s)" == "Linux" ]; then
-          vcpkg install --triplet="$VCPKG_DEFAULT_TRIPLET"
-
-        elif [ "$(uname -s)" == "Darwin" ]; then
-          vcpkg install --triplet=x64-osx
-          vcpkg install --triplet=arm64-osx --x-install-root vcpkg_installed2
-          cp -a vcpkg_installed2/* vcpkg_installed/
-          rm -r vcpkg_installed2
-
-        else
-          echo "Unsupported platform." >&2
-          exit 1
-        fi
-
-    - name: Add vcpkg to library search path
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/vcpkg_installed/$VCPKG_DEFAULT_TRIPLET/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"

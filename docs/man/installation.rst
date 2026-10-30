@@ -60,15 +60,4 @@ In most cases, the build routine should be smart enough to detect the location o
 
 .. note::
 
-    Unless you fix up the wheels to embed the linked shared libraries (via `auditwheel <https://github.com/pypa/auditwheel>`__ on Linux, `delocate-wheel <https://github.com/matthew-brett/delocate>`__ on macOS, or `delvewheel <https://github.com/adang1345/delvewheel>`__ on Windows), you will have to add the vcpkg library directory (``vcpkg_installed/TRIPLET/lib``) to your library search path to use them.
-
-    On Linux, add the directory path to the ``LD_LIBRARY_PATH`` environment variable, on macOS to ``DYLD_LIBRARY_PATH``. On Windows, you have to add the directory to the ``Path`` environment variable.
-
-    Here's an example of how to use ``auditwheel`` on Linux to fix up the build wheels:
-
-    .. code:: bash
-
-        LD_LIBRARY_PATH=$(pwd)/vcpkg_installed/x64-linux/lib \
-            auditwheel repair --plat linux_x86_64 build/Resiliparse*.whl build/FastWARC*.whl
-
-    (Please note that ``linux_x86_64`` platform wheels are `not suitable for general redistribution <https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/#platform-tag>`__.)
+    Native vcpkg builds statically link their libraries. Linux manylinux wheel builds use libraries from the build image and bundle them into the wheel. Installed wheels therefore do not need the build-time ``vcpkg_installed`` directory. Custom builds using ``RESILIPARSE_USE_SYSTEM_LIBS=1`` must provide those libraries at runtime.
