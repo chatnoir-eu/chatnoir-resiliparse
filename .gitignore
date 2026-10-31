@@ -179,7 +179,6 @@ resiliparse-py/**/*.html
 wikidumps/
 
 # third-party dependencies
-/vcpkg/
 vcpkg_installed/
 .vcpkg-inst/
 
