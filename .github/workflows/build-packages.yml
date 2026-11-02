@@ -431,7 +431,7 @@ jobs:
         with:
           webhook_url: ${{ secrets.RTDS_WEBHOOK_URL }}
           webhook_token: ${{ secrets.RTDS_WEBHOOK_TOKEN }}
-          commit_ref: ${{ github.ref }}
+          commit_ref: ${{ github.ref == 'refs/heads/develop' && 'refs/heads/latest' || 'refs/tags/stable' }}
 
   publish-crates:
     runs-on: ubuntu-latest
