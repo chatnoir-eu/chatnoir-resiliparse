@@ -46,8 +46,8 @@ Building FastWARC From Source
 -----------------------------
 .. note::
 
-    If you just want to use FastWARC in Python, building the bindings from source is usually necessary, unless there are
-    no pre-built binaries for your platform.
+    If you just want to use FastWARC in Python, building the bindings from source is usually unnecessary, unless
+    there are no pre-built binaries for your platform.
 
 To build FastWARC from the `source repository <https://github.com/chatnoir-eu/chatnoir-resiliparse>`__, you need Rust
 and Cargo installed. If that is not the case, do that first:
@@ -103,7 +103,7 @@ This will iterate over all records in the file and print out their IDs. You can 
 file path as a string to :class:`.ArchiveIterator`. The stream or file can be either uncompressed or a Gzip-, Zstd-, or
 LZ4-compressed WARC. FastWARC will try to auto-detect the stream format (unless you pass ``stream_detect=False``). But
 if you already know the compression algorithm beforehand, you can optimize the process a little by explicitly passing a
-:class:`.GzipReader`, :class:`.ZstdReader`, or :class:`.LZ4Reader` object instead:
+:class:`.GzipReader`, :class:`.ZstdReader`, or :class:`.Lz4Reader` object instead:
 
 .. code-block:: python
 
@@ -116,7 +116,7 @@ if you already know the compression algorithm beforehand, you can optimize the p
    stream = ZstdReader('warcfile.warc.zst')
 
    # LZ4:
-   stream = LZ4Reader('warcfile.warc.lz4')
+   stream = Lz4Reader('warcfile.warc.lz4')
 
 Instead of a filename, you can also use any kind of file-like object:
 
@@ -130,6 +130,7 @@ If `fsspec <https://filesystem-spec.readthedocs.io/>`__ is installed (which is a
 .. code-block:: python
 
    from fastwarc import ArchiveIterator
+   from fastwarc.stream_io import GzipReader
 
    # Read remote S3 object (with optional credentials)
    creds = {'key': '...',
@@ -254,11 +255,11 @@ Pure Python functions are less efficient than FastWARC's provided function filte
 
 Digest Filters
 ^^^^^^^^^^^^^^
-You can skip all records with an invalid ``WARC-Block-Digest`` or ``WARC-Payload-Digest`` header. Unlike other filter
-predicates, :func:`has_valid_block_digest` and :func:`has_valid_payload_digest` are executed only *after* the content is
-available, which is needed for the digest calculation. These filters will skip records without or with an invalid block
-or payload digest. You can also set ``verify_digests=True`` as a shorthand for specifying explicit digest filters for
-both types of digests.
+You can skip records with missing or invalid digest headers using :func:`has_valid_block_digest` or
+:func:`has_valid_payload_digest`. These predicates read and buffer the record contents to calculate the digest.
+For block digest filters, use ``parse_http=False`` so that the HTTP header bytes remain available for verification.
+Set ``verify_digests=True`` to verify block digests automatically before HTTP parsing. This option does not verify
+payload digests.
 
 .. code-block:: python
 
@@ -294,7 +295,7 @@ The :class:`.ArchiveIterator` returns objects of type :class:`.WarcRecord`, whic
        record.record_type          # Shorthand for record.headers[WarcHeader.WARC_TYPE]
        record.record_date          # Parsed record.headers[WarcHeader.WARC_DATE]
        record.content_length       # Effective record payload length
-       record.stream_pos           # Record start offset in the (uncompressed) stream
+       record.stream_pos           # Record start offset in the underlying input stream
        record.is_http              # Boolean indicating whether record is an HTTP record
        record.is_http_parsed       # Boolean indicating whether the record has been parsed as HTTP
        record.http_headers         # Dict-like object containing the parsed HTTP headers
@@ -319,6 +320,25 @@ processing. :attr:`record.reader <.WarcRecord.reader>` will then start at the be
 of the HTTP body. You can parse HTTP headers later on a per-record basis by calling :meth:`record.parse_http()
 <.WarcRecord.parse_http>` as long as the :class:`.WarcRecordPayloadReader` hasn't been consumed at that point.
 
+HTTP Payload Decoding
+^^^^^^^^^^^^^^^^^^^^^
+HTTP parsing leaves transfer- and content-encoded payload bytes unchanged by default. Set ``auto_decode`` on
+:class:`.ArchiveIterator` or :meth:`.WarcRecord.parse_http` to choose which HTTP encoding layers to decode:
+
+* ``'none'``: preserve the encoded payload (default).
+* ``'transfer'``: decode ``Transfer-Encoding``, including chunked framing.
+* ``'content'``: decode ``Content-Encoding``.
+* ``'all'``: decode both, in that order.
+
+.. code-block:: python
+
+   for record in ArchiveIterator('warcfile.warc.gz', auto_decode='all'):
+       body = record.reader.read()
+
+Decoding uses the original HTTP headers. Enable it only when the archived body still has the encodings declared by
+those headers. If parsing manually, select the decoding mode on the first call to ``parse_http()``; later calls do
+not reparse an already parsed record.
+
 .. _freezing-records:
 
 Freezing Records
@@ -335,7 +355,9 @@ To work around this, you can freeze a record by calling :meth:`.WarcRecord.freez
 reader, store the bytes in an internal buffer, and detach the record from the input stream. The reader returned by
 :attr:`.WarcRecord.reader` then no longer points to the input stream, but to the frozen byte buffer. Frozen records can
 be used indefinitely, and seeking on their payload reader is supported both in the forward and in the backward
-direction.
+direction. Only the remaining payload bytes are copied, so freeze a record before reading its body if you need to
+preserve it in full. With ``inplace=True``, the iterator reuses the same record object; leave this option disabled when
+retaining records across iterations.
 
 .. _verifying-record-digests:
 
@@ -388,7 +410,7 @@ Here's how you can create a new record and populate it with headers and a payloa
 
 .. code:: python
 
-   from fastwarc import WarcRecord, WarcRecordType
+   from fastwarc import WarcHeader, WarcRecord, WarcRecordType
 
    record = WarcRecord()
 

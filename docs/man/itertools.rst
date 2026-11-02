@@ -49,15 +49,12 @@ WARC Retry Loops
 The :func:`~.itertools.warc_retry` helper wraps a :class:`fastwarc.warc.ArchiveIterator` instance to try to continue
 reading after a (fatal) stream failure.
 
-.. note::
-
-  :ref:`FastWARC <fastwarc-manual>` needs to be installed for this.
-
 Use a WARC retry loop if the underlying stream is unreliable, such as when reading from a network data source that is
 expected to fail at any time. If an exception other than :exc:`StopIteration` is raised while consuming the iterator,
 the WARC reading process will be retried up to ``retry_count`` times (default: 3). After a failure,  the
 :class:`fastwarc.warc.ArchiveIterator` will be reinitialised with a new stream object by calling ``stream_factory``. The
-new stream object returned by ``stream_factory()`` must be seekable.
+new stream object returned by ``stream_factory()`` must be seekable. Set ``retry_count=None`` or ``retry_count=0``
+for unlimited retries. If the retry limit is exceeded, the last stream or factory exception propagates to the caller.
 
 .. code-block:: python
 

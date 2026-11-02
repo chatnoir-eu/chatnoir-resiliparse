@@ -19,6 +19,9 @@ alternatively: ``all``):
 
     pip install 'resiliparse[beam]'
 
+On Python 3.14 and later, the extra omits Apache Beam because it has no free-threaded Python wheels. Install
+``apache_beam[aws]`` separately when using a compatible interpreter and Beam distribution.
+
 Reading WARC Files
 ------------------
 
@@ -86,9 +89,9 @@ bottlenecks on Beam runners that do not (yet) support runner-initiated splits, s
         line_count = (pipeline
             | ReadFromText(
                 '/path/to/text/files/*.txt',
-                 shuffle_splits=True  # shuffle textfile splits (if splittable)
-                 shuffle_names=True   # shuffle matched filenames (use if you have lots of files)
-                 desired_split_size=64*1024*1024  # desired split size in bytes (default: 64 MB)
+                 shuffle_splits=True,  # shuffle textfile splits (if splittable)
+                 shuffle_names=True,   # shuffle matched filenames (use if you have lots of files)
+                 desired_split_size=64*1024*1024,  # desired split size in bytes (default: 64 MB)
                  min_split_size=1024*1024         # minimum split size in bytes (default: 1 MB)
               )
             | beam.combiners.Count.Globally())
@@ -105,7 +108,7 @@ bottlenecks on Beam runners that do not (yet) support runner-initiated splits, s
     :class:`~resiliparse.beam.textio.ReadFromText` and :class:`~resiliparse.beam.textio.ReadAllFromText` support only
     ``\n``-separated files at the moment, but can be used for reading lines with binary content as well if ``coder`` is
     set to ``None``. By default ``coder`` is set to :class:`~resiliparse.beam.coders.StrUtf8Coder`, which uses
-    Resiliparse's :class:`~resiliparse.parse.encoding.bytes_to_str` for decoding lines to handle broken encodings better
+    Resiliparse's :func:`~resiliparse.parse.encoding.bytes_to_str` for decoding lines to handle broken encodings better
     (the default Beam implementation would raise an exception here).
 
 
@@ -120,10 +123,11 @@ for indexing new documents.
 
 .. code-block:: python
 
+    import apache_beam as beam
     from resiliparse.beam import elasticsearch as es
 
     # Arguments for creating an Elasticsearch Python client
-    es_client_args = {hosts=['localhost:9200'], use_ssl=True}
+    es_client_args = {'hosts': ['https://localhost:9200']}
 
     # Index documents to Elasticsearch cluster
     # (returns the IDs of successfully index documents)

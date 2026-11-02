@@ -37,8 +37,8 @@ mapped to UTF-8. This is convenient most of the time, but it also means that the
 decodable without errors, so care should be taken here. You can use :func:`~.parse.encoding.bytes_to_str` to avoid
 decoding errors (see :ref:`parse-bytes-to-str` for details).
 
-As a convenience shortcut, Resiliparse also provides :func:`~.parse.encoding.detect_encoding` which creates and
-maintains a single global :class:`~.parse.encoding.EncodingDetector` instance:
+As a convenience shortcut, Resiliparse also provides :func:`~.parse.encoding.detect_encoding`, which creates a fresh
+:class:`~.parse.encoding.EncodingDetector` for each call:
 
 .. code-block:: python
 
@@ -46,6 +46,10 @@ maintains a single global :class:`~.parse.encoding.EncodingDetector` instance:
 
   enc = detect_encoding(b'Potrzeba jest matk\xb1 wynalazk\xf3w.')  # iso8859-2
 
+By default, this shortcut samples up to 131,072 bytes from the beginning and end of the input. Adjust ``max_len`` to
+change the sample size, or use ``max_len=0`` to inspect the entire input. For HTML, ``from_html_meta=True`` first checks
+for a charset declaration within the first 1024 bytes, falling back to automatic detection if no usable declaration
+is found. Encoding names obtained from HTML meta tags are always remapped to WHATWG names.
 
 .. _parse-map-encodings:
 
@@ -87,7 +91,7 @@ The function takes the raw byte string and a desired encoding name and tries to 
 If the decoding fails (due to undecodable characters), it will try to fall back to UTF-8 and Windows-1252. If both
 fallbacks fail as well, the string will be decoded with the originally intended encoding and invalid characters will
 either be skipped or replaced with a suitable replacement character (controllable via the ``errors`` parameter, which
-accepts the same values as Python's ``str.decode()``).
+accepts the same values as Python's ``bytes.decode()``).
 
 .. code-block:: python
 
@@ -100,6 +104,7 @@ Of course a simple ``bytestr.decode()`` would be sufficient for such a trivial e
 encoding is inaccurate or the string turns out to contain mixed or broken encodings. In that case there is no other
 option than to try multiple encodings and to ignore any errors if all of them fail. The default fallback encodings for
 this situation (UTF-8 and Windows-1252) can be overridden with the ``fallback_encodings`` parameter.
+Leading byte-order marks are removed by default; set ``strip_bom=False`` to retain them.
 
 .. warning::
 

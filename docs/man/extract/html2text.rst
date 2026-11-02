@@ -70,7 +70,7 @@ Output:
 
 Instead of the raw HTML as a string, you can also pass an :class:`~resiliparse.parse.html.HTMLTree` instance.
 
-For customization of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts
+For customisation of the generated plain text, the function :func:`~.extract.html2text.extract_plain_text` accepts
 several parameters controlling individual aspects of its output, such as the extraction of ``alt`` texts (enabled by
 default), link ``href`` targets, form fields, or ``noscript`` elements.
 
@@ -204,7 +204,12 @@ Output:
     foo baz bar Sorry, your browser doesn't support JavaScript!
 
 By default, news article or blog post meta information (author, date, etc.), and user comments are considered main
-content. You can extraction of the meta data with ``post_meta=False`` and comment extraction with ``comments=False``.
+content. You can disable extraction of the meta data with ``post_meta=False`` and comment extraction with
+``comments=False``.
 
-Elements marked as hidden by certain class names or inline CSS are not considered main content by default, but you can
-keep them with ``hidden_elements=True``.
+Elements marked as hidden by certain class names or inline CSS are not considered main content by default.
+``hidden_elements=True`` retains elements hidden by class-name heuristics; explicit hidden attributes and inline CSS
+remain subject to filtering.
+
+Use ``skip_elements`` to exclude subtrees selected by CSS selectors, for example
+``extract_plain_text(html, skip_elements=['.advertisement', '#cookie-banner'])``.

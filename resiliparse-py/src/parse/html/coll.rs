@@ -172,7 +172,9 @@ impl NodeListPy {
         Ok(self.values(py)?.call_method0("__repr__")?)
     }
 
-    /// Return the node at the given index, or a collection containing the nodes in a slice. Negative indexes are supported.
+    /// Return the node at the given index, or a tuple containing the nodes in a slice.
+    ///
+    /// Negative indexes are supported.
     ///
     /// :param index_or_slice: Integer index or slice.
     /// :raise IndexError: If the index is out of range

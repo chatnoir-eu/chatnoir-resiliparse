@@ -229,7 +229,8 @@ MemGuard
 
 :class:`.MemGuard` guards a function or program context to stay within pre-defined memory bounds. If the running Python
 process ever exceeds these bounds while the guard context is active, an exception or signal will be sent to the
-executing thread.
+executing thread. ``max_memory`` is measured in KiB of resident memory (RSS). By default it limits total process RSS;
+set ``absolute=False`` to limit growth relative to the RSS measured when the guard starts instead.
 
 .. code-block:: python
 
@@ -284,5 +285,4 @@ MemGuard Check Interval
 ^^^^^^^^^^^^^^^^^^^^^^^
 By default, :class:`.MemGuard` checks the current memory usage every 500 ms. If you need a higher resolution, you can
 configure a lower check interval with ``check_interval=<MILLISECONDS>``. For performance reasons, however, this interval
-should be chosen as large as possible, since the check involves reading from the ``/proc`` filesystem on Linux or
-invoking the ``ps`` command on other POSIX platforms, which is a relatively expensive operation.
+should be chosen as large as possible, since the check involves reading from the ``/proc`` filesystem on Linux.

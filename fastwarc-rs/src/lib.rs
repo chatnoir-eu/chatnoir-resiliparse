@@ -188,8 +188,9 @@
 //! filter predicates, [`has_valid_block_digest`](warc::iter::filter::has_valid_block_digest) and
 //! [`has_valid_payload_digest`](warc::iter::filter::has_valid_payload_digest) are executed only *after* the content is
 //! available, which is needed for the digest calculation. These filters will skip records without or with an invalid
-//! block or payload digest. You can also use [`ArchiveIterator::with_verify_digests()`](warc::iter::ArchiveIterator::with_verify_digests())
-//! as a shorthand for specifying explicit digest filters for both types of digests.
+//! block or payload digest. Use [`ArchiveIterator::with_verify_digests()`](warc::iter::ArchiveIterator::with_verify_digests())
+//! to verify block digests automatically before HTTP parsing. This option skips records with missing or invalid block
+//! digests and does not verify payload digests.
 //
 //! ```
 //! # use fastwarc::warc::iter::ArchiveIterator;

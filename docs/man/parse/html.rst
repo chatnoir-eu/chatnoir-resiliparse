@@ -44,6 +44,12 @@ specification (using :func:`~.parse.encoding.map_encoding_to_html5`) and the dec
 :func:`~.parse.encoding.bytes_to_str`, which tries several fallback encodings if the originally intended encoding fails
 (see :ref:`parse-bytes-to-str` for more information).
 
+Node Types and Compatibility
+----------------------------
+All DOM nodes inherit from :class:`.Node`. Elements, text, comments, attributes, documents, and document fragments are
+represented by specialised classes such as :class:`.ElementNode`, :class:`.TextNode`, and :class:`.DocumentNode`.
+Element-specific methods such as attribute access are available only on element nodes. Use ``isinstance(node,
+ElementNode)`` or :attr:`.Node.node_type` when processing mixed node types.
 
 .. _parse-html-select-elements:
 
@@ -54,38 +60,37 @@ Resiliparse provides a basic set of standard DOM functions for selecting element
 
 Elements
 ^^^^^^^^
-The document root element node can be accessed through the :attr:`.HTMLTree.document` property. The properties
+The :attr:`.HTMLTree.document` property returns a :class:`.DocumentNode`. To access the root ``<html>`` element,
+use :attr:`.DocumentNode.document_element`. The properties
 :attr:`.HTMLTree.body` and :attr:`.HTMLTree.head` also exist for conveniently accessing a document's ``<head>`` or
-``<body>`` elements (if they exist). These anchors and all other element nodes are represented by :class:`.DOMNode`
-objects, which support the following standard DOM selectors for matching further elements either by attributes or CSS
-selectors:
+``<body>`` elements (if they exist). The head, body, and other element nodes are represented by :class:`.ElementNode`
+objects, which inherit from :class:`.Node` and support the following selectors for matching further elements by
+attributes or CSS selectors:
 
-* :meth:`~.DOMNode.get_element_by_id`
-* :meth:`~.DOMNode.get_elements_by_tag_name`
-* :meth:`~.DOMNode.get_elements_by_class_name`
-* :meth:`~.DOMNode.query_selector`
-* :meth:`~.DOMNode.query_selector_all`
+* :meth:`~.ElementNode.get_element_by_id`
+* :meth:`~.ElementNode.get_elements_by_tag_name`
+* :meth:`~.ElementNode.get_elements_by_class_name`
+* :meth:`~.ElementNode.query_selector`
+* :meth:`~.ElementNode.query_selector_all`
 * :meth:`~.ElementNode.matches`
 
 These element selectors behave just like you would expect from other languages or libraries and return either a single
-:class:`~.DOMNode` object or a :class:`.DOMCollection` with all matching :class:`.DOMNode` objects. The exception is
+:class:`~.ElementNode` object (or ``None``) or an :class:`.ElementNodeList` of matching elements. The exception is
 :meth:`~.ElementNode.matches`, which returns a boolean value indicating whether the element itself matches the given CSS
 selector, following DOM ``Element.matches()`` semantics. In addition to these standard DOM functions, Resiliparse
-provides a generic :meth:`~.DOMNode.get_elements_by_attr` function for selecting elements by arbitrary attribute names
-and values.
+provides :meth:`~.ElementNode.get_elements_by_attr` for selecting elements by arbitrary attribute names and values.
 
 .. versionchanged:: 2.0.0
 
    ``node.matches(selector)`` checks the element itself instead of searching its
-   descendants. To retain the previous descendant-search behavior, use
+   descendants. To retain the previous descendant-search behaviour, use
    ``node.query_selector(selector) is not None``.
 
 .. note::
 
   If you want to match only a single element, always use the dedicated single-match selectors (e.g., use
-  :meth:`~.DOMNode.query_selector` instead of :meth:`~.DOMNode.query_selector_all` etc.). These functions have built-in
-  early stopping optimizations and are therefore more efficient than matching all elements in the tree and discarding
-  unwanted elements in the resulting collection.
+  :meth:`~.ElementNode.query_selector` instead of :meth:`~.ElementNode.query_selector_all` etc.). These functions stop
+  after the first match and are therefore more efficient than matching all elements and discarding unwanted results.
 
 Here are a few examples of how to match elements by ID, tag name, class name, or CSS selector:
 
@@ -93,23 +98,23 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
 
     # Match single node by ID:
     print(repr(tree.body.get_element_by_id('foo')))
-    # >>> <main id="foo">
+    # >>> Element(<main id="foo">)
 
     # Match multiple nodes by tag name:
     print(repr(tree.head.get_elements_by_tag_name('meta')))
-    # >>> {<meta charset="utf-8">}
+    # >>> [Element(<meta charset="utf-8">)]
 
     # Match multiple nodes by class name:
     print(repr(tree.body.get_elements_by_class_name('bar')))
-    # >>> {<span class="bar">, <span class="bar baz">}
+    # >>> [Element(<span class="bar">), Element(<span class="bar baz">)]
 
     # Match single node by CSS selector:
     print(repr(tree.document.query_selector('body > main p:last-child')))
-    # >>> <p id="b" class="dom">
+    # >>> Element(<p id="b" class="dom">)
 
     # Match multiple nodes by CSS selector:
-    print(repr(tree.body.query_selector_all('main *')))
-    # >>> {<p id="a">, <span class="bar">, <p id="b" class="dom">, <span class="bar baz">}
+    print([node.tag for node in tree.body.query_selector_all('main *')])
+    # >>> ['p', 'span', 'p', 'span']
 
     # Check whether the element itself matches this CSS selector:
     print(tree.body.matches('body'))
@@ -121,8 +126,9 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
     print(tree.body.query_selector('.bar') is not None)
     # >>> True
 
-:class:`.DOMCollection` objects are iterable, indexable, and slicable. The size of a collection can be checked with
-``len()``. If a slice is requested, the returned object will be another :class:`.DOMCollection`:
+:class:`.ElementNodeList` objects are iterable, indexable, and slicable. The size of a collection can be checked with
+``len()``. Slices return tuples, so collection selection methods are available on the original collection,
+but not on a slice:
 
 .. code-block:: python
 
@@ -130,35 +136,34 @@ Here are a few examples of how to match elements by ID, tag name, class name, or
 
     # First element
     print(repr(coll[0]))
-    # >>> <p id="a">
+    # >>> Element(<p id="a">)
 
     # Last element
     print(repr(coll[-1]))
-    # >>> <span class="bar baz">
+    # >>> Element(<span class="bar baz">)
 
     # First two elements
     print(repr(coll[:2]))
-    # >>> {<p id="a">, <span class="bar">}
+    # >>> (Element(<p id="a">), Element(<span class="bar">))
 
-:class:`.DOMCollection` objects have the same DOM methods for selecting objects as :class:`.DOMNode` objects. This can
-be used for efficiently matching elements in the subtree(s) of the previously selected elements. The selection methods
-behave just like their :class:`.DOMNode` counterparts and return either a single :class:`.DOMNode` or another
-:class:`.DOMCollection`:
+:class:`.ElementNodeList` objects provide selection methods similar to those on :class:`.ElementNode`. These methods
+search the descendants of the elements in the collection and return either a single :class:`.ElementNode` (or ``None``)
+or another :class:`.ElementNodeList`:
 
 .. code-block:: python
 
     coll = tree.body.get_elements_by_class_name('dom')
 
-    # Only matches within the subtrees of elements in `coll`:
+    # Search within the subtrees of elements in `coll`:
     print(repr(coll.get_elements_by_class_name('bar')))
-    # >>> {<span class="bar baz">}
+    # >>> [Element(<span class="bar baz">)]
 
 
 .. versionchanged:: 2.0.0
 
    ``collection.matches(selector)`` checks whether any of the collection's
    elements themselves match, instead of searching their descendants. Use
-   ``collection.query_selector(selector) is not None`` for the previous behavior.
+   ``collection.query_selector(selector) is not None`` for the previous behaviour.
    Collection ``matches()`` is a Resiliparse extension, not a standard DOM method.
 
 
@@ -167,13 +172,14 @@ behave just like their :class:`.DOMNode` counterparts and return either a single
 Attributes
 ^^^^^^^^^^
 
-Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` or by dict-like access:
+Attributes of element nodes can be accessed either via :meth:`.ElementNode.get_attribute` or by dict-like access.
+The method returns ``None`` (or the supplied default) for a missing attribute:
 
 .. code-block:: python
 
     meta = tree.head.query_selector('meta[charset]')
     if meta is not None:
-        print(meta.getattr('charset'))
+        print(meta.get_attribute('charset'))
         # >>> utf-8
 
         # Or:
@@ -182,8 +188,8 @@ Attributes of element nodes can be accessed either via :meth:`.DOMNode.getattr` 
 
 The dict access method will raise a :exc:`KeyError` exception if the attribute does not exist.
 
-The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.DOMNode.id` and
-:attr:`~.DOMNode.class_name` or :attr:`~.DOMNode.class_list` properties:
+The ``id`` and ``class`` attributes of an element are also available through the :attr:`~.ElementNode.id` and
+:attr:`~.ElementNode.class_name` or :attr:`~.ElementNode.class_list` properties:
 
 .. code-block:: python
 
@@ -198,7 +204,7 @@ The ``id`` and ``class`` attributes of an element are also available through the
     print(span.class_list)
     # >>> ['bar', 'baz']
 
-A list of existing attributes on an element is provided by its :attr:`~.DOMNode.attrs` property:
+A tuple of existing attribute names on an element is provided by its :attr:`~.ElementNode.attribute_names` property:
 
 .. code-block:: python
 
@@ -208,8 +214,12 @@ A list of existing attributes on an element is provided by its :attr:`~.DOMNode.
     a.class_name = 'a-class'
     a['href'] = 'https://example.com'
 
-    print(a.attrs)
-    # >>> ['id', 'class', 'href']
+    print(a.attribute_names)
+    # >>> ('id', 'class', 'href')
+
+The :attr:`.ElementNode.attributes` property provides a :class:`.NamedNodeMap` of :class:`.AttrNode` objects instead.
+The :attr:`.ElementNode.class_list` property is a :class:`.DOMTokenList`, with ``add()``, ``remove()``, ``replace()``,
+and ``toggle()`` methods for modifying class names. Use ``list(element.class_list)`` to obtain a Python list.
 
 
 .. _parse-html-text-serialization:
@@ -217,18 +227,19 @@ A list of existing attributes on an element is provided by its :attr:`~.DOMNode.
 HTML and Text Serialization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :class:`.DOMNode` objects have a :attr:`~.DOMNode.text` and :attr:`~.DOMNode.html` property for accessing their
-plaintext or HTML serialization:
+Use :attr:`.Node.text_content` for the text contents of a node and :attr:`.ElementNode.outer_html` for an
+element's HTML serialisation. :attr:`.ElementNode.inner_html` returns only the markup inside the element.
+``text_content`` can be ``None`` for nodes without text content, such as the document node:
 
 .. code-block:: python
 
-    print(tree.body.get_element_by_id('a').text)
+    print(tree.body.get_element_by_id('a').text_content)
     # >>> Hello world!
 
-    print(tree.body.get_element_by_id('a').html)
+    print(tree.body.get_element_by_id('a').outer_html)
     # >>> <p id="a">Hello <span class="bar">world</span>!</p>
 
-Alternatively, you can also simply cast a :class:`.DOMNode` to ``str``, which is equivalent to :attr:`.DOMNode.html`:
+Alternatively, you can also simply cast a :class:`.Node` to ``str``, which is its HTML serialisation:
 
 .. code-block:: python
 
@@ -249,8 +260,8 @@ For extracting specifically the text contents of the document's ``<title>`` elem
 DOM Tree Traversal
 ------------------
 
-The DOM subtree of any node can be traversed in pre-order by iterating over a :class:`.DOMNode` instance. Different
-types of nodes can be distinguished by their :attr:`~.DOMNode.type` property.
+The DOM subtree of any node can be traversed in pre-order by iterating over a :class:`.Node` instance. Different
+types of nodes can be distinguished by their :attr:`~.Node.node_type` property.
 
 .. code-block:: python
 
@@ -259,7 +270,7 @@ types of nodes can be distinguished by their :attr:`~.DOMNode.type` property.
     root = tree.body.get_element_by_id('a')
 
     tag_names = [e.tag for e in root]
-    tag_names_elements_only = [e.tag for e in root if e.type == NodeType.ELEMENT]
+    tag_names_elements_only = [e.tag for e in root if e.node_type == NodeType.ELEMENT]
 
     print(tag_names)
     # >>> ['p', '#text', 'span', '#text', '#text']
@@ -267,29 +278,31 @@ types of nodes can be distinguished by their :attr:`~.DOMNode.type` property.
     print(tag_names_elements_only)
     # >>> ['p', 'span']
 
-To iterate only the immediate children of a node, loop over its :attr:`~.DOMNode.child_nodes` property instead of the
+To iterate only the immediate children of a node, loop over its :attr:`~.Node.child_nodes` property instead of the
 node itself:
 
 .. code-block:: python
 
     for e in tree.body.get_element_by_id('foo').child_nodes:
-        if e.type == NodeType.ELEMENT:
+        if e.node_type == NodeType.ELEMENT:
             print(e.text)
 
 Output:
 
 ::
 
-    Hello DOM!
     Hello world!
+    Hello DOM!
 
-In addition, any :class:`.DOMNode` object also has the following properties:
+Use :attr:`.ElementNode.children` to iterate only immediate element children, omitting text and comment nodes.
 
-* :attr:`~.DOMNode.first_child`
-* :attr:`~.DOMNode.last_child`
-* :attr:`~.DOMNode.prev`
-* :attr:`~.DOMNode.next`
-* :attr:`~.DOMNode.parent`
+In addition, any :class:`.Node` object also has the following properties:
+
+* :attr:`~.Node.first_child`
+* :attr:`~.Node.last_child`
+* :attr:`~.Node.prev`
+* :attr:`~.Node.next`
+* :attr:`~.Node.parent`
 
 These can be used for traversing in a custom order or with custom logic, though the callback-based traversal mechanism
 described in the next section :ref:`parse-html-traversal-advanced` is usually more convenient.
@@ -300,7 +313,7 @@ described in the next section :ref:`parse-html-traversal-advanced` is usually mo
 Advanced Traversal
 ^^^^^^^^^^^^^^^^^^
 Besides the simple iterable interface, Resiliparse also supports a more advanced and flexible callback-based method for
-traversing the DOM tree. The :func:`.traverse_dom` helper function accepts a :class:`.DOMNode` and a callback function
+traversing the DOM tree. The :func:`.traverse_dom` helper function accepts a :class:`.Node` and a callback function
 that is called for each individual DOM node with a :class:`.DOMContext` context object as its only parameter.
 
 The following example prints the values of all text nodes:
@@ -310,7 +323,7 @@ The following example prints the values of all text nodes:
     from resiliparse.parse.html import *
 
     def start_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.TEXT and ctx.node.value.strip():
+        if ctx.node.node_type == NodeType.TEXT and ctx.node.value.strip():
             print(ctx.node.value.strip(), end=' ')
 
     traverse_dom(tree.body, start_cb)
@@ -322,18 +335,18 @@ Output:
     Hello world ! Hello DOM !
 
 In addition to the start element callback, you can also specify an end element callback that will be invoked every time
-the DOM tree traverser encounters and element's end tag (i.e., every time the tree traverser goes up one node level):
+the DOM tree traverser encounters an element's end tag (i.e., every time the tree traverser goes up one node level):
 
 The following example prints all start and end tags without their textual contents or attributes:
 
 .. code-block:: python
 
     def start_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             print(f'<{ctx.node.tag}>', end='')
 
     def end_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             print(f'</{ctx.node.tag}>', end='')
 
     traverse_dom(tree.body, start_cb, end_cb)
@@ -350,13 +363,13 @@ is possible:
 .. code-block:: python
 
     def start_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             print(f'{"  " * ctx.depth}<{ctx.node.tag}>')
-        if ctx.node.type == NodeType.TEXT and ctx.node.value.strip():
+        if ctx.node.node_type == NodeType.TEXT and ctx.node.value.strip():
             print(f'{"  " * ctx.depth}{ctx.node.text.strip()}')
 
     def end_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             print(f'{"  " * ctx.depth}</{ctx.node.tag}>')
 
     traverse_dom(tree.body, start_cb, end_cb)
@@ -392,17 +405,17 @@ lists:
 .. code-block:: python
 
     def start_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             t = (ctx.node.tag, [])
             ctx.list_stack_current[-1].append(t)
             ctx.list_stack_current.append(t[1])
-        elif ctx.node.type == NodeType.TEXT:
+        elif ctx.node.node_type == NodeType.TEXT:
             txt = ctx.node.value.strip()
             if txt:
                 ctx.list_stack_current[-1].append(txt)
 
     def end_cb(ctx: DOMContext):
-        if ctx.node.type == NodeType.ELEMENT:
+        if ctx.node.node_type == NodeType.ELEMENT:
             ctx.list_stack_current.pop()
 
     ctx = DOMContext()
@@ -431,7 +444,7 @@ In the following is an example of how you can create new DOM elements and text n
 
 .. code-block:: python
 
-    # Create a new <div> element node
+    # Create a new <p> element node
     new_element = tree.create_element('p')
 
     # Create a new text node
@@ -453,17 +466,23 @@ Output:
           <p id="b" class="dom">Hello <span class="bar baz">DOM</span>!</p>
          <p>Hello Resiliparse!</p></main>
 
-In addition to :meth:`~.DOMNode.append_child`, nodes also provide :meth:`~.DOMNode.insert_before` for inserting a child
-node before another child instead of appending it at the end, and :meth:`~.DOMNode.replace_child` for replacing an
+In addition to :meth:`~.Node.append_child`, nodes also provide :meth:`~.Node.insert_before` for inserting a child
+node before another child instead of appending it at the end, and :meth:`~.Node.replace_child` for replacing an
 existing child node in the tree with another.
 
-Use :meth:`~.DOMNode.remove_child` to remove a node from the tree:
+Elements also support :meth:`.ElementNode.append`, :meth:`.ElementNode.prepend`, and
+:meth:`.ElementNode.replace_children` for inserting several nodes at once. The methods :meth:`.ElementNode.before`,
+:meth:`.ElementNode.after`, :meth:`.ElementNode.replace_with`, and :meth:`.ElementNode.remove` operate relative to an
+element's position in its parent. :meth:`.Node.clone_node` makes a detached copy; pass ``deep=True`` to copy the subtree
+as well. Use :meth:`.DocumentNode.create_document_fragment` to construct a fragment before inserting its contents.
+
+Use :meth:`~.Node.remove_child` to remove a node from the tree:
 
 .. code-block:: python
 
     main_element.remove_child(new_element)
 
-To fully delete a node, use :meth:`~.DOMNode.decompose()` on the node itself. This will remove it from the tree (if not
+To fully delete a node, use :meth:`~.Node.decompose()` on the node itself. This will remove it from the tree (if not
 already done) and delete the node and its entire subtree recursively:
 
 .. code-block:: python
@@ -473,19 +492,20 @@ already done) and delete the node and its entire subtree recursively:
 
 Attributes
 ^^^^^^^^^^
-Attributes can be added or modified via :meth:`~.DOMNode.setattr` or by assigning directly to its dict entry:
+Attributes can be added or modified via :meth:`~.ElementNode.set_attribute` or by assigning directly to its dict entry.
+Use :meth:`~.ElementNode.remove_attribute` or ``del element['name']`` to remove an attribute:
 
 .. code-block:: python
 
     element = tree.create_element('img')
     element['src'] = 'https://example.com/foo.png'
-    element.setattr('alt', 'Foo')
+    element.set_attribute('alt', 'Foo')
 
     print(element)
     # >>> <img src="https://example.com/foo.png" alt="Foo">
 
-For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :attr:`~.DOMNode.class_name` or
-:attr:`~.DOMNode.class_list`:
+For ``id`` and ``class`` attributes, you can also use :attr:`~.ElementNode.id` and :attr:`~.ElementNode.class_name` or
+:attr:`~.ElementNode.class_list`:
 
 .. code-block:: python
 
@@ -509,16 +529,16 @@ For ``id`` and ``class`` attributes, you can also use :attr:`~.DOMNode.id` and :
 Inner HTML and Inner Text
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 An easier, but less efficient way of manipulating the DOM is to assign a string directly to either its
-:attr:`~.DOMNode.html` or :attr:`~.DOMNode.text` property. This will replace the inner HTML or inner text of these nodes
-with the new value:
+:attr:`~.ElementNode.inner_html` or :attr:`~.Node.text_content` property. This replaces the element's children
+with parsed markup or a text node, respectively:
 
 .. code-block:: python
 
-    main_element.html = '<p>New inner HTML content</p>'
+    main_element.inner_html = '<p>New inner HTML content</p>'
     print(main_element)
-    # >>> <main id="foo"><p>New HTML content</p></main>
+    # >>> <main id="foo"><p>New inner HTML content</p></main>
 
-    main_element.text = '<p>New inner text content</p>'
+    main_element.text_content = '<p>New inner text content</p>'
     print(main_element)
     # >>> <main id="foo">&lt;p&gt;New inner text content&lt;/p&gt;</main>
 

@@ -3,7 +3,7 @@
 Resiliparse Extraction Utilities
 ================================
 
-Resiliparse information and information and (main) content extraction API documentation.
+Resiliparse information and (main) content extraction API documentation.
 
 
 .. toctree::

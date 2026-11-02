@@ -38,7 +38,7 @@ value, the more accurate the prediction probably is. Values above 1200 are most 
 usually lead to much lower rank values and hence more accurate results.
 
 Instead of only a single result, the language detector can also return a sorted list of possible language matches if you
-want to analyze and weight them further:
+want to analyse and weight them further:
 
 .. code-block:: python
 
@@ -47,6 +47,11 @@ want to analyze and weight them further:
              predominates the whole of her sex. It was not that he felt any emotion
              akin to love for Irene Adler.''', n_results=5))
   # >>> [('en', 430), ('da', 463), ('no', 469), ('af', 481), ('fr', 491)]
+
+The ``cutoff`` parameter sets the maximum accepted rank (inclusive, default: 1200). If no language matches,
+``n_results=1`` returns ``('unknown', 0)``; requests for multiple results return an empty list. Ranks are distances,
+not confidence probabilities. For best results, normalise input to Unicode NFC before detection; the detector does not
+normalise or case-fold the text automatically.
 
 If you know your text is from one of several candidate languages, you can restrict the detection to those languages in
 order to improve the precision (and also slightly increase the performance by reducing the number of comparisons):
@@ -99,3 +104,5 @@ The following 101 languages are supported:
   ga, gd, gl, gu, ha, he, hi, hr, hu, hy, id, io, is, it, ja, jv, ka, kk, km, kn, ko, ku, ky, la, lb, lt, lv, mg, mk,
   ml, mn, mr, mt, my, ne, nl, no, or, pa, pl, ps, pt, rm, ro, ru, sa, sc, sd, si, sk, sl, so, sq, sr, sv, sw, ta, te,
   tg, th, tk, tl, tr, tt, ug, uk, ur, uz, vi, vo, yi, zh
+
+Call :func:`~.parse.lang.supported_langs` to retrieve the supported language codes programmatically.
