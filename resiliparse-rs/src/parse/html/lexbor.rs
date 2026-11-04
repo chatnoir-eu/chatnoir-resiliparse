@@ -77,3 +77,11 @@ pub unsafe fn str_from_lxb_str_cb_const<'a, Node, Fn>(
         str_from_lxb_char_t(name, size)
     }
 }
+
+// ===========================================================
+// Tests
+// ===========================================================
+
+#[cfg(test)]
+#[path = "lexbor_test.rs"]
+mod lexbor_test;

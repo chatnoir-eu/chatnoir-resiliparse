@@ -1182,6 +1182,7 @@ dependencies = [
  "bindgen",
  "parking_lot",
  "regex",
+ "rstest",
  "serde_json",
 ]
 
