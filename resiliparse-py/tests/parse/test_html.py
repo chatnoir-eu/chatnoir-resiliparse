@@ -65,6 +65,11 @@ def test_parse_from_bytes():
     validate_document(tree)
 
 
+def test_parse_valueless_select_size():
+    tree = HTMLTree.parse_from_bytes(b'<select size= ><option>x</option></select>')
+    assert tree.body.query_selector('select').inner_html == '<option>x</option>'
+
+
 html_no_head = """<!doctype html><body><span></span></body>"""
 html_no_body = """<!doctype html><head><title>Title</title></head>"""
 html_no_title = """<!doctype html><head></head></body>"""

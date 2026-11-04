@@ -1354,7 +1354,7 @@ fn create_nodes() {
         .unwrap();
     assert_eq!(proc.target().unwrap(), "xml");
     assert_eq!(proc.node_value().unwrap(), "version=\"1.0\" foo=\"bar\"");
-    assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\">");
+    assert_eq!(proc.to_string(), "<?xml version=\"1.0\" foo=\"bar\"?>");
 
     frag.append_child(&element.as_noderef());
     element.append(&[text.as_noderef(), comment.as_noderef(), proc.as_noderef()]);
@@ -1369,7 +1369,7 @@ fn create_nodes() {
     element.set_attribute("abc", "def");
     assert_eq!(
         element.to_string(),
-        r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"></foo>"##
+        r##"<foo class="foobar" abc="def">Hello World<!--Some comment--><?xml version="1.0" foo="bar"?></foo>"##
     );
 
     // Appending a DocumentFragment moves the child nodes into the document.

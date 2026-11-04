@@ -1,7 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b37b425..a548083 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -244,6 +244,7 @@ ENDIF()
+@@ -245,6 +245,7 @@ ENDIF()
  IF(LEXBOR_BUILD_STATIC)
      ADD_MODULE_LIBRARY(STATIC ${LEXBOR_LIB_NAME_STATIC} ${LEXBOR_VERSION_STRING}
                         ${LEXBOR_VERSION_MAJOR})

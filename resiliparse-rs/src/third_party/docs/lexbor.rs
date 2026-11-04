@@ -16,8 +16,8 @@
 
 pub const LEXBOR_FORMAT_Z: &[u8; 4] = b"%zu\0";
 pub const LEXBOR_VERSION_MAJOR: u32 = 3;
-pub const LEXBOR_VERSION_MINOR: u32 = 0;
-pub const LEXBOR_VERSION_PATCH: u32 = 1;
+pub const LEXBOR_VERSION_MINOR: u32 = 1;
+pub const LEXBOR_VERSION_PATCH: u32 = 0;
 pub const LEXBOR_STR_RES_MAP_CHAR_OTHER: u32 = 0;
 pub const LEXBOR_STR_RES_MAP_CHAR_A_Z_a_z: u32 = 1;
 pub const LEXBOR_STR_RES_MAP_CHAR_WHITESPACE: u32 = 2;
@@ -38,12 +38,12 @@ pub const LXB_CSS_SELECTOR_SP_C_MAX: u32 = 511;
 pub const LXB_DOM_VERSION_MAJOR: u32 = 2;
 pub const LXB_DOM_VERSION_MINOR: u32 = 1;
 pub const LXB_DOM_VERSION_PATCH: u32 = 0;
-pub const LXB_TAG_CONST_VERSION: &[u8; 33] = b"5AB3094FB370521074947DC082575715\0";
+pub const LXB_TAG_CONST_VERSION: &[u8; 33] = b"4854565E379CD1A4AEEBF3C904ABEB65\0";
 pub const LXB_NS_CONST_VERSION: &[u8; 33] = b"253D4AFDA959234B48A478B956C3C777\0";
 pub const LEXBOR_HASH_SHORT_SIZE: u32 = 16;
 pub const LEXBOR_HASH_TABLE_MIN_SIZE: u32 = 32;
 pub const LXB_HTML_VERSION_MAJOR: u32 = 2;
-pub const LXB_HTML_VERSION_MINOR: u32 = 9;
+pub const LXB_HTML_VERSION_MINOR: u32 = 10;
 pub const LXB_HTML_VERSION_PATCH: u32 = 0;
 pub const LXB_SELECTORS_VERSION_MAJOR: u32 = 0;
 pub const LXB_SELECTORS_VERSION_MINOR: u32 = 6;
@@ -9233,200 +9233,201 @@ pub mod lxb_tag_id_enum_t {
     pub const LXB_TAG__DOCUMENT: Type = 3;
     pub const LXB_TAG__EM_COMMENT: Type = 4;
     pub const LXB_TAG__EM_DOCTYPE: Type = 5;
-    pub const LXB_TAG__BEGIN: Type = 6;
-    pub const LXB_TAG_A: Type = 6;
-    pub const LXB_TAG_ABBR: Type = 7;
-    pub const LXB_TAG_ACRONYM: Type = 8;
-    pub const LXB_TAG_ADDRESS: Type = 9;
-    pub const LXB_TAG_ALTGLYPH: Type = 10;
-    pub const LXB_TAG_ALTGLYPHDEF: Type = 11;
-    pub const LXB_TAG_ALTGLYPHITEM: Type = 12;
-    pub const LXB_TAG_ANIMATECOLOR: Type = 13;
-    pub const LXB_TAG_ANIMATEMOTION: Type = 14;
-    pub const LXB_TAG_ANIMATETRANSFORM: Type = 15;
-    pub const LXB_TAG_ANNOTATION_XML: Type = 16;
-    pub const LXB_TAG_APPLET: Type = 17;
-    pub const LXB_TAG_AREA: Type = 18;
-    pub const LXB_TAG_ARTICLE: Type = 19;
-    pub const LXB_TAG_ASIDE: Type = 20;
-    pub const LXB_TAG_AUDIO: Type = 21;
-    pub const LXB_TAG_B: Type = 22;
-    pub const LXB_TAG_BASE: Type = 23;
-    pub const LXB_TAG_BASEFONT: Type = 24;
-    pub const LXB_TAG_BDI: Type = 25;
-    pub const LXB_TAG_BDO: Type = 26;
-    pub const LXB_TAG_BGSOUND: Type = 27;
-    pub const LXB_TAG_BIG: Type = 28;
-    pub const LXB_TAG_BLINK: Type = 29;
-    pub const LXB_TAG_BLOCKQUOTE: Type = 30;
-    pub const LXB_TAG_BODY: Type = 31;
-    pub const LXB_TAG_BR: Type = 32;
-    pub const LXB_TAG_BUTTON: Type = 33;
-    pub const LXB_TAG_CANVAS: Type = 34;
-    pub const LXB_TAG_CAPTION: Type = 35;
-    pub const LXB_TAG_CENTER: Type = 36;
-    pub const LXB_TAG_CITE: Type = 37;
-    pub const LXB_TAG_CLIPPATH: Type = 38;
-    pub const LXB_TAG_CODE: Type = 39;
-    pub const LXB_TAG_COL: Type = 40;
-    pub const LXB_TAG_COLGROUP: Type = 41;
-    pub const LXB_TAG_DATA: Type = 42;
-    pub const LXB_TAG_DATALIST: Type = 43;
-    pub const LXB_TAG_DD: Type = 44;
-    pub const LXB_TAG_DEL: Type = 45;
-    pub const LXB_TAG_DESC: Type = 46;
-    pub const LXB_TAG_DETAILS: Type = 47;
-    pub const LXB_TAG_DFN: Type = 48;
-    pub const LXB_TAG_DIALOG: Type = 49;
-    pub const LXB_TAG_DIR: Type = 50;
-    pub const LXB_TAG_DIV: Type = 51;
-    pub const LXB_TAG_DL: Type = 52;
-    pub const LXB_TAG_DT: Type = 53;
-    pub const LXB_TAG_EM: Type = 54;
-    pub const LXB_TAG_EMBED: Type = 55;
-    pub const LXB_TAG_FEBLEND: Type = 56;
-    pub const LXB_TAG_FECOLORMATRIX: Type = 57;
-    pub const LXB_TAG_FECOMPONENTTRANSFER: Type = 58;
-    pub const LXB_TAG_FECOMPOSITE: Type = 59;
-    pub const LXB_TAG_FECONVOLVEMATRIX: Type = 60;
-    pub const LXB_TAG_FEDIFFUSELIGHTING: Type = 61;
-    pub const LXB_TAG_FEDISPLACEMENTMAP: Type = 62;
-    pub const LXB_TAG_FEDISTANTLIGHT: Type = 63;
-    pub const LXB_TAG_FEDROPSHADOW: Type = 64;
-    pub const LXB_TAG_FEFLOOD: Type = 65;
-    pub const LXB_TAG_FEFUNCA: Type = 66;
-    pub const LXB_TAG_FEFUNCB: Type = 67;
-    pub const LXB_TAG_FEFUNCG: Type = 68;
-    pub const LXB_TAG_FEFUNCR: Type = 69;
-    pub const LXB_TAG_FEGAUSSIANBLUR: Type = 70;
-    pub const LXB_TAG_FEIMAGE: Type = 71;
-    pub const LXB_TAG_FEMERGE: Type = 72;
-    pub const LXB_TAG_FEMERGENODE: Type = 73;
-    pub const LXB_TAG_FEMORPHOLOGY: Type = 74;
-    pub const LXB_TAG_FEOFFSET: Type = 75;
-    pub const LXB_TAG_FEPOINTLIGHT: Type = 76;
-    pub const LXB_TAG_FESPECULARLIGHTING: Type = 77;
-    pub const LXB_TAG_FESPOTLIGHT: Type = 78;
-    pub const LXB_TAG_FETILE: Type = 79;
-    pub const LXB_TAG_FETURBULENCE: Type = 80;
-    pub const LXB_TAG_FIELDSET: Type = 81;
-    pub const LXB_TAG_FIGCAPTION: Type = 82;
-    pub const LXB_TAG_FIGURE: Type = 83;
-    pub const LXB_TAG_FONT: Type = 84;
-    pub const LXB_TAG_FOOTER: Type = 85;
-    pub const LXB_TAG_FOREIGNOBJECT: Type = 86;
-    pub const LXB_TAG_FORM: Type = 87;
-    pub const LXB_TAG_FRAME: Type = 88;
-    pub const LXB_TAG_FRAMESET: Type = 89;
-    pub const LXB_TAG_GLYPHREF: Type = 90;
-    pub const LXB_TAG_H1: Type = 91;
-    pub const LXB_TAG_H2: Type = 92;
-    pub const LXB_TAG_H3: Type = 93;
-    pub const LXB_TAG_H4: Type = 94;
-    pub const LXB_TAG_H5: Type = 95;
-    pub const LXB_TAG_H6: Type = 96;
-    pub const LXB_TAG_HEAD: Type = 97;
-    pub const LXB_TAG_HEADER: Type = 98;
-    pub const LXB_TAG_HGROUP: Type = 99;
-    pub const LXB_TAG_HR: Type = 100;
-    pub const LXB_TAG_HTML: Type = 101;
-    pub const LXB_TAG_I: Type = 102;
-    pub const LXB_TAG_IFRAME: Type = 103;
-    pub const LXB_TAG_IMAGE: Type = 104;
-    pub const LXB_TAG_IMG: Type = 105;
-    pub const LXB_TAG_INPUT: Type = 106;
-    pub const LXB_TAG_INS: Type = 107;
-    pub const LXB_TAG_ISINDEX: Type = 108;
-    pub const LXB_TAG_KBD: Type = 109;
-    pub const LXB_TAG_KEYGEN: Type = 110;
-    pub const LXB_TAG_LABEL: Type = 111;
-    pub const LXB_TAG_LEGEND: Type = 112;
-    pub const LXB_TAG_LI: Type = 113;
-    pub const LXB_TAG_LINEARGRADIENT: Type = 114;
-    pub const LXB_TAG_LINK: Type = 115;
-    pub const LXB_TAG_LISTING: Type = 116;
-    pub const LXB_TAG_MAIN: Type = 117;
-    pub const LXB_TAG_MALIGNMARK: Type = 118;
-    pub const LXB_TAG_MAP: Type = 119;
-    pub const LXB_TAG_MARK: Type = 120;
-    pub const LXB_TAG_MARQUEE: Type = 121;
-    pub const LXB_TAG_MATH: Type = 122;
-    pub const LXB_TAG_MENU: Type = 123;
-    pub const LXB_TAG_META: Type = 124;
-    pub const LXB_TAG_METER: Type = 125;
-    pub const LXB_TAG_MFENCED: Type = 126;
-    pub const LXB_TAG_MGLYPH: Type = 127;
-    pub const LXB_TAG_MI: Type = 128;
-    pub const LXB_TAG_MN: Type = 129;
-    pub const LXB_TAG_MO: Type = 130;
-    pub const LXB_TAG_MS: Type = 131;
-    pub const LXB_TAG_MTEXT: Type = 132;
-    pub const LXB_TAG_MULTICOL: Type = 133;
-    pub const LXB_TAG_NAV: Type = 134;
-    pub const LXB_TAG_NEXTID: Type = 135;
-    pub const LXB_TAG_NOBR: Type = 136;
-    pub const LXB_TAG_NOEMBED: Type = 137;
-    pub const LXB_TAG_NOFRAMES: Type = 138;
-    pub const LXB_TAG_NOSCRIPT: Type = 139;
-    pub const LXB_TAG_OBJECT: Type = 140;
-    pub const LXB_TAG_OL: Type = 141;
-    pub const LXB_TAG_OPTGROUP: Type = 142;
-    pub const LXB_TAG_OPTION: Type = 143;
-    pub const LXB_TAG_OUTPUT: Type = 144;
-    pub const LXB_TAG_P: Type = 145;
-    pub const LXB_TAG_PARAM: Type = 146;
-    pub const LXB_TAG_PATH: Type = 147;
-    pub const LXB_TAG_PICTURE: Type = 148;
-    pub const LXB_TAG_PLAINTEXT: Type = 149;
-    pub const LXB_TAG_PRE: Type = 150;
-    pub const LXB_TAG_PROGRESS: Type = 151;
-    pub const LXB_TAG_Q: Type = 152;
-    pub const LXB_TAG_RADIALGRADIENT: Type = 153;
-    pub const LXB_TAG_RB: Type = 154;
-    pub const LXB_TAG_RP: Type = 155;
-    pub const LXB_TAG_RT: Type = 156;
-    pub const LXB_TAG_RTC: Type = 157;
-    pub const LXB_TAG_RUBY: Type = 158;
-    pub const LXB_TAG_S: Type = 159;
-    pub const LXB_TAG_SAMP: Type = 160;
-    pub const LXB_TAG_SCRIPT: Type = 161;
-    pub const LXB_TAG_SEARCH: Type = 162;
-    pub const LXB_TAG_SECTION: Type = 163;
-    pub const LXB_TAG_SELECT: Type = 164;
-    pub const LXB_TAG_SELECTEDCONTENT: Type = 165;
-    pub const LXB_TAG_SLOT: Type = 166;
-    pub const LXB_TAG_SMALL: Type = 167;
-    pub const LXB_TAG_SOURCE: Type = 168;
-    pub const LXB_TAG_SPACER: Type = 169;
-    pub const LXB_TAG_SPAN: Type = 170;
-    pub const LXB_TAG_STRIKE: Type = 171;
-    pub const LXB_TAG_STRONG: Type = 172;
-    pub const LXB_TAG_STYLE: Type = 173;
-    pub const LXB_TAG_SUB: Type = 174;
-    pub const LXB_TAG_SUMMARY: Type = 175;
-    pub const LXB_TAG_SUP: Type = 176;
-    pub const LXB_TAG_SVG: Type = 177;
-    pub const LXB_TAG_TABLE: Type = 178;
-    pub const LXB_TAG_TBODY: Type = 179;
-    pub const LXB_TAG_TD: Type = 180;
-    pub const LXB_TAG_TEMPLATE: Type = 181;
-    pub const LXB_TAG_TEXTAREA: Type = 182;
-    pub const LXB_TAG_TEXTPATH: Type = 183;
-    pub const LXB_TAG_TFOOT: Type = 184;
-    pub const LXB_TAG_TH: Type = 185;
-    pub const LXB_TAG_THEAD: Type = 186;
-    pub const LXB_TAG_TIME: Type = 187;
-    pub const LXB_TAG_TITLE: Type = 188;
-    pub const LXB_TAG_TR: Type = 189;
-    pub const LXB_TAG_TRACK: Type = 190;
-    pub const LXB_TAG_TT: Type = 191;
-    pub const LXB_TAG_U: Type = 192;
-    pub const LXB_TAG_UL: Type = 193;
-    pub const LXB_TAG_VAR: Type = 194;
-    pub const LXB_TAG_VIDEO: Type = 195;
-    pub const LXB_TAG_WBR: Type = 196;
-    pub const LXB_TAG_XMP: Type = 197;
-    pub const LXB_TAG__LAST_ENTRY: Type = 198;
+    pub const LXB_TAG__PROCESSINGINSTRUCTION: Type = 6;
+    pub const LXB_TAG__BEGIN: Type = 7;
+    pub const LXB_TAG_A: Type = 7;
+    pub const LXB_TAG_ABBR: Type = 8;
+    pub const LXB_TAG_ACRONYM: Type = 9;
+    pub const LXB_TAG_ADDRESS: Type = 10;
+    pub const LXB_TAG_ALTGLYPH: Type = 11;
+    pub const LXB_TAG_ALTGLYPHDEF: Type = 12;
+    pub const LXB_TAG_ALTGLYPHITEM: Type = 13;
+    pub const LXB_TAG_ANIMATECOLOR: Type = 14;
+    pub const LXB_TAG_ANIMATEMOTION: Type = 15;
+    pub const LXB_TAG_ANIMATETRANSFORM: Type = 16;
+    pub const LXB_TAG_ANNOTATION_XML: Type = 17;
+    pub const LXB_TAG_APPLET: Type = 18;
+    pub const LXB_TAG_AREA: Type = 19;
+    pub const LXB_TAG_ARTICLE: Type = 20;
+    pub const LXB_TAG_ASIDE: Type = 21;
+    pub const LXB_TAG_AUDIO: Type = 22;
+    pub const LXB_TAG_B: Type = 23;
+    pub const LXB_TAG_BASE: Type = 24;
+    pub const LXB_TAG_BASEFONT: Type = 25;
+    pub const LXB_TAG_BDI: Type = 26;
+    pub const LXB_TAG_BDO: Type = 27;
+    pub const LXB_TAG_BGSOUND: Type = 28;
+    pub const LXB_TAG_BIG: Type = 29;
+    pub const LXB_TAG_BLINK: Type = 30;
+    pub const LXB_TAG_BLOCKQUOTE: Type = 31;
+    pub const LXB_TAG_BODY: Type = 32;
+    pub const LXB_TAG_BR: Type = 33;
+    pub const LXB_TAG_BUTTON: Type = 34;
+    pub const LXB_TAG_CANVAS: Type = 35;
+    pub const LXB_TAG_CAPTION: Type = 36;
+    pub const LXB_TAG_CENTER: Type = 37;
+    pub const LXB_TAG_CITE: Type = 38;
+    pub const LXB_TAG_CLIPPATH: Type = 39;
+    pub const LXB_TAG_CODE: Type = 40;
+    pub const LXB_TAG_COL: Type = 41;
+    pub const LXB_TAG_COLGROUP: Type = 42;
+    pub const LXB_TAG_DATA: Type = 43;
+    pub const LXB_TAG_DATALIST: Type = 44;
+    pub const LXB_TAG_DD: Type = 45;
+    pub const LXB_TAG_DEL: Type = 46;
+    pub const LXB_TAG_DESC: Type = 47;
+    pub const LXB_TAG_DETAILS: Type = 48;
+    pub const LXB_TAG_DFN: Type = 49;
+    pub const LXB_TAG_DIALOG: Type = 50;
+    pub const LXB_TAG_DIR: Type = 51;
+    pub const LXB_TAG_DIV: Type = 52;
+    pub const LXB_TAG_DL: Type = 53;
+    pub const LXB_TAG_DT: Type = 54;
+    pub const LXB_TAG_EM: Type = 55;
+    pub const LXB_TAG_EMBED: Type = 56;
+    pub const LXB_TAG_FEBLEND: Type = 57;
+    pub const LXB_TAG_FECOLORMATRIX: Type = 58;
+    pub const LXB_TAG_FECOMPONENTTRANSFER: Type = 59;
+    pub const LXB_TAG_FECOMPOSITE: Type = 60;
+    pub const LXB_TAG_FECONVOLVEMATRIX: Type = 61;
+    pub const LXB_TAG_FEDIFFUSELIGHTING: Type = 62;
+    pub const LXB_TAG_FEDISPLACEMENTMAP: Type = 63;
+    pub const LXB_TAG_FEDISTANTLIGHT: Type = 64;
+    pub const LXB_TAG_FEDROPSHADOW: Type = 65;
+    pub const LXB_TAG_FEFLOOD: Type = 66;
+    pub const LXB_TAG_FEFUNCA: Type = 67;
+    pub const LXB_TAG_FEFUNCB: Type = 68;
+    pub const LXB_TAG_FEFUNCG: Type = 69;
+    pub const LXB_TAG_FEFUNCR: Type = 70;
+    pub const LXB_TAG_FEGAUSSIANBLUR: Type = 71;
+    pub const LXB_TAG_FEIMAGE: Type = 72;
+    pub const LXB_TAG_FEMERGE: Type = 73;
+    pub const LXB_TAG_FEMERGENODE: Type = 74;
+    pub const LXB_TAG_FEMORPHOLOGY: Type = 75;
+    pub const LXB_TAG_FEOFFSET: Type = 76;
+    pub const LXB_TAG_FEPOINTLIGHT: Type = 77;
+    pub const LXB_TAG_FESPECULARLIGHTING: Type = 78;
+    pub const LXB_TAG_FESPOTLIGHT: Type = 79;
+    pub const LXB_TAG_FETILE: Type = 80;
+    pub const LXB_TAG_FETURBULENCE: Type = 81;
+    pub const LXB_TAG_FIELDSET: Type = 82;
+    pub const LXB_TAG_FIGCAPTION: Type = 83;
+    pub const LXB_TAG_FIGURE: Type = 84;
+    pub const LXB_TAG_FONT: Type = 85;
+    pub const LXB_TAG_FOOTER: Type = 86;
+    pub const LXB_TAG_FOREIGNOBJECT: Type = 87;
+    pub const LXB_TAG_FORM: Type = 88;
+    pub const LXB_TAG_FRAME: Type = 89;
+    pub const LXB_TAG_FRAMESET: Type = 90;
+    pub const LXB_TAG_GLYPHREF: Type = 91;
+    pub const LXB_TAG_H1: Type = 92;
+    pub const LXB_TAG_H2: Type = 93;
+    pub const LXB_TAG_H3: Type = 94;
+    pub const LXB_TAG_H4: Type = 95;
+    pub const LXB_TAG_H5: Type = 96;
+    pub const LXB_TAG_H6: Type = 97;
+    pub const LXB_TAG_HEAD: Type = 98;
+    pub const LXB_TAG_HEADER: Type = 99;
+    pub const LXB_TAG_HGROUP: Type = 100;
+    pub const LXB_TAG_HR: Type = 101;
+    pub const LXB_TAG_HTML: Type = 102;
+    pub const LXB_TAG_I: Type = 103;
+    pub const LXB_TAG_IFRAME: Type = 104;
+    pub const LXB_TAG_IMAGE: Type = 105;
+    pub const LXB_TAG_IMG: Type = 106;
+    pub const LXB_TAG_INPUT: Type = 107;
+    pub const LXB_TAG_INS: Type = 108;
+    pub const LXB_TAG_ISINDEX: Type = 109;
+    pub const LXB_TAG_KBD: Type = 110;
+    pub const LXB_TAG_KEYGEN: Type = 111;
+    pub const LXB_TAG_LABEL: Type = 112;
+    pub const LXB_TAG_LEGEND: Type = 113;
+    pub const LXB_TAG_LI: Type = 114;
+    pub const LXB_TAG_LINEARGRADIENT: Type = 115;
+    pub const LXB_TAG_LINK: Type = 116;
+    pub const LXB_TAG_LISTING: Type = 117;
+    pub const LXB_TAG_MAIN: Type = 118;
+    pub const LXB_TAG_MALIGNMARK: Type = 119;
+    pub const LXB_TAG_MAP: Type = 120;
+    pub const LXB_TAG_MARK: Type = 121;
+    pub const LXB_TAG_MARQUEE: Type = 122;
+    pub const LXB_TAG_MATH: Type = 123;
+    pub const LXB_TAG_MENU: Type = 124;
+    pub const LXB_TAG_META: Type = 125;
+    pub const LXB_TAG_METER: Type = 126;
+    pub const LXB_TAG_MFENCED: Type = 127;
+    pub const LXB_TAG_MGLYPH: Type = 128;
+    pub const LXB_TAG_MI: Type = 129;
+    pub const LXB_TAG_MN: Type = 130;
+    pub const LXB_TAG_MO: Type = 131;
+    pub const LXB_TAG_MS: Type = 132;
+    pub const LXB_TAG_MTEXT: Type = 133;
+    pub const LXB_TAG_MULTICOL: Type = 134;
+    pub const LXB_TAG_NAV: Type = 135;
+    pub const LXB_TAG_NEXTID: Type = 136;
+    pub const LXB_TAG_NOBR: Type = 137;
+    pub const LXB_TAG_NOEMBED: Type = 138;
+    pub const LXB_TAG_NOFRAMES: Type = 139;
+    pub const LXB_TAG_NOSCRIPT: Type = 140;
+    pub const LXB_TAG_OBJECT: Type = 141;
+    pub const LXB_TAG_OL: Type = 142;
+    pub const LXB_TAG_OPTGROUP: Type = 143;
+    pub const LXB_TAG_OPTION: Type = 144;
+    pub const LXB_TAG_OUTPUT: Type = 145;
+    pub const LXB_TAG_P: Type = 146;
+    pub const LXB_TAG_PARAM: Type = 147;
+    pub const LXB_TAG_PATH: Type = 148;
+    pub const LXB_TAG_PICTURE: Type = 149;
+    pub const LXB_TAG_PLAINTEXT: Type = 150;
+    pub const LXB_TAG_PRE: Type = 151;
+    pub const LXB_TAG_PROGRESS: Type = 152;
+    pub const LXB_TAG_Q: Type = 153;
+    pub const LXB_TAG_RADIALGRADIENT: Type = 154;
+    pub const LXB_TAG_RB: Type = 155;
+    pub const LXB_TAG_RP: Type = 156;
+    pub const LXB_TAG_RT: Type = 157;
+    pub const LXB_TAG_RTC: Type = 158;
+    pub const LXB_TAG_RUBY: Type = 159;
+    pub const LXB_TAG_S: Type = 160;
+    pub const LXB_TAG_SAMP: Type = 161;
+    pub const LXB_TAG_SCRIPT: Type = 162;
+    pub const LXB_TAG_SEARCH: Type = 163;
+    pub const LXB_TAG_SECTION: Type = 164;
+    pub const LXB_TAG_SELECT: Type = 165;
+    pub const LXB_TAG_SELECTEDCONTENT: Type = 166;
+    pub const LXB_TAG_SLOT: Type = 167;
+    pub const LXB_TAG_SMALL: Type = 168;
+    pub const LXB_TAG_SOURCE: Type = 169;
+    pub const LXB_TAG_SPACER: Type = 170;
+    pub const LXB_TAG_SPAN: Type = 171;
+    pub const LXB_TAG_STRIKE: Type = 172;
+    pub const LXB_TAG_STRONG: Type = 173;
+    pub const LXB_TAG_STYLE: Type = 174;
+    pub const LXB_TAG_SUB: Type = 175;
+    pub const LXB_TAG_SUMMARY: Type = 176;
+    pub const LXB_TAG_SUP: Type = 177;
+    pub const LXB_TAG_SVG: Type = 178;
+    pub const LXB_TAG_TABLE: Type = 179;
+    pub const LXB_TAG_TBODY: Type = 180;
+    pub const LXB_TAG_TD: Type = 181;
+    pub const LXB_TAG_TEMPLATE: Type = 182;
+    pub const LXB_TAG_TEXTAREA: Type = 183;
+    pub const LXB_TAG_TEXTPATH: Type = 184;
+    pub const LXB_TAG_TFOOT: Type = 185;
+    pub const LXB_TAG_TH: Type = 186;
+    pub const LXB_TAG_THEAD: Type = 187;
+    pub const LXB_TAG_TIME: Type = 188;
+    pub const LXB_TAG_TITLE: Type = 189;
+    pub const LXB_TAG_TR: Type = 190;
+    pub const LXB_TAG_TRACK: Type = 191;
+    pub const LXB_TAG_TT: Type = 192;
+    pub const LXB_TAG_U: Type = 193;
+    pub const LXB_TAG_UL: Type = 194;
+    pub const LXB_TAG_VAR: Type = 195;
+    pub const LXB_TAG_VIDEO: Type = 196;
+    pub const LXB_TAG_WBR: Type = 197;
+    pub const LXB_TAG_XMP: Type = 198;
+    pub const LXB_TAG__LAST_ENTRY: Type = 199;
 }
 pub type lxb_ns_id_t = usize;
 pub type lxb_ns_prefix_id_t = usize;
@@ -10409,44 +10410,79 @@ pub mod lxb_dom_attr_id_enum_t {
     use super::*;
     pub type Type = ::std::os::raw::c_uint;
     pub const LXB_DOM_ATTR__UNDEF: Type = 0;
-    pub const LXB_DOM_ATTR_ACTIVE: Type = 1;
-    pub const LXB_DOM_ATTR_ALT: Type = 2;
-    pub const LXB_DOM_ATTR_CHARSET: Type = 3;
-    pub const LXB_DOM_ATTR_CHECKED: Type = 4;
-    pub const LXB_DOM_ATTR_CLASS: Type = 5;
-    pub const LXB_DOM_ATTR_COLOR: Type = 6;
-    pub const LXB_DOM_ATTR_CONTENT: Type = 7;
-    pub const LXB_DOM_ATTR_DIR: Type = 8;
-    pub const LXB_DOM_ATTR_DISABLED: Type = 9;
-    pub const LXB_DOM_ATTR_FACE: Type = 10;
-    pub const LXB_DOM_ATTR_FOCUS: Type = 11;
-    pub const LXB_DOM_ATTR_FOR: Type = 12;
-    pub const LXB_DOM_ATTR_HEIGHT: Type = 13;
-    pub const LXB_DOM_ATTR_HOVER: Type = 14;
-    pub const LXB_DOM_ATTR_HREF: Type = 15;
-    pub const LXB_DOM_ATTR_HTML: Type = 16;
-    pub const LXB_DOM_ATTR_HTTP_EQUIV: Type = 17;
-    pub const LXB_DOM_ATTR_ID: Type = 18;
-    pub const LXB_DOM_ATTR_IS: Type = 19;
-    pub const LXB_DOM_ATTR_MAXLENGTH: Type = 20;
-    pub const LXB_DOM_ATTR_MULTIPLE: Type = 21;
-    pub const LXB_DOM_ATTR_PLACEHOLDER: Type = 22;
-    pub const LXB_DOM_ATTR_POOL: Type = 23;
-    pub const LXB_DOM_ATTR_PUBLIC: Type = 24;
-    pub const LXB_DOM_ATTR_READONLY: Type = 25;
-    pub const LXB_DOM_ATTR_REQUIRED: Type = 26;
-    pub const LXB_DOM_ATTR_SCHEME: Type = 27;
-    pub const LXB_DOM_ATTR_SELECTED: Type = 28;
-    pub const LXB_DOM_ATTR_SIZE: Type = 29;
-    pub const LXB_DOM_ATTR_SLOT: Type = 30;
-    pub const LXB_DOM_ATTR_SRC: Type = 31;
-    pub const LXB_DOM_ATTR_STYLE: Type = 32;
-    pub const LXB_DOM_ATTR_SYSTEM: Type = 33;
-    pub const LXB_DOM_ATTR_TITLE: Type = 34;
-    pub const LXB_DOM_ATTR_TYPE: Type = 35;
-    pub const LXB_DOM_ATTR_WIDTH: Type = 36;
-    pub const LXB_DOM_ATTR_XMLNS: Type = 37;
-    pub const LXB_DOM_ATTR__LAST_ENTRY: Type = 38;
+    pub const LXB_DOM_ATTR_ACCEPT: Type = 1;
+    pub const LXB_DOM_ATTR_ACCEPT_CHARSET: Type = 2;
+    pub const LXB_DOM_ATTR_ACTIVE: Type = 3;
+    pub const LXB_DOM_ATTR_ALIGN: Type = 4;
+    pub const LXB_DOM_ATTR_ALINK: Type = 5;
+    pub const LXB_DOM_ATTR_ALT: Type = 6;
+    pub const LXB_DOM_ATTR_AXIS: Type = 7;
+    pub const LXB_DOM_ATTR_BGCOLOR: Type = 8;
+    pub const LXB_DOM_ATTR_CHARSET: Type = 9;
+    pub const LXB_DOM_ATTR_CHECKED: Type = 10;
+    pub const LXB_DOM_ATTR_CLASS: Type = 11;
+    pub const LXB_DOM_ATTR_CLEAR: Type = 12;
+    pub const LXB_DOM_ATTR_CODETYPE: Type = 13;
+    pub const LXB_DOM_ATTR_COLOR: Type = 14;
+    pub const LXB_DOM_ATTR_COMPACT: Type = 15;
+    pub const LXB_DOM_ATTR_CONTENT: Type = 16;
+    pub const LXB_DOM_ATTR_DECLARE: Type = 17;
+    pub const LXB_DOM_ATTR_DEFER: Type = 18;
+    pub const LXB_DOM_ATTR_DIR: Type = 19;
+    pub const LXB_DOM_ATTR_DIRECTION: Type = 20;
+    pub const LXB_DOM_ATTR_DISABLED: Type = 21;
+    pub const LXB_DOM_ATTR_ENCTYPE: Type = 22;
+    pub const LXB_DOM_ATTR_FACE: Type = 23;
+    pub const LXB_DOM_ATTR_FOCUS: Type = 24;
+    pub const LXB_DOM_ATTR_FOR: Type = 25;
+    pub const LXB_DOM_ATTR_FRAME: Type = 26;
+    pub const LXB_DOM_ATTR_HEIGHT: Type = 27;
+    pub const LXB_DOM_ATTR_HOVER: Type = 28;
+    pub const LXB_DOM_ATTR_HREF: Type = 29;
+    pub const LXB_DOM_ATTR_HREFLANG: Type = 30;
+    pub const LXB_DOM_ATTR_HTML: Type = 31;
+    pub const LXB_DOM_ATTR_HTTP_EQUIV: Type = 32;
+    pub const LXB_DOM_ATTR_ID: Type = 33;
+    pub const LXB_DOM_ATTR_IS: Type = 34;
+    pub const LXB_DOM_ATTR_LANG: Type = 35;
+    pub const LXB_DOM_ATTR_LANGUAGE: Type = 36;
+    pub const LXB_DOM_ATTR_LINK: Type = 37;
+    pub const LXB_DOM_ATTR_MAXLENGTH: Type = 38;
+    pub const LXB_DOM_ATTR_MEDIA: Type = 39;
+    pub const LXB_DOM_ATTR_METHOD: Type = 40;
+    pub const LXB_DOM_ATTR_MULTIPLE: Type = 41;
+    pub const LXB_DOM_ATTR_NOHREF: Type = 42;
+    pub const LXB_DOM_ATTR_NORESIZE: Type = 43;
+    pub const LXB_DOM_ATTR_NOSHADE: Type = 44;
+    pub const LXB_DOM_ATTR_NOWRAP: Type = 45;
+    pub const LXB_DOM_ATTR_PLACEHOLDER: Type = 46;
+    pub const LXB_DOM_ATTR_POOL: Type = 47;
+    pub const LXB_DOM_ATTR_PUBLIC: Type = 48;
+    pub const LXB_DOM_ATTR_READONLY: Type = 49;
+    pub const LXB_DOM_ATTR_REL: Type = 50;
+    pub const LXB_DOM_ATTR_REQUIRED: Type = 51;
+    pub const LXB_DOM_ATTR_REV: Type = 52;
+    pub const LXB_DOM_ATTR_RULES: Type = 53;
+    pub const LXB_DOM_ATTR_SCHEME: Type = 54;
+    pub const LXB_DOM_ATTR_SCOPE: Type = 55;
+    pub const LXB_DOM_ATTR_SCROLLING: Type = 56;
+    pub const LXB_DOM_ATTR_SELECTED: Type = 57;
+    pub const LXB_DOM_ATTR_SHAPE: Type = 58;
+    pub const LXB_DOM_ATTR_SIZE: Type = 59;
+    pub const LXB_DOM_ATTR_SLOT: Type = 60;
+    pub const LXB_DOM_ATTR_SRC: Type = 61;
+    pub const LXB_DOM_ATTR_STYLE: Type = 62;
+    pub const LXB_DOM_ATTR_SYSTEM: Type = 63;
+    pub const LXB_DOM_ATTR_TARGET: Type = 64;
+    pub const LXB_DOM_ATTR_TEXT: Type = 65;
+    pub const LXB_DOM_ATTR_TITLE: Type = 66;
+    pub const LXB_DOM_ATTR_TYPE: Type = 67;
+    pub const LXB_DOM_ATTR_VALIGN: Type = 68;
+    pub const LXB_DOM_ATTR_VALUETYPE: Type = 69;
+    pub const LXB_DOM_ATTR_VLINK: Type = 70;
+    pub const LXB_DOM_ATTR_WIDTH: Type = 71;
+    pub const LXB_DOM_ATTR_XMLNS: Type = 72;
+    pub const LXB_DOM_ATTR__LAST_ENTRY: Type = 73;
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -10760,6 +10796,13 @@ unsafe extern "C" {
     pub fn lxb_dom_element_attr_by_local_name_data(
         element: *mut lxb_dom_element_t,
         data: *const lxb_dom_attr_data_t,
+    ) -> *mut lxb_dom_attr_t;
+}
+unsafe extern "C" {
+    pub fn lxb_dom_element_attr_by_local_name_ns_data(
+        element: *mut lxb_dom_element_t,
+        data: *const lxb_dom_attr_data_t,
+        ns: lxb_ns_id_t,
     ) -> *mut lxb_dom_attr_t;
 }
 unsafe extern "C" {
@@ -11931,7 +11974,11 @@ pub mod lxb_html_tokenizer_error_id_t {
     pub const LXB_HTML_TOKENIZER_ERROR_UNQUMAINOFTANA: Type = 46;
     pub const LXB_HTML_TOKENIZER_ERROR_UNSOINTA: Type = 47;
     pub const LXB_HTML_TOKENIZER_ERROR_UNNACHRE: Type = 48;
-    pub const LXB_HTML_TOKENIZER_ERROR_LAST_ENTRY: Type = 49;
+    pub const LXB_HTML_TOKENIZER_ERROR_EOINPRIN: Type = 49;
+    pub const LXB_HTML_TOKENIZER_ERROR_INFICHOFPRINTA: Type = 50;
+    pub const LXB_HTML_TOKENIZER_ERROR_DIPRINTA: Type = 51;
+    pub const LXB_HTML_TOKENIZER_ERROR_INPRINTA: Type = 52;
+    pub const LXB_HTML_TOKENIZER_ERROR_LAST_ENTRY: Type = 53;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -12436,10 +12483,13 @@ pub struct lxb_html_tree {
     pub before_append_attr: lxb_html_tree_append_attr_f,
     pub status: lxb_status_t,
     pub ref_count: usize,
+    pub p_scope: *mut bool,
+    pub p_scope_size: usize,
+    pub p_scope_valid: usize,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of lxb_html_tree"][::std::mem::size_of::<lxb_html_tree>() - 128usize];
+    ["Size of lxb_html_tree"][::std::mem::size_of::<lxb_html_tree>() - 152usize];
     ["Alignment of lxb_html_tree"][::std::mem::align_of::<lxb_html_tree>() - 8usize];
     ["Offset of field: lxb_html_tree::tkz_ref"][::std::mem::offset_of!(lxb_html_tree, tkz_ref) - 0usize];
     ["Offset of field: lxb_html_tree::document"][::std::mem::offset_of!(lxb_html_tree, document) - 8usize];
@@ -12462,6 +12512,9 @@ const _: () = {
         [::std::mem::offset_of!(lxb_html_tree, before_append_attr) - 104usize];
     ["Offset of field: lxb_html_tree::status"][::std::mem::offset_of!(lxb_html_tree, status) - 112usize];
     ["Offset of field: lxb_html_tree::ref_count"][::std::mem::offset_of!(lxb_html_tree, ref_count) - 120usize];
+    ["Offset of field: lxb_html_tree::p_scope"][::std::mem::offset_of!(lxb_html_tree, p_scope) - 128usize];
+    ["Offset of field: lxb_html_tree::p_scope_size"][::std::mem::offset_of!(lxb_html_tree, p_scope_size) - 136usize];
+    ["Offset of field: lxb_html_tree::p_scope_valid"][::std::mem::offset_of!(lxb_html_tree, p_scope_valid) - 144usize];
 };
 pub mod lxb_html_tree_insertion_position_t {
     #[allow(unused_imports)]
@@ -12585,6 +12638,13 @@ unsafe extern "C" {
     ) -> *mut lxb_dom_comment_t;
 }
 unsafe extern "C" {
+    pub fn lxb_html_tree_insert_processing_instruction(
+        tree: *mut lxb_html_tree_t,
+        token: *mut lxb_html_token_t,
+        pos: *mut lxb_dom_node_t,
+    ) -> *mut lxb_dom_processing_instruction_t;
+}
+unsafe extern "C" {
     pub fn lxb_html_tree_create_document_type_from_token(
         tree: *mut lxb_html_tree_t,
         token: *mut lxb_html_token_t,
@@ -12651,6 +12711,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn lxb_html_tree_check_scope_element(tree: *mut lxb_html_tree_t) -> bool;
+}
+unsafe extern "C" {
+    pub fn lxb_html_tree_parsing_template_contents(tree: *mut lxb_html_tree_t) -> bool;
 }
 unsafe extern "C" {
     pub fn lxb_html_tree_close_p_element(tree: *mut lxb_html_tree_t, token: *mut lxb_html_token_t) -> lxb_status_t;
@@ -12898,6 +12961,9 @@ unsafe extern "C" {
         ns: lxb_ns_id_t,
         return_index: *mut usize,
     ) -> *mut lxb_dom_node_t;
+}
+unsafe extern "C" {
+    pub fn lxb_html_tree_open_elements_p_in_button_scope(tree: *mut lxb_html_tree_t) -> bool;
 }
 pub mod lxb_html_parser_state_t {
     #[allow(unused_imports)]
@@ -13204,6 +13270,7 @@ pub mod lxb_html_serialize_opt {
     pub const LXB_HTML_SERIALIZE_OPT_TAG_WITH_NS: Type = 16;
     pub const LXB_HTML_SERIALIZE_OPT_WITHOUT_TEXT_INDENT: Type = 32;
     pub const LXB_HTML_SERIALIZE_OPT_FULL_DOCTYPE: Type = 64;
+    pub const LXB_HTML_SERIALIZE_OPT_HTML5TEST: Type = 128;
 }
 pub type lxb_html_serialize_cb_f = ::std::option::Option<
     unsafe extern "C" fn(data: *const lxb_char_t, len: usize, ctx: *mut ::std::os::raw::c_void) -> lxb_status_t,
@@ -14383,13 +14450,13 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct lxb_html_window {
-    pub event_target: lxb_dom_event_target_t,
+    pub node: lxb_dom_node_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of lxb_html_window"][::std::mem::size_of::<lxb_html_window>() - 8usize];
+    ["Size of lxb_html_window"][::std::mem::size_of::<lxb_html_window>() - 104usize];
     ["Alignment of lxb_html_window"][::std::mem::align_of::<lxb_html_window>() - 8usize];
-    ["Offset of field: lxb_html_window::event_target"][::std::mem::offset_of!(lxb_html_window, event_target) - 0usize];
+    ["Offset of field: lxb_html_window::node"][::std::mem::offset_of!(lxb_html_window, node) - 0usize];
 };
 unsafe extern "C" {
     pub fn lxb_html_window_create(document: *mut lxb_html_document_t) -> *mut lxb_html_window_t;

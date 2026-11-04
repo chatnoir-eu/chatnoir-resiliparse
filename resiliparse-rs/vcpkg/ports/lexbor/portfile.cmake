@@ -1,8 +1,9 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO lexbor/lexbor
-    REF v${VERSION}
-    SHA512 d65906504f490a03579eb737fa85007f1e948c4e82f986454d763728e4d71be40fe953a5a7cfda84b322cb99837f482295ee89bc3f07f2ef89ccaeeab39a4acf
+    # Upstream master, pinned for reproducible builds.
+    REF 145872a2e5d6c22d923afcd3c386a21e59f9a0e2
+    SHA512 95eaeb19c75529a6091045fc460117046ec72e8ceaa6bd8293b17b6a2603459e48c94dc905ce9b0db9742d84b430adbfc6c0efd4e103986ce46a3bff351814d3
     PATCHES
         patches/0001-reference-counting.patch
         patches/0002-static-library-name.patch

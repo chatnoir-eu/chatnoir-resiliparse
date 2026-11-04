@@ -14,6 +14,24 @@
 
 use super::*;
 use crate::parse::html::dom::traits::*;
+use rstest::rstest;
+
+#[rstest]
+#[case("size= >")]
+#[case("size>")]
+#[case("size=\"\">")]
+#[case("size=''>")]
+#[case("size=\"invalid\">")]
+#[case("size=\"1\">")]
+#[case(">")]
+fn valueless_attribute(#[case] attribute: &str) {
+    // Valueless size attributes must use the default size without losing option contents.
+    // Regression test for upstream Lexbor bug: https://github.com/lexbor/lexbor/commit/393e96313aed03c1d83f441479fc7507b9db9804
+    let html = format!("<select {attribute}<option>x</option></select>");
+    let tree = HtmlTree::parse(&html).unwrap();
+    let select = tree.body().unwrap().query_selector("select").unwrap().unwrap();
+    assert_eq!(select.inner_html(), "<option>x</option>");
+}
 
 #[test]
 fn string_conversions_recover_malformed_markup() {
