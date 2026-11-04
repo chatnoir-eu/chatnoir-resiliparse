@@ -196,6 +196,6 @@ FastWARC-gRPC builds on top of FastWARC, and it is also shipped separately.
   ```
 - Add user-facing changes to the `CHANGELOG.md`. Try to keep descriptions short, avoid long sentences with line breaks.
 - Do not add changes and fixups within a version. Only changes between versions go in the changelog.
-- Group changes by component. Put changes affecting all components first directly below the version heading.
+- Group changes by component. Put changes affecting all components first under a `General` heading.
 - Put Resiliparse before FastWARC before FastWARC-gRPC.
 - Within a block, put Rust changes before Python changes. Prefix with Rust: and Python: at the start of the line.

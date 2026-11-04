@@ -8,8 +8,13 @@
 
 ## 2.0.0 (2026-10-31)
 
+### General
+
 - Switch source builds to Maturin.
-- FastWARC: Remove the legacy Cython implementations and compatibility shims.
+
+### FastWARC
+
+- Remove the legacy Cython implementations and compatibility shims.
 
 ### Resiliparse
 
@@ -28,6 +33,8 @@
 - Python: Use `query_selector(selector) is not None` for the previous descendant-search behaviour.
 
 ## 1.1.0 (2026-10-26)
+
+### General
 
 - Add Python 3.15 wheels.
 
@@ -146,6 +153,8 @@
 
 ## 0.16.0 (2026-04-02)
 
+### General
+
 - Restore module-level enum exports when building with Cython 3.1.
 
 ### Resiliparse
@@ -160,6 +169,8 @@
 
 ## 0.15.2 (2025-03-27)
 
+### General
+
 - Restore installation of the `fastwarc` and `resiliparse` CLI commands.
 - Remove the deprecated `distutils` dependency from source builds.
 
@@ -171,6 +182,8 @@
 
 ## 0.15.1 (2024-12-05)
 
+### General
+
 - Fix macOS cross-compilation when building wheels.
 
 ## 0.15.0 (2024-12-04)
@@ -181,6 +194,8 @@
 - Retain headings, paragraphs, lists, preformatted text, line breaks, and optional links in HTML output.
 
 ## 0.14.9 (2024-08-13)
+
+### FastWARC
 
 - Include `py.typed` markers and correct missing or inaccurate type annotations.
 
@@ -198,10 +213,14 @@
 
 ## 0.14.6 (2024-04-04)
 
+### General
+
 - Add Linux ARM64 wheels for Python 3.10 and newer.
 - Update native dependencies and Cython compatibility for source builds.
 
 ## 0.14.5 (2023-08-11)
+
+### General
 
 - Update source builds for newer Cython and RE2 versions.
 
@@ -223,13 +242,19 @@
 
 ## 0.14.2 (2023-03-07)
 
+### General
+
 - Migrate package metadata and build configuration to `pyproject.toml`.
 
 ## 0.14.1 (2023-03-06)
 
+### General
+
 - Fix Apple Silicon builds and compilation with the updated Lexbor API.
 
 ## 0.14.0 (2023-03-06)
+
+### General
 
 - Support Python 3.11 and provide Apple Silicon wheels.
 
@@ -328,6 +353,8 @@ No user-facing changes.
 - Fix invalid memory access when extracting link URLs as plain text.
 
 ## 0.11.0 (2022-03-15)
+
+### General
 
 - Add the `all` extra to install all optional dependencies.
 
