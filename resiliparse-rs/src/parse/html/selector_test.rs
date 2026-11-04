@@ -51,7 +51,7 @@ fn callback_panics_resume_in_rust() {
                 &body.as_noderef(),
                 |_, _, count| {
                     *count += 1;
-                    panic!("callback panic");
+                    resume_unwind(Box::new("callback panic"));
                 },
                 &mut visited,
             )
