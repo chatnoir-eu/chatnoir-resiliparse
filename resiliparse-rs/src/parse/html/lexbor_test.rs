@@ -359,9 +359,9 @@ fn derived_document_lifetime() {
                 Some(lxb_dom_interface_clone),
                 Some(lxb_dom_interface_destroy),
                 lxb_dom_document_dtype_t::LXB_DOM_DOCUMENT_DTYPE_UNDEF,
-                LXB_NS__UNDEF,
+                LXB_NS__UNDEF as std::os::raw::c_uint,
             ),
-            lexbor_status_t::LXB_STATUS_OK,
+            lexbor_status_t::LXB_STATUS_OK as lxb_status_t,
         );
         assert_eq!((*doc).node.ref_count, 1);
         (*doc).node.ref_count += 1;
