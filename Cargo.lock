@@ -202,9 +202,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e055fa6e3e40ad6187ba25b6855eeb635d5271f8e0f0e1e9a5826b8d75bea0"
+checksum = "375989decec1a0fa424442bed520fa12ede43a48475ce8c7417d2c69b32b5f6b"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -385,7 +385,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fastwarc"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "brotli",
  "data-encoding",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-grpc"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "cap-std",
  "fastwarc",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-py"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fastwarc",
  "pyo3",
@@ -782,9 +782,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.34"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "lz4_flex"
@@ -1177,7 +1177,7 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "resiliparse"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "bindgen",
  "parking_lot",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "resiliparse-py"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "libc",
  "pyo3",
