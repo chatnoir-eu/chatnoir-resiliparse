@@ -1,1 +1,2 @@
 *.warc binary
+*.patch text eol=lf
