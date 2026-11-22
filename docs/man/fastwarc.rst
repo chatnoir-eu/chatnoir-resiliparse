@@ -379,7 +379,8 @@ If a record has digest headers, you can verify the consistency of the record con
            print('Payload digest OK:', record.verify_payload_digest(consume=False))
 
 Note that :meth:`~.WarcRecord.verify_block_digest` and :meth:`~.WarcRecord.verify_payload_digest` will simply return
-``False`` and not raise an error if the headers do not exist, so check that first. Keep in mind that the block
+``False`` and not raise an error if the headers do not exist, so check that first. Payload verification also returns
+``False`` for revisit records because their payload depends on the WARC profile. Keep in mind that the block
 verification will fail if the reader has been (partially) consumed, so automatic HTTP parsing has to be turned off for
 this to work.
 

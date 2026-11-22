@@ -81,12 +81,14 @@ def _recompress_records(infile, outfile, decompress_alg, compress_alg, compress_
 def _verify_digests(infile, verify_payloads, decompress_alg):
     with closing(_warc_records(infile, decompress_alg, parse_http=False, inplace=True)) as records:
         for record in records:
+            # Omit a payload verdict for revisits so an unavailable check is not reported as a mismatch.
+            check_payload = verify_payloads and record.record_type != WarcRecordType.revisit
             result = {
                 'record_id': record.record_id,
-                'block_digest_ok': record.verify_block_digest(not verify_payloads or not record.is_http)
+                'block_digest_ok': record.verify_block_digest(not check_payload or not record.is_http)
                 if 'WARC-Block-Digest' in record.headers else None,
             }
-            if verify_payloads:
+            if check_payload:
                 if 'WARC-Payload-Digest' in record.headers:
                     if record.is_http:
                         record.parse_http()
@@ -159,9 +161,9 @@ def check(infile, decompress_alg, verify_payloads, quiet, output):
     """
     Verify WARC record consistency.
 
-    Check digests of all records in a WARC file and print a summary. You can verify all block and
-    payload digests in the given WARC file and print a summary of all corrupted and (optionally)
-    all intact records.
+    Check block digests in a WARC file and print a summary of corrupted records. Use --verify-payloads
+    to also check payload digests. Revisit payload checks are skipped because their interpretation
+    depends on the WARC profile. Use --output to write per-record results.
 
     The command will exit with a non-zero exit code if at least one record fails verification.
     """

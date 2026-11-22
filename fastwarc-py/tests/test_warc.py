@@ -69,6 +69,14 @@ def _serialize_records(*records: WarcRecord) -> io.BytesIO:
     return stream
 
 
+def test_verify_revisit_payload_digest():
+    record = _make_http_record(revisit, body=b"")
+    record.headers[WarcHeader.WARC_PAYLOAD_DIGEST] = f"sha1:{hashlib.sha1(b'').hexdigest()}"
+    record.parse_http()
+
+    assert record.verify_payload_digest() is False
+
+
 def test_package_reexports():
     assert WarcRecord is WarcRecord
     assert HeaderMap is HeaderMap

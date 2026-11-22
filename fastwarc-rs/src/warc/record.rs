@@ -1306,17 +1306,25 @@ impl WarcRecord {
         self._verify_digest(&digest, consume)
     }
 
-    /// Verify whether the record's `WARC-Payload-Digest` is valid.
+    /// Verify whether the record's `WARC-Payload-Digest` matches its local HTTP payload.
     ///
-    /// Returns a boolean whether the digest matches or an error if no `WARC-Payload-Digest`
-    /// exists, if the record has an unsupported digest type, or on failure
-    /// to read the digest header value or stream.
+    /// Parse the HTTP headers before calling this method. Revisit payloads require
+    /// interpreting the revisit profile and may come from another record.
     ///
     /// # Arguments
     ///
     /// * `consume` - Do not create an in-memory copy of the record stream
     ///   (will consume the rest of the record)
+    ///
+    /// # Returns
+    ///
+    /// Whether the digest matches, or an error if the digest is missing, unsupported,
+    /// malformed, or could not be read. Returns [`DigestError::NoPayload`] for revisits
+    /// and records without a parsed HTTP payload.
     pub fn verify_payload_digest(&mut self, consume: bool) -> Result<bool, DigestError> {
+        if self.record_type == WarcRecordType::Revisit {
+            return Err(DigestError::NoPayload("Revisit payload requires profile-specific resolution".into()));
+        }
         if !self.http_parsed || !self.is_http {
             return Err(DigestError::NoPayload("HTTP payload not parsed or missing".into()));
         }

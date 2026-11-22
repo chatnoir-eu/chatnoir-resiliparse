@@ -132,6 +132,33 @@ def test_check_invalid_digest_returns_failure(warc_file, quiet):
         assert not result.output
 
 
+@pytest.mark.parametrize('corrupt_block', [False, True], ids=['valid-block', 'corrupt-block'])
+def test_check_revisit_skips_referenced_payload_digest(tmp_path, corrupt_block):
+    record = WarcRecord()
+    record.init_headers(WarcRecordType.revisit, b'uuid:cli-revisit')
+    record.is_http = True
+    record.headers['WARC-Target-URI'] = 'https://example.org/'
+    record.headers['WARC-Profile'] = 'http://netpreserve.org/warc/1.1/revisit/identical-payload-digest'
+    record.headers['WARC-Truncated'] = 'length'
+    record.headers['WARC-Refers-To'] = '<urn:uuid:original>'
+    record.headers['WARC-Payload-Digest'] = 'sha1:RB2FWY2CZX4TMUPXBVPL6SWKSQ4UKV2S'
+    record.set_bytes_content(b'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n')
+    output = io.BytesIO()
+    record.write(output, checksum_data=True)
+    data = output.getvalue()
+    if corrupt_block:
+        data = data.replace(b'200 OK', b'201 OK')
+    source = tmp_path / 'revisit.warc'
+    source.write_bytes(data)
+    details = tmp_path / 'digests.txt'
+
+    result = CliRunner().invoke(cli.main, ['check', str(source), '--verify-payloads', '-o', str(details)])
+
+    assert result.exit_code == int(corrupt_block), (result.output, result.exception)
+    status = 'FAIL' if corrupt_block else 'OK'
+    assert details.read_text() == f'{record.record_id}: {status}\n'
+
+
 def test_check_reports_missing_digests(tmp_path):
     record = WarcRecord()
     record.init_headers(WarcRecordType.resource, b'uuid:no-digest')

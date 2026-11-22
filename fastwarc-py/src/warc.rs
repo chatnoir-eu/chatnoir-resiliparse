@@ -1258,11 +1258,12 @@ impl WarcRecordPy {
 
     /// Verify whether ``WARC-Payload-Digest`` matches the current HTTP payload.
     ///
-    /// HTTP headers must have been parsed first with :meth:`parse_http`.
-    /// Returns ``False`` for missing or invalid digest metadata and raises
-    /// :class:`OSError` only for stream I/O failures.
+    /// Parse HTTP headers first with :meth:`parse_http`. Revisit payloads require
+    /// interpreting the revisit profile and may come from another record.
     ///
     /// :param consume: Consume the remaining payload instead of preserving it
+    /// :return: Whether the digest matches. Returns ``False`` when verification is unavailable,
+    ///     including for revisit records and missing or invalid digest metadata.
     /// :raise OSError: If reading the payload fails
     #[pyo3(signature = (consume=false))]
     pub fn verify_payload_digest(&mut self, consume: bool) -> PyResult<bool> {

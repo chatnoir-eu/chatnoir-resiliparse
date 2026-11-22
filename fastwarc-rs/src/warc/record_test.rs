@@ -840,6 +840,27 @@ fn verify_record_digests() -> io::Result<()> {
 }
 
 #[test]
+fn verify_revisit_payload_digest_is_unavailable() -> io::Result<()> {
+    // An empty local HTTP body cannot verify a digest that refers to the original payload.
+    let mut record = WarcRecord::from_bytes(warc_record_data_with_headers(
+        "revisit",
+        "<urn:uuid:21621fb4-2052-4a28-ab6e-3264e09e2b85>",
+        Some("application/http; msgtype=response"),
+        &format!(
+            "WARC-Profile: http://netpreserve.org/warc/1.1/revisit/identical-payload-digest\r\n\
+             WARC-Truncated: length\r\n\
+             WARC-Payload-Digest: sha1:{}\r\n",
+            BASE32.encode(&Sha1::digest([])),
+        ),
+        b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n",
+    ))?;
+    record.parse_http()?;
+
+    assert!(matches!(record.verify_payload_digest(false), Err(DigestError::NoPayload(_))));
+    Ok(())
+}
+
+#[test]
 fn verify_record_digest_error_kinds() -> io::Result<()> {
     let payload = b"ABC".to_vec();
     let mut record = WarcRecord::new();

@@ -357,6 +357,7 @@
 //! Both [`verify_block_digest`](warc::record::WarcRecord::verify_block_digest) and
 //! [`verify_payload_digest`](warc::record::WarcRecord::verify_payload_digest) return a [`DigestError`](warc::record::DigestError)
 //! if the headers do not exist, contain unsupported digest types, are incorrectly formatted, or are otherwise unsupported.
+//! Payload verification returns [`DigestError::NoPayload`](warc::record::DigestError::NoPayload) for revisit records.
 //! Keep in mind that the block verification will fail if the reader has been (partially) consumed, so automatic
 //! HTTP parsing has to be turned off for this to work.
 //!
