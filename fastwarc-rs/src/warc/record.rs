@@ -190,6 +190,7 @@ pub struct WarcRecord {
     pub(super) content_length: u64,
     pub(super) is_http: bool,
     pub(super) http_parsed: bool,
+    pub(super) http_decoding: AutoDecode,
     pub(super) http_charset: Option<String>,
     pub(super) http_headers: Option<HeaderMap>,
     pub(super) reader: Option<ReaderType>,
@@ -270,6 +271,114 @@ pub enum AutoDecode {
     All,
 }
 
+/// A supported HTTP payload decoder, in decoding order when used in a list.
+#[derive(Clone, Copy)]
+enum PayloadDecoder {
+    Gzip,
+    Deflate,
+    Brotli,
+    Zstd,
+    Chunked,
+}
+
+impl PayloadDecoder {
+    /// Resolve a header before taking ownership of the payload reader.
+    fn from_header(headers: Option<&HeaderMap>, transfer: bool) -> io::Result<Vec<Self>> {
+        let name = if transfer {
+            "Transfer-Encoding"
+        } else {
+            "Content-Encoding"
+        };
+        let Some(value) = headers.and_then(|headers| headers.get_bytes(name.as_bytes())) else {
+            return Ok(Vec::new());
+        };
+        let mut decoders = Vec::new();
+        for encoding in value.split(|c| *c == b',').rev() {
+            let encoding = encoding.trim_ascii().to_ascii_lowercase();
+            decoders.push(match encoding.as_slice() {
+                b"gzip" => Self::Gzip,
+                b"deflate" => Self::Deflate,
+                b"br" => Self::Brotli,
+                b"zstd" => Self::Zstd,
+                b"chunked" if transfer => Self::Chunked,
+                b"identity" | b"" => continue,
+                _ => {
+                    return Err(io::Error::other(format!(
+                        "Unsupported {name}: {}",
+                        String::from_utf8_lossy(&encoding)
+                    )));
+                }
+            });
+        }
+        Ok(decoders)
+    }
+
+    /// Apply the decoders to the record-limited reader.
+    fn wrap(decoders: &[Self], reader: LimitedBufReader) -> Box<dyn WarcRead> {
+        let mut reader = reader.into_warc_reader();
+        for decoder in decoders {
+            reader = match decoder {
+                Self::Gzip => gzip::GzipReader::new(reader).into_warc_reader(),
+                Self::Deflate => gzip::GzipReader::with_options(
+                    reader,
+                    gzip::GzipReaderOptions {
+                        window_bits: gzip::MAX_WBITS,
+                        ..gzip::GzipReaderOptions::default()
+                    },
+                )
+                .into_warc_reader(),
+                Self::Brotli => brotli::BrotliReader::new(reader).into_warc_reader(),
+                Self::Zstd => zstd::ZstdReader::new(reader).into_warc_reader(),
+                Self::Chunked => chunked::ChunkedReader::new(reader).into_warc_reader(),
+            };
+        }
+        reader
+    }
+
+    /// Recover the record-limited reader after using the decoder stack.
+    fn unwrap(reader: Box<dyn WarcRead>) -> LimitedBufReader {
+        macro_rules! downcast {
+            ($reader:ident, $($decoder:tt)::+) => {
+                $reader.downcast::<$($decoder)::+<Box<dyn WarcRead>>>().unwrap().into_inner().into_any()
+            };
+        }
+        let mut reader = reader.into_any();
+        loop {
+            reader = if reader.is::<gzip::GzipReader<Box<dyn WarcRead>>>() {
+                downcast!(reader, gzip::GzipReader)
+            } else if reader.is::<brotli::BrotliReader<Box<dyn WarcRead>>>() {
+                downcast!(reader, brotli::BrotliReader)
+            } else if reader.is::<zstd::ZstdReader<Box<dyn WarcRead>>>() {
+                downcast!(reader, zstd::ZstdReader)
+            } else if reader.is::<chunked::ChunkedReader<Box<dyn WarcRead>>>() {
+                downcast!(reader, chunked::ChunkedReader)
+            } else {
+                return *reader.downcast::<LimitedBufReader>().unwrap();
+            };
+        }
+    }
+}
+
+/// Feed a reader's remaining bytes to a digest.
+fn update_digest(reader: &mut impl Read, mut update: impl FnMut(&[u8])) -> io::Result<()> {
+    let mut buf = [0u8; 4096];
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) => return Ok(()),
+            Ok(n) => update(&buf[..n]),
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// Skip any stored bytes that the payload decoder left unread.
+fn drain_encoded_payload(reader: &mut LimitedBufReader) -> io::Result<()> {
+    let remaining = reader.limit() - reader.stream_position()?;
+    io::copy(&mut reader.take(remaining), &mut io::sink())?;
+    Ok(())
+}
+
 impl Display for WarcRecord {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let headers = self.headers.to_string();
@@ -340,6 +449,7 @@ impl WarcRecord {
             quirks_mode: false,
             is_http: false,
             http_parsed: false,
+            http_decoding: AutoDecode::None,
             http_charset: None,
             http_headers: None,
             content_length: 0,
@@ -458,6 +568,7 @@ impl WarcRecord {
             self.stream_pos = reader.inner_stream_position().unwrap();
         }
         self.reader = Some(ReaderType::Original(LimitedBufReader::new(reader, None)));
+        self.http_decoding = AutoDecode::None;
     }
 
     /// Set the WARC payload as bytes.
@@ -477,6 +588,7 @@ impl WarcRecord {
     /// * `payload` - Body as bytes
     pub fn set_bytes_payload(&mut self, payload: Vec<u8>) {
         self.content_length = payload.len() as u64;
+        self.http_decoding = AutoDecode::None;
         let orig = match self.reader.take() {
             Some(ReaderType::Original(r)) => Some(r.into_inner()),
             _ => None,
@@ -512,41 +624,7 @@ impl WarcRecord {
     pub fn detach_reader(&mut self) -> Option<Box<dyn WarcRead>> {
         let reader = self.reader.take()?;
         match reader {
-            ReaderType::Wrapped(reader) => {
-                macro_rules! downcast {
-                    ($reader:ident, $($Type:tt)::+) => {{
-                        $reader
-                            .downcast::<$($Type)::+<Box<dyn WarcRead>>>()
-                            .unwrap()
-                            .into_inner()
-                            .into_any()
-                    }};
-                }
-                // Unwrap content decoders. The first one in the chain is always a `LimitedBufReader`.
-                let mut reader_any = reader
-                    .into_warc_reader()
-                    .into_any()
-                    .downcast::<LimitedBufReader>()
-                    .unwrap()
-                    .into_inner()
-                    .into_any();
-
-                loop {
-                    if reader_any.is::<gzip::GzipReader<Box<dyn WarcRead>>>() {
-                        reader_any = downcast!(reader_any, gzip::GzipReader);
-                    } else if reader_any.is::<brotli::BrotliReader<Box<dyn WarcRead>>>() {
-                        reader_any = downcast!(reader_any, brotli::BrotliReader);
-                    } else if reader_any.is::<zstd::ZstdReader<Box<dyn WarcRead>>>() {
-                        reader_any = downcast!(reader_any, zstd::ZstdReader);
-                    } else if reader_any.is::<chunked::ChunkedReader<Box<dyn WarcRead>>>() {
-                        reader_any = downcast!(reader_any, chunked::ChunkedReader);
-                    } else {
-                        break;
-                    }
-                }
-                // Last one is always the original reader wrapped in a `LimitedBufReader`.
-                Some(reader_any.downcast::<LimitedBufReader>().unwrap().into_inner())
-            }
+            ReaderType::Wrapped(reader) => Some(PayloadDecoder::unwrap(reader.into_inner()).into_inner()),
             ReaderType::Original(reader) => Some(reader.into_inner()),
             ReaderType::Frozen((frozen, orig)) => {
                 self.reader = Some(ReaderType::Frozen((frozen, None)));
@@ -595,15 +673,31 @@ impl WarcRecord {
         if let Some(ReaderType::Frozen(_r)) = &self.reader {
             return Ok(());
         }
-        let mut reader = match self.reader.take() {
-            Some(ReaderType::Original(r)) => Ok(r),
-            _ => Err(io::Error::other("No reader set")),
-        }?;
-        let mut buf = Vec::with_capacity(self.content_length as usize);
-        self.content_length = reader.read_to_end(&mut buf)? as u64;
+        let (mut reader, wrapped) = match self.reader.take() {
+            Some(ReaderType::Original(reader)) => (reader, false),
+            Some(ReaderType::Wrapped(reader)) => (reader, true),
+            _ => return Err(io::Error::other("No reader set")),
+        };
+        let mut buf = Vec::new();
+        let result = reader.read_to_end(&mut buf);
+        if let Err(error) = result {
+            self.reader = Some(if wrapped {
+                ReaderType::Wrapped(reader)
+            } else {
+                ReaderType::Original(reader)
+            });
+            return Err(error);
+        }
+        let drain = if wrapped {
+            reader = PayloadDecoder::unwrap(reader.into_inner());
+            drain_encoded_payload(&mut reader)
+        } else {
+            Ok(())
+        };
+        self.content_length = buf.len() as u64;
         let frozen = LimitedBufReader::new(io::Cursor::new(buf), None);
         self.reader = Some(ReaderType::Frozen((frozen, Some(reader))));
-        Ok(())
+        drain
     }
 
     /// Consume the remaining bytes of the WARC record payload without allocating
@@ -1031,90 +1125,93 @@ impl WarcRecord {
         self.content_length -= bytes_consumed as u64;
         reader.set_limit(self.content_length);
         self.http_parsed = true;
-
-        // Wrap readers for transfer- or content-encoded payloads
-        if matches!(auto_decode, AutoDecode::All | AutoDecode::TransferEncoding)
-            && let Some(enc) = http_headers.get_bytes(b"Transfer-Encoding").map(|e| e.into_owned())
-        {
-            self.wrap_reader_in_payload_decoders(&enc, true)?
-        }
-        if matches!(auto_decode, AutoDecode::All | AutoDecode::ContentEncoding)
-            && let Some(enc) = http_headers.get_bytes(b"Content-Encoding").map(|e| e.into_owned())
-        {
-            self.wrap_reader_in_payload_decoders(&enc, true)?
-        }
-
         self.http_headers = Some(http_headers);
 
+        let headers = self.http_headers.as_ref();
+        let mut decoders = if matches!(auto_decode, AutoDecode::All | AutoDecode::TransferEncoding) {
+            PayloadDecoder::from_header(headers, true)?
+        } else {
+            Vec::new()
+        };
+        let transfer = !decoders.is_empty();
+        let content = if matches!(auto_decode, AutoDecode::All | AutoDecode::ContentEncoding) {
+            PayloadDecoder::from_header(headers, false)?
+        } else {
+            Vec::new()
+        };
+        let decoding = match (transfer, !content.is_empty()) {
+            (true, true) => AutoDecode::All,
+            (true, false) => AutoDecode::TransferEncoding,
+            (false, true) => AutoDecode::ContentEncoding,
+            (false, false) => AutoDecode::None,
+        };
+        decoders.extend(content);
+
+        if !decoders.is_empty() {
+            self.wrap_reader_in_payload_decoders(&decoders)?;
+        }
+        self.http_decoding = decoding;
         Ok(())
     }
 
-    /// Helper for wrapping the reader in decompressing readers for handling
-    /// Transfer-Encoding and Content-Encoding.
-    ///
-    /// # Arguments
-    ///
-    /// * `encoding_str` - Comma-separated list of encodings as ASCII bytes
-    /// * `transfer` - Whether this is transfer- or content-encoding
-    fn wrap_reader_in_payload_decoders(&mut self, encoding_str: &[u8], transfer: bool) -> io::Result<()> {
-        let mut frozen_orig: Option<LimitedBufReader> = None;
-        let mut is_frozen = false;
-        let wrapped = match self.reader.take() {
-            Some(ReaderType::Original(r)) => Ok(r),
-            Some(ReaderType::Frozen((reader, orig))) => {
-                frozen_orig = orig;
-                is_frozen = true;
-                Ok(reader)
+    /// Wrap the payload reader, materialising the result only for frozen records.
+    fn wrap_reader_in_payload_decoders(&mut self, decoders: &[PayloadDecoder]) -> io::Result<()> {
+        self.reader = Some(match self.reader.take() {
+            Some(ReaderType::Original(reader)) => {
+                ReaderType::Wrapped(LimitedBufReader::new(PayloadDecoder::wrap(decoders, reader), None))
             }
-            Some(ReaderType::Wrapped(r)) => Ok(r),
-            None => Err(io::Error::other("Record has no reader set")),
-        }?;
-        let mut wrapped = wrapped.into_warc_reader();
-
-        let encoding_it = encoding_str
-            .split(|c| *c == b',')
-            .map(|enc| enc.trim_ascii().to_ascii_lowercase())
-            .rev();
-        for enc in encoding_it {
-            match enc.as_slice() {
-                b"gzip" => wrapped = gzip::GzipReader::new(wrapped).into_warc_reader(),
-                b"deflate" => {
-                    wrapped = gzip::GzipReader::with_options(
-                        wrapped,
-                        gzip::GzipReaderOptions {
-                            window_bits: gzip::MAX_WBITS,
-                            ..gzip::GzipReaderOptions::default()
-                        },
-                    )
-                    .into_warc_reader()
+            Some(ReaderType::Frozen((mut reader, original))) => {
+                let position = reader.stream_position()?;
+                let mut decoded = Vec::new();
+                let mut wrapped = PayloadDecoder::wrap(decoders, reader);
+                if let Err(error) = wrapped.read_to_end(&mut decoded) {
+                    let mut reader = PayloadDecoder::unwrap(wrapped);
+                    let restore = reader.seek(io::SeekFrom::Start(position));
+                    self.reader = Some(ReaderType::Frozen((reader, original)));
+                    restore?;
+                    return Err(error);
                 }
-                b"br" => wrapped = brotli::BrotliReader::new(wrapped).into_warc_reader(),
-                b"zstd" => wrapped = zstd::ZstdReader::new(wrapped).into_warc_reader(),
-                b"chunked" if transfer => wrapped = chunked::ChunkedReader::new(wrapped).into_warc_reader(),
-                b"identity" | b"" => (),
-                _ => {
-                    return Err(io::Error::other(format!(
-                        "Unsupported {}-Encoding: {}",
-                        if transfer { "Transfer" } else { "Content" },
-                        String::from_utf8_lossy(&enc)
-                    )));
-                }
+                self.content_length = decoded.len() as u64;
+                ReaderType::Frozen((LimitedBufReader::new(io::Cursor::new(decoded), None), original))
             }
-        }
-
-        if is_frozen {
-            // Frozen records don't need to be unwrapped later: eagerly decode stream to enable backward seeking.
-            let mut buf = Vec::with_capacity(self.content_length as usize * 4);
-            wrapped.read_to_end(&mut buf)?;
-            buf.shrink_to_fit();
-            self.content_length = buf.len() as u64;
-            let wrapped = LimitedBufReader::new(io::Cursor::new(buf), None);
-            self.reader = Some(ReaderType::Frozen((wrapped, frozen_orig)));
-        } else {
-            let wrapped = LimitedBufReader::new(wrapped, None);
-            self.reader = Some(ReaderType::Wrapped(wrapped));
-        }
+            reader => {
+                self.reader = reader;
+                return Err(io::Error::other("Record has no undecoded reader"));
+            }
+        });
         Ok(())
+    }
+
+    /// Hash with temporary transfer decoders and restore the underlying reader.
+    fn digest_transfer_encoded_payload(
+        &mut self,
+        decoders: &[PayloadDecoder],
+        consume: bool,
+        update: impl FnMut(&[u8]),
+    ) -> io::Result<()> {
+        let (mut reader, frozen) = match self.reader.take() {
+            Some(ReaderType::Original(reader)) => (reader, None),
+            Some(ReaderType::Frozen((reader, original))) => (reader, Some(original)),
+            reader => {
+                self.reader = reader;
+                return Err(io::Error::other("Record has no undecoded reader"));
+            }
+        };
+        let position = reader.stream_position()?;
+        let mut decoded = PayloadDecoder::wrap(decoders, reader);
+        let result = update_digest(&mut decoded, update);
+        let mut reader = PayloadDecoder::unwrap(decoded);
+        let restore = if consume {
+            // A decoder can stop before the end of the WARC block.
+            drain_encoded_payload(&mut reader)
+        } else {
+            reader.seek(io::SeekFrom::Start(position)).map(|_| ())
+        };
+        self.reader = Some(match frozen {
+            Some(original) => ReaderType::Frozen((reader, original)),
+            None => ReaderType::Original(reader),
+        });
+        result.and(restore)
     }
 
     /// Write WARC record onto a stream.
@@ -1163,6 +1260,10 @@ impl WarcRecord {
     /// The default block size is 16384 bytes, and SHA-1 checksums are calculated for the
     /// block and payload data (if available). Use [`Self::write_with_block_size_checksum`]
     /// for more control.
+    /// Parse HTTP headers without auto-decoding to generate a payload digest from the stored body.
+    ///
+    /// **Changed (2.1.0).** The payload digest is calculated after HTTP transfer decoding.
+    /// The stored HTTP bytes are written as-is.
     ///
     /// Does not explicitly start or end compression members. If you are writing into a
     /// [`crate::stream_io::traits::WarcWrite`] that supports multi-member streams, it's up to the
@@ -1184,6 +1285,10 @@ impl WarcRecord {
     /// [`crate::stream_io::traits::WarcWrite`] that supports multi-member streams, it's up to the
     /// user to call [`crate::stream_io::traits::WarcWrite::finish()`] afterwards.
     ///
+    /// **Changed (Unreleased).** HTTP payload digests are calculated after transfer decoding, with any content
+    /// encoding still applied. The stored HTTP bytes are written as-is.
+    /// Use [`Self::write_with_block_size_checksum_opts()`] with `decode_transfer = false` to hash the body as stored.
+    ///
     /// # Arguments
     ///
     /// * `writer` - Output stream
@@ -1199,6 +1304,32 @@ impl WarcRecord {
         chunk_size: usize,
         checksum_data: bool,
     ) -> io::Result<usize> {
+        self.write_with_block_size_checksum_opts(writer, chunk_size, checksum_data, true)
+    }
+
+    /// Write WARC record onto a stream with a given block size and calculate SHA-1 record checksums.
+    ///
+    /// Parse the HTTP headers with [`Self::parse_http()`] to generate a payload digest.
+    /// With transfer decoding enabled, the payload digest covers the transfer-decoded bytes.
+    /// The written record and its block digest use the stored HTTP bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Output stream
+    /// * `chunk_size` - Chunk size for writing the record body
+    /// * `checksum_data` - Whether to generate SHA-1 block and payload digests
+    /// * `decode_transfer` - Apply HTTP transfer decoding when generating the payload digest
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written.
+    pub fn write_with_block_size_checksum_opts<W: io::Write>(
+        &mut self,
+        writer: &mut W,
+        chunk_size: usize,
+        checksum_data: bool,
+        decode_transfer: bool,
+    ) -> io::Result<usize> {
         let mut bytes_written = 0usize;
         let http_header_len = if self.http_parsed {
             self.http_headers.as_ref().map_or(0usize, |h| {
@@ -1208,11 +1339,18 @@ impl WarcRecord {
         } else {
             0
         };
-        let block_content_length = self.content_length as usize + http_header_len;
-
         if checksum_data {
+            let decoders = if decode_transfer && self.http_headers.is_some() {
+                if self.http_decoding != AutoDecode::None {
+                    return Err(io::Error::other("Parse HTTP without auto-decoding before writing checksums"));
+                }
+                PayloadDecoder::from_header(self.http_headers.as_ref(), true)?
+            } else {
+                Vec::new()
+            };
             self.freeze()?;
             let reader = get_reader_mut!(self).ok_or_else(|| io::Error::other("No reader set"))?;
+            reader.rewind()?;
 
             use data_encoding::BASE32;
             use sha1::Sha1;
@@ -1227,16 +1365,20 @@ impl WarcRecord {
                 Digest::update(&mut block_digest, &buf);
             }
 
-            let mut payload_buf = [0u8; 4096];
-            loop {
-                let n = reader.read(&mut payload_buf)?;
-                if n == 0 {
-                    break;
+            let result = update_digest(reader, |bytes| {
+                Digest::update(&mut block_digest, bytes);
+                if decoders.is_empty()
+                    && let Some(d) = &mut payload_digest
+                {
+                    Digest::update(d, bytes);
                 }
-                Digest::update(&mut block_digest, &payload_buf[..n]);
-                if let Some(d) = &mut payload_digest {
-                    Digest::update(d, &payload_buf[..n]);
-                }
+            });
+            let restore = reader.rewind();
+            result.and(restore)?;
+            if !decoders.is_empty()
+                && let Some(d) = &mut payload_digest
+            {
+                self.digest_transfer_encoded_payload(&decoders, false, |bytes| Digest::update(d, bytes))?;
             }
 
             if let Some(d) = payload_digest {
@@ -1247,13 +1389,12 @@ impl WarcRecord {
             let block_digest = format!("sha1:{}", BASE32.encode(&block_digest.finalize()));
             self.headers
                 .set_bytes(WarcHeader::WarcBlockDigest, block_digest.as_bytes());
-            reader.rewind()?;
         }
 
         let reader = get_reader_mut!(self).ok_or_else(|| io::Error::other("No reader set"))?;
 
         // Ensure Content-Length is correct
-        let block_content_length = block_content_length.to_string();
+        let block_content_length = (self.content_length + http_header_len as u64).to_string();
         if self.headers.get_bytes(WarcHeader::ContentLength).as_deref() != Some(block_content_length.as_bytes()) {
             self.headers
                 .set_bytes(WarcHeader::ContentLength, block_content_length.as_bytes());
@@ -1303,13 +1444,17 @@ impl WarcRecord {
             .get(WarcHeader::WarcBlockDigest)
             .ok_or_else(|| DigestError::Missing(WarcHeader::WarcBlockDigest.as_str().to_string()))?
             .to_string();
-        self._verify_digest(&digest, consume)
+        self.verify_digest(&digest, consume, &[])
     }
 
     /// Verify whether the record's `WARC-Payload-Digest` matches its local HTTP payload.
     ///
     /// Parse the HTTP headers before calling this method. Revisit payloads require
     /// interpreting the revisit profile and may come from another record.
+    ///
+    /// **Changed (Unreleased).** The digest covers the body after transfer decoding, with any content encoding
+    /// still applied.
+    /// Use [`Self::verify_payload_digest_with_opts()`] with `decode_transfer = false` to skip transfer decoding.
     ///
     /// # Arguments
     ///
@@ -1320,8 +1465,31 @@ impl WarcRecord {
     ///
     /// Whether the digest matches, or an error if the digest is missing, unsupported,
     /// malformed, or could not be read. Returns [`DigestError::NoPayload`] for revisits
-    /// and records without a parsed HTTP payload.
+    /// and records without a parsed HTTP payload or whose content encoding has already been decoded.
     pub fn verify_payload_digest(&mut self, consume: bool) -> Result<bool, DigestError> {
+        self.verify_payload_digest_with_opts(consume, true)
+    }
+
+    /// Verify whether the record's `WARC-Payload-Digest` matches its local HTTP payload.
+    ///
+    /// Parse the HTTP headers first. With transfer decoding enabled, verification
+    /// uses the transfer-decoded body with any content encoding still applied.
+    /// If HTTP parsing already decoded the transfer encoding, verification uses
+    /// that body directly. Verify before applying any content decoding.
+    ///
+    /// # Arguments
+    ///
+    /// * `consume` - Consume the remaining payload without copying it into memory
+    /// * `decode_transfer` - Apply any remaining HTTP transfer decoding for the digest
+    ///
+    /// # Returns
+    ///
+    /// Whether the digest matches, or an error if verification is unavailable.
+    pub fn verify_payload_digest_with_opts(
+        &mut self,
+        consume: bool,
+        decode_transfer: bool,
+    ) -> Result<bool, DigestError> {
         if self.record_type == WarcRecordType::Revisit {
             return Err(DigestError::NoPayload("Revisit payload requires profile-specific resolution".into()));
         }
@@ -1334,11 +1502,24 @@ impl WarcRecord {
             .get(WarcHeader::WarcPayloadDigest)
             .ok_or_else(|| DigestError::Missing(WarcHeader::WarcPayloadDigest.as_str().to_string()))?
             .to_string();
-        self._verify_digest(&digest, consume)
+        let decoders = match self.http_decoding {
+            AutoDecode::ContentEncoding | AutoDecode::All => {
+                return Err(DigestError::NoPayload("HTTP content encoding has already been decoded".into()));
+            }
+            AutoDecode::None if decode_transfer => PayloadDecoder::from_header(self.http_headers.as_ref(), true)
+                .map_err(|e| DigestError::StreamError(e.to_string()))?,
+            _ => Vec::new(),
+        };
+        self.verify_digest(&digest, consume, &decoders)
     }
 
     /// Internal helper for verifying digests.
-    fn _verify_digest(&mut self, digest_str: &str, consume: bool) -> Result<bool, DigestError> {
+    fn verify_digest(
+        &mut self,
+        digest_str: &str,
+        consume: bool,
+        decoders: &[PayloadDecoder],
+    ) -> Result<bool, DigestError> {
         let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
         if parts.len() != 2 {
             return Err(DigestError::FormatError("Invalid digest header formatting (':' not found)".into()));
@@ -1358,9 +1539,17 @@ impl WarcRecord {
             },
         };
 
-        if !consume && !self.is_frozen() {
+        let mut digest = _get_digest(&algorithm)?;
+        if !consume {
             self.freeze()
                 .map_err(|e| DigestError::StreamError(format!("Failed to freeze record: {}", e)))?;
+        }
+
+        let stream_error = |e| DigestError::StreamError(format!("Failed to read stream: {e}"));
+        if !decoders.is_empty() {
+            self.digest_transfer_encoded_payload(decoders, consume, |bytes| digest.update(bytes))
+                .map_err(stream_error)?;
+            return Ok(digest.finalize().as_ref() == expected_digest);
         }
 
         let reader = get_reader_mut!(self).ok_or_else(|| DigestError::StreamError("No reader set".into()))?;
@@ -1374,24 +1563,15 @@ impl WarcRecord {
             )
         };
 
-        let mut digest = _get_digest(&algorithm)?;
-        let mut buf = [0u8; 4096];
-        loop {
-            let n = reader
-                .read(&mut buf)
-                .map_err(|e| DigestError::StreamError(format!("Failed to read stream: {}", e)))?;
-            if n == 0 {
-                break;
-            }
-            digest.update(&buf[..n]);
-        }
+        let result = update_digest(reader, |bytes| digest.update(bytes)).map_err(stream_error);
         if let Some(restore_pos) = restore_pos {
             reader
                 .seek(io::SeekFrom::Start(restore_pos))
                 .map_err(|e| DigestError::StreamError(format!("Failed to seek stream: {}", e)))?;
         }
 
-        Ok(digest.finalize().to_vec() == expected_digest)
+        result?;
+        Ok(digest.finalize().as_ref() == expected_digest)
     }
 
     /// Internal next() implementation

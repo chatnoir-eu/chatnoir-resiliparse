@@ -215,9 +215,8 @@
 //!
 //! * An HTTP header parse failure on an already-framed record is **recoverable**. The error is
 //!   reported and the stream continues.
-//! * An HTTP payload decoder setup failure (e.g. an unsupported `Content-Encoding` with
-//!   auto-decoding enabled) is **non-recoverable**: decoder setup consumes the record's reader,
-//!   so the stream cannot advance past the record and ends after the error.
+//! * Unsupported HTTP encodings are recoverable when auto-decoding is enabled. The server
+//!   reports the error and advances to the next record.
 //! * A WARC framing failure (invalid header, truncated stream) is **non-recoverable** and ends
 //!   the response stream.
 //! * A payload read failure after `record_start` was sent is **non-recoverable**. The server

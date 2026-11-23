@@ -338,14 +338,15 @@ class WarcRecord:
 
     def verify_block_digest(self, consume: bool = False) -> bool: ...
 
-    def verify_payload_digest(self, consume: bool = False) -> bool: ...
+    def verify_payload_digest(self, consume: bool = False, decode_transfer: bool = True) -> bool: ...
 
     def write(
             self,
             stream: WarcWriter | BinaryIO | _GenericWriter,
             checksum_data: bool = False,
             payload_digest: bytes | None = None,
-            chunk_size: int = 16384
+            chunk_size: int = 16384,
+            decode_transfer: bool = True,
     ) -> int: ...
 
     def __eq__(self, other, /) -> bool: ...

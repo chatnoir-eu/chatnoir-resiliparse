@@ -50,6 +50,26 @@ def invoke(*arguments):
     return result
 
 
+@pytest.mark.parametrize('body, write_options, check_options', [
+    pytest.param(b'5\r\nhello\r\n0\r\n\r\n', {}, (), id='chunked'),
+    pytest.param(b'hello', {'decode_transfer': False}, ('--no-decode-transfer',), id='stale-header'),
+])
+def test_check_decode_transfer(tmp_path, body, write_options, check_options):
+    record = WarcRecord()
+    record.init_headers(WarcRecordType.response, b'uuid:cli-chunked')
+    record.is_http = True
+    record.set_bytes_payload(b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n' + body)
+    record.parse_http()
+    source = tmp_path / 'chunked.warc'
+    with source.open('wb') as output:
+        record.write(output, checksum_data=True, **write_options)
+
+    assert next(iter(ArchiveIterator(io.BytesIO(source.read_bytes())))).reader.read() == body
+    details = tmp_path / 'check.txt'
+    invoke('check', source, '--verify-payloads', *check_options, '-o', details)
+    assert details.read_text().strip() == '<urn:uuid:cli-chunked>: OK, PAYLOAD_OK'
+
+
 def snapshot(source):
     return [(record.record_id, record.reader.read()) for record in ArchiveIterator(source, parse_http=False)]
 

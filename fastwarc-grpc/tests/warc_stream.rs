@@ -555,9 +555,8 @@ async fn filtered_record_type_skips_http_parse_failure() {
     );
 }
 
-/// Decoder setup failures stop parsing without a second framing error.
 #[tokio::test]
-async fn decoder_setup_failure_is_non_recoverable() {
+async fn unsupported_http_encoding_is_recoverable() {
     use std::io::Write;
 
     let http = "HTTP/1.1 200 OK\r\nContent-Encoding: x-unsupported\r\nContent-Length: 4\r\n\r\nbody";
@@ -568,7 +567,7 @@ async fn decoder_setup_failure_is_non_recoverable() {
         http.len()
     )
     .unwrap();
-    // A following record that would be reachable if the stream could continue.
+    // The following record is still readable after decoder setup fails.
     write!(
         data,
         "WARC/1.0\r\nWARC-Type: resource\r\nWARC-Record-ID: <urn:uuid:bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb>\r\nWARC-Date: 2020-01-01T00:00:00Z\r\nContent-Length: 1\r\n\r\nZ\r\n\r\n"
@@ -596,9 +595,10 @@ async fn decoder_setup_failure_is_non_recoverable() {
     assert!(
         matches!(
             outcomes.as_slice(),
-            [RecordOutcome::Error(error)] if !error.recoverable
+            [RecordOutcome::Error(error), RecordOutcome::Record { metadata, payload, .. }] if error.recoverable
                 && error.message.contains("-Encoding: x-unsupported")
-                && !error.message.contains("No reader set")
+                && metadata.record_type == pb::WarcRecordType::Resource as i32
+                && payload.as_slice() == b"Z"
         ),
         "unexpected outcomes: {outcomes:?}"
     );

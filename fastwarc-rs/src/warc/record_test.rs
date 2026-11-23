@@ -716,6 +716,110 @@ fn serialize_preserves_byte_identical_headers_until_mutated() -> io::Result<()> 
     Ok(())
 }
 
+#[rstest]
+#[case::streaming(AutoDecode::None, true)]
+#[case::preserved(AutoDecode::None, false)]
+#[case::already_transfer_decoded(AutoDecode::TransferEncoding, false)]
+fn verify_transfer_decoded_payload(#[case] auto_decode: AutoDecode, #[case] consume: bool) -> io::Result<()> {
+    let mut gzip_writer = gzip::GzipWriter::new(Vec::new());
+    gzip_writer.write_all(b"Hello")?;
+    let entity = gzip_writer.into_inner()?;
+    let mut chunk_writer = chunked::ChunkedWriter::new(Vec::new());
+    chunk_writer.write_all(&entity)?;
+    let encoded = chunk_writer.into_inner()?;
+    let data = http_response_warc_data_encoded("<urn:uuid:chunked>", &encoded, Some("chunked"), Some("gzip"));
+    let next = http_response_warc_data("<urn:uuid:next>", "next");
+    let mut record = WarcRecord::from_reader(io::Cursor::new([data, next].concat()))?;
+    record.parse_http_with_decode(auto_decode)?;
+    let digest = format!("sha1:{}", BASE32.encode(&Sha1::digest(&entity)));
+    record.headers_mut().set(WarcHeader::WarcPayloadDigest, &digest);
+
+    assert!(record.verify_payload_digest(consume).unwrap());
+    if consume {
+        assert!(!record.is_frozen());
+    } else {
+        if auto_decode == AutoDecode::None {
+            assert!(!record.verify_payload_digest_with_opts(false, false).unwrap());
+        }
+        let mut remaining = Vec::new();
+        record.reader_mut().unwrap().read_to_end(&mut remaining)?;
+        assert_eq!(
+            remaining,
+            if auto_decode == AutoDecode::None {
+                encoded
+            } else {
+                entity
+            }
+        );
+    }
+    assert_eq!(record.next().unwrap()?.record_id().as_deref(), Some("<urn:uuid:next>"));
+    Ok(())
+}
+
+#[rstest]
+#[case::chunked(b"5\r\nHello\r\n0\r\n\r\n", true)]
+#[case::stale_header(b"Hello", false)]
+fn write_transfer_payload_digest(#[case] stored: &[u8], #[case] decode_transfer: bool) -> io::Result<()> {
+    let data = http_response_warc_data_encoded("<urn:uuid:write-transfer>", stored, Some("chunked"), None);
+    let mut record = WarcRecord::from_reader(io::Cursor::new(data))?;
+    record.parse_http()?;
+    let mut serialized = Vec::new();
+    if decode_transfer {
+        record.write_with_checksum(&mut serialized)?;
+    } else {
+        record.write_with_block_size_checksum_opts(&mut serialized, 2, true, false)?;
+    }
+    assert_eq!(
+        record.headers().get(WarcHeader::WarcPayloadDigest).unwrap(),
+        format!("sha1:{}", BASE32.encode(&Sha1::digest(b"Hello")))
+    );
+
+    let mut written = WarcRecord::from_bytes(serialized)?;
+    assert!(written.verify_block_digest(false).unwrap());
+    written.parse_http()?;
+    assert_eq!(written.http_headers().unwrap().get("Transfer-Encoding").as_deref(), Some("chunked"));
+    assert!(written.verify_payload_digest_with_opts(false, decode_transfer).unwrap());
+    let mut body = Vec::new();
+    written.reader_mut().unwrap().read_to_end(&mut body)?;
+    assert_eq!(body, stored);
+    Ok(())
+}
+
+#[test]
+fn invalid_transfer_encoding_preserves_payload_for_retry() -> io::Result<()> {
+    let data = http_response_warc_data_encoded("<urn:uuid:stale>", b"Hello", Some("chunked"), None);
+    let mut record = WarcRecord::from_bytes(data)?;
+    record.parse_http()?;
+    let digest = format!("sha1:{}", BASE32.encode(&Sha1::digest(b"Hello")));
+    record.headers_mut().set(WarcHeader::WarcPayloadDigest, &digest);
+    assert!(matches!(record.verify_payload_digest(false), Err(DigestError::StreamError(_))));
+    assert!(record.verify_payload_digest_with_opts(false, false).unwrap());
+    let mut serialized = Vec::new();
+    assert!(record.write_with_checksum(&mut serialized).is_err());
+    assert!(serialized.is_empty());
+    record.write_with_block_size_checksum_opts(&mut serialized, 2, true, false)?;
+    assert!(serialized.ends_with(b"Hello\r\n\r\n"));
+    Ok(())
+}
+
+#[rstest]
+fn verify_payload_after_content_decoding(#[values(true, false)] decode_transfer: bool) -> io::Result<()> {
+    let mut gzip_writer = gzip::GzipWriter::new(Vec::new());
+    gzip_writer.write_all(b"Hello")?;
+    let entity = gzip_writer.into_inner()?;
+    let data = http_response_warc_data_encoded("<urn:uuid:gzip>", &entity, None, Some("gzip"));
+    let mut record = WarcRecord::from_bytes(data)?;
+    record.parse_http_with_decode(AutoDecode::ContentEncoding)?;
+    let digest = format!("sha1:{}", BASE32.encode(&Sha1::digest(&entity)));
+    record.headers_mut().set(WarcHeader::WarcPayloadDigest, &digest);
+
+    assert!(matches!(
+        record.verify_payload_digest_with_opts(false, decode_transfer),
+        Err(DigestError::NoPayload(_))
+    ));
+    Ok(())
+}
+
 #[test]
 fn verify_record_digests() -> io::Result<()> {
     let payload = b"ABC".to_vec();

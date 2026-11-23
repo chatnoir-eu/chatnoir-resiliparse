@@ -361,6 +361,11 @@
 //! Keep in mind that the block verification will fail if the reader has been (partially) consumed, so automatic
 //! HTTP parsing has to be turned off for this to work.
 //!
+//! Payload verification decodes HTTP transfer encoding by default and keeps any content encoding applied.
+//! Verify before decoding HTTP content encoding. To hash the stored body, for example when a crawler removed
+//! the transfer coding but kept its header, use
+//! [`verify_payload_digest_with_opts(false, false)`](warc::record::WarcRecord::verify_payload_digest_with_opts).
+//!
 //! > **Warning:** Calling either of these two methods will create an in-memory copy of the remaining record stream to
 //! > preserve its contents for further processing (if `consume` is set to `false`). That's why verifying the HTTP
 //! > payload digest after verifying the block digest worked in the first place. If your records are very large, you
@@ -449,6 +454,11 @@
 //!
 //! You can also use [`WarcRecord::write_with_checksum()`](warc::record::WarcRecord::write_with_checksum) to automatically
 //! calculate and write SHA-1 checksums of the record contents and HTTP payload (if available).
+//! To generate an HTTP payload digest, parse the HTTP headers without auto-decoding before writing. The payload digest
+//! covers the transfer-decoded body with any content encoding still applied. The written block and its checksum use
+//! the stored HTTP bytes. Pass `decode_transfer = false` to
+//! [`WarcRecord::write_with_block_size_checksum_opts()`](warc::record::WarcRecord::write_with_block_size_checksum_opts)
+//! to hash the stored body for the payload digest.
 //!
 //! ## Write Compressed WARCs
 //! Compressed WARC files consist of a series frames (or members in Gzip lingo) that can individually be decompressed,

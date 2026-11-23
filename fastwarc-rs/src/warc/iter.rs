@@ -492,6 +492,8 @@ pub mod filter {
 
     /// Filter predicate for checking if a record's WARC-Payload-Digest is valid.
     /// This is a mutating filter that freezes the record!
+    ///
+    /// **Changed (2.1.0).** The filter verifies the payload digest after HTTP transfer decoding.
     #[inline]
     pub fn has_valid_payload_digest(record: &mut WarcRecord) -> bool {
         record.verify_payload_digest(false).unwrap_or(false)

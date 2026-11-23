@@ -384,6 +384,12 @@ Note that :meth:`~.WarcRecord.verify_block_digest` and :meth:`~.WarcRecord.verif
 verification will fail if the reader has been (partially) consumed, so automatic HTTP parsing has to be turned off for
 this to work.
 
+Payload digest verification decodes HTTP transfer encoding by default and keeps any content encoding applied.
+Verify before decoding the HTTP content encoding. To hash the stored body, for example when the archiver removed
+the transfer coding but left the original header, pass ``decode_transfer=False`` to
+:meth:`~.WarcRecord.verify_payload_digest`. On the command line, ``fastwarc check --verify-payloads`` uses the same
+default. Add ``--no-decode-transfer`` to hash the stored body.
+
 .. warning::
 
   Calling either of these two methods will create an in-memory copy of the remaining record stream to preserve its
@@ -469,6 +475,11 @@ Instead of constructing the record manually, you can also parse an existing byte
 
 You can also use :meth:`.WarcRecord.write` with ``checksum_data=True`` to automatically calculate and write SHA-1
 checksums of the record contents and HTTP payload (if available).
+
+To generate an HTTP payload digest, call ``record.parse_http()`` before writing. By default, the payload digest
+covers the transfer-decoded body with any content encoding still applied. The written block and its block digest
+use the stored HTTP headers and body. Pass ``decode_transfer=False`` to generate the payload digest from the stored
+body.
 
 Write Compressed WARCs
 ^^^^^^^^^^^^^^^^^^^^^^

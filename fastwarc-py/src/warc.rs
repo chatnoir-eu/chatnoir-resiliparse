@@ -1260,14 +1260,20 @@ impl WarcRecordPy {
     ///
     /// Parse HTTP headers first with :meth:`parse_http`. Revisit payloads require
     /// interpreting the revisit profile and may come from another record.
+    /// Verify before decoding HTTP content encoding.
+    ///
+    /// .. versionchanged:: 2.1.0
+    ///    Verification decodes HTTP transfer encoding by default. Pass ``decode_transfer=False``
+    ///    to verify against the stored bytes.
     ///
     /// :param consume: Consume the remaining payload instead of preserving it
+    /// :param decode_transfer: Decode HTTP transfer encoding for the digest (default: ``True``)
     /// :return: Whether the digest matches. Returns ``False`` when verification is unavailable,
-    ///     including for revisit records and missing or invalid digest metadata.
+    ///          including for revisit records and missing or invalid digest metadata.
     /// :raise OSError: If reading the payload fails
-    #[pyo3(signature = (consume=false))]
-    pub fn verify_payload_digest(&mut self, consume: bool) -> PyResult<bool> {
-        match self.lock().verify_payload_digest(consume) {
+    #[pyo3(signature = (consume=false, decode_transfer=true))]
+    pub fn verify_payload_digest(&mut self, consume: bool, decode_transfer: bool) -> PyResult<bool> {
+        match self.lock().verify_payload_digest_with_opts(consume, decode_transfer) {
             Ok(valid) => Ok(valid),
             Err(StreamError(e)) => Err(PyOSError::new_err(e.to_string())),
             Err(_) => Ok(false),
@@ -1276,13 +1282,21 @@ impl WarcRecordPy {
 
     /// Write this record to a stream.
     ///
+    /// Parse HTTP headers with auto-decoding disabled to generate a payload digest
+    /// while preserving the stored HTTP block.
+    ///
+    /// .. versionchanged:: Unreleased
+    ///    When generating a payload digest, HTTP transfer encoding is decoded by default.
+    ///    The stored HTTP bytes are written as-is. Pass ``decode_transfer=False`` to hash those bytes.
+    ///
     /// :param stream: Output stream
     /// :param checksum_data: Calculate and add block and payload digests
     /// :param payload_digest: Optional SHA-1 payload digest bytes
     /// :param chunk_size: Write block size
+    /// :param decode_transfer: Decode HTTP transfer encoding when generating the payload digest (default: ``True``)
     /// :return: Number of bytes written
     /// :raise OSError: If the record stream operation fails
-    #[pyo3(signature = (stream, checksum_data=false, payload_digest=None, chunk_size=16384))]
+    #[pyo3(signature = (stream, checksum_data=false, payload_digest=None, chunk_size=16384, decode_transfer=true))]
     pub fn write<'py>(
         &mut self,
         py: Python<'py>,
@@ -1290,6 +1304,7 @@ impl WarcRecordPy {
         checksum_data: bool,
         payload_digest: Option<&[u8]>,
         chunk_size: usize,
+        decode_transfer: bool,
     ) -> PyResult<usize> {
         if let Some(payload_digest) = payload_digest {
             let encoded = py
@@ -1313,12 +1328,9 @@ impl WarcRecordPy {
         };
 
         let mut writer = PyWriterAdapter::new(stream.clone().unbind())?;
-        let bytes_written = if checksum_data {
+        let bytes_written =
             self.lock()
-                .write_with_block_size_checksum(&mut writer, chunk_size, true)?
-        } else {
-            self.lock().write_with_block_size(&mut writer, chunk_size)?
-        };
+                .write_with_block_size_checksum_opts(&mut writer, chunk_size, checksum_data, decode_transfer)?;
 
         // Call legacy shim end_member and calculate bytes written.
         // TODO: Remove when shims are removed.
@@ -1731,6 +1743,9 @@ pub fn has_payload_digest_py(record: &WarcRecordPy) -> bool {
 }
 
 /// Filter predicate for checking if a record has a valid payload digest.
+///
+/// .. versionchanged:: Unreleased
+///    The filter verifies the payload digest after HTTP transfer decoding.
 ///
 /// :param record: WARC record
 #[pyfunction(name = "has_valid_payload_digest")]

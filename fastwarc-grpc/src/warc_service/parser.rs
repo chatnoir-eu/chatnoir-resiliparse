@@ -66,7 +66,7 @@ impl PendingPayload {
 
 /// Parses records and emits start, payload, and end events.
 /// HTTP header failures are recoverable while the record retains its reader.
-/// Framing, decoder setup, and payload read failures stop parsing.
+/// Framing failures and failures while streaming a payload stop parsing.
 pub(super) fn parse_into(
     reader: impl IntoWarcReader,
     config: &pb::ParseWarcConfig,
