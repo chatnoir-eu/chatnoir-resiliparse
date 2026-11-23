@@ -14,9 +14,13 @@ Resiliparse provides :func:`~.parse.http.read_http_chunk` for reading individual
 When reading WARC records, :ref:`FastWARC <fastwarc-manual>` decodes transfer encodings by default.
 Use ``ArchiveIterator(..., auto_decode='none')`` to read the stored bytes.
 
-The function accepts a binary file-like object that implements both ``readline()`` and ``read(size)``, such as
+The function accepts a binary file-like object that implements ``read(size)``, such as
 :class:`io.BytesIO`, and is supposed to be called iteratively until no further
 output is produced. Each call will return a single chunk, which can be concatenated with the previous chunks:
+
+Chunk extensions and trailers are consumed. Each chunk is limited to 16 MiB and each framing line to 32 KiB.
+The iterator also limits cumulative framing overhead to 64 KiB plus eight bytes per decoded byte. Each standalone
+call starts a new framing budget.
 
 .. code-block:: python
 

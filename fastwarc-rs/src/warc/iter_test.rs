@@ -158,7 +158,12 @@ fn archive_iterator_inplace() -> io::Result<()> {
 #[case::partial(1)]
 #[case::complete(3)]
 fn archive_iterator_inplace_after_http_decoding(#[case] read_length: usize) -> io::Result<()> {
-    let first = http_response_warc_data_encoded("<urn:uuid:encoded>", b"3\r\nabc\r\n0\r\n\r\n", Some("chunked"), None);
+    let first = http_response_warc_data_encoded(
+        "<urn:uuid:encoded>",
+        b"3;foo=bar\r\nabc\r\n0\r\nX-Trailer: value\r\n\r\n",
+        Some("chunked"),
+        None,
+    );
     let second = warc_record_data("resource", "<urn:uuid:next>", None, b"NEXT");
     let mut iterator =
         ArchiveIterator::new(io::Cursor::new([first.as_slice(), second.as_slice()].concat())).with_inplace(true);

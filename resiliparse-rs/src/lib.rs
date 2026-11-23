@@ -304,7 +304,7 @@
 //!
 //! # HTTP Tools
 //!
-//! FastWARC preserves HTTP payload bytes and does not automatically decode chunked transfer encoding. When the payload
+//! FastWARC decodes HTTP transfer encoding by default. When a payload
 //! is still chunked, [`read_http_chunk`](parse::http::read_http_chunk) accepts any `std::io::BufRead` positioned at the
 //! first chunk-size line. It returns one chunk per call; an empty vector signals termination. I/O errors propagate.
 //!

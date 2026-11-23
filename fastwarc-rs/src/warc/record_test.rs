@@ -757,7 +757,7 @@ fn verify_transfer_decoded_payload(#[case] auto_decode: AutoDecode, #[case] cons
 }
 
 #[rstest]
-#[case::chunked(b"5\r\nHello\r\n0\r\n\r\n", true)]
+#[case::chunked(b"5;key=value\r\nHello\r\n0\r\nX-Test: value\r\n\r\n", true)]
 #[case::stale_header(b"Hello", false)]
 fn write_transfer_payload_digest(#[case] stored: &[u8], #[case] decode_transfer: bool) -> io::Result<()> {
     let data = http_response_warc_data_encoded("<urn:uuid:write-transfer>", stored, Some("chunked"), None);

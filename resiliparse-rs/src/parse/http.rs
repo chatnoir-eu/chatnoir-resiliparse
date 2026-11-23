@@ -17,9 +17,8 @@
 //! Call [`read_http_chunk`] repeatedly and concatenate its nonempty results, or
 //! use [`iterate_http_chunks`] to consume chunks lazily. Both accept buffered
 //! byte readers and preserve payload bytes without decoding them as text.
-//! Parsing follows the permissive legacy helper rather than strictly validating
-//! HTTP chunk framing. These functions do not parse HTTP response headers or
-//! apply content decompression.
+//! Chunk extensions and trailers are consumed with bounded framing overhead.
+//! These functions do not parse HTTP response headers or apply content decompression.
 
 use std::io::{self, BufRead, Read};
 
@@ -82,16 +81,12 @@ pub fn chunk_size(header: &[u8]) -> usize {
 
 /// Read the next chunk from an HTTP payload with chunked transfer encoding.
 ///
-/// Reads a size line through its next LF and interprets it with [`chunk_size`].
-/// It then reads up to the declared size plus two delimiter bytes, returning at
-/// most the declared payload length. The delimiter is discarded without checking
-/// for CRLF. If EOF truncates the chunk, any available payload bytes are returned
-/// rather than reporting an incomplete-frame error.
+/// **Changed (2.1.0).** Reads chunk extensions and consumes trailers after the final chunk.
+/// Chunk sizes are limited to 16 MiB, framing lines to 32 KiB, and framing
+/// overhead to 64 KiB plus eight bytes per decoded byte.
 ///
-/// An empty vector signals a zero-sized chunk, an invalid size parsed as zero,
-/// or EOF before any payload bytes can be read. Callers should stop on that
-/// result. Two bytes after a zero-sized header are still consumed if available;
-/// HTTP trailer headers are not parsed or skipped as a block.
+/// Each standalone call starts a new framing budget. Use
+/// [`HttpChunkDecoder`] or [`iterate_http_chunks`] for a cumulative limit.
 ///
 /// # Arguments
 ///
@@ -100,8 +95,7 @@ pub fn chunk_size(header: &[u8]) -> usize {
 ///
 /// # Errors
 ///
-/// Propagates errors from the underlying reader. Malformed framing alone is not
-/// reported as an I/O error.
+/// Returns an error for malformed or truncated framing, exceeded limits, or reader errors.
 ///
 /// # Examples
 ///
@@ -115,25 +109,90 @@ pub fn chunk_size(header: &[u8]) -> usize {
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn read_http_chunk<R: BufRead>(reader: &mut R) -> io::Result<Vec<u8>> {
-    let mut header = Vec::new();
-    reader.read_until(b'\n', &mut header)?;
-    let size = chunk_size(&header);
-    let mut data = Vec::new();
-    reader.take(size.wrapping_add(2) as u64).read_to_end(&mut data)?;
-    data.truncate(size);
-    Ok(data)
+    HttpChunkDecoder::default().read_chunk(reader)
+}
+
+/// Incremental HTTP chunk decoder.
+///
+/// Limits framing to 32 KiB per line and 64 KiB plus eight bytes per decoded byte.
+/// Each returned chunk is limited to 16 MiB.
+#[derive(Default)]
+pub struct HttpChunkDecoder {
+    framing_bytes: u64,
+    payload_bytes: u64,
+    finished: bool,
+}
+
+impl HttpChunkDecoder {
+    /// Read a framing line with bounded overhead.
+    fn read_line<R: BufRead>(&mut self, reader: &mut R) -> io::Result<Vec<u8>> {
+        let budget = (64 * 1024u64).saturating_add(self.payload_bytes.saturating_mul(8));
+        let remaining = budget.saturating_sub(self.framing_bytes).min(32 * 1024);
+        let mut line = Vec::new();
+        let count = reader.take(remaining + 1).read_until(b'\n', &mut line)?;
+        self.framing_bytes = self.framing_bytes.saturating_add(count as u64);
+        if count as u64 > remaining {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "HTTP chunk framing limit exceeded"));
+        }
+        if !line.ends_with(b"\r\n") {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Incomplete HTTP chunk framing"));
+        }
+        Ok(line)
+    }
+
+    /// Read one chunk while retaining the cumulative framing budget.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Buffered stream positioned at the next chunk
+    ///
+    /// # Returns
+    ///
+    /// Chunk bytes, or an empty vector after the final chunk and trailers.
+    pub fn read_chunk<R: BufRead>(&mut self, reader: &mut R) -> io::Result<Vec<u8>> {
+        if self.finished {
+            return Ok(Vec::new());
+        }
+        let header = self.read_line(reader)?;
+        let size = header[..header.len() - 2]
+            .split(|b| *b == b';')
+            .next()
+            .unwrap()
+            .trim_ascii();
+        let size = std::str::from_utf8(size)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk size"))?;
+        let size = usize::from_str_radix(size, 16)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk size"))?;
+        if size == 0 {
+            while self.read_line(reader)? != b"\r\n" {}
+            self.finished = true;
+            return Ok(Vec::new());
+        }
+        if size > 16 * 1024 * 1024 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "HTTP chunk size limit exceeded"));
+        }
+        let mut data = vec![0; size];
+        reader.read_exact(&mut data)?;
+        let mut delimiter = [0; 2];
+        reader.read_exact(&mut delimiter)?;
+        if delimiter != *b"\r\n" {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk terminator"));
+        }
+        self.payload_bytes = self.payload_bytes.saturating_add(size as u64);
+        self.framing_bytes = self.framing_bytes.saturating_add(2);
+        Ok(data)
+    }
 }
 
 /// Lazily iterate over the chunks of an HTTP payload with chunked transfer encoding.
 ///
-/// Wraps [`read_http_chunk`] and yields each nonempty payload as `Ok(Vec<u8>)`.
+/// Yields each nonempty payload as `Ok(Vec<u8>)`.
 /// Construction does not read from the stream. The first empty chunk terminates
 /// iteration and is not yielded. An I/O error is yielded once as `Err`, after
 /// which the iterator stays exhausted. Empty-chunk and error termination both
 /// prevent subsequent attempts to read more bytes.
 ///
-/// The same permissive size parsing, delimiter handling, and truncated-payload
-/// behavior as [`read_http_chunk`] apply. Trailer headers are not processed.
+/// The cumulative framing limit applies across the entire stream.
 ///
 /// # Arguments
 ///
@@ -153,11 +212,12 @@ pub fn read_http_chunk<R: BufRead>(reader: &mut R) -> io::Result<Vec<u8>> {
 /// ```
 pub fn iterate_http_chunks<R: BufRead>(mut reader: R) -> impl Iterator<Item = io::Result<Vec<u8>>> {
     let mut done = false;
+    let mut decoder = HttpChunkDecoder::default();
     std::iter::from_fn(move || {
         if done {
             return None;
         }
-        match read_http_chunk(&mut reader) {
+        match decoder.read_chunk(&mut reader) {
             Ok(chunk) if chunk.is_empty() => {
                 done = true;
                 None

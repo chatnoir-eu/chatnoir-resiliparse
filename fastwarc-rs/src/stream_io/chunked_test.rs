@@ -20,6 +20,54 @@ use std::io::{Cursor, Read};
 // Fixed chunk size for testing.
 const CHUNK_SIZE: usize = 20;
 
+#[test]
+fn chunk_extensions_and_trailers() -> io::Result<()> {
+    let input = b"3;foo=\"a;b\"\r\nabc\r\n0;end\r\nX-Test: value\r\n\r\n";
+    let mut reader = ChunkedReader::new(Cursor::new(input));
+    let mut output = Vec::new();
+    reader.read_to_end(&mut output)?;
+    assert_eq!(output, b"abc");
+    assert_eq!(reader.read(&mut [0])?, 0);
+    reader.inner_seek(SeekFrom::Start(0))?;
+    output.clear();
+    reader.read_to_end(&mut output)?;
+    assert_eq!(output, b"abc");
+    Ok(())
+}
+
+#[test]
+fn chunk_framing_limit() {
+    // Repeated tiny chunks cannot accumulate unbounded extension overhead.
+    let chunk = format!("1;{}\r\nx\r\n", "a".repeat(1024));
+    let input = format!("{}0\r\n\r\n", chunk.repeat(100));
+    let mut reader = ChunkedReader::new(Cursor::new(input.into_bytes()));
+    assert_eq!(reader.read_to_end(&mut Vec::new()).unwrap_err().kind(), io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn chunk_line_limit() {
+    let input = format!("1;{}\r\nx\r\n0\r\n\r\n", "a".repeat(32 * 1024));
+    let mut reader = ChunkedReader::new(Cursor::new(input.into_bytes()));
+    assert_eq!(reader.read_to_end(&mut Vec::new()).unwrap_err().kind(), io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn chunk_inner_seek_clears_buffer() -> io::Result<()> {
+    let mut reader = ChunkedReader::new(Cursor::new(b"3\r\nabc\r\n0\r\n\r\n".to_vec()));
+    assert_eq!(reader.read(&mut [0])?, 1);
+    reader.inner_seek(SeekFrom::Start(0))?;
+    let mut output = Vec::new();
+    reader.read_to_end(&mut output)?;
+    assert_eq!(output, b"abc");
+    Ok(())
+}
+
+#[test]
+fn truncated_chunk_trailer() {
+    let mut reader = ChunkedReader::new(Cursor::new(b"0\r\nX-Test: value\r\n".to_vec()));
+    assert_eq!(reader.read_to_end(&mut Vec::new()).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+}
+
 fn chunk(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut reader = Cursor::new(data);
     let mut writer = Vec::new();

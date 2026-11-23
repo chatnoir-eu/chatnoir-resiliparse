@@ -2,9 +2,14 @@
 
 ## 2.1.0 (Unreleased)
 
+### Resiliparse
+
+- Validate chunk framing and bound chunk sizes and extension overhead in HTTP helpers.
+
 ### FastWARC
 
 - **Breaking:** Decode HTTP transfer encoding by default when reading records or calculating payload digests.
+- Decode HTTP chunk extensions and trailers with bounded framing overhead.
 - Rust: Return `DigestError::NoPayload` when verifying a revisit payload digest.
 - Python: Return `False` when a revisit payload digest cannot be verified locally.
 - Python: Skip revisit payload digests in `fastwarc check --verify-payloads`.

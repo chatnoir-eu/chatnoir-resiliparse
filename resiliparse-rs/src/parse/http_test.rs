@@ -27,10 +27,39 @@ fn binary_chunks_and_extensions_preserve_payload_bytes() {
 
 #[test]
 fn short_chunk_and_invalid_header_stop_without_fabricating_bytes() {
-    assert_eq!(read_http_chunk(&mut Cursor::new(b"5\r\nabc")).unwrap(), b"abc");
-    let mut reader = Cursor::new(b"invalid\r\nbody");
-    assert!(read_http_chunk(&mut reader).unwrap().is_empty());
-    assert_eq!(&reader.get_ref()[reader.position() as usize..], b"dy");
+    assert_eq!(read_http_chunk(&mut Cursor::new(b"5\r\nabc")).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+    assert_eq!(
+        read_http_chunk(&mut Cursor::new(b"invalid\r\nbody"))
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData
+    );
+}
+
+#[test]
+fn framing_limits_and_trailers() {
+    let mut reader = Cursor::new(b"1;ext=x\r\na\r\n0\r\nX-Test: value\r\n\r\nnext");
+    let chunks = iterate_http_chunks(&mut reader)
+        .collect::<io::Result<Vec<_>>>()
+        .unwrap();
+    assert_eq!(chunks, [b"a".to_vec()]);
+    assert_eq!(&reader.get_ref()[reader.position() as usize..], b"next");
+
+    let chunk = format!("1;{}\r\nx\r\n", "a".repeat(1024));
+    let input = format!("{}0\r\n\r\n", chunk.repeat(100));
+    assert_eq!(
+        iterate_http_chunks(Cursor::new(input))
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData
+    );
+}
+
+#[test]
+fn oversized_chunk_is_rejected() {
+    let mut reader = Cursor::new(b"1000001\r\n");
+    assert_eq!(read_http_chunk(&mut reader).unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
 
 #[test]

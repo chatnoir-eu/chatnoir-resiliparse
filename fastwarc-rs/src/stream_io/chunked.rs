@@ -23,6 +23,9 @@ use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
 // ===========================================================
 
 /// Reader for chunked HTTP streams.
+///
+/// Chunk extensions and trailers are discarded. Framing is limited to 32 KiB per line and
+/// a cumulative budget of 64 KiB plus eight bytes per decoded byte.
 pub struct ChunkedReader<T: ReadSeek> {
     inner: Option<TrackingBufReader<T>>,
     out_buf: Vec<u8>,
@@ -30,6 +33,8 @@ pub struct ChunkedReader<T: ReadSeek> {
     stream_pos: u64,
     chunk_size: usize,
     chunk_read: usize,
+    finished: bool,
+    framing_bytes: u64,
 }
 
 /// Options for constructing a new [`ChunkedReader`].
@@ -84,6 +89,8 @@ impl<T: ReadSeek> ChunkedReader<T> {
             stream_pos: 0,
             chunk_size: 0,
             chunk_read: 0,
+            finished: false,
+            framing_bytes: 0,
         }
     }
 
@@ -139,7 +146,11 @@ impl<T: ReadSeek> WarcRead for ChunkedReader<T> {
         let new_pos = self.inner.as_mut().unwrap().seek(pos)?;
         self.stream_pos = 0;
         self.chunk_size = 0;
+        self.chunk_read = 0;
+        self.out_buf.clear();
         self.out_buf_pos = 0;
+        self.finished = false;
+        self.framing_bytes = 0;
         Ok(new_pos)
     }
 
@@ -155,49 +166,74 @@ impl<T: ReadSeek> WarcRead for ChunkedReader<T> {
 }
 
 impl<T: ReadSeek> ChunkedReader<T> {
-    fn consume_chunk_end(&mut self) -> io::Result<()> {
-        let mut buf = [0u8; 2];
-        self.inner
+    /// Read a framing line within the cumulative overhead budget.
+    fn read_framing_line(&mut self) -> io::Result<Vec<u8>> {
+        let budget = (64 * 1024u64).saturating_add(self.stream_pos.saturating_mul(8));
+        let remaining = budget.saturating_sub(self.framing_bytes).min(32 * 1024);
+        let mut line = Vec::new();
+        let count = self
+            .inner
             .as_mut()
             .unwrap()
-            .read_exact(&mut buf)
-            .map_err(|_| io::ErrorKind::UnexpectedEof)?;
+            .take(remaining + 1)
+            .read_until(b'\n', &mut line)?;
+        self.framing_bytes = self.framing_bytes.saturating_add(count as u64);
+        if count as u64 > remaining {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "HTTP chunk framing limit exceeded"));
+        }
+        if count == 0 || !line.ends_with(b"\r\n") {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Incomplete HTTP chunk framing"));
+        }
+        Ok(line)
+    }
+
+    fn consume_chunk_end(&mut self) -> io::Result<()> {
+        let mut buf = [0u8; 2];
+        self.inner.as_mut().unwrap().read_exact(&mut buf)?;
+        if buf != *b"\r\n" {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk terminator"));
+        }
+        self.framing_bytes = self.framing_bytes.saturating_add(2);
         self.chunk_read = 0;
         self.chunk_size = 0;
         Ok(())
     }
 }
+
 impl<T: ReadSeek> BufRead for ChunkedReader<T> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         if !self.out_buf[self.out_buf_pos..].is_empty() {
             return Ok(&self.out_buf[self.out_buf_pos..]);
         }
+        if self.finished {
+            return Ok(&[]);
+        }
         loop {
-            let inner = self.inner.as_mut().unwrap();
-
             // New chunk
             if self.chunk_read == self.chunk_size {
-                let mut header = Vec::with_capacity(8);
-                inner.read_until(b'\n', &mut header)?;
-                if header.is_empty() {
-                    return Ok(&self.out_buf[..0]);
-                }
-                let header = String::from_utf8_lossy(&header);
-                let header = header.trim_ascii();
-                self.chunk_size = usize::from_str_radix(header, 16).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("Invalid chunk header: '{}'", header))
-                })?;
+                let header = self.read_framing_line()?;
+                let size = header[..header.len() - 2]
+                    .split(|b| *b == b';')
+                    .next()
+                    .unwrap()
+                    .trim_ascii();
+                let size = std::str::from_utf8(size)
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk size"))?;
+                self.chunk_size = usize::from_str_radix(size, 16)
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP chunk size"))?;
 
                 // EOF
                 if self.chunk_size == 0 {
-                    self.consume_chunk_end()?;
-                    return Ok(&self.out_buf[..0]);
+                    while self.read_framing_line()? != b"\r\n" {}
+                    self.finished = true;
+                    return Ok(&[]);
                 }
             }
 
             // Within chunk
             if self.chunk_read < self.chunk_size {
                 let remaining = self.chunk_size - self.chunk_read;
+                let inner = self.inner.as_mut().unwrap();
                 let in_buf = inner.fill_buf()?;
                 let n = in_buf.len().min(remaining);
                 if n == 0 {

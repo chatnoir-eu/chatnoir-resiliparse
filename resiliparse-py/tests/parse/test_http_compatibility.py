@@ -1,4 +1,4 @@
-"""Synthetic HTTP chunk streams with fixed legacy output and reader positions."""
+"""Synthetic HTTP chunk streams with fixed output and reader positions."""
 import inspect
 from io import BytesIO
 
@@ -6,28 +6,13 @@ import pytest
 from resiliparse.parse.http import iterate_http_chunks, read_http_chunk
 
 CASES = [
-    pytest.param(b'', [], 0, id='empty'),
     pytest.param(b'0\r\n\r\n', [], 5, id='zero-chunk'),
     pytest.param(b'3\r\nabc\r\n0\r\n\r\nTRAILER', [b'abc'], 13, id='trailing-data'),
     pytest.param(b'3;extension=yes\r\nabc\r\n2\r\nde\r\n0\r\n\r\n', [b'abc', b'de'], 34, id='chunk-extension'),
     pytest.param(b'0A\r\n0123456789\r\n0\r\n\r\n', [b'0123456789'], 21, id='uppercase-size'),
     pytest.param(b'  +3\r\nabc\r\n0\r\n\r\n', [b'abc'], 16, id='signed-size-with-whitespace'),
-    pytest.param(b'0x3\r\nabc\r\n0\r\n\r\n', [b'abc'], 15, id='hex-prefix'),
-    pytest.param(b'3junk\r\nabc\r\n0\r\n\r\n', [b'abc'], 17, id='size-with-junk-suffix'),
-    pytest.param(b'nothex\r\nbody', [], 10, id='invalid-size'),
-    pytest.param(b'xyz\r\nbody', [], 7, id='invalid-hex'),
-    pytest.param(b'\r\nbody', [], 4, id='empty-header'),
-    pytest.param(b'3\r\nab', [b'ab'], 5, id='truncated-payload'),
-    pytest.param(b'3\r\nabc', [b'abc'], 6, id='missing-delimiter'),
-    pytest.param(b'3\r\nabcX', [b'abc'], 7, id='partial-delimiter'),
-    pytest.param(b'3\r\nabcXY0\r\n\r\n', [b'abc'], 13, id='unvalidated-delimiter'),
-    pytest.param(b'3\nabc\n0\n', [], 4, id='lf-only-header'),
-    pytest.param(b'3', [], 1, id='unterminated-size'),
-    pytest.param(b'f', [], 1, id='unterminated-hex-size'),
     pytest.param(b'3\r\n\x00\xff\x80\r\n0\r\n\r\n', [b'\x00\xff\x80'], 13, id='binary-payload'),
-    pytest.param(b'1\r\na\r\n0\r\nX-Trailer: value\r\n\r\n', [b'a'], 11, id='trailer-position'),
-    pytest.param(b'-1\r\nx', [], 5, id='negative-one'),
-    pytest.param(b'-2\r\nx', [], 4, id='negative-two'),
+    pytest.param(b'1\r\na\r\n0\r\nX-Trailer: value\r\n\r\n', [b'a'], 29, id='trailer-position'),
 ]
 
 
@@ -61,7 +46,7 @@ def test_http_iterator_is_lazy_and_stays_exhausted():
 
 def test_http_iterator_propagates_reader_errors_once():
     class BrokenReader:
-        def readline(self):
+        def read(self, size):
             raise OSError('synthetic reader failure')
 
     chunks = iterate_http_chunks(BrokenReader())
@@ -76,13 +61,43 @@ def test_native_http_module():
     assert read_http_chunk.__module__ == 'resiliparse.parse.http'
 
 
-def test_http_chunk_preserves_single_read_behavior():
+def test_http_chunk_retries_short_reads():
     class ShortReader(BytesIO):
         def read(self, size):
-            self.requested_size = size
             return super().read(min(size, 2))
 
     reader = ShortReader(b'3\r\nabc\r\n0\r\n\r\n')
-    assert read_http_chunk(reader) == b'ab'
-    assert reader.requested_size == 5
-    assert reader.tell() == 5
+    assert read_http_chunk(reader) == b'abc'
+    assert read_http_chunk(reader) == b''
+
+
+@pytest.mark.parametrize(('data', 'message', 'position'), [
+    pytest.param(b'', 'Incomplete HTTP chunk framing', 0, id='empty'),
+    pytest.param(b'0x3\r\nabc\r\n0\r\n\r\n', 'Invalid HTTP chunk size', 5, id='hex-prefix'),
+    pytest.param(b'3junk\r\nabc\r\n0\r\n\r\n', 'Invalid HTTP chunk size', 7, id='size-with-junk-suffix'),
+    pytest.param(b'nothex\r\nbody', 'Invalid HTTP chunk size', 8, id='invalid-size'),
+    pytest.param(b'xyz\r\nbody', 'Invalid HTTP chunk size', 5, id='invalid-hex'),
+    pytest.param(b'\r\nbody', 'Invalid HTTP chunk size', 2, id='empty-header'),
+    pytest.param(b'3\r\nab', 'failed to fill whole buffer', 5, id='truncated-payload'),
+    pytest.param(b'3\r\nabc', 'failed to fill whole buffer', 6, id='missing-delimiter'),
+    pytest.param(b'3\r\nabcX', 'failed to fill whole buffer', 7, id='partial-delimiter'),
+    pytest.param(b'3\r\nabcXY0\r\n\r\n', 'Invalid HTTP chunk terminator', 8, id='invalid-delimiter'),
+    pytest.param(b'3\nabc\n0\n', 'Incomplete HTTP chunk framing', 2, id='lf-only-header'),
+    pytest.param(b'3', 'Incomplete HTTP chunk framing', 1, id='unterminated-size'),
+    pytest.param(b'f', 'Incomplete HTTP chunk framing', 1, id='unterminated-hex-size'),
+    pytest.param(b'-1\r\nx', 'Invalid HTTP chunk size', 4, id='negative-one'),
+    pytest.param(b'-2\r\nx', 'Invalid HTTP chunk size', 4, id='negative-two'),
+    pytest.param(b'0\r\nX-Test: value\r\n', 'Incomplete HTTP chunk framing', 18, id='truncated-trailer'),
+])
+@pytest.mark.parametrize('use_iterator', [False, True], ids=['read', 'iterate'])
+def test_invalid_chunk_framing(data, message, position, use_iterator):
+    reader = BytesIO(data)
+    if use_iterator:
+        chunks = iterate_http_chunks(reader)
+        with pytest.raises(OSError, match=message):
+            list(chunks)
+        assert list(chunks) == []
+    else:
+        with pytest.raises(OSError, match=message):
+            read_http_chunk(reader)
+    assert reader.tell() == position
