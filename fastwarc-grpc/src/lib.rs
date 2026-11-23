@@ -190,6 +190,9 @@
 //! `include_payload`, `include_headers`, `response_batch_size`, and `archive_path`.
 //! Records that do not pass the filters are not returned.
 //!
+//! HTTP parsing decodes transfer encoding by default. Set `decode_http_payload` to
+//! `AUTO_DECODE_NONE` to receive the stored HTTP body.
+//!
 //! A non-zero `response_batch_size` groups multiple events in one gRPC message. Defaults and hard
 //! limits for these options live in [`defaults`].
 //!

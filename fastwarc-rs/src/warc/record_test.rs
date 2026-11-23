@@ -762,7 +762,7 @@ fn verify_transfer_decoded_payload(#[case] auto_decode: AutoDecode, #[case] cons
 fn write_transfer_payload_digest(#[case] stored: &[u8], #[case] decode_transfer: bool) -> io::Result<()> {
     let data = http_response_warc_data_encoded("<urn:uuid:write-transfer>", stored, Some("chunked"), None);
     let mut record = WarcRecord::from_reader(io::Cursor::new(data))?;
-    record.parse_http()?;
+    record.parse_http_with_decode(AutoDecode::None)?;
     let mut serialized = Vec::new();
     if decode_transfer {
         record.write_with_checksum(&mut serialized)?;
@@ -776,7 +776,7 @@ fn write_transfer_payload_digest(#[case] stored: &[u8], #[case] decode_transfer:
 
     let mut written = WarcRecord::from_bytes(serialized)?;
     assert!(written.verify_block_digest(false).unwrap());
-    written.parse_http()?;
+    written.parse_http_with_decode(AutoDecode::None)?;
     assert_eq!(written.http_headers().unwrap().get("Transfer-Encoding").as_deref(), Some("chunked"));
     assert!(written.verify_payload_digest_with_opts(false, decode_transfer).unwrap());
     let mut body = Vec::new();
@@ -789,7 +789,7 @@ fn write_transfer_payload_digest(#[case] stored: &[u8], #[case] decode_transfer:
 fn invalid_transfer_encoding_preserves_payload_for_retry() -> io::Result<()> {
     let data = http_response_warc_data_encoded("<urn:uuid:stale>", b"Hello", Some("chunked"), None);
     let mut record = WarcRecord::from_bytes(data)?;
-    record.parse_http()?;
+    record.parse_http_with_decode(AutoDecode::None)?;
     let digest = format!("sha1:{}", BASE32.encode(&Sha1::digest(b"Hello")));
     record.headers_mut().set(WarcHeader::WarcPayloadDigest, &digest);
     assert!(matches!(record.verify_payload_digest(false), Err(DigestError::StreamError(_))));
@@ -1160,7 +1160,7 @@ fn record_encoded_http_payload_frozen_record() -> io::Result<()> {
     rec.freeze()?;
 
     // Parse HTTP and decode content.
-    rec.parse_http_with_decode(AutoDecode::TransferEncoding)?;
+    rec.parse_http()?;
     let mut decoded = Vec::with_capacity(payload_raw.len());
     rec.reader_mut().unwrap().read_to_end(&mut decoded)?;
     assert_eq!(decoded, payload_raw);
@@ -1191,7 +1191,7 @@ fn record_encoded_http_payload_frozen_record() -> io::Result<()> {
     for r in ArchiveIterator::new(io::Cursor::new(record_data)).with_parse_http(false) {
         r?.with_mut(|r| -> io::Result<()> {
             r.freeze()?;
-            r.parse_http_with_decode(AutoDecode::TransferEncoding)?;
+            r.parse_http()?;
             let mut buf = Vec::with_capacity(r.content_length() as usize);
             r.reader_mut().unwrap().read_to_end(&mut buf)?;
             assert_eq!(buf, payload_raw);

@@ -4,13 +4,14 @@
 
 ### FastWARC
 
-- Decode HTTP transfer encoding by default when verifying or generating payload digests.
+- **Breaking:** Decode HTTP transfer encoding by default when reading records or calculating payload digests.
 - Rust: Return `DigestError::NoPayload` when verifying a revisit payload digest.
 - Python: Return `False` when a revisit payload digest cannot be verified locally.
 - Python: Skip revisit payload digests in `fastwarc check --verify-payloads`.
 
 ### FastWARC-gRPC
 
+- **Breaking:** Decode HTTP transfer encoding by default. Use `AUTO_DECODE_NONE` to read the stored body.
 - Report unsupported HTTP encodings as recoverable when auto-decoding is enabled.
 
 ## 2.0.1 (2026-11-04)

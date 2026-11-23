@@ -322,11 +322,11 @@ of the HTTP body. You can parse HTTP headers later on a per-record basis by call
 
 HTTP Payload Decoding
 ^^^^^^^^^^^^^^^^^^^^^
-HTTP parsing leaves transfer- and content-encoded payload bytes unchanged by default. Set ``auto_decode`` on
+HTTP parsing decodes transfer encoding by default and keeps any content encoding applied. Set ``auto_decode`` on
 :class:`.ArchiveIterator` or :meth:`.WarcRecord.parse_http` to choose which HTTP encoding layers to decode:
 
-* ``'none'``: preserve the encoded payload (default).
-* ``'transfer'``: decode ``Transfer-Encoding``, including chunked framing.
+* ``'none'``: preserve the stored payload.
+* ``'transfer'``: decode ``Transfer-Encoding``, including chunked framing (default).
 * ``'content'``: decode ``Content-Encoding``.
 * ``'all'``: decode both, in that order.
 
@@ -335,9 +335,11 @@ HTTP parsing leaves transfer- and content-encoded payload bytes unchanged by def
    for record in ArchiveIterator('warcfile.warc.gz', auto_decode='all'):
        body = record.reader.read()
 
-Decoding uses the original HTTP headers. Enable it only when the archived body still has the encodings declared by
-those headers. If parsing manually, select the decoding mode on the first call to ``parse_http()``; later calls do
-not reparse an already parsed record.
+Use ``auto_decode='none'`` if you need the stored payload bytes or the archiver removed transfer coding but left
+its header in place. If parsing manually, select the decoding mode on the first call to ``parse_http()``.
+
+.. versionchanged:: 2.1.0
+   HTTP transfer decoding is enabled by default.
 
 .. _freezing-records:
 
@@ -386,7 +388,7 @@ this to work.
 
 Payload digest verification decodes HTTP transfer encoding by default and keeps any content encoding applied.
 Verify before decoding the HTTP content encoding. To hash the stored body, for example when the archiver removed
-the transfer coding but left the original header, pass ``decode_transfer=False`` to
+the transfer coding but left the original header, parse with ``auto_decode='none'`` and pass ``decode_transfer=False`` to
 :meth:`~.WarcRecord.verify_payload_digest`. On the command line, ``fastwarc check --verify-payloads`` uses the same
 default. Add ``--no-decode-transfer`` to hash the stored body.
 
@@ -476,7 +478,8 @@ Instead of constructing the record manually, you can also parse an existing byte
 You can also use :meth:`.WarcRecord.write` with ``checksum_data=True`` to automatically calculate and write SHA-1
 checksums of the record contents and HTTP payload (if available).
 
-To generate an HTTP payload digest, call ``record.parse_http()`` before writing. By default, the payload digest
+To write a record with parsed HTTP headers, read it with ``auto_decode='none'`` to preserve the stored body.
+To generate an HTTP payload digest, also set ``checksum_data=True`` when writing. By default, the payload digest
 covers the transfer-decoded body with any content encoding still applied. The written block and its block digest
 use the stored HTTP headers and body. Pass ``decode_transfer=False`` to generate the payload digest from the stored
 body.

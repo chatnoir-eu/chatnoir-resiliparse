@@ -333,7 +333,7 @@ class WarcRecord:
 
     def parse_warc_headers(self, quirks_mode: bool = False, max_header_len: int = 32 << 10) -> int: ...
 
-    def parse_http(self, auto_decode: Literal['none', 'content', 'transfer', 'all'] = 'none',
+    def parse_http(self, auto_decode: Literal['none', 'content', 'transfer', 'all'] = 'transfer',
                    max_header_len: int = 32 << 10, quirks_mode: bool = False, *, strict_mode: bool = True): ...
 
     def verify_block_digest(self, consume: bool = False) -> bool: ...
@@ -376,7 +376,7 @@ class ArchiveIterator(Iterable[WarcRecord]):
             func_filter: Callable[[WarcRecord], bool] | None = None,
             verify_digests: bool = False,
             quirks_mode: bool = False,
-            auto_decode: Literal['none', 'content', 'transfer', 'all'] = 'none',
+            auto_decode: Literal['none', 'content', 'transfer', 'all'] = 'transfer',
             max_header_len: int = 32 << 10,
             stream_detect: bool = True,
             buffer_size: int = 64 << 10,

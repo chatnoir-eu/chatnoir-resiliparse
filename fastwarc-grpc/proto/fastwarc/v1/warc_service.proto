@@ -9,15 +9,17 @@ import "fastwarc/v1/warc.proto";
 // AutoDecode controls automatic decoding of HTTP transfer and content
 // encodings.
 enum AutoDecode {
-  // AUTO_DECODE_UNSPECIFIED leaves payload bytes untouched.
+  // AUTO_DECODE_UNSPECIFIED uses the default, which decodes transfer encodings only.
   AUTO_DECODE_UNSPECIFIED = 0;
-  // AUTO_DECODE_TRANSFER_ENCODING decodes transfer encodings only (chunked).
+  // AUTO_DECODE_TRANSFER_ENCODING decodes transfer encodings only.
   AUTO_DECODE_TRANSFER_ENCODING = 1;
   // AUTO_DECODE_CONTENT_ENCODING decodes content encodings only (gzip,
   // deflate, brotli, zstd).
   AUTO_DECODE_CONTENT_ENCODING = 2;
   // AUTO_DECODE_ALL decodes both transfer and content encodings.
   AUTO_DECODE_ALL = 3;
+  // AUTO_DECODE_NONE leaves the stored HTTP payload bytes untouched.
+  AUTO_DECODE_NONE = 4;
 }
 
 // BuiltinFilter selects FastWARC record filters. Custom predicates must run
@@ -72,7 +74,8 @@ message ParseWarcConfig {
   // leave HTTP headers in the record payload.
   optional bool parse_http = 1;
   // decode_http_payload selects automatic decoding of HTTP transfer and
-  // content encodings. Requires parse_http to take effect. When decoding is
+  // content encodings. Defaults to transfer decoding only. Requires parse_http
+  // to take effect. When decoding is
   // enabled, streamed payload bytes are the decoded view, not the raw
   // on-wire transfer/content-encoded bytes.
   AutoDecode decode_http_payload = 2;

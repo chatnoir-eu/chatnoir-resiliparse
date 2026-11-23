@@ -45,7 +45,7 @@ pub struct ArchiveIteratorImpl<R> {
 ///
 /// * `parse_http` - Automatically parse HTTP headers.
 /// * `decode_http_payload` - Automatically decode transfer- or content-encoded HTTP payloads.
-///   Requires `parse_http=true` to have an effect.
+///   Defaults to [`AutoDecode::TransferEncoding`]. Requires `parse_http=true` to have an effect.
 /// * `verify_digests` - Automatically verify record digest.
 /// * `quirks_mode` - Enable lenient record parsing, including LF-only header line endings.
 /// * `stream_detect` - Automatically detect the stream compression type. If enabled, automatically
@@ -70,7 +70,7 @@ impl Default for ArchiveIteratorOptions {
         Self {
             stream_detect: true,
             parse_http: true,
-            decode_http_payload: AutoDecode::None,
+            decode_http_payload: AutoDecode::TransferEncoding,
             verify_digests: false,
             quirks_mode: false,
             max_header_len: 32 << 10,

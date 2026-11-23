@@ -477,7 +477,8 @@ def test_warc_record_auto_decode_content_and_transfer():
         + b"\r\n"
         + chunked_payload
     )
-    transfer_record.parse_http(auto_decode="transfer", strict_mode=False)
+    transfer_record.parse_http()
+    assert pickle.loads(pickle.dumps(transfer_record)).reader.read() == payload
     assert transfer_record.reader.read() == payload
 
 

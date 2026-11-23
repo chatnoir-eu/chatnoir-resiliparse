@@ -79,14 +79,14 @@ pub fn record_types_mask(types: &[i32]) -> u16 {
 
 /// Convert a protobuf `AutoDecode` value to [`AutoDecode`].
 ///
-/// Unrecognized values fall back to [`AutoDecode::None`].
+/// Unspecified and unrecognized values fall back to [`AutoDecode::TransferEncoding`].
 #[must_use]
 pub fn auto_decode(value: i32) -> AutoDecode {
     match pb::AutoDecode::try_from(value).unwrap_or_default() {
-        pb::AutoDecode::Unspecified => AutoDecode::None,
-        pb::AutoDecode::TransferEncoding => AutoDecode::TransferEncoding,
+        pb::AutoDecode::Unspecified | pb::AutoDecode::TransferEncoding => AutoDecode::TransferEncoding,
         pb::AutoDecode::ContentEncoding => AutoDecode::ContentEncoding,
         pb::AutoDecode::All => AutoDecode::All,
+        pb::AutoDecode::None => AutoDecode::None,
     }
 }
 

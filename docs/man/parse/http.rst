@@ -11,8 +11,8 @@ Read Chunked HTTP Payloads
 --------------------------
 
 Resiliparse provides :func:`~.parse.http.read_http_chunk` for reading individual chunks from a chunked HTTP body.
-When reading WARC records, :ref:`FastWARC <fastwarc-manual>` also supports decoding transfer encodings directly with
-``ArchiveIterator(..., auto_decode='transfer')``. Decoding is disabled by default.
+When reading WARC records, :ref:`FastWARC <fastwarc-manual>` decodes transfer encodings by default.
+Use ``ArchiveIterator(..., auto_decode='none')`` to read the stored bytes.
 
 The function accepts a binary file-like object that implements both ``readline()`` and ``read(size)``, such as
 :class:`io.BytesIO`, and is supposed to be called iteratively until no further

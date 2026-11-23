@@ -867,7 +867,8 @@ impl WarcRecordPy {
         let (serialized, http_parsed) = state;
         let mut record = WarcRecord::from_bytes(serialized)?;
         if http_parsed {
-            record.parse_http()?;
+            // The snapshot contains the payload reader's output, which may already be decoded.
+            record.parse_http_with_decode(AutoDecode::None)?;
         }
         self.inner = Arc::new(Mutex::new(record));
         Ok(())
@@ -1219,6 +1220,9 @@ impl WarcRecordPy {
     ///
     /// Quirks mode allows parsing of headers terminated with only LF instead of CRLF.
     ///
+    /// .. versionchanged:: 2.1.0
+    ///    HTTP transfer encoding is decoded by default. Use ``auto_decode='none'`` to read the stored body.
+    ///
     /// :param auto_decode: Automatically decode HTTP payload encodings
     ///     (accepted values: ``'none'``, ``'content'``, ``'transfer'``, ``'all'``).
     /// :param max_header_len: Maximum allowed header length (throws an error if exceeded)
@@ -1226,7 +1230,7 @@ impl WarcRecordPy {
     /// :param strict_mode: This argument is deprecated and ignored.
     /// :raise ValueError: If auto_decode is not a supported decoding mode
     /// :raise OSError: If HTTP headers are invalid, exceed max_header_len, or cannot be read
-    #[pyo3(signature = (auto_decode="none", max_header_len=32 << 10, quirks_mode=false, *, strict_mode=true))]
+    #[pyo3(signature = (auto_decode="transfer", max_header_len=32 << 10, quirks_mode=false, *, strict_mode=true))]
     pub fn parse_http(
         &mut self,
         auto_decode: &str,
@@ -1263,8 +1267,8 @@ impl WarcRecordPy {
     /// Verify before decoding HTTP content encoding.
     ///
     /// .. versionchanged:: 2.1.0
-    ///    Verification decodes HTTP transfer encoding by default. Pass ``decode_transfer=False``
-    ///    to verify against the stored bytes.
+    ///    Verification decodes HTTP transfer encoding by default. To verify against the stored bytes,
+    ///    parse with ``auto_decode='none'`` and pass ``decode_transfer=False``.
     ///
     /// :param consume: Consume the remaining payload instead of preserving it
     /// :param decode_transfer: Decode HTTP transfer encoding for the digest (default: ``True``)
@@ -1282,10 +1286,10 @@ impl WarcRecordPy {
 
     /// Write this record to a stream.
     ///
-    /// Parse HTTP headers with auto-decoding disabled to generate a payload digest
-    /// while preserving the stored HTTP block.
+    /// Read with ``auto_decode='none'`` to preserve the stored HTTP block for writing.
+    /// Parse HTTP headers before writing to generate a payload digest.
     ///
-    /// .. versionchanged:: Unreleased
+    /// .. versionchanged:: 2.1.0
     ///    When generating a payload digest, HTTP transfer encoding is decoded by default.
     ///    The stored HTTP bytes are written as-is. Pass ``decode_transfer=False`` to hash those bytes.
     ///
@@ -1374,6 +1378,9 @@ fn http_datetime_to_py<'py>(py: Python<'py>, value: Option<&str>) -> PyResult<Op
 ///
 /// Exceptions raised by func_filter or a supplied Python stream propagate during iteration.
 ///
+/// .. versionchanged:: 2.1.0
+///    HTTP transfer encoding is decoded by default. Use ``auto_decode='none'`` to read the stored body.
+///
 /// :param stream: Input stream, file-like object, file name, or URL
 /// :param record_types: Bitmask of :class:`WarcRecordType` values to return
 /// :param parse_http: Parse HTTP records automatically
@@ -1451,7 +1458,7 @@ impl ArchiveIteratorPy {
         func_filter=None,
         verify_digests=false,
         quirks_mode=false,
-        auto_decode="none",
+        auto_decode="transfer",
         max_header_len=32 << 10,
         stream_detect=true,
         buffer_size=64 << 10,
@@ -1744,7 +1751,7 @@ pub fn has_payload_digest_py(record: &WarcRecordPy) -> bool {
 
 /// Filter predicate for checking if a record has a valid payload digest.
 ///
-/// .. versionchanged:: Unreleased
+/// .. versionchanged:: 2.1.0
 ///    The filter verifies the payload digest after HTTP transfer decoding.
 ///
 /// :param record: WARC record

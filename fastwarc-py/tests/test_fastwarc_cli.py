@@ -59,12 +59,20 @@ def test_check_decode_transfer(tmp_path, body, write_options, check_options):
     record.init_headers(WarcRecordType.response, b'uuid:cli-chunked')
     record.is_http = True
     record.set_bytes_payload(b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n' + body)
-    record.parse_http()
+    record.parse_http(auto_decode='none')
     source = tmp_path / 'chunked.warc'
     with source.open('wb') as output:
         record.write(output, checksum_data=True, **write_options)
 
-    assert next(iter(ArchiveIterator(io.BytesIO(source.read_bytes())))).reader.read() == body
+    if not check_options:
+        assert next(ArchiveIterator(source)).reader.read() == b'hello'
+        extracted = tmp_path / 'body.bin'
+        invoke('extract', source, 0, '--payload', '-o', extracted)
+        assert extracted.read_bytes() == b'hello'
+    copied = tmp_path / 'record.warc'
+    invoke('extract', source, 0, '-o', copied)
+    assert copied.read_bytes() == source.read_bytes()
+    assert copied.read_bytes().endswith(body + b'\r\n\r\n')
     details = tmp_path / 'check.txt'
     invoke('check', source, '--verify-payloads', *check_options, '-o', details)
     assert details.read_text().strip() == '<urn:uuid:cli-chunked>: OK, PAYLOAD_OK'

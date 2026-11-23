@@ -306,6 +306,11 @@
 //! [`WarcRecord::parse_http()`](warc::record::WarcRecord::parse_http) as long as the reader hasn't been consumed at
 //! that point.
 //!
+//! **Changed in 2.1.0.** HTTP parsing decodes transfer encoding by default and keeps content encoding applied.
+//! Use [`ArchiveIterator::with_decode_http_payload()`](warc::iter::ArchiveIterator::with_decode_http_payload) or
+//! [`WarcRecord::parse_http_with_decode()`](warc::record::WarcRecord::parse_http_with_decode) with
+//! [`AutoDecode::None`](warc::record::AutoDecode::None) to read the stored body.
+//!
 //! # Freezing Records
 //!
 //! By default, [`WarcRecord::reader_mut()`](warc::record::WarcRecord::reader_mut) returns a live reader on the WARC
@@ -363,7 +368,7 @@
 //!
 //! Payload verification decodes HTTP transfer encoding by default and keeps any content encoding applied.
 //! Verify before decoding HTTP content encoding. To hash the stored body, for example when a crawler removed
-//! the transfer coding but kept its header, use
+//! the transfer coding but kept its header, read with [`AutoDecode::None`](warc::record::AutoDecode::None) and use
 //! [`verify_payload_digest_with_opts(false, false)`](warc::record::WarcRecord::verify_payload_digest_with_opts).
 //!
 //! > **Warning:** Calling either of these two methods will create an in-memory copy of the remaining record stream to
@@ -454,7 +459,8 @@
 //!
 //! You can also use [`WarcRecord::write_with_checksum()`](warc::record::WarcRecord::write_with_checksum) to automatically
 //! calculate and write SHA-1 checksums of the record contents and HTTP payload (if available).
-//! To generate an HTTP payload digest, parse the HTTP headers without auto-decoding before writing. The payload digest
+//! Read records with [`AutoDecode::None`](warc::record::AutoDecode::None) before writing them. To generate an HTTP
+//! payload digest, parse the HTTP headers and use the checksum-writing method. The payload digest
 //! covers the transfer-decoded body with any content encoding still applied. The written block and its checksum use
 //! the stored HTTP bytes. Pass `decode_transfer = false` to
 //! [`WarcRecord::write_with_block_size_checksum_opts()`](warc::record::WarcRecord::write_with_block_size_checksum_opts)

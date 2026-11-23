@@ -90,7 +90,7 @@ def _verify_digests(infile, verify_payloads, decompress_alg, decode_transfer):
             if check_payload:
                 if 'WARC-Payload-Digest' in record.headers:
                     if record.is_http:
-                        record.parse_http()
+                        record.parse_http(auto_decode='transfer' if decode_transfer else 'none')
                     result['payload_digest_ok'] = record.verify_payload_digest(True, decode_transfer=decode_transfer)
                 else:
                     result['payload_digest_ok'] = None
@@ -227,7 +227,7 @@ def check(infile, decompress_alg, verify_payloads, no_decode_transfer, quiet, ou
 @click.option('-o', '--output', type=click.File('wb'), default='-',
               help='Output file, default is stdout')
 @click.option('--payload', is_flag=True,
-              help='Output only record payload (transfer and/or content encoding are preserved')
+              help='Output only the payload, with any HTTP transfer encoding decoded')
 @click.option('--headers', is_flag=True, help='Output only record (and HTTP) headers')
 def extract(infile, offset, output, payload, headers):
     """
@@ -241,7 +241,7 @@ def extract(infile, offset, output, payload, headers):
     with open(infile, 'rb') as stream:
         stream.seek(offset)
         try:
-            iterator = ArchiveIterator(stream)
+            iterator = ArchiveIterator(stream, parse_http=not compl_record)
             record = next(iterator)
             if compl_record:
                 record.write(output)

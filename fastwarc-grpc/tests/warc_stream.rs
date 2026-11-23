@@ -20,6 +20,7 @@ mod common;
 
 use rstest::rstest;
 use std::io::Read;
+use tokio_stream::StreamExt;
 
 use common::{RecordOutcome, collect_warc, data_path, direct_options, group_responses, records_only};
 use fastwarc::warc::iter::{ArchiveIterator, filter};
@@ -195,6 +196,37 @@ async fn verify_digests() {
 
     let unverified = collect_warc("warcfile.warc", 8 << 10, &default_config()).await;
     assert!(records.len() < records_only(&group_responses(&unverified)).len());
+}
+
+#[rstest]
+#[case::default(pb::AutoDecode::Unspecified, b"abc")]
+#[case::stored(pb::AutoDecode::None, b"3\r\nabc\r\n0\r\n\r\n")]
+#[tokio::test]
+async fn http_transfer_decoding(#[case] mode: pb::AutoDecode, #[case] expected: &[u8]) {
+    let http = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n";
+    let archive = format!(
+        "WARC/1.0\r\nWARC-Type: response\r\nWARC-Record-ID: <urn:uuid:transfer>\r\n\
+         Content-Type: application/http; msgtype=response\r\nContent-Length: {}\r\n\r\n{http}\r\n\r\n",
+        http.len()
+    );
+    let config = pb::ParseWarcConfig {
+        decode_http_payload: mode as i32,
+        ..Default::default()
+    };
+    let requests = common::warc_requests(archive.as_bytes(), 256, &config);
+    let responses = common::warc_client()
+        .await
+        .parse_warc(tokio_stream::iter(requests))
+        .await
+        .unwrap()
+        .into_inner()
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let outcomes = group_responses(&responses);
+    assert!(matches!(outcomes.as_slice(), [RecordOutcome::Record { payload, .. }] if payload == expected));
 }
 
 /// One directly-parsed record for the losslessness comparison.

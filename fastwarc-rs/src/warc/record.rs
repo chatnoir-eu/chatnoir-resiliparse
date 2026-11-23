@@ -258,8 +258,8 @@ fn _parse_content_length_bytes(value: &[u8]) -> u64 {
 ///
 /// # Options:
 ///
-/// * `None` - Do not auto-decode content stream.
-/// * `TransferEncoding` - Auto-decode `Transfer-Encoding`.
+/// * `None` - Do not auto-decode content stream (default enum value).
+/// * `TransferEncoding` - Auto-decode `Transfer-Encoding` (default when parsing HTTP).
 /// * `ContentEncoding` - Auto-decode `Content-Encoding`.
 /// * `All` - Auto-decode both.
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq)]
@@ -1047,14 +1047,14 @@ impl WarcRecord {
     ///
     /// It is safe to call this method multiple times, even if the record is not an HTTP record.
     ///
-    /// If the HTTP payload is still transfer- or content-encoded, use [`Self::parse_http_with_opts()`]
-    /// to automatically wrap the payload reader in the required [`WarcRead`] implementation.
-    /// Usually, web archivers already decode the contents, so in most cases, this shouldn't be necessary.
+    /// **Changed (2.1.0).** Decodes HTTP transfer encoding by default and keeps content encoding applied.
+    /// Use [`Self::parse_http_with_decode()`] with [`AutoDecode::None`] to read the stored body or handle stale
+    /// transfer encoding headers.
     ///
     /// Returns an error if a header exceeds 32 KiB in size. Use [`Self::parse_http_with_opts()`] if you
     /// need to set a larger limit.
     pub fn parse_http(&mut self) -> Result<(), io::Error> {
-        self.parse_http_with_opts(AutoDecode::None, 32 << 10, false)
+        self.parse_http_with_opts(AutoDecode::TransferEncoding, 32 << 10, false)
     }
 
     /// Parse HTTP headers and advance content reader. Transfer- or content-encoded payloads can be
@@ -1218,6 +1218,7 @@ impl WarcRecord {
     ///
     /// The default block size is 16384 bytes and no record checksums are calculated.
     /// Use [`Self::write_with_block_size`] or [`Self::write_with_block_size_checksum`] for more control.
+    /// Use [`AutoDecode::None`] when reading a record for writing.
     ///
     /// Does not explicitly start or end compression members. If you are writing into a
     /// [`crate::stream_io::traits::WarcWrite`] that supports multi-member streams, it's up to the
@@ -1285,7 +1286,7 @@ impl WarcRecord {
     /// [`crate::stream_io::traits::WarcWrite`] that supports multi-member streams, it's up to the
     /// user to call [`crate::stream_io::traits::WarcWrite::finish()`] afterwards.
     ///
-    /// **Changed (Unreleased).** HTTP payload digests are calculated after transfer decoding, with any content
+    /// **Changed (2.1.0).** HTTP payload digests are calculated after transfer decoding, with any content
     /// encoding still applied. The stored HTTP bytes are written as-is.
     /// Use [`Self::write_with_block_size_checksum_opts()`] with `decode_transfer = false` to hash the body as stored.
     ///
@@ -1309,7 +1310,7 @@ impl WarcRecord {
 
     /// Write WARC record onto a stream with a given block size and calculate SHA-1 record checksums.
     ///
-    /// Parse the HTTP headers with [`Self::parse_http()`] to generate a payload digest.
+    /// Parse the HTTP headers with [`Self::parse_http_with_decode()`] and [`AutoDecode::None`] to generate a payload digest.
     /// With transfer decoding enabled, the payload digest covers the transfer-decoded bytes.
     /// The written record and its block digest use the stored HTTP bytes.
     ///
@@ -1452,9 +1453,10 @@ impl WarcRecord {
     /// Parse the HTTP headers before calling this method. Revisit payloads require
     /// interpreting the revisit profile and may come from another record.
     ///
-    /// **Changed (Unreleased).** The digest covers the body after transfer decoding, with any content encoding
+    /// **Changed (2.1.0).** The digest covers the body after transfer decoding, with any content encoding
     /// still applied.
-    /// Use [`Self::verify_payload_digest_with_opts()`] with `decode_transfer = false` to skip transfer decoding.
+    /// To verify against the stored bytes, parse with [`AutoDecode::None`] and use
+    /// [`Self::verify_payload_digest_with_opts()`] with `decode_transfer = false`.
     ///
     /// # Arguments
     ///
