@@ -385,7 +385,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fastwarc"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "brotli",
  "data-encoding",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-grpc"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "cap-std",
  "fastwarc",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "fastwarc-py"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "fastwarc",
  "pyo3",
@@ -1177,7 +1177,7 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "resiliparse"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "bindgen",
  "parking_lot",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "resiliparse-py"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "libc",
  "pyo3",
