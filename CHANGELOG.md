@@ -13,6 +13,7 @@
 - Rust: Return `DigestError::NoPayload` when verifying a revisit payload digest.
 - Python: Return `False` when a revisit payload digest cannot be verified locally.
 - Python: Skip revisit payload digests in `fastwarc check --verify-payloads`.
+- Python: Fix `WarcRecordType`, `WarcHeader`, and filter predicates not being pickleable.
 
 ### FastWARC-gRPC
 

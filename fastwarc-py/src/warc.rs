@@ -21,13 +21,14 @@ use fastwarc::warc::header::{HeaderEncoding, HeaderMap, WarcHeader};
 use fastwarc::warc::iter::{ArchiveIteratorOptions, ArchiveIteratorThreadSafe, ArchiveIteratorTrait, filter};
 use fastwarc::warc::record::{AutoDecode, WarcRecord, WarcRecordType};
 use fastwarc::warc::record::{DigestError::StreamError, SharedWarcRecord};
-use pyo3::exceptions::{PyKeyError, PyOSError, PyValueError};
-use pyo3::intern;
+use pyo3::exceptions::{PyKeyError, PyOSError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{
     PyBool, PyBytes, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyDict, PyIterator, PyString, PyTimeAccess,
     PyTuple, PyType,
 };
+use pyo3::{PyTypeInfo, intern};
+use std::fmt::Debug;
 use std::io::{self, Read, Seek};
 use std::sync::{Arc, Mutex, MutexGuard};
 use time::{Date, Month, OffsetDateTime, Time, UtcOffset};
@@ -96,6 +97,10 @@ impl From<WarcRecordType> for WarcRecordTypePy {
 
 #[pymethods]
 impl WarcRecordTypePy {
+    pub fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<ReduceByName<'py>> {
+        reduce_by_name(py, self)
+    }
+
     pub fn __index__(&self) -> u16 {
         *self as u16
     }
@@ -131,6 +136,15 @@ impl WarcRecordTypePy {
     pub fn __str__(&self) -> &'static str {
         WarcRecordType::from(*self).as_str()
     }
+}
+
+/// Pickle reduction tuple that restores an enum member via ``getattr(cls, name)``.
+type ReduceByName<'py> = (Bound<'py, PyAny>, (Bound<'py, PyType>, String));
+
+/// Reduce a simple enum member to a lookup of its variant name on its class.
+fn reduce_by_name<'py, T: PyTypeInfo + Debug>(py: Python<'py>, value: &T) -> PyResult<ReduceByName<'py>> {
+    let getattr = PyModule::import(py, "builtins")?.getattr("getattr")?;
+    Ok((getattr, (py.get_type::<T>(), format!("{value:?}"))))
 }
 
 // ===========================================================
@@ -198,6 +212,10 @@ impl From<WarcHeaderPy> for WarcHeader {
 
 #[pymethods]
 impl WarcHeaderPy {
+    pub fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<ReduceByName<'py>> {
+        reduce_by_name(py, self)
+    }
+
     pub fn __str__(&self) -> &'static str {
         WarcHeader::from(*self).as_str()
     }
@@ -1698,6 +1716,21 @@ pub struct NativeFilterPy {
 
 #[pymethods]
 impl NativeFilterPy {
+    /// Reduce to a call of the factory function that created this filter.
+    ///
+    /// :raise TypeError: If the filter is not parameterized
+    pub fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (u64,))> {
+        let (factory, arg) = match self.kind {
+            NativeFilterKind::HasRecordType(mask) => ("has_record_type", mask as u64),
+            NativeFilterKind::HasContentLengthLte(max) => ("has_content_length_lte", max),
+            NativeFilterKind::HasContentLengthGte(min) => ("has_content_length_gte", min),
+            // Parameterless filters are exposed as plain module functions and never wrapped
+            _ => return Err(PyTypeError::new_err("Unparameterized filters are not pickled.")),
+        };
+        let module = py.import(intern!(py, "fastwarc.warc"))?;
+        Ok((module.getattr(factory)?, (arg,)))
+    }
+
     pub fn __call__(&self, record: &WarcRecordPy) -> bool {
         let mut record = record.lock();
         self.kind.apply(&mut record)

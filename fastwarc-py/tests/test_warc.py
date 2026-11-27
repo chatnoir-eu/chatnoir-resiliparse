@@ -349,18 +349,61 @@ def test_warc_record_write():
     assert restored.http_content_type == "text/plain"
 
 
-def test_record_and_header_pickle():
-    record = WarcRecord()
-    record.init_headers(unknown, b"urn:uuid:test-record")
-    record.record_type = response
-    record.is_http = True
-    record.set_bytes_content(_http_payload())
+@pytest.mark.parametrize("value", [
+    response,
+    WarcRecordType.any_type,
+    WarcRecordType.no_type,
+    WarcHeader.WARC_TYPE,
+    WarcHeader.WARC_SEGMENT_TOTAL_LENGTH,
+])
+@pytest.mark.parametrize("protocol", [0, pickle.HIGHEST_PROTOCOL])
+def test_enum_pickle(value, protocol):
+    # Enum members unpickle to the canonical class members
+    assert pickle.loads(pickle.dumps(value, protocol)) is value
+
+
+def _owned_header_map(encoding: str) -> HeaderMap:
+    headers = HeaderMap(encoding)
+    headers["X-Test"] = "ä"
+    return headers
+
+
+def _http_header_map() -> HeaderMap:
+    record = _make_http_record()
+    record.parse_http()
+    return record.http_headers
+
+
+@pytest.mark.parametrize("make_headers", [
+    lambda: _owned_header_map("utf-8"),
+    lambda: _owned_header_map("latin1"),
+    lambda: _make_http_record().headers,
+    _http_header_map,
+], ids=["utf-8", "latin1", "warc", "http"])
+def test_header_map_pickle(make_headers):
+    headers = make_headers()
+    restored = pickle.loads(pickle.dumps(headers))
+    assert restored == headers
+    assert restored.encoding() == headers.encoding()
+    assert restored.status_line == headers.status_line
+
+
+@pytest.mark.parametrize(("make_filter", "expected"), [
+    (lambda: has_record_type(response), True),
+    (lambda: has_record_type(request | revisit), False),
+    (lambda: has_content_length_lte(0), False),
+    (lambda: has_content_length_gte(1), True),
+])
+def test_native_filter_pickle(make_filter, expected):
+    restored = pickle.loads(pickle.dumps(make_filter()))
+    assert type(restored) is type(make_filter())
+    assert restored(_make_http_record()) is expected
+
+
+def test_record_pickle():
+    record = _make_http_record()
     assert record.is_frozen
 
-    # Pickle headers
-    assert pickle.loads(pickle.dumps(record.headers)) == record.headers
-
-    # Pickle entire record
     record_roundtrip = pickle.loads(pickle.dumps(record))
     assert record_roundtrip == record
     assert record_roundtrip is not record
